@@ -53,6 +53,28 @@ Default Vite ports: admin → 5173, student → 5174, lecturer → 5175 (may var
 - `src/components/layout/` — structural wrappers (Sidebar, Topbar, BottomNav, PhoneFrame, StatusBar)
 - `src/views/` — page-level components, one file per route/screen
 
+## Project Documentation
+
+All requirements and use case specs live in `docs/`. Reference these before designing APIs, schemas, or backend logic.
+
+```
+docs/
+├── requirements/
+│   ├── functional-requirements.md      # FR-001–FR-062, grouped by module
+│   └── non-functional-requirements.md  # NFR-01–NFR-39, grouped by category
+└── use-cases/
+    ├── UC-01-08-face-detection-attendance.md
+    ├── UC-09-13-environmental-sensing.md
+    ├── UC-14-23-desk-projection-quiz.md
+    └── UC-24-32-analytics-user-management.md
+```
+
+**Module ownership:**
+- Modules 1, 2, 5, 6 → Yew Sing
+- Modules 3, 4, 7, 8 → Shino
+
+**Diagrams still to be created:** System Architecture, Module Diagram, Class Diagram, ERD, Activity Diagrams, Navigation Diagram, Wireframes.
+
 ## Key Prototype Files
 - `frontend/lecturer_app_prototype_v3_5_1.html` — standalone HTML prototype for lecturer app
 - `frontend/student_app_prototype_v2.html` — standalone HTML prototype for student app
