@@ -1,0 +1,1587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartClass — Lecturer App v2</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --blue:#1B6EF3;--blue-lt:#EBF2FF;--blue-dk:#0D4DB5;
+  --green:#12A564;--green-lt:#E8F8F1;--green-dk:#0A7347;
+  --red:#E03A3A;--red-lt:#FEECEC;--red-dk:#B02626;
+  --orange:#E87722;--orange-lt:#FEF3E8;--orange-dk:#B85A10;
+  --yellow:#D4960A;--yellow-lt:#FEF9E7;--yellow-dk:#9A6A00;
+  --gray-50:#F7F8FA;--gray-100:#EFF1F4;--gray-200:#E2E5EA;
+  --gray-300:#C8CDD7;--gray-400:#9AA0AF;--gray-500:#6B7280;
+  --gray-600:#4B5563;--gray-700:#374151;--gray-800:#1F2937;--gray-900:#111827;
+  --bg:#F5F6F8;--card:#FFFFFF;--text:#1A1D23;--text-sub:#6B7280;--text-hint:#9AA0AF;--border:#E2E5EA;
+  --radius:12px;--radius-sm:8px;--radius-xs:6px;--nav-h:64px;--font:'DM Sans',sans-serif;--font-mono:'DM Mono',monospace;
+}
+body{font-family:var(--font);background:#B8BDC8;display:flex;justify-content:center;align-items:flex-start;min-height:100vh;padding:24px 0 48px;}
+.phone-frame{width:390px;min-height:844px;background:var(--bg);border-radius:40px;overflow:hidden;position:relative;box-shadow:0 32px 80px rgba(0,0,0,0.32),0 0 0 1px rgba(0,0,0,0.14),inset 0 0 0 1px rgba(255,255,255,0.5);}
+.screen{display:none;flex-direction:column;height:844px;overflow:hidden;position:relative;background:var(--bg);}
+.screen.active{display:flex;}
+.scroll-body{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+.scroll-body::-webkit-scrollbar{display:none;}
+.status-bar{height:48px;background:transparent;display:flex;align-items:flex-end;justify-content:space-between;padding:0 24px 6px;flex-shrink:0;}
+.status-time{font-size:13px;font-weight:700;color:var(--text);}
+.status-icons{display:flex;align-items:center;gap:6px;}
+.status-icons i{font-size:13px;color:var(--text);}
+/* TOPBAR */
+.topbar{background:var(--card);border-bottom:1px solid var(--border);padding:12px 20px;flex-shrink:0;display:flex;align-items:center;gap:12px;}
+.back-btn{width:36px;height:36px;border-radius:10px;background:var(--gray-100);border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--gray-700);font-size:16px;flex-shrink:0;}
+.topbar-title{font-size:16px;font-weight:700;color:var(--text);flex:1;}
+.topbar-sub{font-size:12px;color:var(--text-sub);margin-top:1px;}
+/* BOTTOM NAV */
+.bottomnav{height:var(--nav-h);background:var(--card);border-top:1px solid var(--border);display:flex;flex-shrink:0;}
+.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;border:none;background:none;padding:6px 0;-webkit-tap-highlight-color:transparent;transition:all .15s;font-family:var(--font);}
+.nav-item i{font-size:20px;color:var(--gray-400);}
+.nav-item span{font-size:10px;color:var(--gray-400);font-weight:600;letter-spacing:.02em;}
+.nav-item.active i{color:var(--blue);}
+.nav-item.active span{color:var(--blue);}
+/* CARDS */
+.card{background:var(--card);border-radius:var(--radius);border:1px solid var(--border);padding:16px;margin:0 16px 12px;}
+.card-label{font-size:11px;font-weight:700;color:var(--text-sub);text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px;}
+/* BADGES */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap;}
+.badge.green{background:var(--green-lt);color:var(--green-dk);}
+.badge.red{background:var(--red-lt);color:var(--red-dk);}
+.badge.orange{background:var(--orange-lt);color:var(--orange-dk);}
+.badge.yellow{background:var(--yellow-lt);color:var(--yellow-dk);}
+.badge.gray{background:var(--gray-100);color:var(--gray-600);}
+.badge.blue{background:var(--blue-lt);color:var(--blue-dk);}
+.badge.dot::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;}
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 18px;border-radius:var(--radius-sm);font-size:14px;font-weight:700;cursor:pointer;border:none;transition:all .15s;font-family:var(--font);white-space:nowrap;}
+.btn:active{transform:scale(0.97);}
+.btn-primary{background:var(--blue);color:#fff;}
+.btn-green{background:var(--green);color:#fff;}
+.btn-red{background:var(--red);color:#fff;}
+.btn-danger{background:var(--red-lt);color:var(--red-dk);border:1px solid #f5c5c5;}
+.btn-outline{background:transparent;color:var(--text);border:1px solid var(--border);}
+.btn-outline:hover{background:var(--gray-50);}
+.btn-ghost{background:var(--gray-100);color:var(--gray-700);}
+.btn-full{width:100%;}
+.btn-sm{padding:7px 12px;font-size:12px;border-radius:var(--radius-xs);}
+/* INPUTS */
+input[type=text],input[type=email],input[type=password],textarea,select{width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:14px;font-family:var(--font);background:var(--card);color:var(--text);outline:none;transition:border-color .15s;}
+input:focus,textarea:focus,select:focus{border-color:var(--blue);}
+textarea{resize:none;}
+/* MODAL */
+.modal-overlay{display:none;position:absolute;inset:0;background:rgba(10,15,28,.55);z-index:100;align-items:flex-end;justify-content:center;}
+.modal-overlay.open{display:flex;}
+.modal-sheet{background:var(--card);border-radius:20px 20px 0 0;width:100%;padding:20px;max-height:92%;overflow-y:auto;}
+.modal-handle{width:36px;height:4px;background:var(--gray-200);border-radius:2px;margin:0 auto 18px;}
+.modal-title{font-size:17px;font-weight:700;color:var(--text);margin-bottom:14px;}
+.modal-divider{border:none;border-top:1px solid var(--border);margin:14px 0;}
+/* SECTION */
+.section-header{padding:14px 16px 8px;display:flex;align-items:center;justify-content:space-between;}
+.section-title{font-size:11px;font-weight:700;color:var(--text-sub);text-transform:uppercase;letter-spacing:.06em;}
+/* FORM */
+.form-group{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;}
+.form-label{font-size:13px;font-weight:700;color:var(--gray-600);}
+.input-wrap{position:relative;}
+.input-wrap i.lead{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--gray-400);font-size:16px;}
+.input-wrap input{padding-left:38px;}
+.input-icon-btn{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--gray-400);font-size:16px;}
+/* STATUS DOT */
+.status-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.status-dot.green{background:var(--green);}
+.status-dot.red{background:var(--red);}
+.status-dot.yellow{background:var(--yellow);}
+/* BTN ROW */
+.btn-row{display:flex;gap:10px;}
+
+/* ===== LOGIN ===== */
+#s-login{background:linear-gradient(160deg,#EBF2FF 0%,#F5F6F8 55%);}
+.login-top{padding:48px 32px 24px;display:flex;flex-direction:column;align-items:center;gap:10px;}
+.app-logo{width:64px;height:64px;background:var(--blue);border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:28px;color:#fff;margin-bottom:4px;}
+.app-name{font-size:22px;font-weight:700;color:var(--text);letter-spacing:-.5px;}
+.app-tagline{font-size:12px;color:var(--text-sub);text-align:center;line-height:1.5;}
+.login-form{background:var(--card);border-radius:24px 24px 0 0;padding:28px 24px 40px;flex:1;display:flex;flex-direction:column;gap:0;}
+.login-form h2{font-size:20px;font-weight:700;color:var(--text);margin-bottom:4px;}
+.login-form .sub{font-size:13px;color:var(--text-sub);margin-bottom:20px;}
+.forgot-link{font-size:13px;color:var(--blue);font-weight:700;cursor:pointer;text-align:right;margin-top:-8px;margin-bottom:16px;}
+.login-note{font-size:12px;color:var(--text-hint);text-align:center;margin-top:12px;}
+
+/* ===== DASHBOARD ===== */
+.dash-header{background:var(--card);padding:14px 20px 16px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.class-name{font-size:16px;font-weight:700;color:var(--text);line-height:1.3;}
+.class-meta{font-size:12px;color:var(--text-sub);margin-top:2px;}
+.session-toggle-btn{padding:9px 18px;border-radius:20px;font-size:13px;font-weight:700;border:none;cursor:pointer;white-space:nowrap;transition:all .2s;flex-shrink:0;font-family:var(--font);}
+.session-toggle-btn.can-close{background:var(--red-lt);color:var(--red-dk);border:1px solid #f5c5c5;}
+.session-toggle-btn.can-open{background:var(--green);color:#fff;}
+
+/* No session state */
+.no-session-state{margin:16px;background:var(--card);border-radius:var(--radius);border:1px solid var(--border);padding:24px 20px;text-align:center;}
+.no-session-icon{font-size:40px;color:var(--gray-300);margin-bottom:12px;}
+.no-session-title{font-size:16px;font-weight:700;color:var(--text);margin-bottom:6px;}
+.no-session-sub{font-size:13px;color:var(--text-sub);line-height:1.5;margin-bottom:16px;}
+.last-session-chip{background:var(--gray-50);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:16px;text-align:left;}
+.last-session-chip .l{font-size:11px;color:var(--text-hint);font-weight:600;text-transform:uppercase;letter-spacing:.05em;}
+.last-session-chip .v{font-size:13px;color:var(--text);font-weight:600;margin-top:2px;}
+
+/* Attendance card */
+.attend-stats{display:flex;gap:10px;}
+.attend-stat{flex:1;text-align:center;padding:10px 6px;border-radius:10px;}
+.attend-stat .num{font-size:26px;font-weight:700;}
+.attend-stat .lbl{font-size:11px;font-weight:700;margin-top:2px;}
+.attend-stat.present{background:var(--green-lt);}
+.attend-stat.present .num{color:var(--green);}
+.attend-stat.present .lbl{color:var(--green-dk);}
+.attend-stat.absent{background:var(--red-lt);}
+.attend-stat.absent .num{color:var(--red);}
+.attend-stat.absent .lbl{color:var(--red-dk);}
+.attend-stat.unid{background:var(--orange-lt);}
+.attend-stat.unid .num{color:var(--orange);}
+.attend-stat.unid .lbl{color:var(--orange-dk);}
+.attend-card-footer{margin-top:10px;font-size:12px;color:var(--text-hint);display:flex;align-items:center;gap:4px;}
+.tappable-card{cursor:pointer;transition:all .15s;}
+.tappable-card:active{transform:scale(.99);box-shadow:0 0 0 2px var(--blue-lt);}
+
+/* Confusion */
+.confusion-num{font-size:40px;font-weight:700;line-height:1;}
+.confusion-num.yellow{color:var(--yellow);}
+.confusion-num.green{color:var(--green);}
+.confusion-num.red{color:var(--red);}
+.confusion-bar{height:6px;border-radius:3px;background:var(--gray-100);margin-top:12px;overflow:hidden;}
+.confusion-fill{height:100%;border-radius:3px;}
+
+/* Env strip */
+.env-strip{margin:0 16px 12px;background:var(--gray-800);border-radius:var(--radius);padding:12px 16px;cursor:pointer;transition:all .15s;}
+.env-strip:active{transform:scale(.99);}
+.env-strip-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+.env-strip-title{font-size:11px;font-weight:700;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.06em;}
+.env-strip-arrow{font-size:13px;color:rgba(255,255,255,.4);}
+.env-metrics{display:flex;justify-content:space-around;}
+.env-metric{text-align:center;}
+.env-metric .val{font-size:15px;font-weight:700;color:#fff;font-family:var(--font-mono);}
+.env-metric .unit{font-size:9px;color:rgba(255,255,255,.45);}
+.env-metric .lbl{font-size:10px;color:rgba(255,255,255,.55);margin-top:2px;font-weight:600;}
+
+/* Quiz cards */
+.quiz-card-item{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin:0 16px 10px;cursor:pointer;transition:all .15s;}
+.quiz-card-item:active{transform:scale(.99);}
+.qci-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px;}
+.qci-q{font-size:13px;font-weight:600;color:var(--text);line-height:1.4;flex:1;}
+.qci-meta{font-size:11px;color:var(--text-hint);}
+.create-quiz-btn{margin:0 16px 12px;background:var(--blue-lt);border:1.5px dashed #93BCFC;border-radius:var(--radius);padding:14px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:all .15s;}
+.create-quiz-btn:active{transform:scale(.99);}
+.create-quiz-btn .icon{width:36px;height:36px;background:var(--blue);border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;flex-shrink:0;}
+.create-quiz-btn .t{font-size:14px;font-weight:700;color:var(--blue-dk);}
+.create-quiz-btn .s{font-size:12px;color:var(--blue);margin-top:1px;}
+
+/* ===== ATTENDANCE LIST (session picker) ===== */
+.session-item{background:var(--card);border-bottom:1px solid var(--border);padding:14px 16px;cursor:pointer;display:flex;align-items:center;gap:12px;transition:background .12s;}
+.session-item:active{background:var(--gray-50);}
+.session-date-block{width:44px;height:44px;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;}
+.session-date-block .d{font-size:18px;font-weight:700;line-height:1;}
+.session-date-block .m{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;}
+.session-info{flex:1;}
+.session-info .title{font-size:14px;font-weight:700;color:var(--text);}
+.session-info .sub{font-size:12px;color:var(--text-sub);margin-top:2px;}
+.session-stats-row{display:flex;gap:8px;margin-top:6px;}
+.sess-chip{font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px;}
+
+/* ===== ATTENDANCE DETAIL ===== */
+.search-bar{margin:12px 16px;position:relative;}
+.search-bar i{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--gray-400);font-size:16px;}
+.search-bar input{padding-left:38px;}
+.sort-row{display:flex;justify-content:space-between;align-items:center;padding:0 16px 8px;}
+.sort-label{font-size:12px;color:var(--text-sub);}
+.sort-btn{padding:5px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);font-size:12px;font-weight:700;color:var(--gray-600);cursor:pointer;font-family:var(--font);display:flex;align-items:center;gap:4px;}
+.student-row{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--card);border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s;}
+.student-row:active{background:var(--gray-50);}
+.student-avatar{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;}
+.student-name{font-size:14px;font-weight:700;color:var(--text);}
+.student-id{font-size:12px;color:var(--text-sub);}
+.student-row-right{margin-left:auto;display:flex;align-items:center;gap:8px;}
+.attend-header-card{background:var(--blue-lt);margin:12px 16px;border-radius:var(--radius);padding:12px 16px;}
+.attend-header-card .row{display:flex;justify-content:space-between;align-items:center;}
+.attend-header-card .label{font-size:12px;color:var(--blue-dk);font-weight:600;}
+.attend-header-card .val{font-size:13px;font-weight:700;color:var(--blue-dk);}
+
+/* ===== QUIZ LIST ===== */
+.quiz-list-header{padding:16px;background:var(--card);border-bottom:1px solid var(--border);}
+.quiz-filter-row{display:flex;gap:8px;padding:10px 16px;background:var(--card);border-bottom:1px solid var(--border);}
+.filter-pill{padding:6px 14px;border-radius:20px;font-size:12px;font-weight:700;border:1.5px solid var(--border);background:var(--card);cursor:pointer;font-family:var(--font);color:var(--gray-500);transition:all .15s;}
+.filter-pill.active{background:var(--blue);border-color:var(--blue);color:#fff;}
+
+/* ===== CREATE QUIZ ===== */
+.answer-option{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.option-label{width:28px;height:28px;border-radius:8px;background:var(--gray-100);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--gray-600);flex-shrink:0;}
+.correct-toggle{width:28px;height:28px;border-radius:8px;border:1.5px solid var(--border);background:var(--card);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:all .15s;}
+.correct-toggle.active{background:var(--green);border-color:var(--green);color:#fff;}
+.correct-toggle i{font-size:14px;}
+.time-pill-group{display:flex;gap:8px;}
+.time-pill{flex:1;padding:9px;text-align:center;border:1.5px solid var(--border);border-radius:20px;font-size:13px;font-weight:700;color:var(--gray-500);cursor:pointer;transition:all .15s;background:var(--card);font-family:var(--font);}
+.time-pill.active{background:var(--blue);border-color:var(--blue);color:#fff;}
+
+/* ===== LIVE RESULTS ===== */
+.timer-block{text-align:center;padding:18px 0 14px;}
+.timer-num{font-size:52px;font-weight:700;color:var(--text);font-family:var(--font-mono);letter-spacing:2px;}
+.timer-num.ended{font-size:22px;color:var(--red);letter-spacing:0;}
+.timer-label{font-size:13px;color:var(--text-sub);margin-top:4px;}
+.response-summary{display:flex;gap:10px;margin:0 16px 14px;}
+.resp-stat{flex:1;background:var(--gray-50);border-radius:var(--radius-sm);padding:10px;text-align:center;}
+.resp-stat .n{font-size:20px;font-weight:700;color:var(--text);}
+.resp-stat .l{font-size:11px;color:var(--text-sub);margin-top:2px;font-weight:600;}
+.chart-bars{padding:0 16px;}
+.bar-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.bar-opt{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;}
+.bar-opt.correct{background:var(--green);color:#fff;}
+.bar-opt.wrong{background:var(--gray-100);color:var(--gray-500);}
+.bar-track{flex:1;height:28px;background:var(--gray-100);border-radius:8px;overflow:hidden;position:relative;}
+.bar-fill{height:100%;border-radius:8px;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;transition:width .5s ease;}
+.bar-fill.correct-f{background:var(--green-lt);}
+.bar-fill.wrong-f{background:var(--blue-lt);}
+.bar-pct-c{font-size:12px;font-weight:700;color:var(--green-dk);}
+.bar-pct-w{font-size:12px;font-weight:700;color:var(--blue-dk);}
+.bar-count{font-size:12px;color:var(--text-sub);width:20px;text-align:right;}
+
+/* ===== BREAKDOWN ===== */
+.question-banner{background:var(--blue-lt);margin:12px 16px;border-radius:var(--radius);padding:14px;}
+.question-banner .q{font-size:14px;font-weight:700;color:var(--blue-dk);line-height:1.5;}
+.question-banner .correct-ans{margin-top:8px;display:flex;align-items:flex-start;gap:6px;}
+.question-banner .correct-ans span{font-size:12px;color:var(--green-dk);font-weight:700;line-height:1.4;}
+.breakdown-summary{display:flex;gap:8px;margin:0 16px 14px;}
+.bkdn-stat{flex:1;text-align:center;padding:10px;border-radius:var(--radius-sm);}
+.bkdn-stat .n{font-size:22px;font-weight:700;}
+.bkdn-stat .l{font-size:11px;font-weight:700;margin-top:2px;}
+.bkdn-stat.correct-s{background:var(--green-lt);}
+.bkdn-stat.correct-s .n{color:var(--green);}
+.bkdn-stat.correct-s .l{color:var(--green-dk);}
+.bkdn-stat.wrong-s{background:var(--red-lt);}
+.bkdn-stat.wrong-s .n{color:var(--red);}
+.bkdn-stat.wrong-s .l{color:var(--red-dk);}
+.bkdn-stat.unans-s{background:var(--gray-100);}
+.bkdn-stat.unans-s .n{color:var(--gray-500);}
+.bkdn-stat.unans-s .l{color:var(--gray-600);}
+.breakdown-table{background:var(--card);border-radius:var(--radius);margin:0 16px;overflow:hidden;border:1px solid var(--border);}
+.bkdn-row{display:flex;align-items:center;padding:11px 14px;gap:12px;border-bottom:1px solid var(--border);}
+.bkdn-row:last-child{border-bottom:none;}
+.bkdn-row .name{font-size:13px;font-weight:600;color:var(--text);flex:1;}
+.bkdn-row .answer{font-size:13px;color:var(--text-sub);font-family:var(--font-mono);min-width:28px;}
+.bkdn-row .result-icon{font-size:17px;}
+
+/* ===== ANALYTICS ===== */
+.tabs-row{display:flex;background:var(--card);border-bottom:1px solid var(--border);flex-shrink:0;}
+.tab{flex:1;padding:12px;text-align:center;font-size:13px;font-weight:700;color:var(--text-sub);cursor:pointer;border-bottom:2.5px solid transparent;transition:all .15s;}
+.tab.active{color:var(--blue);border-bottom-color:var(--blue);}
+.filter-row{display:flex;gap:8px;padding:10px 16px;background:var(--card);border-bottom:1px solid var(--border);flex-shrink:0;}
+.chart-card{margin:12px 16px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;}
+.chart-card h3{font-size:13px;font-weight:700;color:var(--text);margin-bottom:12px;}
+.mini-chart{height:110px;display:flex;align-items:flex-end;gap:6px;}
+.bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;}
+.bar-col .bar-vis{border-radius:4px 4px 0 0;width:100%;}
+.bar-col .bar-vis.blue{background:var(--blue);}
+.bar-col .bar-vis.green{background:var(--green);}
+.bar-col .lbl-x{font-size:9px;color:var(--text-hint);text-align:center;}
+.stat-row-grid{display:flex;gap:10px;margin:0 16px 10px;}
+.stat-chip{flex:1;background:var(--gray-50);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;}
+.stat-chip .n{font-size:20px;font-weight:700;color:var(--text);}
+.stat-chip .l{font-size:11px;color:var(--text-sub);margin-top:2px;}
+
+/* ===== ENVIRONMENT ===== */
+.alert-banner{background:var(--yellow-lt);border:1px solid var(--yellow);border-radius:var(--radius);margin:12px 16px;padding:12px 14px;display:flex;align-items:flex-start;gap:10px;}
+.alert-banner .ico{font-size:17px;color:var(--yellow);flex-shrink:0;margin-top:1px;}
+.alert-banner .msg{font-size:13px;font-weight:600;color:var(--yellow-dk);line-height:1.4;}
+.sensor-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 16px 12px;}
+.sensor-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;}
+.sensor-card.warn{border-color:var(--yellow);background:var(--yellow-lt);}
+.sensor-card.warn .s-val{color:var(--yellow-dk);}
+.sensor-card .s-icon{font-size:20px;margin-bottom:6px;}
+.sensor-card .s-name{font-size:11px;font-weight:700;color:var(--text-sub);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em;}
+.sensor-card .s-val{font-size:22px;font-weight:700;color:var(--text);font-family:var(--font-mono);}
+.sensor-card .s-unit{font-size:11px;color:var(--text-sub);}
+.actuation-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);margin:0 16px 10px;padding:14px;}
+.actuation-row{display:flex;align-items:center;gap:12px;}
+.act-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;}
+.act-icon.lights{background:var(--yellow-lt);}
+.act-icon.ac{background:var(--blue-lt);}
+.act-info{flex:1;}
+.act-info .name{font-size:14px;font-weight:700;color:var(--text);}
+.act-info .status{font-size:12px;color:var(--text-sub);margin-top:2px;}
+/* Override modal */
+.override-group{margin-bottom:16px;}
+.override-label{font-size:11px;font-weight:700;color:var(--text-sub);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;}
+.mode-pills,.onoff-pills{display:flex;gap:8px;}
+.mode-pill,.onoff-pill{flex:1;padding:9px;text-align:center;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-weight:700;color:var(--gray-500);cursor:pointer;transition:all .15s;background:var(--card);font-family:var(--font);}
+.mode-pill.active{background:var(--blue);border-color:var(--blue);color:#fff;}
+.onoff-pill.on.active{background:var(--green);border-color:var(--green);color:#fff;}
+.onoff-pill.off.active{background:var(--red-lt);border-color:var(--red);color:var(--red-dk);}
+.temp-slider-block{margin-bottom:16px;}
+.temp-display{font-size:32px;font-weight:700;color:var(--blue);text-align:center;margin-bottom:8px;font-family:var(--font-mono);}
+.temp-display span{font-size:18px;color:var(--text-sub);}
+input[type=range]{width:100%;-webkit-appearance:none;height:6px;border-radius:3px;background:var(--gray-200);outline:none;border:none;padding:0;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:var(--blue);cursor:pointer;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.2);}
+.temp-range-labels{display:flex;justify-content:space-between;font-size:11px;color:var(--text-hint);margin-top:4px;}
+
+/* ===== GLOBAL APP HEADER (dashboard only) ===== */
+.app-header{height:52px;background:var(--card);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 20px;}
+.app-header .app-brand{display:flex;align-items:center;gap:8px;}
+.app-header .app-brand .logo-icon{width:28px;height:28px;background:var(--blue);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;}
+.app-header .app-brand .brand-name{font-size:16px;font-weight:700;color:var(--text);letter-spacing:-.3px;}
+.app-header .profile-btn{width:34px;height:34px;background:linear-gradient(135deg,#1B6EF3,#0D4DB5);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;border:2px solid var(--blue-lt);transition:all .15s;color:#fff;font-size:12px;font-weight:700;}
+.app-header .profile-btn:active{transform:scale(.95);}
+/* ===== PROFILE SCREEN ===== */
+.profile-hero{background:linear-gradient(135deg,var(--blue) 0%,var(--blue-dk) 100%);padding:28px 20px 24px;display:flex;flex-direction:column;align-items:center;gap:10px;}
+.profile-avatar{width:72px;height:72px;background:rgba(255,255,255,.2);border-radius:50%;border:3px solid rgba(255,255,255,.4);display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:700;color:#fff;}
+.profile-name{font-size:18px;font-weight:700;color:#fff;}
+.profile-email{font-size:13px;color:rgba(255,255,255,.75);}
+.profile-role-badge{background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);border-radius:20px;padding:4px 12px;font-size:11px;font-weight:700;color:#fff;letter-spacing:.04em;}
+.profile-section{margin:0 16px 8px;}
+.profile-section-label{font-size:11px;font-weight:700;color:var(--text-sub);text-transform:uppercase;letter-spacing:.07em;padding:14px 0 8px;}
+.profile-row{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:12px;}
+.profile-field{display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid var(--border);}
+.profile-field:last-child{border-bottom:none;}
+.profile-field .pf-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;}
+.profile-field .pf-content{flex:1;}
+.profile-field .pf-label{font-size:11px;color:var(--text-hint);font-weight:600;text-transform:uppercase;letter-spacing:.04em;}
+.profile-field .pf-value{font-size:14px;font-weight:600;color:var(--text);margin-top:1px;}
+.profile-action-row{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s;}
+.profile-action-row:last-child{border-bottom:none;}
+.profile-action-row:active{background:var(--gray-50);}
+.profile-action-row .pf-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;}
+.profile-action-row .pf-label-main{font-size:14px;font-weight:600;color:var(--text);flex:1;}
+.profile-action-row .pf-chevron{font-size:13px;color:var(--gray-400);}
+.profile-action-row.danger .pf-label-main{color:var(--red);}
+.profile-admin-note{margin:0 16px 16px;background:var(--gray-50);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;display:flex;align-items:flex-start;gap:8px;}
+.profile-admin-note i{color:var(--text-hint);font-size:13px;margin-top:1px;flex-shrink:0;}
+.profile-admin-note span{font-size:12px;color:var(--text-sub);line-height:1.5;}
+</style>
+</head>
+<body>
+<div class="phone-frame">
+
+<!-- ========== S1: LOGIN ========== -->
+<div class="screen active" id="s-login">
+  <div class="status-bar"><span class="status-time">9:41</span><div class="status-icons"><i class="fa fa-signal"></i><i class="fa fa-wifi"></i><i class="fa fa-battery-full"></i></div></div>
+  <div class="login-top">
+    <div class="app-logo"><i class="fa fa-graduation-cap"></i></div>
+    <div class="app-name">SmartClass</div>
+    <div class="app-tagline">Lecturer Portal · University of Malaya<br>Faculty of Computer Science & IT</div>
+  </div>
+  <div class="login-form">
+    <h2>Welcome back</h2>
+    <div class="sub">Sign in with your university credentials</div>
+    <div class="form-group">
+      <label class="form-label">Email address</label>
+      <div class="input-wrap"><i class="fa fa-envelope lead"></i><input type="email" value="drtan.wl@um.edu.my"></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Password</label>
+      <div class="input-wrap"><i class="fa fa-lock lead"></i><input type="password" value="••••••••"><button class="input-icon-btn"><i class="fa fa-eye-slash"></i></button></div>
+    </div>
+    <div class="forgot-link" onclick="openModal('modal-forgot')">Forgot password?</div>
+    <button class="btn btn-primary btn-full" style="padding:13px;" onclick="goTo('s-dashboard')"><i class="fa fa-sign-in-alt"></i> Sign In</button>
+    <div class="login-note" style="margin-top:14px;"><i class="fa fa-info-circle"></i> Accounts are provisioned by administrators only</div>
+  </div>
+  <div class="modal-overlay" id="modal-forgot">
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <div class="modal-title">Reset Password</div>
+      <div style="font-size:13px;color:var(--text-sub);margin-bottom:14px;">Enter your university email and we'll send a reset link.</div>
+      <div class="form-group"><input type="email" placeholder="your@um.edu.my"></div>
+      <button class="btn btn-primary btn-full" onclick="closeModal('modal-forgot')"><i class="fa fa-paper-plane"></i> Send Reset Link</button>
+      <hr class="modal-divider">
+      <button class="btn btn-outline btn-full" onclick="closeModal('modal-forgot')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== S2: DASHBOARD (Session Open) ========== -->
+<div class="screen" id="s-dashboard">
+  <div class="scroll-body">
+  <div class="status-bar"><span class="status-time">10:14</span><div class="status-icons"><i class="fa fa-signal"></i><i class="fa fa-wifi"></i><i class="fa fa-battery-full"></i></div></div>
+  <div class="app-header">
+    <div class="app-brand">
+      <div class="logo-icon"><i class="fa fa-graduation-cap"></i></div>
+      <span class="brand-name">SmartClass</span>
+    </div>
+    <div class="profile-btn" onclick="goTo('s-profile')">TW</div>
+  </div>
+  <div class="dash-header">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;">
+      <div>
+        <div class="class-name">WIA2005 — Software Engineering</div>
+        <div class="class-meta">Sem 2 2024/25 &nbsp;·&nbsp; DK 6, BLI Building</div>
+      </div>
+      <span class="badge green dot" id="session-badge">Session Open</span>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;">
+      <div style="font-size:12px;color:var(--text-sub);"><i class="fa fa-clock" style="font-size:11px;"></i> Opened 10:05 AM &nbsp;·&nbsp; 75 min remaining</div>
+      <button class="session-toggle-btn can-close" id="session-toggle-btn" onclick="toggleSession()"><i class="fa fa-stop-circle"></i> Close Session</button>
+    </div>
+  </div>
+
+
+    <!-- Session-bound widgets -->
+    <div id="session-content">
+      <div class="section-header"><span class="section-title">Attendance</span></div>
+      <div class="card tappable-card" onclick="goTo('s-attendance-sessions')" style="margin-bottom:10px;">
+        <div class="attend-stats">
+          <div class="attend-stat present"><div class="num">22</div><div class="lbl">Present</div></div>
+          <div class="attend-stat absent"><div class="num">3</div><div class="lbl">Absent</div></div>
+          <div class="attend-stat unid"><div class="num">1</div><div class="lbl">Unidentified</div></div>
+        </div>
+        <div class="attend-card-footer"><i class="fa fa-chevron-right" style="font-size:10px;"></i> Tap to view full attendance</div>
+      </div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <div class="card-label" style="margin:0;">Confusion Rate</div>
+          <button class="btn btn-sm btn-outline" onclick="openModal('modal-confusion-reset')"><i class="fa fa-redo"></i> Reset</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:14px;">
+          <div class="confusion-num yellow">34%</div>
+          <div style="flex:1;">
+            <div style="font-size:14px;font-weight:700;color:var(--text);">Moderate Confusion</div>
+            <div style="font-size:12px;color:var(--text-sub);margin-top:2px;">8 of 22 students flagged confusion</div>
+          </div>
+        </div>
+        <div class="confusion-bar"><div class="confusion-fill" style="width:34%;background:var(--yellow);"></div></div>
+        <div style="display:flex;justify-content:space-between;margin-top:4px;">
+          <span style="font-size:10px;color:var(--green-dk);">0%</span><span style="font-size:10px;color:var(--yellow-dk);">20%</span><span style="font-size:10px;color:var(--red-dk);">50%</span><span style="font-size:10px;color:var(--text-hint);">100%</span>
+        </div>
+      </div>
+      <div class="section-header" style="padding-top:4px;"><span class="section-title">Quiz & Poll</span></div>
+      <div class="create-quiz-btn" onclick="goTo('s-create-quiz')">
+        <div class="icon"><i class="fa fa-plus"></i></div>
+        <div><div class="t">Create Quiz / Poll</div><div class="s">Push instantly to all student desks</div></div>
+        <i class="fa fa-chevron-right" style="color:var(--blue);margin-left:auto;font-size:13px;"></i>
+      </div>
+      <div class="quiz-card-item" onclick="openQuizModal('active')">
+        <div class="qci-top"><div class="qci-q">Which software development model uses iterative development with fixed-length sprints?</div><span class="badge blue">Active</span></div>
+        <div class="qci-meta"><i class="fa fa-clock" style="font-size:11px;"></i> Today, 10:12 AM · 30s timer</div>
+      </div>
+      <div class="quiz-card-item" onclick="openQuizModal('closed')">
+        <div class="qci-top"><div class="qci-q">What does SOLID stand for in object-oriented design?</div><span class="badge gray">Closed</span></div>
+        <div class="qci-meta"><i class="fa fa-clock" style="font-size:11px;"></i> Today, 10:02 AM · 60s timer</div>
+      </div>
+      <div class="quiz-card-item" onclick="openQuizModal('draft')">
+        <div class="qci-top"><div class="qci-q">Which UML diagram best represents sequence of operations?</div><span class="badge yellow">Draft</span></div>
+        <div class="qci-meta"><i class="fa fa-clock" style="font-size:11px;"></i> Today, 9:55 AM</div>
+      </div>
+    </div>
+    <!-- No-session placeholder (hidden by default) -->
+    <div id="no-session-content" style="display:none;">
+      <div class="no-session-state">
+        <div class="no-session-icon"><i class="fa fa-hourglass-end"></i></div>
+        <div class="no-session-title">No Active Session</div>
+        <div class="no-session-sub">Session-bound data — attendance, confusion rate, and quizzes — will appear here once you open a session for this class.</div>
+        <div class="last-session-chip">
+          <div class="l">Last session</div>
+          <div class="v">Today · 8:00 AM – 9:50 AM &nbsp;(110 min)</div>
+          <div style="font-size:12px;color:var(--text-sub);margin-top:2px;">Attendance: 24 present · 2 absent</div>
+        </div>
+        <button class="btn btn-green btn-full" onclick="toggleSession()"><i class="fa fa-play-circle"></i> Open Session</button>
+      </div>
+    </div>
+    <!-- Environment strip — always visible regardless of session state -->
+    <div style="padding:4px 0 2px;">
+      <div class="section-header" style="padding-top:8px;padding-bottom:6px;">
+        <span class="section-title">Environment</span>
+        <span style="font-size:11px;color:var(--text-hint);font-style:italic;">Always live · not session-bound</span>
+      </div>
+      <div class="env-strip" onclick="goTo('s-environment')">
+        <div class="env-strip-top"><span class="env-strip-title">Live Sensors — DK 6</span><span class="env-strip-arrow"><i class="fa fa-chevron-right"></i></span></div>
+        <div class="env-metrics">
+          <div class="env-metric"><div class="val">26.4</div><div class="unit">°C</div><div class="lbl">Temp</div></div>
+          <div class="env-metric"><div class="val">1240</div><div class="unit">ppm</div><div class="lbl">CO₂</div></div>
+          <div class="env-metric"><div class="val">420</div><div class="unit">lux</div><div class="lbl">Light</div></div>
+          <div class="env-metric"><div class="val">23</div><div class="unit">pax</div><div class="lbl">Occupancy</div></div>
+        </div>
+      </div>
+    </div>
+    <div style="height:20px;"></div>
+    </div>
+
+  <div class="bottomnav">
+    <button class="nav-item active" onclick="goTo('s-dashboard')"><i class="fa fa-home"></i><span>Home</span></button>
+    <button class="nav-item" onclick="goTo('s-attendance-sessions')"><i class="fa fa-user-check"></i><span>Attendance</span></button>
+    <button class="nav-item" onclick="goTo('s-quiz-list')"><i class="fa fa-question-circle"></i><span>Quiz</span></button>
+    <button class="nav-item" onclick="goTo('s-analytics')"><i class="fa fa-chart-bar"></i><span>Analytics</span></button>
+    <button class="nav-item" onclick="goTo('s-environment')"><i class="fa fa-leaf"></i><span>Environment</span></button>
+  </div>
+  <!-- Confusion Reset Modal -->
+  <div class="modal-overlay" id="modal-confusion-reset">
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <div class="modal-title">Reset Confusion Counter</div>
+      <div style="font-size:14px;color:var(--text-sub);margin-bottom:14px;line-height:1.5;">This will reset the confusion counter to 0%. Students' "I Don't Understand" signals will be cleared. Historical IDU logs are preserved.</div>
+      <div style="background:var(--yellow-lt);border:1px solid var(--yellow);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:16px;font-size:13px;color:var(--yellow-dk);"><i class="fa fa-exclamation-triangle"></i> Current rate: <strong>34%</strong> · 8 signals this session</div>
+      <div class="btn-row">
+        <button class="btn btn-outline btn-full" onclick="closeModal('modal-confusion-reset')">Cancel</button>
+        <button class="btn btn-primary btn-full" onclick="closeModal('modal-confusion-reset')"><i class="fa fa-redo"></i> Confirm Reset</button>
+      </div>
+    </div>
+  </div>
+  <!-- Quiz Modal Active -->
+  <div class="modal-overlay" id="modal-quiz-active">
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;"><span class="badge blue dot">Active</span><span style="font-size:12px;color:var(--text-sub);">Today, 10:12 AM · 30s</span></div>
+      <div style="font-size:15px;font-weight:700;color:var(--text);line-height:1.5;margin-bottom:12px;">Which software development model uses iterative development with fixed-length sprints?</div>
+      <div style="background:var(--gray-50);border-radius:var(--radius-sm);padding:12px;margin-bottom:12px;font-size:13px;color:var(--text);line-height:2.1;">A. Waterfall Model<br>B. <strong>Agile / Scrum ✓</strong><br>C. Spiral Model<br>D. V-Model</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;"><div class="status-dot green"></div><span style="font-size:13px;color:var(--text-sub);">Answered: 4 / 5 students · 00:14 remaining</span></div>
+      <div class="btn-row">
+        <button class="btn btn-danger btn-full" onclick="closeModal('modal-quiz-active')"><i class="fa fa-stop"></i> Close Early</button>
+        <button class="btn btn-primary btn-full" onclick="closeModal('modal-quiz-active');goTo('s-live-results')"><i class="fa fa-chart-bar"></i> Live Results</button>
+      </div>
+      <hr class="modal-divider">
+      <button class="btn btn-outline btn-full" onclick="closeModal('modal-quiz-active')">Dismiss</button>
+    </div>
+  </div>
+  <!-- Quiz Modal Closed -->
+  <div class="modal-overlay" id="modal-quiz-closed">
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;"><span class="badge gray">Closed</span><span style="font-size:12px;color:var(--text-sub);">Today, 10:02 AM · 60s</span></div>
+      <div style="font-size:15px;font-weight:700;color:var(--text);line-height:1.5;margin-bottom:12px;">What does SOLID stand for in object-oriented design?</div>
+      <div style="background:var(--gray-50);border-radius:var(--radius-sm);padding:12px;margin-bottom:12px;display:flex;gap:14px;text-align:center;">
+        <div style="flex:1;"><div style="font-size:20px;font-weight:700;color:var(--green);">18</div><div style="font-size:11px;color:var(--green-dk);font-weight:700;">Correct</div></div>
+        <div style="flex:1;"><div style="font-size:20px;font-weight:700;color:var(--red);">4</div><div style="font-size:11px;color:var(--red-dk);font-weight:700;">Incorrect</div></div>
+        <div style="flex:1;"><div style="font-size:20px;font-weight:700;color:var(--gray-400);">3</div><div style="font-size:11px;color:var(--gray-500);font-weight:700;">Unanswered</div></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-outline btn-full" onclick="closeModal('modal-quiz-closed');goTo('s-results-closed')"><i class="fa fa-chart-bar"></i> View Results</button>
+        <button class="btn btn-primary btn-full" onclick="closeModal('modal-quiz-closed');goTo('s-breakdown')"><i class="fa fa-list"></i> Breakdown</button>
+      </div>
+      <hr class="modal-divider">
+      <button class="btn btn-outline btn-full" onclick="closeModal('modal-quiz-closed')">Dismiss</button>
+    </div>
+  </div>
+  <!-- Quiz Modal Draft -->
+  <div class="modal-overlay" id="modal-quiz-draft">
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;"><span class="badge yellow">Draft</span><span style="font-size:12px;color:var(--text-sub);">Today, 9:55 AM</span></div>
+      <div style="font-size:15px;font-weight:700;color:var(--text);line-height:1.5;margin-bottom:12px;">Which UML diagram best represents sequence of operations?</div>
+      <div style="background:var(--gray-50);border-radius:var(--radius-sm);padding:12px;margin-bottom:14px;font-size:13px;color:var(--text);line-height:2.1;">A. Class Diagram<br>B. Use Case Diagram<br>C. <strong>Sequence Diagram ✓</strong><br>D. Activity Diagram</div>
+      <button class="btn btn-primary btn-full" style="margin-bottom:8px;" onclick="closeModal('modal-quiz-draft')"><i class="fa fa-paper-plane"></i> Push to All Desks</button>
+      <div class="btn-row">
+        <button class="btn btn-outline btn-full" onclick="closeModal('modal-quiz-draft');goTo('s-create-quiz')"><i class="fa fa-edit"></i> Edit</button>
+        <button class="btn btn-danger btn-full" onclick="closeModal('modal-quiz-draft')"><i class="fa fa-trash"></i> Delete</button>
+      </div>
+      <hr class="modal-divider">
+      <button class="btn btn-outline btn-full" onclick="closeModal('modal-quiz-draft')">Dismiss</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ========== S3: ATTENDANCE — SESSION LIST ========== -->
+<div class="screen" id="s-attendance-sessions">
+  <div class="scroll-body">
+  <div class="status-bar"><span class="status-time">10:14</span><div class="status-icons"><i class="fa fa-signal"></i><i class="fa fa-wifi"></i><i class="fa fa-battery-full"></i></div></div>
+  <div class="topbar">
+    <div style="flex:1;"><div class="topbar-title">Attendance</div><div class="topbar-sub">WIA2005 — Software Engineering</div></div>
+  </div>
+  <div class="filter-row" style="flex-shrink:0;">
+    <select style="flex:1;padding:7px 10px;font-size:12px;">
+      <option>WIA2005 — Soft. Eng.</option>
+      <option>WIA2004 — Data Mining</option>
+    </select>
+    <select style="flex:1;padding:7px 10px;font-size:12px;">
+      <option>All sessions</option>
+      <option>This month</option>
+      <option>Sem 2 2024/25</option>
+    </select>
+  </div>
+
+    <div style="padding:10px 16px 4px;font-size:12px;color:var(--text-sub);">12 sessions · Sem 2 2024/25</div>
+    <!-- Current session (open) -->
+    <div class="session-item" onclick="goTo('s-attendance-detail')">
+      <div class="session-date-block" style="background:var(--green-lt);">
+        <div class="d" style="color:var(--green);">24</div>
+        <div class="m" style="color:var(--green-dk);">May</div>
+      </div>
+      <div class="session-info">
+        <div class="title">Week 6 — Session 1</div>
+        <div class="sub">10:05 AM &nbsp;·&nbsp; <span class="badge green dot" style="font-size:10px;padding:2px 6px;">Open now</span></div>
+        <div class="session-stats-row">
+          <span class="sess-chip" style="background:var(--green-lt);color:var(--green-dk);">22 Present</span>
+          <span class="sess-chip" style="background:var(--red-lt);color:var(--red-dk);">3 Absent</span>
+          <span class="sess-chip" style="background:var(--orange-lt);color:var(--orange-dk);">1 Unidentified</span>
+        </div>
+      </div>
+      <i class="fa fa-chevron-right" style="color:var(--gray-300);font-size:13px;"></i>
+    </div>
+    <!-- Past sessions -->
+    <div class="session-item" onclick="goTo('s-attendance-detail')">
+      <div class="session-date-block" style="background:var(--gray-100);">
+        <div class="d" style="color:var(--gray-600);">21</div>
+        <div class="m" style="color:var(--gray-500);">May</div>
+      </div>
+      <div class="session-info">
+        <div class="title">Week 5 — Session 2</div>
+        <div class="sub">10:05 AM – 11:55 AM &nbsp;(110 min)</div>
+        <div class="session-stats-row">
+          <span class="sess-chip" style="background:var(--green-lt);color:var(--green-dk);">24 Present</span>
+          <span class="sess-chip" style="background:var(--red-lt);color:var(--red-dk);">2 Absent</span>
+        </div>
+      </div>
+      <i class="fa fa-chevron-right" style="color:var(--gray-300);font-size:13px;"></i>
+    </div>
+    <div class="session-item" onclick="goTo('s-attendance-detail')">
+      <div class="session-date-block" style="background:var(--gray-100);">
+        <div class="d" style="color:var(--gray-600);">19</div>
+        <div class="m" style="color:var(--gray-500);">May</div>
+      </div>
+      <div class="session-info">
+        <div class="title">Week 5 — Session 1</div>
+        <div class="sub">8:00 AM – 9:50 AM &nbsp;(110 min)</div>
+        <div class="session-stats-row">
+          <span class="sess-chip" style="background:var(--green-lt);color:var(--green-dk);">21 Present</span>
+          <span class="sess-chip" style="background:var(--red-lt);color:var(--red-dk);">4 Absent</span>
+          <span class="sess-chip" style="background:var(--orange-lt);color:var(--orange-dk);">1 Unidentified</span>
+        </div>
+      </div>
+      <i class="fa fa-chevron-right" style="color:var(--gray-300);font-size:13px;"></i>
+    </div>
+    <div class="session-item" onclick="goTo('s-attendance-detail')">
+      <div class="session-date-block" style="background:var(--gray-100);">
+        <div class="d" style="color:var(--gray-600);">14</div>
+        <div class="m" style="color:var(--gray-500);">May</div>
+      </div>
+      <div class="session-info">
+        <div class="title">Week 4 — Session 2</div>
+        <div class="sub">10:05 AM – 11:55 AM &nbsp;(110 min)</div>
+        <div class="session-stats-row">
+          <span class="sess-chip" style="background:var(--green-lt);color:var(--green-dk);">25 Present</span>
+          <span class="sess-chip" style="background:var(--red-lt);color:var(--red-dk);">1 Absent</span>
+        </div>
+      </div>
+      <i class="fa fa-chevron-right" style="color:var(--gray-300);font-size:13px;"></i>
+    </div>
+    <div class="session-item" onclick="goTo('s-attendance-detail')">
+      <div class="session-date-block" style="background:var(--gray-100);">
+        <div class="d" style="color:var(--gray-600);">12</div>
+        <div class="m" style="color:var(--gray-500);">May</div>
+      </div>
+      <div class="session-info">
+        <div class="title">Week 4 — Session 1</div>
+        <div class="sub">8:00 AM – 9:50 AM &nbsp;(110 min)</div>
+        <div class="session-stats-row">
+          <span class="sess-chip" style="background:var(--green-lt);color:var(--green-dk);">23 Present</span>
+          <span class="sess-chip" style="background:var(--red-lt);color:var(--red-dk);">3 Absent</span>
+        </div>
+      </div>
+      <i class="fa fa-chevron-right" style="color:var(--gray-300);font-size:13px;"></i>
+    </div>
+    <div class="session-item" onclick="goTo('s-attendance-detail')">
+      <div class="session-date-block" style="background:var(--gray-100);">
+        <div class="d" style="color:var(--gray-600);">7</div>
+        <div class="m" style="color:var(--gray-500);">May</div>
+      </div>
+      <div class="session-info">
+        <div class="title">Week 3 — Session 2</div>
+        <div class="sub">10:05 AM – 11:55 AM &nbsp;(110 min)</div>
+        <div class="session-stats-row">
+          <span class="sess-chip" style="background:var(--green-lt);color:var(--green-dk);">20 Present</span>
+          <span class="sess-chip" style="background:var(--red-lt);color:var(--red-dk);">6 Absent</span>
+        </div>
+      </div>
+      <i class="fa fa-chevron-right" style="color:var(--gray-300);font-size:13px;"></i>
+    </div>
+    <div style="height:16px;"></div>
+    </div>
+
+  <div class="bottomnav">
+    <button class="nav-item" onclick="goTo('s-dashboard')"><i class="fa fa-home"></i><span>Home</span></button>
+    <button class="nav-item active" onclick="goTo('s-attendance-sessions')"><i class="fa fa-user-check"></i><span>Attendance</span></button>
+    <button class="nav-item" onclick="goTo('s-quiz-list')"><i class="fa fa-question-circle"></i><span>Quiz</span></button>
+    <button class="nav-item" onclick="goTo('s-analytics')"><i class="fa fa-chart-bar"></i><span>Analytics</span></button>
+    <button class="nav-item" onclick="goTo('s-environment')"><i class="fa fa-leaf"></i><span>Environment</span></button>
+  </div>
+</div>
+
+
+<!-- ========== S3b: ATTENDANCE DETAIL ========== -->
+<div class="screen" id="s-attendance-detail">
+  <div class="status-bar"><span class="status-time">10:14</span><div class="status-icons"><i class="fa fa-signal"></i><i class="fa fa-wifi"></i><i class="fa fa-battery-full"></i></div></div>
+  <div class="topbar">
+    <button class="back-btn" onclick="goTo('s-attendance-sessions')"><i class="fa fa-arrow-left"></i></button>
+    <div><div class="topbar-title">Week 6 — Session 1</div><div class="topbar-sub">24 May 2025 · 10:05 AM</div></div>
+    <span class="badge green dot" style="margin-left:auto;">Open</span>
+  </div>
+  <div class="search-bar"><i class="fa fa-search"></i><input type="text" placeholder="Search name or matric ID…"></div>
+  <div class="sort-row">
+    <span class="sort-label">26 enrolled &nbsp;·&nbsp; 22 present · 3 absent · 1 unidentified</span>
+    <button class="sort-btn" id="sort-btn" onclick="toggleSort()"><i class="fa fa-sort-alpha-down" id="sort-icon"></i> A–Z</button>
+  </div>
+  <div class="scroll-body" style="background:var(--card);border-top:1px solid var(--border);">
+    <div class="student-row" onclick="openStudentModal('Ahmad Izzul Hakim','U2300124','present')">
+      <div class="student-avatar" style="background:var(--blue-lt);color:var(--blue-dk);">AI</div>
+      <div><div class="student-name">Ahmad Izzul Hakim</div><div class="student-id">U2300124</div></div>
+      <div class="student-row-right"><span class="badge green dot">Present</span></div>
+    </div>
+    <div class="student-row" onclick="openStudentModal('Chow Shino','U2300207','present')">
+      <div class="student-avatar" style="background:var(--green-lt);color:var(--green-dk);">CS</div>
+      <div><div class="student-name">Chow Shino</div><div class="student-id">U2300207</div></div>
+      <div class="student-row-right"><span class="badge green dot">Present</span></div>
+    </div>
+    <div class="student-row" onclick="openStudentModal('Farhana Binti Roslan','U2300312','absent')">
+      <div class="student-avatar" style="background:var(--red-lt);color:var(--red-dk);">FR</div>
+      <div><div class="student-name">Farhana Binti Roslan</div><div class="student-id">U2300312</div></div>
+      <div class="student-row-right"><span class="badge red dot">Absent</span></div>
+    </div>
+    <div class="student-row" onclick="openStudentModal('Isyraf Danieal','U2300445','present')">
+      <div class="student-avatar" style="background:var(--blue-lt);color:var(--blue-dk);">ID</div>
+      <div><div class="student-name">Isyraf Danieal</div><div class="student-id">U2300445</div></div>
+      <div class="student-row-right"><span class="badge green dot">Present</span></div>
+    </div>
+    <div class="student-row" onclick="openStudentModal('Khor Jia Ling','U2300521','present')">
+      <div class="student-avatar" style="background:var(--green-lt);color:var(--green-dk);">KJ</div>
+      <div><div class="student-name">Khor Jia Ling</div><div class="student-id">U2300521</div></div>
+      <div class="student-row-right"><span class="badge green dot">Present</span></div>
+    </div>
+    <div class="student-row" onclick="openStudentModal('Lim Wei Hao','U2300603','unidentified')">
+      <div class="student-avatar" style="background:var(--orange-lt);color:var(--orange-dk);">LW</div>
+      <div><div class="student-name">Lim Wei Hao</div><div class="student-id">U2300603</div></div>
+      <div class="student-row-right"><span class="badge orange dot">Unidentified</span></div>
+    </div>
+    <div class="student-row" onclick="openStudentModal('Muhammad Haziq','U2300718','present')">
+      <div class="student-avatar" style="background:var(--blue-lt);color:var(--blue-dk);">MH</div>
+      <div><div class="student-name">Muhammad Haziq</div><div class="student-id">U2300718</div></div>
+      <div class="student-row-right"><span class="badge green dot">Present</span></div>
+    </div>
+    <div class="student-row" onclick="openStudentModal('Nazirul Asyraf','U2300829','absent')">
+      <div class="student-avatar" style="background:var(--red-lt);color:var(--red-dk);">NA</div>
+      <div><div class="student-name">Nazirul Asyraf</div><div class="student-id">U2300829</div></div>
+      <div class="student-row-right"><span class="badge red dot">Absent</span></div>
+    </div>
+    <div class="student-row" onclick="openStudentModal('Nurul Amirah','U2300934','present')">
+      <div class="student-avatar" style="background:var(--green-lt);color:var(--green-dk);">NA</div>
+      <div><div class="student-name">Nurul Amirah</div><div class="student-id">U2300934</div></div>
+      <div class="student-row-right"><span class="badge green dot">Present</span></div>
+    </div>
+    <div class="student-row" onclick="openStudentModal('Tan Ee Xuan','U2301047','present')">
+      <div class="student-avatar" style="background:var(--blue-lt);color:var(--blue-dk);">TX</div>
+      <div><div class="student-name">Tan Ee Xuan</div><div class="student-id">U2301047</div></div>
+      <div class="student-row-right"><span class="badge green dot">Present</span></div>
+    </div>
+    <div class="student-row" onclick="openStudentModal('Yong Yew Sing','U2301152','present')">
+      <div class="student-avatar" style="background:var(--green-lt);color:var(--green-dk);">YY</div>
+      <div><div class="student-name">Yong Yew Sing</div><div class="student-id">U2301152</div></div>
+      <div class="student-row-right"><span class="badge green dot">Present</span></div>
+    </div>
+    <div class="student-row" onclick="openStudentModal('Zul Izzat Izzuddin','U2301268','absent')">
+      <div class="student-avatar" style="background:var(--red-lt);color:var(--red-dk);">ZI</div>
+      <div><div class="student-name">Zul Izzat Izzuddin</div><div class="student-id">U2301268</div></div>
+      <div class="student-row-right"><span class="badge red dot">Absent</span></div>
+    </div>
+    <div style="height:20px;"></div>
+  </div>
+  <!-- Student Override Modal -->
+  <div class="modal-overlay" id="modal-student">
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+        <div class="student-avatar" style="background:var(--orange-lt);color:var(--orange-dk);width:48px;height:48px;font-size:16px;" id="modal-stu-avatar">LW</div>
+        <div><div style="font-size:17px;font-weight:700;color:var(--text);" id="modal-stu-name">Lim Wei Hao</div><div style="font-size:13px;color:var(--text-sub);" id="modal-stu-id">U2300603 · WIA2005</div></div>
+      </div>
+      <div style="background:var(--gray-50);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:16px;">
+        <div style="font-size:11px;color:var(--text-sub);margin-bottom:4px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;">Current Status</div>
+        <span class="badge orange dot" id="modal-stu-status">Unidentified</span>
+      </div>
+      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px;">Manual Override</div>
+      <div style="font-size:13px;color:var(--text-sub);margin-bottom:14px;">This override is logged with your identity and timestamp.</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <button class="btn btn-green btn-full" onclick="closeModal('modal-student')"><i class="fa fa-check"></i> Mark Present</button>
+        <button class="btn btn-danger btn-full" onclick="closeModal('modal-student')"><i class="fa fa-times"></i> Mark Absent</button>
+      </div>
+      <button class="btn btn-outline btn-full" style="margin-bottom:8px;" onclick="closeModal('modal-student')"><i class="fa fa-clipboard"></i> Mark Excused</button>
+      <hr class="modal-divider">
+      <button class="btn btn-outline btn-full" onclick="closeModal('modal-student')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== S4: QUIZ LIST ========== -->
+<div class="screen" id="s-quiz-list">
+  <div class="scroll-body">
+  <div class="status-bar"><span class="status-time">10:14</span><div class="status-icons"><i class="fa fa-signal"></i><i class="fa fa-wifi"></i><i class="fa fa-battery-full"></i></div></div>
+  <div class="topbar">
+    <div style="flex:1;"><div class="topbar-title">Quiz & Poll</div><div class="topbar-sub">WIA2005 — Session in progress</div></div>
+    <button class="btn btn-primary btn-sm" onclick="goTo('s-create-quiz')"><i class="fa fa-plus"></i> Create</button>
+  </div>
+  <div class="quiz-filter-row" style="flex-shrink:0;">
+    <button class="filter-pill active" onclick="filterQuiz(this,'all')">All</button>
+    <button class="filter-pill" onclick="filterQuiz(this,'active')">Active</button>
+    <button class="filter-pill" onclick="filterQuiz(this,'closed')">Closed</button>
+    <button class="filter-pill" onclick="filterQuiz(this,'draft')">Draft</button>
+  </div>
+
+    <div style="padding:10px 16px 4px;font-size:12px;color:var(--text-sub);">3 questions this session</div>
+    <!-- Active quiz -->
+    <div class="quiz-card-item" onclick="openQuizModal('active')">
+      <div class="qci-top">
+        <div class="qci-q">Which software development model uses iterative development with fixed-length sprints?</div>
+        <span class="badge blue">Active</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:6px;">
+        <span style="font-size:11px;color:var(--text-hint);"><i class="fa fa-clock" style="font-size:11px;"></i> 10:12 AM · 30s timer</span>
+        <span style="font-size:11px;color:var(--text-hint);">· 4/5 answered</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:8px;">
+        <div style="flex:1;height:4px;background:var(--gray-100);border-radius:2px;overflow:hidden;"><div style="width:80%;height:100%;background:var(--blue);border-radius:2px;"></div></div>
+        <span style="font-size:10px;color:var(--text-hint);">80%</span>
+      </div>
+    </div>
+    <!-- Closed quiz -->
+    <div class="quiz-card-item" onclick="openQuizModal('closed')">
+      <div class="qci-top">
+        <div class="qci-q">What does SOLID stand for in object-oriented design principles?</div>
+        <span class="badge gray">Closed</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:6px;">
+        <span style="font-size:11px;color:var(--text-hint);"><i class="fa fa-clock" style="font-size:11px;"></i> 10:02 AM · 60s timer</span>
+        <span style="font-size:11px;color:var(--green-dk);font-weight:700;">· 72% correct</span>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:8px;">
+        <span style="font-size:11px;background:var(--green-lt);color:var(--green-dk);padding:2px 7px;border-radius:10px;font-weight:700;">18 Correct</span>
+        <span style="font-size:11px;background:var(--red-lt);color:var(--red-dk);padding:2px 7px;border-radius:10px;font-weight:700;">4 Wrong</span>
+        <span style="font-size:11px;background:var(--gray-100);color:var(--gray-500);padding:2px 7px;border-radius:10px;font-weight:700;">3 Skipped</span>
+      </div>
+    </div>
+    <!-- Draft quiz -->
+    <div class="quiz-card-item" onclick="openQuizModal('draft')">
+      <div class="qci-top">
+        <div class="qci-q">Which UML diagram best represents the sequence of operations in a use case?</div>
+        <span class="badge yellow">Draft</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:6px;">
+        <span style="font-size:11px;color:var(--text-hint);"><i class="fa fa-clock" style="font-size:11px;"></i> 9:55 AM · not pushed yet</span>
+      </div>
+      <div style="margin-top:8px;">
+        <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();closeModal('modal-quiz-draft')"><i class="fa fa-paper-plane"></i> Push now</button>
+      </div>
+    </div>
+    <div style="height:20px;"></div>
+    </div>
+
+  <div class="bottomnav">
+    <button class="nav-item" onclick="goTo('s-dashboard')"><i class="fa fa-home"></i><span>Home</span></button>
+    <button class="nav-item" onclick="goTo('s-attendance-sessions')"><i class="fa fa-user-check"></i><span>Attendance</span></button>
+    <button class="nav-item active" onclick="goTo('s-quiz-list')"><i class="fa fa-question-circle"></i><span>Quiz</span></button>
+    <button class="nav-item" onclick="goTo('s-analytics')"><i class="fa fa-chart-bar"></i><span>Analytics</span></button>
+    <button class="nav-item" onclick="goTo('s-environment')"><i class="fa fa-leaf"></i><span>Environment</span></button>
+  </div>
+  <!-- Reuse same quiz modals (inline copies) -->
+  <div class="modal-overlay" id="modal-ql-active">
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;"><span class="badge blue dot">Active</span><span style="font-size:12px;color:var(--text-sub);">Today, 10:12 AM · 30s</span></div>
+      <div style="font-size:15px;font-weight:700;color:var(--text);line-height:1.5;margin-bottom:12px;">Which software development model uses iterative development with fixed-length sprints?</div>
+      <div style="background:var(--gray-50);border-radius:var(--radius-sm);padding:12px;margin-bottom:12px;font-size:13px;color:var(--text);line-height:2.1;">A. Waterfall Model<br>B. <strong>Agile / Scrum ✓</strong><br>C. Spiral Model<br>D. V-Model</div>
+      <div class="btn-row">
+        <button class="btn btn-danger btn-full" onclick="closeModal('modal-ql-active')"><i class="fa fa-stop"></i> Close Early</button>
+        <button class="btn btn-primary btn-full" onclick="closeModal('modal-ql-active');goTo('s-live-results')"><i class="fa fa-chart-bar"></i> Live Results</button>
+      </div>
+      <hr class="modal-divider">
+      <button class="btn btn-outline btn-full" onclick="closeModal('modal-ql-active')">Dismiss</button>
+    </div>
+  </div>
+  <div class="modal-overlay" id="modal-ql-closed">
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;"><span class="badge gray">Closed</span><span style="font-size:12px;color:var(--text-sub);">Today, 10:02 AM · 60s</span></div>
+      <div style="font-size:15px;font-weight:700;color:var(--text);line-height:1.5;margin-bottom:12px;">What does SOLID stand for in object-oriented design?</div>
+      <div class="btn-row">
+        <button class="btn btn-outline btn-full" onclick="closeModal('modal-ql-closed');goTo('s-results-closed')"><i class="fa fa-chart-bar"></i> View Results</button>
+        <button class="btn btn-primary btn-full" onclick="closeModal('modal-ql-closed');goTo('s-breakdown')"><i class="fa fa-list"></i> Breakdown</button>
+      </div>
+      <hr class="modal-divider">
+      <button class="btn btn-outline btn-full" onclick="closeModal('modal-ql-closed')">Dismiss</button>
+    </div>
+  </div>
+  <div class="modal-overlay" id="modal-ql-draft">
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;"><span class="badge yellow">Draft</span></div>
+      <div style="font-size:15px;font-weight:700;color:var(--text);line-height:1.5;margin-bottom:12px;">Which UML diagram best represents sequence of operations?</div>
+      <button class="btn btn-primary btn-full" style="margin-bottom:8px;" onclick="closeModal('modal-ql-draft')"><i class="fa fa-paper-plane"></i> Push to All Desks</button>
+      <div class="btn-row">
+        <button class="btn btn-outline btn-full" onclick="closeModal('modal-ql-draft');goTo('s-create-quiz')"><i class="fa fa-edit"></i> Edit</button>
+        <button class="btn btn-danger btn-full" onclick="closeModal('modal-ql-draft')"><i class="fa fa-trash"></i> Delete</button>
+      </div>
+      <hr class="modal-divider">
+      <button class="btn btn-outline btn-full" onclick="closeModal('modal-ql-draft')">Dismiss</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ========== S5: CREATE QUIZ ========== -->
+<div class="screen" id="s-create-quiz">
+  <div class="status-bar"><span class="status-time">10:14</span><div class="status-icons"><i class="fa fa-signal"></i><i class="fa fa-wifi"></i><i class="fa fa-battery-full"></i></div></div>
+  <div class="topbar">
+    <button class="back-btn" onclick="goTo('s-quiz-list')"><i class="fa fa-arrow-left"></i></button>
+    <div><div class="topbar-title">Create Quiz / Poll</div><div class="topbar-sub">Leave answers unmarked for poll mode</div></div>
+  </div>
+  <div class="scroll-body" style="padding:16px;">
+    <div class="form-group">
+      <label class="form-label">Question</label>
+      <textarea rows="3" placeholder="Enter your question…">Which UML diagram best represents the sequence of operations in a use case?</textarea>
+    </div>
+    <div class="form-label" style="margin-bottom:10px;">Answer Options <span style="font-size:11px;color:var(--text-hint);font-weight:400;">· tap ✓ to mark correct answer</span></div>
+    <div class="answer-option"><div class="option-label">A</div><input type="text" value="Class Diagram" style="flex:1;"><div class="correct-toggle" onclick="toggleCorrect(this)"><i class="fa fa-check"></i></div></div>
+    <div class="answer-option"><div class="option-label">B</div><input type="text" value="Use Case Diagram" style="flex:1;"><div class="correct-toggle" onclick="toggleCorrect(this)"><i class="fa fa-check"></i></div></div>
+    <div class="answer-option"><div class="option-label">C</div><input type="text" value="Sequence Diagram" style="flex:1;"><div class="correct-toggle active" onclick="toggleCorrect(this)"><i class="fa fa-check"></i></div></div>
+    <div class="answer-option"><div class="option-label">D</div><input type="text" value="Activity Diagram" style="flex:1;"><div class="correct-toggle" onclick="toggleCorrect(this)"><i class="fa fa-check"></i></div></div>
+    <div class="form-group" style="margin-top:16px;">
+      <label class="form-label">Time Limit</label>
+      <div class="time-pill-group">
+        <button class="time-pill" onclick="selectTime(this)">15s</button>
+        <button class="time-pill active" onclick="selectTime(this)">30s</button>
+        <button class="time-pill" onclick="selectTime(this)">60s</button>
+      </div>
+    </div>
+    <hr style="border:none;border-top:1px solid var(--border);margin:6px 0 16px;">
+    <div class="btn-row">
+      <button class="btn btn-outline btn-full" onclick="goTo('s-quiz-list')"><i class="fa fa-save"></i> Save Draft</button>
+      <button class="btn btn-primary btn-full" onclick="goTo('s-quiz-list')"><i class="fa fa-paper-plane"></i> Push to Desks</button>
+    </div>
+    <div style="height:24px;"></div>
+  </div>
+</div>
+
+<!-- ========== S6: LIVE RESULTS (active) ========== -->
+<div class="screen" id="s-live-results">
+  <div class="status-bar"><span class="status-time">10:14</span><div class="status-icons"><i class="fa fa-signal"></i><i class="fa fa-wifi"></i><i class="fa fa-battery-full"></i></div></div>
+  <div class="topbar">
+    <button class="back-btn" onclick="goTo('s-quiz-list')"><i class="fa fa-arrow-left"></i></button>
+    <div><div class="topbar-title">Live Results</div></div>
+    <span class="badge blue dot" style="margin-left:auto;">Active</span>
+  </div>
+  <div class="scroll-body">
+    <div class="card" style="margin:12px 16px;"><div style="font-size:15px;font-weight:700;color:var(--text);line-height:1.5;">Which software development model uses iterative development with fixed-length sprints?</div></div>
+    <div class="timer-block"><div class="timer-num" id="timer-display">00:14</div><div class="timer-label">Time remaining</div></div>
+    <div class="response-summary">
+      <div class="resp-stat"><div class="n">4/5</div><div class="l">Answered</div></div>
+      <div class="resp-stat"><div class="n" style="color:var(--green);">3</div><div class="l">Correct</div></div>
+      <div class="resp-stat"><div class="n" style="color:var(--red);">1</div><div class="l">Incorrect</div></div>
+      <div class="resp-stat"><div class="n" style="color:var(--gray-400);">1</div><div class="l">Unanswered</div></div>
+    </div>
+    <div class="chart-bars">
+      <div class="card-label" style="margin-bottom:10px;">Answer Distribution</div>
+      <div class="bar-row"><div class="bar-opt wrong">A</div><div class="bar-track"><div class="bar-fill wrong-f" style="width:20%;"><span class="bar-pct-w">20%</span></div></div><span class="bar-count">1</span></div>
+      <div class="bar-row"><div class="bar-opt correct">B</div><div class="bar-track"><div class="bar-fill correct-f" style="width:60%;"><span class="bar-pct-c">60%</span></div></div><span class="bar-count">3</span></div>
+      <div class="bar-row"><div class="bar-opt wrong">C</div><div class="bar-track"><div class="bar-fill wrong-f" style="width:20%;"><span class="bar-pct-w">20%</span></div></div><span class="bar-count">1</span></div>
+      <div class="bar-row"><div class="bar-opt wrong">D</div><div class="bar-track"><div class="bar-fill wrong-f" style="width:0%;"></div></div><span class="bar-count">0</span></div>
+    </div>
+    <div style="padding:16px;"><button class="btn btn-danger btn-full" onclick="goTo('s-quiz-list')"><i class="fa fa-stop"></i> Close Early</button></div>
+  </div>
+</div>
+
+<!-- ========== S7: RESULTS (closed) ========== -->
+<div class="screen" id="s-results-closed">
+  <div class="status-bar"><span class="status-time">10:14</span><div class="status-icons"><i class="fa fa-signal"></i><i class="fa fa-wifi"></i><i class="fa fa-battery-full"></i></div></div>
+  <div class="topbar">
+    <button class="back-btn" onclick="goTo('s-quiz-list')"><i class="fa fa-arrow-left"></i></button>
+    <div><div class="topbar-title">Quiz Results</div></div>
+    <span class="badge gray" style="margin-left:auto;">Closed</span>
+  </div>
+  <div class="scroll-body">
+    <div class="card" style="margin:12px 16px;"><div style="font-size:15px;font-weight:700;color:var(--text);line-height:1.5;">What does SOLID stand for in object-oriented design principles?</div></div>
+    <div class="timer-block"><div class="timer-num ended">⏱ Time's Up</div><div class="timer-label">Quiz ended · 60s timer</div></div>
+    <div class="response-summary">
+      <div class="resp-stat"><div class="n">22/25</div><div class="l">Answered</div></div>
+      <div class="resp-stat"><div class="n" style="color:var(--green);">18</div><div class="l">Correct</div></div>
+      <div class="resp-stat"><div class="n" style="color:var(--red);">4</div><div class="l">Incorrect</div></div>
+      <div class="resp-stat"><div class="n" style="color:var(--gray-400);">3</div><div class="l">Unanswered</div></div>
+    </div>
+    <div class="chart-bars">
+      <div class="card-label" style="margin-bottom:10px;">Final Distribution</div>
+      <div class="bar-row"><div class="bar-opt wrong">A</div><div class="bar-track"><div class="bar-fill wrong-f" style="width:16%;"><span class="bar-pct-w">16%</span></div></div><span class="bar-count">4</span></div>
+      <div class="bar-row"><div class="bar-opt wrong">B</div><div class="bar-track"><div class="bar-fill wrong-f" style="width:8%;"><span class="bar-pct-w">8%</span></div></div><span class="bar-count">2</span></div>
+      <div class="bar-row"><div class="bar-opt wrong">C</div><div class="bar-track"><div class="bar-fill wrong-f" style="width:8%;"><span class="bar-pct-w">8%</span></div></div><span class="bar-count">2</span></div>
+      <div class="bar-row"><div class="bar-opt correct">D</div><div class="bar-track"><div class="bar-fill correct-f" style="width:72%;"><span class="bar-pct-c">72%</span></div></div><span class="bar-count">18</span></div>
+    </div>
+    <div style="padding:16px;"><button class="btn btn-primary btn-full" onclick="goTo('s-breakdown')"><i class="fa fa-list"></i> View Individual Breakdown</button></div>
+  </div>
+</div>
+
+<!-- ========== S8: BREAKDOWN ========== -->
+<div class="screen" id="s-breakdown">
+  <div class="status-bar"><span class="status-time">10:14</span><div class="status-icons"><i class="fa fa-signal"></i><i class="fa fa-wifi"></i><i class="fa fa-battery-full"></i></div></div>
+  <div class="topbar"><button class="back-btn" onclick="goTo('s-results-closed')"><i class="fa fa-arrow-left"></i></button><div><div class="topbar-title">Response Breakdown</div></div></div>
+  <div class="scroll-body">
+    <div class="question-banner">
+      <div class="q">What does SOLID stand for in object-oriented design principles?</div>
+      <div class="correct-ans"><i class="fa fa-check-circle" style="color:var(--green);font-size:14px;flex-shrink:0;margin-top:1px;"></i><span>Correct: D — Single Responsibility, Open/Closed, Liskov, Interface Segregation, Dependency Inversion</span></div>
+    </div>
+    <div class="breakdown-summary">
+      <div class="bkdn-stat correct-s"><div class="n">18</div><div class="l">Correct</div></div>
+      <div class="bkdn-stat wrong-s"><div class="n">4</div><div class="l">Incorrect</div></div>
+      <div class="bkdn-stat unans-s"><div class="n">3</div><div class="l">Unanswered</div></div>
+    </div>
+    <div class="breakdown-table">
+      <div style="padding:10px 14px;background:var(--gray-50);border-bottom:1px solid var(--border);display:flex;font-size:11px;font-weight:700;color:var(--text-sub);text-transform:uppercase;letter-spacing:.05em;">
+        <span style="flex:1;">Student</span><span style="width:60px;text-align:center;">Answer</span><span style="width:30px;text-align:center;">Result</span>
+      </div>
+      <div class="bkdn-row"><div class="name">Ahmad Izzul Hakim</div><div class="answer">D</div><div class="result-icon">✅</div></div>
+      <div class="bkdn-row"><div class="name">Chow Shino</div><div class="answer">D</div><div class="result-icon">✅</div></div>
+      <div class="bkdn-row"><div class="name">Farhana Binti Roslan</div><div class="answer">—</div><div class="result-icon" style="color:var(--gray-300);">⬜</div></div>
+      <div class="bkdn-row"><div class="name">Isyraf Danieal</div><div class="answer">A</div><div class="result-icon">❌</div></div>
+      <div class="bkdn-row"><div class="name">Khor Jia Ling</div><div class="answer">D</div><div class="result-icon">✅</div></div>
+      <div class="bkdn-row"><div class="name">Lim Wei Hao</div><div class="answer">B</div><div class="result-icon">❌</div></div>
+      <div class="bkdn-row"><div class="name">Muhammad Haziq</div><div class="answer">D</div><div class="result-icon">✅</div></div>
+      <div class="bkdn-row"><div class="name">Nazirul Asyraf</div><div class="answer">—</div><div class="result-icon" style="color:var(--gray-300);">⬜</div></div>
+      <div class="bkdn-row"><div class="name">Nurul Amirah</div><div class="answer">D</div><div class="result-icon">✅</div></div>
+      <div class="bkdn-row"><div class="name">Tan Ee Xuan</div><div class="answer">C</div><div class="result-icon">❌</div></div>
+      <div class="bkdn-row"><div class="name">Yong Yew Sing</div><div class="answer">D</div><div class="result-icon">✅</div></div>
+      <div class="bkdn-row"><div class="name">Zul Izzat Izzuddin</div><div class="answer">—</div><div class="result-icon" style="color:var(--gray-300);">⬜</div></div>
+    </div>
+    <div style="height:24px;"></div>
+  </div>
+</div>
+
+<!-- ========== S9: ANALYTICS ========== -->
+<div class="screen" id="s-analytics">
+  <div class="scroll-body">
+  <div class="status-bar"><span class="status-time">10:14</span><div class="status-icons"><i class="fa fa-signal"></i><i class="fa fa-wifi"></i><i class="fa fa-battery-full"></i></div></div>
+  <div class="topbar" style="gap:8px;">
+    <div style="flex:1;"><div class="topbar-title">Analytics & Reports</div><div class="topbar-sub">WIA2005 — Sem 2 2024/25</div></div>
+    <button class="btn btn-primary btn-sm" onclick="openModal('modal-export')"><i class="fa fa-download"></i> Export</button>
+  </div>
+  <div class="tabs-row" style="flex-shrink:0;">
+    <div class="tab active" id="tab-att" onclick="switchTab('att')">Attendance</div>
+    <div class="tab" id="tab-par" onclick="switchTab('par')">Participation</div>
+    <div class="tab" id="tab-env" onclick="switchTab('env')">Environment</div>
+  </div>
+  <div class="filter-row">
+    <select style="flex:1.4;padding:7px 10px;font-size:12px;"><option>WIA2005 — Soft. Eng.</option><option>WIA2004 — Data Mining</option></select>
+    <select style="flex:1;padding:7px 10px;font-size:12px;"><option>This month</option><option>Last 30 days</option><option>Sem 2 2024/25</option></select>
+  </div>
+
+    <div id="atab-att">
+      <div class="stat-row-grid" style="margin-top:12px;">
+        <div class="stat-chip"><div class="n">88.4%</div><div class="l">Avg attendance rate</div></div>
+        <div class="stat-chip"><div class="n">12</div><div class="l">Sessions held</div></div>
+      </div>
+      <div class="stat-row-grid">
+        <div class="stat-chip"><div class="n" style="color:var(--red);">3</div><div class="l">Students at-risk (&lt;80%)</div></div>
+        <div class="stat-chip"><div class="n">26</div><div class="l">Enrolled</div></div>
+      </div>
+      <div class="chart-card">
+        <h3>Attendance per Session (students present)</h3>
+        <div class="mini-chart">
+          <div class="bar-col"><div class="bar-vis blue" style="height:66px;"></div><div class="lbl-x">W1S1</div></div>
+          <div class="bar-col"><div class="bar-vis blue" style="height:78px;"></div><div class="lbl-x">W1S2</div></div>
+          <div class="bar-col"><div class="bar-vis blue" style="height:90px;"></div><div class="lbl-x">W2S1</div></div>
+          <div class="bar-col"><div class="bar-vis blue" style="height:80px;"></div><div class="lbl-x">W2S2</div></div>
+          <div class="bar-col"><div class="bar-vis blue" style="height:96px;"></div><div class="lbl-x">W3S1</div></div>
+          <div class="bar-col"><div class="bar-vis blue" style="height:85px;"></div><div class="lbl-x">W3S2</div></div>
+          <div class="bar-col"><div class="bar-vis blue" style="height:88px;"></div><div class="lbl-x">W4S1</div></div>
+          <div class="bar-col"><div class="bar-vis blue" style="height:100px;"></div><div class="lbl-x">W4S2</div></div>
+          <div class="bar-col"><div class="bar-vis blue" style="height:74px;"></div><div class="lbl-x">W5S1</div></div>
+          <div class="bar-col"><div class="bar-vis blue" style="height:84px;"></div><div class="lbl-x">W5S2</div></div>
+          <div class="bar-col"><div class="bar-vis blue" style="height:88px;"></div><div class="lbl-x">Today</div></div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <h3>Students at risk (&lt;80% attendance)</h3>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div style="display:flex;align-items:center;gap:10px;"><div style="font-size:13px;color:var(--text);flex:1;">Farhana Binti Roslan</div><div style="font-size:13px;font-weight:700;color:var(--red);">58.3%</div></div>
+          <div style="display:flex;align-items:center;gap:10px;"><div style="font-size:13px;color:var(--text);flex:1;">Nazirul Asyraf</div><div style="font-size:13px;font-weight:700;color:var(--red);">66.7%</div></div>
+          <div style="display:flex;align-items:center;gap:10px;"><div style="font-size:13px;color:var(--text);flex:1;">Zul Izzat Izzuddin</div><div style="font-size:13px;font-weight:700;color:var(--orange);">75.0%</div></div>
+        </div>
+      </div>
+    </div>
+    <div id="atab-par" style="display:none;">
+      <div class="stat-row-grid" style="margin-top:12px;">
+        <div class="stat-chip"><div class="n">79%</div><div class="l">Avg response rate</div></div>
+        <div class="stat-chip"><div class="n">68%</div><div class="l">Avg quiz score</div></div>
+      </div>
+      <div class="stat-row-grid">
+        <div class="stat-chip"><div class="n">32</div><div class="l">Quizzes & polls run</div></div>
+        <div class="stat-chip"><div class="n" style="color:var(--green);">+8%</div><div class="l">Score trend vs last sem</div></div>
+      </div>
+      <div class="chart-card">
+        <h3>Response rate per session</h3>
+        <div class="mini-chart">
+          <div class="bar-col"><div class="bar-vis green" style="height:66px;"></div><div class="lbl-x">W1</div></div>
+          <div class="bar-col"><div class="bar-vis green" style="height:78px;"></div><div class="lbl-x">W2</div></div>
+          <div class="bar-col"><div class="bar-vis green" style="height:88px;"></div><div class="lbl-x">W3</div></div>
+          <div class="bar-col"><div class="bar-vis green" style="height:72px;"></div><div class="lbl-x">W4</div></div>
+          <div class="bar-col"><div class="bar-vis green" style="height:90px;"></div><div class="lbl-x">W5</div></div>
+          <div class="bar-col"><div class="bar-vis green" style="height:84px;"></div><div class="lbl-x">Today</div></div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <h3>Average score trend</h3>
+        <svg viewBox="0 0 300 90" style="width:100%;height:90px;">
+          <polyline points="10,75 60,60 110,50 160,55 210,38 270,30 290,34" fill="none" stroke="#12A564" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="10" cy="75" r="3.5" fill="#12A564"/><circle cx="60" cy="60" r="3.5" fill="#12A564"/><circle cx="110" cy="50" r="3.5" fill="#12A564"/><circle cx="160" cy="55" r="3.5" fill="#12A564"/><circle cx="210" cy="38" r="3.5" fill="#12A564"/><circle cx="270" cy="30" r="3.5" fill="#12A564"/><circle cx="290" cy="34" r="3.5" fill="#12A564"/>
+        </svg>
+        <div style="font-size:11px;color:var(--text-hint);text-align:center;margin-top:2px;">Average % correct over weeks (↑ trend)</div>
+      </div>
+    </div>
+    <div id="atab-env" style="display:none;">
+      <div class="stat-row-grid" style="margin-top:12px;">
+        <div class="stat-chip"><div class="n">25.8°C</div><div class="l">Avg temperature</div></div>
+        <div class="stat-chip"><div class="n">1180</div><div class="l">Avg CO₂ (ppm)</div></div>
+      </div>
+      <div class="chart-card">
+        <h3>Temperature history (°C)</h3>
+        <svg viewBox="0 0 300 90" style="width:100%;height:90px;">
+          <polyline points="10,55 60,50 110,58 160,44 210,52 270,46 290,42" fill="none" stroke="#1B6EF3" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="10" cy="55" r="3.5" fill="#1B6EF3"/><circle cx="60" cy="50" r="3.5" fill="#1B6EF3"/><circle cx="110" cy="58" r="3.5" fill="#1B6EF3"/><circle cx="160" cy="44" r="3.5" fill="#1B6EF3"/><circle cx="210" cy="52" r="3.5" fill="#1B6EF3"/><circle cx="270" cy="46" r="3.5" fill="#1B6EF3"/><circle cx="290" cy="42" r="3.5" fill="#1B6EF3"/>
+        </svg>
+      </div>
+      <div class="chart-card">
+        <h3>CO₂ history (ppm)</h3>
+        <svg viewBox="0 0 300 90" style="width:100%;height:90px;">
+          <line x1="10" y1="35" x2="290" y2="35" stroke="#f5c5c5" stroke-width="1" stroke-dasharray="4,3"/>
+          <text x="210" y="31" font-size="9" fill="#E03A3A">1500 ppm limit</text>
+          <polyline points="10,72 60,65 110,52 160,68 210,44 270,58 290,50" fill="none" stroke="#E03A3A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="10" cy="72" r="3.5" fill="#E03A3A"/><circle cx="60" cy="65" r="3.5" fill="#E03A3A"/><circle cx="110" cy="52" r="3.5" fill="#E03A3A"/><circle cx="160" cy="68" r="3.5" fill="#E03A3A"/><circle cx="210" cy="44" r="3.5" fill="#E03A3A"/><circle cx="270" cy="58" r="3.5" fill="#E03A3A"/><circle cx="290" cy="50" r="3.5" fill="#E03A3A"/>
+        </svg>
+      </div>
+    </div>
+    <div style="height:20px;"></div>
+    </div>
+
+  <div class="bottomnav">
+    <button class="nav-item" onclick="goTo('s-dashboard')"><i class="fa fa-home"></i><span>Home</span></button>
+    <button class="nav-item" onclick="goTo('s-attendance-sessions')"><i class="fa fa-user-check"></i><span>Attendance</span></button>
+    <button class="nav-item" onclick="goTo('s-quiz-list')"><i class="fa fa-question-circle"></i><span>Quiz</span></button>
+    <button class="nav-item active" onclick="goTo('s-analytics')"><i class="fa fa-chart-bar"></i><span>Analytics</span></button>
+    <button class="nav-item" onclick="goTo('s-environment')"><i class="fa fa-leaf"></i><span>Environment</span></button>
+  </div>
+  <div class="modal-overlay" id="modal-export">
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <div class="modal-title">Export Report</div>
+      <div style="font-size:13px;color:var(--text-sub);margin-bottom:16px;">WIA2005 · Attendance · This month</div>
+      <div style="display:flex;gap:12px;margin-bottom:20px;">
+        <div id="export-pdf" onclick="selectExport('pdf')" style="flex:1;border:2px solid var(--blue);border-radius:var(--radius);padding:16px;text-align:center;cursor:pointer;">
+          <i class="fa fa-file-pdf" style="font-size:28px;color:var(--red);"></i>
+          <div style="font-size:14px;font-weight:700;color:var(--text);margin-top:6px;">PDF</div>
+          <div style="font-size:11px;color:var(--text-sub);">Formatted report</div>
+        </div>
+        <div id="export-csv" onclick="selectExport('csv')" style="flex:1;border:1.5px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center;cursor:pointer;">
+          <i class="fa fa-file-csv" style="font-size:28px;color:var(--green);"></i>
+          <div style="font-size:14px;font-weight:700;color:var(--text);margin-top:6px;">CSV</div>
+          <div style="font-size:11px;color:var(--text-sub);">Raw data spreadsheet</div>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-full" onclick="closeModal('modal-export')"><i class="fa fa-download"></i> Export PDF</button>
+      <hr class="modal-divider">
+      <button class="btn btn-outline btn-full" onclick="closeModal('modal-export')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ========== S10: ENVIRONMENT ========== -->
+<div class="screen" id="s-environment">
+  <div class="scroll-body">
+  <div class="status-bar"><span class="status-time">10:14</span><div class="status-icons"><i class="fa fa-signal"></i><i class="fa fa-wifi"></i><i class="fa fa-battery-full"></i></div></div>
+  <div class="topbar">
+    <div style="flex:1;"><div class="topbar-title">Environment Control</div><div class="topbar-sub">DK 6, BLI Building · Live sensors</div></div>
+    <div style="display:flex;align-items:center;gap:5px;"><div class="status-dot green"></div><span style="font-size:11px;color:var(--green-dk);font-weight:700;">Live</span></div>
+  </div>
+
+    <div class="alert-banner">
+      <div class="ico"><i class="fa fa-exclamation-triangle"></i></div>
+      <div class="msg">CO₂ level elevated at 1240 ppm — ventilation recommended. Threshold: 1000 ppm.</div>
+    </div>
+    <div class="section-header" style="padding-top:4px;"><span class="section-title">Sensor Readings</span><span style="font-size:11px;color:var(--text-hint);">Updated 10:14 AM</span></div>
+    <div class="sensor-grid">
+      <div class="sensor-card">
+        <div class="s-icon" style="color:#E03A3A;"><i class="fa fa-thermometer-half"></i></div>
+        <div class="s-name">Temperature</div>
+        <div><span class="s-val">26.4</span><span class="s-unit"> °C</span></div>
+        <div style="margin-top:8px;"><span class="badge green">Normal</span></div>
+      </div>
+      <div class="sensor-card">
+        <div class="s-icon" style="color:#1B6EF3;"><i class="fa fa-tint"></i></div>
+        <div class="s-name">Humidity</div>
+        <div><span class="s-val">61</span><span class="s-unit"> %</span></div>
+        <div style="margin-top:8px;"><span class="badge green">Normal</span></div>
+      </div>
+      <div class="sensor-card warn">
+        <div class="s-icon" style="color:#D4960A;"><i class="fa fa-wind"></i></div>
+        <div class="s-name">CO₂ Level</div>
+        <div><span class="s-val">1240</span><span class="s-unit"> ppm</span></div>
+        <div style="margin-top:8px;"><span class="badge yellow">Elevated</span></div>
+      </div>
+      <div class="sensor-card">
+        <div class="s-icon" style="color:#E87722;"><i class="fa fa-sun"></i></div>
+        <div class="s-name">Light Level</div>
+        <div><span class="s-val">420</span><span class="s-unit"> lux</span></div>
+        <div style="margin-top:8px;"><span class="badge green">Normal</span></div>
+      </div>
+      <div class="sensor-card" style="grid-column:span 2;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div><div class="s-icon" style="color:var(--gray-500);"><i class="fa fa-users"></i></div></div>
+          <div><div class="s-name">Occupancy</div><div><span class="s-val">23</span><span class="s-unit"> / 30 seats</span></div></div>
+          <div style="margin-left:auto;"><span class="badge green">Normal</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="section-header"><span class="section-title">Actuation Control</span></div>
+    <div class="actuation-card">
+      <div class="actuation-row">
+        <div class="act-icon lights"><i class="fa fa-lightbulb" style="color:var(--yellow);font-size:20px;"></i></div>
+        <div class="act-info">
+          <div class="name">Lights</div>
+          <div class="status">Auto Mode · <span style="color:var(--green);font-weight:700;">ON</span></div>
+        </div>
+        <span class="badge green" style="margin-right:8px;">Auto</span>
+        <button class="btn btn-sm btn-outline" onclick="openModal('modal-override-lights')">Override</button>
+      </div>
+    </div>
+    <div class="actuation-card">
+      <div class="actuation-row">
+        <div class="act-icon ac"><i class="fa fa-snowflake" style="color:var(--blue);font-size:20px;"></i></div>
+        <div class="act-info">
+          <div class="name">Air Conditioning</div>
+          <div class="status">Auto Mode · <span style="color:var(--green);font-weight:700;">ON</span> · Set 23°C</div>
+        </div>
+        <span class="badge green" style="margin-right:8px;">Auto</span>
+        <button class="btn btn-sm btn-outline" onclick="openModal('modal-override-ac')">Override</button>
+      </div>
+    </div>
+    <div style="height:20px;"></div>
+    </div>
+
+  <div class="bottomnav">
+    <button class="nav-item" onclick="goTo('s-dashboard')"><i class="fa fa-home"></i><span>Home</span></button>
+    <button class="nav-item" onclick="goTo('s-attendance-sessions')"><i class="fa fa-user-check"></i><span>Attendance</span></button>
+    <button class="nav-item" onclick="goTo('s-quiz-list')"><i class="fa fa-question-circle"></i><span>Quiz</span></button>
+    <button class="nav-item" onclick="goTo('s-analytics')"><i class="fa fa-chart-bar"></i><span>Analytics</span></button>
+    <button class="nav-item active" onclick="goTo('s-environment')"><i class="fa fa-leaf"></i><span>Environment</span></button>
+  </div>
+  <!-- Lights Override Modal -->
+  <div class="modal-overlay" id="modal-override-lights">
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+        <div style="width:40px;height:40px;border-radius:10px;background:var(--yellow-lt);display:flex;align-items:center;justify-content:center;"><i class="fa fa-lightbulb" style="font-size:18px;color:var(--yellow);"></i></div>
+        <div class="modal-title" style="margin:0;">Lights Override</div>
+      </div>
+      <div class="override-group">
+        <div class="override-label">Control Mode</div>
+        <div class="mode-pills">
+          <button class="mode-pill active" onclick="selMode(this)">Auto</button>
+          <button class="mode-pill" onclick="selMode(this)">Manual</button>
+        </div>
+      </div>
+      <div class="override-group">
+        <div class="override-label">State</div>
+        <div class="onoff-pills">
+          <button class="onoff-pill on active" onclick="selOnOff(this,'on')">ON</button>
+          <button class="onoff-pill off" onclick="selOnOff(this,'off')">OFF</button>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-full" onclick="closeModal('modal-override-lights')"><i class="fa fa-check"></i> Confirm Override</button>
+      <hr class="modal-divider">
+      <button class="btn btn-outline btn-full" onclick="closeModal('modal-override-lights')">Cancel</button>
+    </div>
+  </div>
+  <!-- AC Override Modal (with temp control) -->
+  <div class="modal-overlay" id="modal-override-ac">
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+        <div style="width:40px;height:40px;border-radius:10px;background:var(--blue-lt);display:flex;align-items:center;justify-content:center;"><i class="fa fa-snowflake" style="font-size:18px;color:var(--blue);"></i></div>
+        <div class="modal-title" style="margin:0;">AC Override</div>
+      </div>
+      <div class="override-group">
+        <div class="override-label">Control Mode</div>
+        <div class="mode-pills">
+          <button class="mode-pill active" onclick="selMode(this)">Auto</button>
+          <button class="mode-pill" onclick="selMode(this)">Manual</button>
+        </div>
+      </div>
+      <div class="override-group">
+        <div class="override-label">State</div>
+        <div class="onoff-pills">
+          <button class="onoff-pill on active" onclick="selOnOff(this,'on')">ON</button>
+          <button class="onoff-pill off" onclick="selOnOff(this,'off')">OFF</button>
+        </div>
+      </div>
+      <!-- Temperature setpoint -->
+      <div class="override-group temp-slider-block">
+        <div class="override-label">Target Temperature</div>
+        <div class="temp-display" id="temp-display">23 <span>°C</span></div>
+        <input type="range" min="16" max="30" value="23" step="1" id="temp-slider" oninput="updateTemp(this.value)">
+        <div class="temp-range-labels"><span>16°C (cool)</span><span>23°C</span><span>30°C (warm)</span></div>
+        <div style="margin-top:10px;display:flex;gap:8px;">
+          <div style="flex:1;background:var(--blue-lt);border-radius:var(--radius-sm);padding:8px;text-align:center;cursor:pointer;" onclick="setTemp(18)"><div style="font-size:13px;font-weight:700;color:var(--blue-dk);">18°C</div><div style="font-size:10px;color:var(--blue);">Very cool</div></div>
+          <div style="flex:1;background:var(--blue-lt);border-radius:var(--radius-sm);padding:8px;text-align:center;cursor:pointer;border:2px solid var(--blue);" onclick="setTemp(23)"><div style="font-size:13px;font-weight:700;color:var(--blue-dk);">23°C</div><div style="font-size:10px;color:var(--blue);">Recommended</div></div>
+          <div style="flex:1;background:var(--yellow-lt);border-radius:var(--radius-sm);padding:8px;text-align:center;cursor:pointer;" onclick="setTemp(26)"><div style="font-size:13px;font-weight:700;color:var(--yellow-dk);">26°C</div><div style="font-size:10px;color:var(--yellow);">Energy saving</div></div>
+        </div>
+      </div>
+      <div style="background:var(--blue-lt);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:14px;font-size:12px;color:var(--blue-dk);">
+        <i class="fa fa-info-circle"></i> In Auto mode, AC activates when occupancy ≥ 5. Temperature setpoint applies in both modes.
+      </div>
+      <button class="btn btn-primary btn-full" onclick="closeModal('modal-override-ac')"><i class="fa fa-check"></i> Confirm Override</button>
+      <hr class="modal-divider">
+      <button class="btn btn-outline btn-full" onclick="closeModal('modal-override-ac')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+
+
+<!-- ========== PROFILE SCREEN ========== -->
+<div class="screen" id="s-profile">
+  <div class="scroll-body">
+  <div class="status-bar"><span class="status-time">10:14</span><div class="status-icons"><i class="fa fa-signal"></i><i class="fa fa-wifi"></i><i class="fa fa-battery-full"></i></div></div>
+  <div class="topbar" style="background:var(--card);border-bottom:1px solid var(--border);padding:12px 20px;display:flex;align-items:center;gap:12px;">
+    <button class="back-btn" onclick="goBack()"><i class="fa fa-arrow-left"></i></button>
+    <div class="topbar-title">My Profile</div>
+  </div>
+  <div class="profile-hero">
+    <div class="profile-avatar">TW</div>
+    <div class="profile-name">Dr. Tan Wei Liang</div>
+    <div class="profile-email">drtan.wl@um.edu.my</div>
+    <div class="profile-role-badge"><i class="fa fa-chalkboard-teacher"></i> &nbsp;Lecturer</div>
+  </div>
+  <div class="profile-section">
+    <div class="profile-section-label">Account Information</div>
+    <div class="profile-row">
+      <div class="profile-field">
+        <div class="pf-icon" style="background:var(--blue-lt);color:var(--blue);"><i class="fa fa-id-badge"></i></div>
+        <div class="pf-content"><div class="pf-label">Staff ID</div><div class="pf-value">WL2019-0047</div></div>
+      </div>
+      <div class="profile-field">
+        <div class="pf-icon" style="background:var(--blue-lt);color:var(--blue);"><i class="fa fa-envelope"></i></div>
+        <div class="pf-content"><div class="pf-label">Email Address</div><div class="pf-value">drtan.wl@um.edu.my</div></div>
+      </div>
+      <div class="profile-field">
+        <div class="pf-icon" style="background:var(--green-lt);color:var(--green);"><i class="fa fa-university"></i></div>
+        <div class="pf-content"><div class="pf-label">Faculty</div><div class="pf-value">Computer Science & IT</div></div>
+      </div>
+      <div class="profile-field">
+        <div class="pf-icon" style="background:var(--orange-lt);color:var(--orange);"><i class="fa fa-shield-alt"></i></div>
+        <div class="pf-content"><div class="pf-label">Role</div><div class="pf-value">Lecturer</div></div>
+      </div>
+    </div>
+    <div class="profile-admin-note">
+      <i class="fa fa-info-circle"></i>
+      <span>Profile details are managed by your system administrator. Contact IT Services to update your name, email, or faculty.</span>
+    </div>
+  </div>
+  <div class="profile-section">
+    <div class="profile-section-label">Assigned Classes — Sem 2 2024/25</div>
+    <div class="profile-row">
+      <div class="profile-field">
+        <div class="pf-icon" style="background:var(--blue-lt);color:var(--blue);"><i class="fa fa-book"></i></div>
+        <div class="pf-content"><div class="pf-label">WIA2005</div><div class="pf-value">Software Engineering</div></div>
+        <span class="badge blue" style="font-size:10px;">26 students</span>
+      </div>
+      <div class="profile-field">
+        <div class="pf-icon" style="background:var(--blue-lt);color:var(--blue);"><i class="fa fa-book"></i></div>
+        <div class="pf-content"><div class="pf-label">WIA2004</div><div class="pf-value">Data Mining</div></div>
+        <span class="badge blue" style="font-size:10px;">31 students</span>
+      </div>
+      <div class="profile-field">
+        <div class="pf-icon" style="background:var(--blue-lt);color:var(--blue);"><i class="fa fa-book"></i></div>
+        <div class="pf-content"><div class="pf-label">WIX3001</div><div class="pf-value">Final Year Project II</div></div>
+        <span class="badge blue" style="font-size:10px;">18 students</span>
+      </div>
+    </div>
+  </div>
+  <div class="profile-section">
+    <div class="profile-section-label">Account</div>
+    <div class="profile-row">
+      <div class="profile-action-row" onclick="openModal('modal-change-password')">
+        <div class="pf-icon" style="background:var(--yellow-lt);color:var(--yellow-dk);"><i class="fa fa-lock"></i></div>
+        <span class="pf-label-main">Change Password</span>
+        <i class="fa fa-chevron-right pf-chevron"></i>
+      </div>
+      <div class="profile-action-row" onclick="openModal('modal-session-info')">
+        <div class="pf-icon" style="background:var(--green-lt);color:var(--green-dk);"><i class="fa fa-clock"></i></div>
+        <span class="pf-label-main">Session &amp; Login Activity</span>
+        <i class="fa fa-chevron-right pf-chevron"></i>
+      </div>
+      <div class="profile-action-row danger" onclick="openModal('modal-signout')">
+        <div class="pf-icon" style="background:var(--red-lt);color:var(--red);"><i class="fa fa-sign-out-alt"></i></div>
+        <span class="pf-label-main">Sign Out</span>
+        <i class="fa fa-chevron-right pf-chevron"></i>
+      </div>
+    </div>
+  </div>
+  <div style="text-align:center;padding:8px 0 28px;font-size:11px;color:var(--text-hint);">SmartClass Lecturer App &nbsp;·&nbsp; v1.0.0 &nbsp;·&nbsp; University of Malaya</div>
+  </div>
+  <!-- Change Password Modal -->
+  <div class="modal-overlay" id="modal-change-password">
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <div class="modal-title"><i class="fa fa-lock" style="color:var(--blue);"></i> &nbsp;Change Password</div>
+      <div style="font-size:13px;color:var(--text-sub);margin-bottom:16px;">Your new password must be at least 8 characters.</div>
+      <div class="form-group"><label class="form-label">Current Password</label><div class="input-wrap"><i class="fa fa-lock lead"></i><input type="password" placeholder="Enter current password"></div></div>
+      <div class="form-group"><label class="form-label">New Password</label><div class="input-wrap"><i class="fa fa-key lead"></i><input type="password" placeholder="Enter new password"></div></div>
+      <div class="form-group"><label class="form-label">Confirm New Password</label><div class="input-wrap"><i class="fa fa-key lead"></i><input type="password" placeholder="Re-enter new password"></div></div>
+      <button class="btn btn-primary btn-full" onclick="closeModal('modal-change-password')"><i class="fa fa-check"></i> Update Password</button>
+      <hr class="modal-divider">
+      <button class="btn btn-outline btn-full" onclick="closeModal('modal-change-password')">Cancel</button>
+    </div>
+  </div>
+  <!-- Session Info Modal -->
+  <div class="modal-overlay" id="modal-session-info">
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <div class="modal-title"><i class="fa fa-clock" style="color:var(--green);"></i> &nbsp;Login Activity</div>
+      <div style="background:var(--green-lt);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:16px;">
+        <div style="font-size:11px;color:var(--green-dk);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Current Session</div>
+        <div style="font-size:14px;font-weight:700;color:var(--text);">Today, 24 May 2025</div>
+        <div style="font-size:12px;color:var(--text-sub);margin-top:2px;">Logged in at 9:41 AM &nbsp;·&nbsp; Android App</div>
+      </div>
+      <div style="font-size:12px;font-weight:700;color:var(--text-sub);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">Recent Activity</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--gray-50);border-radius:var(--radius-sm);"><div><div style="font-size:13px;font-weight:600;color:var(--text);">23 May 2025</div><div style="font-size:12px;color:var(--text-sub);">Android App · 8:05 AM</div></div><span class="badge green">Success</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--gray-50);border-radius:var(--radius-sm);"><div><div style="font-size:13px;font-weight:600;color:var(--text);">21 May 2025</div><div style="font-size:12px;color:var(--text-sub);">Android App · 10:02 AM</div></div><span class="badge green">Success</span></div>
+      </div>
+      <hr class="modal-divider">
+      <button class="btn btn-outline btn-full" onclick="closeModal('modal-session-info')">Close</button>
+    </div>
+  </div>
+  <!-- Sign Out Modal -->
+  <div class="modal-overlay" id="modal-signout">
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <div class="modal-title">Sign Out</div>
+      <div style="font-size:14px;color:var(--text-sub);margin-bottom:18px;line-height:1.5;">Are you sure you want to sign out? Active sessions will continue running in the background.</div>
+      <div class="btn-row">
+        <button class="btn btn-outline btn-full" onclick="closeModal('modal-signout')">Cancel</button>
+        <button class="btn btn-red btn-full" onclick="closeModal('modal-signout');goTo('s-login')"><i class="fa fa-sign-out-alt"></i> Sign Out</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- phone-frame -->
+
+<script>
+var sessionOpen = true;
+
+var _prevScreen='s-dashboard';
+function goTo(id){
+  var cur=document.querySelector('.screen.active');
+  if(cur&&cur.id!==id) _prevScreen=cur.id;
+  document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active');});
+  var t=document.getElementById(id);
+  if(t){t.classList.add('active');var sb=t.querySelector('.scroll-body');if(sb)sb.scrollTop=0;}
+}
+function goBack(){ goTo(_prevScreen); }
+function openModal(id){document.getElementById(id).classList.add('open');}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+document.querySelectorAll('.modal-overlay').forEach(function(o){
+  o.addEventListener('click',function(e){if(e.target===o)o.classList.remove('open');});
+});
+
+function toggleSession(){
+  sessionOpen=!sessionOpen;
+  var btn=document.getElementById('session-toggle-btn');
+  var badge=document.getElementById('session-badge');
+  var sess=document.getElementById('session-content');
+  var nosess=document.getElementById('no-session-content');
+  if(sessionOpen){
+    btn.innerHTML='<i class="fa fa-stop-circle"></i> Close Session';
+    btn.className='session-toggle-btn can-close';
+    badge.className='badge green dot';badge.textContent='Session Open';
+    sess.style.display='';nosess.style.display='none';
+  } else {
+    btn.innerHTML='<i class="fa fa-play-circle"></i> Open Session';
+    btn.className='session-toggle-btn can-open';
+    badge.className='badge gray dot';badge.textContent='Session Closed';
+    sess.style.display='none';nosess.style.display='';
+  }
+}
+
+function openQuizModal(type){
+  if(type==='active')openModal('modal-quiz-active');
+  else if(type==='closed')openModal('modal-quiz-closed');
+  else openModal('modal-quiz-draft');
+}
+
+// Quiz list screen modals
+document.querySelectorAll('#s-quiz-list .quiz-card-item').forEach(function(card,i){
+  card.addEventListener('click',function(){
+    if(i===0)openModal('modal-ql-active');
+    else if(i===1)openModal('modal-ql-closed');
+    else openModal('modal-ql-draft');
+  });
+});
+
+function openStudentModal(name,id,status){
+  var initials=name.split(' ').map(function(p){return p[0];}).join('').substring(0,2).toUpperCase();
+  document.getElementById('modal-stu-avatar').textContent=initials;
+  document.getElementById('modal-stu-name').textContent=name;
+  document.getElementById('modal-stu-id').textContent=id+' · WIA2005';
+  var el=document.getElementById('modal-stu-status');
+  el.className='badge dot';
+  if(status==='present'){el.classList.add('green');el.textContent='Present';}
+  else if(status==='absent'){el.classList.add('red');el.textContent='Absent';}
+  else{el.classList.add('orange');el.textContent='Unidentified';}
+  openModal('modal-student');
+}
+
+function toggleCorrect(el){
+  el.closest('.scroll-body').querySelectorAll('.correct-toggle').forEach(function(t){t.classList.remove('active');});
+  el.classList.add('active');
+}
+function selectTime(el){
+  el.closest('.time-pill-group').querySelectorAll('.time-pill').forEach(function(p){p.classList.remove('active');});
+  el.classList.add('active');
+}
+var sortAZ=true;
+function toggleSort(){
+  sortAZ=!sortAZ;
+  var btn=document.getElementById('sort-btn');
+  btn.innerHTML=sortAZ?'<i class="fa fa-sort-alpha-down" id="sort-icon"></i> A–Z':'<i class="fa fa-sort-alpha-up" id="sort-icon"></i> Z–A';
+}
+function switchTab(id){
+  ['att','par','env'].forEach(function(t){
+    document.getElementById('tab-'+t).classList.remove('active');
+    document.getElementById('atab-'+t).style.display='none';
+  });
+  document.getElementById('tab-'+id).classList.add('active');
+  document.getElementById('atab-'+id).style.display='';
+}
+function selectExport(type){
+  document.getElementById('export-pdf').style.border=type==='pdf'?'2px solid var(--blue)':'1.5px solid var(--border)';
+  document.getElementById('export-csv').style.border=type==='csv'?'2px solid var(--blue)':'1.5px solid var(--border)';
+}
+function selMode(el){
+  el.closest('.mode-pills').querySelectorAll('.mode-pill').forEach(function(p){p.classList.remove('active');});
+  el.classList.add('active');
+}
+function selOnOff(el,v){
+  el.closest('.onoff-pills').querySelectorAll('.onoff-pill').forEach(function(p){p.classList.remove('active');});
+  el.classList.add('active');
+}
+function updateTemp(v){
+  document.getElementById('temp-display').innerHTML=v+' <span>°C</span>';
+}
+function setTemp(v){
+  document.getElementById('temp-slider').value=v;
+  updateTemp(v);
+}
+function filterQuiz(el,type){
+  el.closest('.quiz-filter-row').querySelectorAll('.filter-pill').forEach(function(p){p.classList.remove('active');});
+  el.classList.add('active');
+}
+// Countdown timer
+var timerVal=14;
+setInterval(function(){
+  var el=document.getElementById('timer-display');
+  if(!el)return;
+  if(timerVal>0)timerVal--;
+  else timerVal=30;
+  var m=Math.floor(timerVal/60),s=timerVal%60;
+  el.textContent='0'+m+':'+(s<10?'0':'')+s;
+},1000);
+</script>
+</body>
+</html>
