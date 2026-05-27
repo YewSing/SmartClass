@@ -44,7 +44,7 @@ export default function Participation() {
       </div>
 
       <div className="scroll-body">
-        {PARTICIPATION_GROUPS.map(group => (
+        {(activeFilter === 'All Classes' ? PARTICIPATION_GROUPS : PARTICIPATION_GROUPS.filter(g => g.label.includes(activeFilter))).map(group => (
           <div key={group.id}>
             <div
               className={`session-group-header-row${collapsed[group.id] ? ' collapsed' : ''}`}

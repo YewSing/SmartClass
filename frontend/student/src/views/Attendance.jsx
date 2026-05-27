@@ -52,7 +52,7 @@ export default function Attendance() {
       </div>
 
       <div className="scroll-body">
-        {ATTENDANCE_GROUPS.map(group => (
+        {(activeFilter === 'All Classes' ? ATTENDANCE_GROUPS : ATTENDANCE_GROUPS.filter(g => g.label.includes(activeFilter))).map(group => (
           <div key={group.id}>
             <div
               className={`session-group-header-row${collapsed[group.id] ? ' collapsed' : ''}`}

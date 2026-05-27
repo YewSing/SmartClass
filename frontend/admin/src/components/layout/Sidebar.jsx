@@ -20,13 +20,15 @@ const NAV = [
     label: 'Enrollment',
     items: [
       { id: 'enrollment', icon: 'fa-solid fa-clipboard-check', label: 'Class Enrollment' },
-      { id: 'facedata',   icon: 'fa-solid fa-camera',          label: 'Face Data', badge: { count: 3, color: '#E87722' } },
+      { id: 'facedata',   icon: 'fa-solid fa-camera',          label: 'Face Data',         badge: { count: 3, color: '#E87722' } },
+      { id: 'facereview', icon: 'fa-solid fa-user-slash',      label: 'Face Review Queue', badge: { dynamic: 'unrecognisedQueue', color: '#E87722' } },
     ],
   },
   {
     label: 'System',
     items: [
-      { id: 'audit', icon: 'fa-solid fa-clock-rotate-left',    label: 'Audit Log' },
+      { id: 'environment', icon: 'fa-solid fa-temperature-half',  label: 'Environment' },
+      { id: 'audit',       icon: 'fa-solid fa-clock-rotate-left', label: 'Audit Log' },
     ],
   },
 ]
@@ -71,7 +73,12 @@ export default function Sidebar() {
                   )}
                   <i className={`${item.icon} text-[14px] w-5 text-center flex-shrink-0`} />
                   {item.label}
-                  {item.badge && <NavBadge count={item.badge.count} color={item.badge.color} />}
+                  {item.badge && (() => {
+                    const count = item.badge.dynamic
+                      ? state[item.badge.dynamic]?.length ?? 0
+                      : item.badge.count
+                    return count > 0 ? <NavBadge count={count} color={item.badge.color} /> : null
+                  })()}
                 </button>
               )
             })}

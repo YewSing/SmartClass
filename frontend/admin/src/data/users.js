@@ -30,4 +30,10 @@ export const AUDIT_LOG = [
   { ts: '2025-05-24 09:05:17', actor: 'admin@um.edu.my', action: 'USER_UPDATE',    target: 'U2022034', detail: 'Contact info updated' },
 ]
 
+export const UNRECOGNISED_QUEUE = [
+  { id: 'UFR001', ts: '2025-05-27 08:42:11', camera: 'Front-Left (Cam 1)',  confidence: 0.41, occurrences: 3, session: 'WIA2005 — 08:00' },
+  { id: 'UFR002', ts: '2025-05-27 09:15:04', camera: 'Front-Right (Cam 2)', confidence: 0.38, occurrences: 1, session: 'WIA2005 — 08:00' },
+  { id: 'UFR003', ts: '2025-05-26 10:22:49', camera: 'Front-Left (Cam 1)',  confidence: 0.29, occurrences: 7, session: 'WIA2004 — 10:00' },
+]
+
 export const AVATAR_COLORS = ['#4f8ef7', '#34d399', '#f472b6', '#a78bfa', '#60a5fa']

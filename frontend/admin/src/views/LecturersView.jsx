@@ -5,7 +5,7 @@ import Button from '../components/ui/Button'
 
 export default function LecturersView() {
   const { state, dispatch, openModal } = useAdmin()
-  const staff = state.users.filter(u => u.role === 'Lecturer' || u.role === 'Admin')
+  const staff = state.users.filter(u => u.role === 'Lecturer')
 
   const openProfile = (id) => {
     dispatch({ type: 'SELECT_USER', payload: id })

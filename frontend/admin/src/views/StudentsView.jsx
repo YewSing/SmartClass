@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useAdmin } from '../context/AdminContext'
 import { avatarInitials } from '../components/ui/Avatar'
 import { StatusBadge, FaceBadge } from '../components/ui/Badge'
@@ -5,7 +6,13 @@ import Button from '../components/ui/Button'
 
 export default function StudentsView() {
   const { state, dispatch, openModal } = useAdmin()
-  const students = state.users.filter(u => u.role === 'Student')
+  const [search, setSearch] = useState('')
+  const allStudents = state.users.filter(u => u.role === 'Student')
+  const students = allStudents.filter(u =>
+    !search ||
+    u.name.toLowerCase().includes(search.toLowerCase()) ||
+    u.id.toLowerCase().includes(search.toLowerCase())
+  )
 
   const openProfile = (id) => {
     dispatch({ type: 'SELECT_USER', payload: id })
@@ -23,7 +30,12 @@ export default function StudentsView() {
         <span className="text-[14px] font-semibold text-text1">Student Accounts</span>
         <div className="flex items-center gap-2 bg-surface2 border border-border rounded-lg px-3 py-1.5 ml-auto">
           <span className="text-text3 text-[13px]">⌕</span>
-          <input placeholder="Search students…" className="bg-transparent outline-none text-[13px] text-text1 w-48 placeholder:text-text3" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search students…"
+            className="bg-transparent outline-none text-[13px] text-text1 w-48 placeholder:text-text3"
+          />
         </div>
         <Button variant="primary" size="sm" onClick={() => openModal('createUser')}>＋ Add Student</Button>
       </div>

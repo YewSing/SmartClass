@@ -1,10 +1,17 @@
+import { useState } from 'react'
 import { useAdmin } from '../context/AdminContext'
 import { avatarInitials } from '../components/ui/Avatar'
 import { ALL_CLASSES } from '../data/users'
 
 export default function EnrollmentView() {
   const { state, dispatch, toast } = useAdmin()
-  const students = state.users.filter(u => u.role === 'Student')
+  const [search, setSearch] = useState('')
+  const allStudents = state.users.filter(u => u.role === 'Student')
+  const students = allStudents.filter(u =>
+    !search ||
+    u.name.toLowerCase().includes(search.toLowerCase()) ||
+    u.id.toLowerCase().includes(search.toLowerCase())
+  )
 
   const toggle = (userId, classCode, checked) => {
     dispatch({ type: 'TOGGLE_ENROLLMENT', payload: { userId, classCode, enrolled: checked } })
@@ -18,7 +25,12 @@ export default function EnrollmentView() {
         <span className="text-[14px] font-semibold text-text1">Class Enrollment</span>
         <div className="flex items-center gap-2 bg-surface2 border border-border rounded-lg px-3 py-1.5 ml-auto">
           <span className="text-text3 text-[13px]">⌕</span>
-          <input placeholder="Search student or class…" className="bg-transparent outline-none text-[13px] text-text1 w-48 placeholder:text-text3" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search student or class…"
+            className="bg-transparent outline-none text-[13px] text-text1 w-48 placeholder:text-text3"
+          />
         </div>
       </div>
 

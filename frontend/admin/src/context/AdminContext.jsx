@@ -1,5 +1,5 @@
 import { createContext, useContext, useReducer, useCallback } from 'react'
-import { INITIAL_USERS, AVATAR_COLORS } from '../data/users'
+import { INITIAL_USERS, AVATAR_COLORS, UNRECOGNISED_QUEUE } from '../data/users'
 
 const AdminContext = createContext(null)
 
@@ -10,6 +10,24 @@ const initialState = {
   selectedUserId: null,
   modal: null, // { type: string, data?: any }
   toasts: [],
+  unrecognisedQueue: UNRECOGNISED_QUEUE,
+  env: {
+    temperature: 28.4,
+    humidity: 65,
+    lightLevel: 420,
+    co2: 812,
+    occupancy: 12,
+    acStatus: 'auto',    // 'auto' | 'on' | 'off'
+    lightStatus: 'auto', // 'auto' | 'on' | 'off'
+    lastUpdated: '09:15:04',
+    sensors: {
+      'Temp Sensor':          'ok',
+      'LDR Sensor':           'ok',
+      'CO₂ Sensor':           'fault',
+      'Camera (Front-Left)':  'ok',
+      'Camera (Front-Right)': 'ok',
+    },
+  },
 }
 
 function reducer(state, action) {
@@ -83,6 +101,28 @@ function reducer(state, action) {
             : u
         ),
       }
+
+    case 'DISMISS_REVIEW':
+      return {
+        ...state,
+        unrecognisedQueue: state.unrecognisedQueue.filter(e => e.id !== action.payload),
+      }
+
+    case 'PROMOTE_REVIEW': {
+      const { reviewId, userId } = action.payload
+      return {
+        ...state,
+        unrecognisedQueue: state.unrecognisedQueue.filter(e => e.id !== reviewId),
+        users: state.users.map(u =>
+          u.id === userId
+            ? { ...u, face: true, faceDate: new Date().toISOString().slice(0, 10), faceSamples: 5 }
+            : u
+        ),
+      }
+    }
+
+    case 'ENV_OVERRIDE':
+      return { ...state, env: { ...state.env, ...action.payload } }
 
     case 'ADD_TOAST':
       return { ...state, toasts: [...state.toasts, action.payload] }
