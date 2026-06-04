@@ -1,14 +1,20 @@
 import { useState, useEffect } from 'react'
 import { useAdmin } from '../../context/AdminContext'
-import { CLASS_META } from '../../data/users'
 import Modal from '../ui/Modal'
 import Button from '../ui/Button'
 import { RoleBadge, StatusBadge } from '../ui/Badge'
 
+function occurrenceLabel(o) {
+  const typeLabel = o.type === 'LECTURE' ? 'Lecture' : (o.label ?? 'Tutorial')
+  return `${typeLabel} · ${o.day_of_week} ${o.start_time}–${o.end_time}`
+}
+
 export default function StudentProfileModal() {
-  const { state, dispatch, closeModal, openModal, toast } = useAdmin()
+  const { state, updateUser, closeModal, openModal, loadAllClasses, toggleOccurrenceEnrollment, toast } = useAdmin()
   const [editName, setEditName] = useState('')
   const [editPhone, setEditPhone] = useState('')
+  const [enrolling, setEnrolling] = useState(null)   // occurrence id being toggled
+  const [addSearch, setAddSearch] = useState('')
 
   const user = state.users.find(u => u.id === state.selectedUserId)
 
@@ -16,19 +22,55 @@ export default function StudentProfileModal() {
     if (user) { setEditName(user.name); setEditPhone(user.phone) }
   }, [user?.id])
 
+  useEffect(() => {
+    if (state.modal?.type === 'studentProfile') loadAllClasses()
+  }, [state.modal?.type])
+
   if (state.modal?.type !== 'studentProfile' || !user) return null
 
   const initials = user.name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
 
-  const saveEdits = () => {
-    dispatch({ type: 'UPDATE_USER', payload: { id: user.id, name: editName || user.name, phone: editPhone || user.phone } })
-    toast('Profile updated', 'success')
+  const saveEdits = async () => {
+    try {
+      await updateUser(user.id, { name: editName || user.name, phone: editPhone || user.phone })
+      toast('Profile updated', 'success')
+    } catch (e) {
+      toast(e.message, 'error')
+    }
   }
 
-  const removeFromClass = (classCode) => {
-    dispatch({ type: 'TOGGLE_ENROLLMENT', payload: { userId: user.id, classCode, enrolled: false } })
-    toast(`Removed ${user.name.split(' ')[0]} from ${classCode}`, 'info')
+  const handleToggle = async (occObj, enroll) => {
+    setEnrolling(occObj.id)
+    try {
+      await toggleOccurrenceEnrollment(user.id, occObj, enroll)
+      toast(
+        enroll
+          ? `Added to ${occObj.code} ${occObj.type === 'LECTURE' ? 'Lecture' : (occObj.label ?? 'Tutorial')}`
+          : `Removed from ${occObj.code} ${occObj.type === 'LECTURE' ? 'Lecture' : (occObj.label ?? 'Tutorial')}`,
+        'success'
+      )
+    } catch (e) {
+      toast(e.message, 'error')
+    } finally {
+      setEnrolling(null)
+    }
   }
+
+  // Group enrolled occurrences by course code
+  const grouped = {}
+  for (const o of (user.occurrences ?? [])) {
+    if (!grouped[o.course_code]) grouped[o.course_code] = { name: o.course_name, occs: [] }
+    grouped[o.course_code].occs.push(o)
+  }
+
+  const enrolledIds = new Set((user.occurrences ?? []).map(o => o.id))
+  const available = state.allClasses.filter(c =>
+    !enrolledIds.has(c.id) && (
+      addSearch.length < 2 ||
+      c.code.toLowerCase().includes(addSearch.toLowerCase()) ||
+      c.name.toLowerCase().includes(addSearch.toLowerCase())
+    )
+  )
 
   return (
     <Modal
@@ -55,7 +97,7 @@ export default function StudentProfileModal() {
                 {initials}
               </div>
               <div className="text-base font-semibold text-text1">{user.name}</div>
-              <div className="text-[11px] text-text3 mt-0.5 font-sans tracking-wide">{user.id}</div>
+              <div className="text-[11px] text-text3 mt-0.5 font-sans tracking-wide">{user.matric ?? user.staffId ?? `ID: ${user.id}`}</div>
               <div className="mt-2.5"><RoleBadge role={user.role} /></div>
             </div>
             <div className="p-4 space-y-0">
@@ -92,24 +134,72 @@ export default function StudentProfileModal() {
           </div>
         </div>
 
-        {/* Right — classes + edit */}
+        {/* Right — occurrences + edit */}
         <div className="space-y-3.5">
           <div className="bg-surface border border-border rounded-xl overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3.5 border-b border-border">
-              <span className="text-[13.5px] font-semibold text-text1">Enrolled Classes</span>
+              <span className="text-[13.5px] font-semibold text-text1">Enrolled Occurrences</span>
             </div>
-            {user.classes.length ? user.classes.map(c => (
-              <div key={c} className="flex items-center justify-between px-4 py-3 border-b border-border last:border-0 text-[13px]">
-                <div>
-                  <span className="font-sans text-[12px] text-accent mr-2">{c}</span>
-                  <span className="text-text1">{CLASS_META[c]?.name}</span>
-                  <div className="text-[11px] text-text3 mt-0.5">{CLASS_META[c]?.lecturer}</div>
+
+            {/* Grouped by course */}
+            {Object.keys(grouped).length === 0 ? (
+              <div className="px-4 py-3.5 text-[13px] text-text3">No occurrences assigned</div>
+            ) : (
+              Object.entries(grouped).map(([code, { name, occs }]) => (
+                <div key={code} className="border-b border-border last:border-0">
+                  <div className="flex items-baseline gap-2 px-4 pt-3 pb-1.5">
+                    <span className="font-sans text-[12px] font-bold text-accent">{code}</span>
+                    <span className="text-[12px] text-text2">{name}</span>
+                  </div>
+                  {occs.map(o => (
+                    <div key={o.id} className="flex items-center justify-between px-4 pb-2.5 text-[12.5px]">
+                      <div className="flex items-center gap-2">
+                        <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${o.type === 'LECTURE' ? 'bg-blue-500/15 text-blue-400' : 'bg-green-500/15 text-green-400'}`}>
+                          {o.type === 'LECTURE' ? 'Lec' : 'Tut'}
+                        </span>
+                        <span className="text-text2">{occurrenceLabel(o)}</span>
+                      </div>
+                      <button
+                        onClick={() => handleToggle(o, false)}
+                        disabled={enrolling === o.id}
+                        className="text-text3 hover:text-sc-red text-sm transition-colors px-1 disabled:opacity-40"
+                      >
+                        {enrolling === o.id ? '…' : '✕'}
+                      </button>
+                    </div>
+                  ))}
                 </div>
-                <button onClick={() => removeFromClass(c)} className="text-text3 hover:text-sc-red text-sm transition-colors px-1">✕</button>
-              </div>
-            )) : (
-              <div className="px-4 py-3.5 text-[13px] text-text3">No classes assigned</div>
+              ))
             )}
+
+            {/* Add occurrence */}
+            <div className="px-4 py-3 border-t border-border">
+              <p className="text-[11px] text-text3 mb-2 font-medium uppercase tracking-wide">Add Occurrence</p>
+              <input
+                value={addSearch}
+                onChange={e => setAddSearch(e.target.value)}
+                placeholder="Search by course code or name…"
+                className="mb-2 w-full bg-surface2 border border-border rounded-lg px-3 py-1.5 text-[12.5px] text-text1 outline-none focus:border-accent placeholder:text-text3"
+              />
+              {addSearch.length >= 2 && (
+                <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
+                  {available.length === 0 ? (
+                    <p className="text-[11.5px] text-text3">No matches.</p>
+                  ) : (
+                    available.slice(0, 20).map(c => (
+                      <button
+                        key={c.id}
+                        onClick={() => handleToggle(c, true)}
+                        disabled={enrolling === c.id}
+                        className="px-2.5 py-1 text-[11px] rounded-lg border border-dashed border-accent text-accent hover:bg-accent-lt transition-colors disabled:opacity-40"
+                      >
+                        {enrolling === c.id ? '…' : `+ ${c.code} ${c.type === 'LECTURE' ? 'Lec' : (c.label ?? 'Tut')}`}
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="bg-surface border border-border rounded-xl overflow-hidden">

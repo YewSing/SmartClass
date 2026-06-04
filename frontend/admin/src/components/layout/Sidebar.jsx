@@ -11,7 +11,7 @@ const NAV = [
   {
     label: 'User Management',
     items: [
-      { id: 'users',     icon: 'fa-solid fa-users',            label: 'All Users',       badge: { count: 47 } },
+      { id: 'users',     icon: 'fa-solid fa-users',            label: 'All Users' },
       { id: 'students',  icon: 'fa-solid fa-graduation-cap',   label: 'Students' },
       { id: 'lecturers', icon: 'fa-solid fa-id-badge',         label: 'Lecturers' },
     ],
@@ -19,8 +19,7 @@ const NAV = [
   {
     label: 'Enrollment',
     items: [
-      { id: 'enrollment', icon: 'fa-solid fa-clipboard-check', label: 'Class Enrollment' },
-      { id: 'facedata',   icon: 'fa-solid fa-camera',          label: 'Face Data',         badge: { count: 3, color: '#E87722' } },
+      { id: 'classmanagement', icon: 'fa-solid fa-book-open',        label: 'Class Management' },
       { id: 'facereview', icon: 'fa-solid fa-user-slash',      label: 'Face Review Queue', badge: { dynamic: 'unrecognisedQueue', color: '#E87722' } },
     ],
   },
@@ -34,7 +33,7 @@ const NAV = [
 ]
 
 export default function Sidebar() {
-  const { state, dispatch } = useAdmin()
+  const { state, dispatch, logout } = useAdmin()
 
   return (
     <aside className="w-60 min-w-60 bg-surface border-r border-border flex flex-col h-screen sticky top-0">
@@ -96,7 +95,7 @@ export default function Sidebar() {
             <div className="text-[10px] text-text3 font-semibold tracking-wide">ADMINISTRATOR</div>
           </div>
           <button
-            onClick={() => dispatch({ type: 'LOGOUT' })}
+            onClick={logout}
             className="text-text3 hover:text-text1 text-base px-1 transition-colors"
             title="Logout"
           >

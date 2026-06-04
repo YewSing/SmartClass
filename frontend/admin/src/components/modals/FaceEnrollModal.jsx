@@ -1,103 +1,233 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useAdmin } from '../../context/AdminContext'
 import Modal from '../ui/Modal'
 import Button from '../ui/Button'
 
+const MIN_SAMPLES = 3
+const MAX_SAMPLES = 5
+
 export default function FaceEnrollModal() {
-  const { state, dispatch, closeModal, toast } = useAdmin()
-  const [count, setCount] = useState(0)
+  const { state, enrollFace, closeModal, toast } = useAdmin()
+  const user = state.users.find(u => u.id === state.selectedUserId)
+  const isActive = state.modal?.type === 'faceEnroll' && !!user
+
+  const [cameraErr, setCameraErr] = useState(null)
+  const [captures, setCaptures] = useState([])   // { id, thumb, blob }
+  const [capturing, setCapturing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveErr, setSaveErr] = useState(null)
   const [done, setDone] = useState(false)
 
-  const user = state.users.find(u => u.id === state.selectedUserId)
+  const videoRef = useRef(null)
+  const canvasRef = useRef(null)
+  const streamRef = useRef(null)
+  const nextIdRef = useRef(0)
 
-  if (state.modal?.type !== 'faceEnroll' || !user) return null
-
-  const capture = () => {
-    const next = count + 1
-    setCount(next)
-    if (next >= 5) setDone(true)
-  }
-
-  const finalize = () => {
-    dispatch({ type: 'ENROLL_FACE', payload: user.id })
-    closeModal()
-    setCount(0)
+  useEffect(() => {
+    if (!isActive) return
+    let mounted = true
+    setCameraErr(null)
+    setCaptures([])
+    setSaveErr(null)
     setDone(false)
-    toast(`Face data enrolled for ${user.name.split(' ')[0]}`, 'success')
+    nextIdRef.current = 0
+
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
+      .then(stream => {
+        if (!mounted) { stream.getTracks().forEach(t => t.stop()); return }
+        streamRef.current = stream
+        if (videoRef.current) videoRef.current.srcObject = stream
+      })
+      .catch(() => {
+        if (mounted) setCameraErr('Camera access denied. Please allow camera permissions in your browser and try again.')
+      })
+
+    return () => {
+      mounted = false
+      streamRef.current?.getTracks().forEach(t => t.stop())
+      streamRef.current = null
+    }
+  }, [isActive])
+
+  if (!isActive) return null
+
+  const handleClose = () => {
+    streamRef.current?.getTracks().forEach(t => t.stop())
+    streamRef.current = null
+    closeModal()
   }
 
-  const handleClose = () => { closeModal(); setCount(0); setDone(false) }
+  const captureFrame = async () => {
+    if (!videoRef.current || !canvasRef.current || capturing || captures.length >= MAX_SAMPLES) return
+    setCapturing(true)
 
-  const statusText = done
-    ? '✓ All 5 samples captured — saving embedding…'
-    : count > 0
-    ? `Sample ${count} captured. ${5 - count} more needed.`
-    : 'Position face within the frame, then capture'
+    const video = videoRef.current
+    const canvas = canvasRef.current
+    canvas.width = video.videoWidth || 640
+    canvas.height = video.videoHeight || 480
+    canvas.getContext('2d').drawImage(video, 0, 0)
+
+    const thumb = canvas.toDataURL('image/jpeg', 0.7)
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9))
+    const id = nextIdRef.current++
+
+    setCaptures(prev => [...prev, { id, thumb, blob }])
+    setCapturing(false)
+  }
+
+  const remove = (id) => setCaptures(prev => prev.filter(c => c.id !== id))
+
+  const handleSave = async () => {
+    setSaving(true)
+    setSaveErr(null)
+    try {
+      await enrollFace(user.id, captures.map(c => c.blob))
+      setDone(true)
+      toast(`Face data enrolled for ${user.name.split(' ')[0]} — ${captures.length} samples`, 'success')
+    } catch (e) {
+      const msg = e.message ?? ''
+      if (/503|model not loaded/i.test(msg)) {
+        setSaveErr('Enrolment failed — face recognition backend is unavailable. No data was saved. Please try again.')
+      } else if (/422|no face/i.test(msg)) {
+        setSaveErr('No face detected in any of the captured samples. Please retake with the student facing the camera clearly.')
+      } else {
+        setSaveErr(msg)
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (done) {
+    return (
+      <Modal title="Enrolment Complete" onClose={handleClose} size="md"
+        footer={<Button variant="primary" onClick={handleClose}>Done</Button>}
+      >
+        <div className="text-center py-4">
+          <div className="w-12 h-12 rounded-full bg-sc-green-lt flex items-center justify-center mx-auto mb-3">
+            <i className="fa-solid fa-circle-check text-sc-green text-2xl" />
+          </div>
+          <p className="text-[14px] font-semibold text-text1">Face data enrolled successfully.</p>
+          <p className="text-[13px] text-text2 mt-1">{captures.length} sample{captures.length !== 1 ? 's' : ''} captured for {user.name.split(' ')[0]}.</p>
+          <p className="text-[11px] text-text3 mt-3 leading-relaxed">NFR-01: All captured frames were discarded by the server immediately after embedding extraction.</p>
+        </div>
+      </Modal>
+    )
+  }
 
   return (
     <Modal
-      title="Face Data Enrollment"
-      subtitle="UC-08 / FR-059 — Capture face samples for recognition"
+      title="Face Data Enrolment"
+      subtitle={`UC-08 — Live webcam capture · ${user.name}`}
       onClose={handleClose}
+      size="lg"
       footer={
         <>
           <Button variant="ghost" onClick={handleClose}>Cancel</Button>
-          <Button variant="primary" onClick={done ? finalize : capture}>
-            {done ? '✓ Save Enrollment' : '⊙ Capture Sample'}
+          <Button variant="primary" onClick={handleSave} disabled={captures.length < MIN_SAMPLES || saving}>
+            {saving
+              ? 'Enrolling…'
+              : `Save Enrolment${captures.length > 0 ? ` (${captures.length} sample${captures.length !== 1 ? 's' : ''})` : ''}`}
           </Button>
         </>
       }
     >
-      <div className="text-center mb-3.5">
-        <span className="text-[12px] text-text3">Student: <span className="text-text1 font-medium">{user.name}</span></span>
-      </div>
-
-      <div className="bg-surface2 border border-dashed border-border rounded-xl p-5 flex flex-col items-center gap-3 text-center">
-        {/* Camera preview */}
-        <div className="w-44 h-44 rounded-xl bg-surface3 border-2 border-border flex flex-col items-center justify-center relative overflow-hidden">
-          <div className="w-24 h-28 border-2 border-accent rounded-[60px] relative opacity-60">
-            <span className="absolute -top-0.5 -left-0.5 w-4 h-4 border-t-[3px] border-l-[3px] border-accent rounded-tl" />
-            <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 border-b-[3px] border-r-[3px] border-accent rounded-br" />
-          </div>
-          <div className="text-[11px] text-text3 mt-2">Camera feed</div>
+      {cameraErr ? (
+        <div className="rounded-xl border border-[#f5c6c6] bg-[#fef2f2] p-4 flex items-start gap-3 text-[13px] text-[#b91c1c]">
+          <i className="fa-solid fa-circle-exclamation mt-0.5 shrink-0" />
+          <span>{cameraErr}</span>
         </div>
-
-        {/* Status + dots */}
-        <div>
-          <p className="text-[13px] text-text2 mb-1.5">{statusText}</p>
-          <p className="text-[11px] text-text3 mb-1.5">Samples collected</p>
-          <div className="flex gap-1.5 justify-center">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div
-                key={i}
-                className={`w-2.5 h-2.5 rounded-full border-[1.5px] transition-all ${
-                  i < count ? 'bg-sc-green border-sc-green' :
-                  i === count && !done ? 'bg-accent border-accent animate-pulse' :
-                  'bg-surface3 border-border'
-                }`}
-              />
-            ))}
-          </div>
-        </div>
-
-        <p className="text-[11.5px] text-text3 max-w-[260px] leading-relaxed">
-          NFR-01: Raw images are discarded immediately after embedding extraction. Only mathematical vectors are stored.
-        </p>
-
-        {/* Progress bar */}
-        <div className="w-full">
-          <div className="flex justify-between text-[11px] text-text3 mb-1">
-            <span>Enrollment progress</span>
-            <span>{count} / 5</span>
-          </div>
-          <div className="h-1 bg-surface3 rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-accent to-accent2 transition-all duration-300"
-              style={{ width: `${(count / 5) * 100}%` }}
+      ) : (
+        <div className="space-y-4">
+          {/* Live feed */}
+          <div className="relative bg-black rounded-xl overflow-hidden" style={{ aspectRatio: '16/9' }}>
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="w-full h-full object-cover"
+              style={{ transform: 'scaleX(-1)' }}
             />
+            <span className="absolute bottom-2.5 left-3 bg-black/55 text-white text-[11px] px-2 py-0.5 rounded-full">
+              Live
+            </span>
           </div>
+
+          {/* Instructions + capture button */}
+          <div className="text-center space-y-3">
+            <p className="text-[12.5px] text-text2 leading-relaxed">
+              Ask the student to look slightly <strong className="text-text1">left</strong>,{' '}
+              <strong className="text-text1">right</strong>, and{' '}
+              <strong className="text-text1">straight ahead</strong>.
+              Capture {MIN_SAMPLES}–{MAX_SAMPLES} clear samples.
+            </p>
+            <Button
+              variant="primary"
+              onClick={captureFrame}
+              disabled={capturing || captures.length >= MAX_SAMPLES}
+              className="px-8"
+            >
+              <i className="fa-solid fa-camera mr-2" />
+              {capturing ? 'Capturing…' : captures.length >= MAX_SAMPLES ? 'Maximum reached' : 'Capture Sample'}
+            </Button>
+          </div>
+
+          {/* Save error */}
+          {saveErr && (
+            <div className="rounded-xl border border-[#f5c6c6] bg-[#fef2f2] p-3.5 flex items-start gap-2.5 text-[12.5px] text-[#b91c1c]">
+              <i className="fa-solid fa-circle-exclamation mt-0.5 shrink-0" />
+              <span>{saveErr}</span>
+            </div>
+          )}
+
+          {/* Thumbnail strip */}
+          {captures.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-text3">
+                Captured samples — {captures.length} / {MAX_SAMPLES}
+              </p>
+              <div className="flex flex-wrap gap-3">
+                {captures.map(cap => (
+                  <div key={cap.id} className="flex flex-col items-center gap-1.5">
+                    <div className="relative">
+                      <img
+                        src={cap.thumb}
+                        alt="capture"
+                        className="w-[68px] h-[68px] object-cover rounded-lg border-2 border-sc-green"
+                      />
+                      <span className="absolute -top-1.5 -right-1.5 w-[18px] h-[18px] rounded-full bg-sc-green text-[9px] font-bold flex items-center justify-center text-white">
+                        ✓
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => remove(cap.id)}
+                      className="text-[10.5px] text-text3 hover:text-sc-red leading-none transition-colors"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Progress hint */}
+          <p className="text-[11.5px] text-text3 text-center">
+            {captures.length === 0
+              ? `Capture at least ${MIN_SAMPLES} samples to enable Save.`
+              : captures.length < MIN_SAMPLES
+                ? `${MIN_SAMPLES - captures.length} more sample${MIN_SAMPLES - captures.length !== 1 ? 's' : ''} needed.`
+                : 'Minimum reached — click "Save Enrolment" or add more samples.'}
+          </p>
+
+          <p className="text-[11px] text-text3 text-center leading-relaxed border-t border-border pt-3">
+            NFR-01: All captured frames are discarded by the server immediately after embedding extraction.
+          </p>
         </div>
-      </div>
+      )}
+
+      <canvas ref={canvasRef} className="hidden" />
     </Modal>
   )
 }

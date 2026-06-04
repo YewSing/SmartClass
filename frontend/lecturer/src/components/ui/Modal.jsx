@@ -112,26 +112,42 @@ function QuizModal({ quiz, onClose, navigate }) {
   )
 }
 
-function StudentModal({ data, onClose }) {
+function StudentModal({ data, onClose, overrideStudent }) {
+  const [busy, setBusy] = useState(false)
   if (!data) return null
+
   const statusBadge = data.status === 'present'
     ? <span className="badge green dot">Present</span>
     : data.status === 'absent'
     ? <span className="badge red dot">Absent</span>
     : <span className="badge orange dot">Unidentified</span>
+
   const avatarStyle = data.status === 'present'
     ? { background: 'var(--blue-lt)', color: 'var(--blue-dk)' }
     : data.status === 'absent'
     ? { background: 'var(--red-lt)', color: 'var(--red-dk)' }
     : { background: 'var(--orange-lt)', color: 'var(--orange-dk)' }
-  const initials = data.name.split(' ').map(p => p[0]).join('').substring(0, 2).toUpperCase()
+
+  const initials = data.initials ?? data.name.split(' ').map(p => p[0]).join('').substring(0, 2).toUpperCase()
+
+  const handleOverride = async (newStatus) => {
+    if (!data.recordId) { onClose(); return }
+    setBusy(true)
+    try {
+      await overrideStudent(data.recordId, newStatus)
+      onClose()
+    } catch {
+      setBusy(false)
+    }
+  }
+
   return (
     <Sheet>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
         <div className="student-avatar" style={{ ...avatarStyle, width: 48, height: 48, fontSize: 16 }}>{initials}</div>
         <div>
           <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)' }}>{data.name}</div>
-          <div style={{ fontSize: 13, color: 'var(--text-sub)' }}>{data.id} · WIA2005</div>
+          <div style={{ fontSize: 13, color: 'var(--text-sub)' }}>{data.id}</div>
         </div>
       </div>
       <div style={{ background: 'var(--gray-50)', borderRadius: 'var(--radius-sm)', padding: '10px 12px', marginBottom: 16 }}>
@@ -141,10 +157,13 @@ function StudentModal({ data, onClose }) {
       <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>Manual Override</div>
       <div style={{ fontSize: 13, color: 'var(--text-sub)', marginBottom: 14 }}>This override is logged with your identity and timestamp.</div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-        <button className="btn btn-green btn-full" onClick={onClose}><i className="fa fa-check"></i> Mark Present</button>
-        <button className="btn btn-danger btn-full" onClick={onClose}><i className="fa fa-times"></i> Mark Absent</button>
+        <button className="btn btn-green btn-full" disabled={busy} onClick={() => handleOverride('present')}>
+          <i className="fa fa-check"></i> Mark Present
+        </button>
+        <button className="btn btn-danger btn-full" disabled={busy} onClick={() => handleOverride('absent')}>
+          <i className="fa fa-times"></i> Mark Absent
+        </button>
       </div>
-      <button className="btn btn-outline btn-full" style={{ marginBottom: 8 }} onClick={onClose}><i className="fa fa-clipboard"></i> Mark Excused</button>
       <hr className="modal-divider" />
       <button className="btn btn-outline btn-full" onClick={onClose}>Cancel</button>
     </Sheet>
@@ -301,7 +320,7 @@ function SessionInfoModal({ onClose }) {
   )
 }
 
-function SignOutModal({ onClose, dispatch }) {
+function SignOutModal({ onClose, onConfirm }) {
   return (
     <Sheet>
       <div className="modal-title">Sign Out</div>
@@ -310,7 +329,7 @@ function SignOutModal({ onClose, dispatch }) {
       </div>
       <div className="btn-row">
         <button className="btn btn-outline btn-full" onClick={onClose}>Cancel</button>
-        <button className="btn btn-red btn-full" onClick={() => dispatch({ type: 'LOGOUT' })}>
+        <button className="btn btn-red btn-full" onClick={onConfirm}>
           <i className="fa fa-sign-out-alt"></i> Sign Out
         </button>
       </div>
@@ -319,7 +338,7 @@ function SignOutModal({ onClose, dispatch }) {
 }
 
 export default function ModalRouter() {
-  const { state, dispatch, closeModal, navigate } = useLecturer()
+  const { state, dispatch, closeModal, navigate, logout, overrideStudent } = useLecturer()
   const { modal } = state
   if (!modal) return null
 
@@ -329,17 +348,21 @@ export default function ModalRouter() {
     </div>
   )
 
+  const handleSignOut = async () => {
+    await logout()
+  }
+
   switch (modal.type) {
     case 'forgot-password':    return overlay(<ForgotPasswordModal onClose={closeModal} />)
     case 'confusion-reset':    return overlay(<ConfusionResetModal onClose={closeModal} />)
     case 'quiz':               return overlay(<QuizModal quiz={modal.data} onClose={closeModal} navigate={navigate} />)
-    case 'student':            return overlay(<StudentModal data={modal.data} onClose={closeModal} />)
+    case 'student':            return overlay(<StudentModal data={modal.data} onClose={closeModal} overrideStudent={overrideStudent} />)
     case 'export':             return overlay(<ExportModal onClose={closeModal} />)
     case 'override-lights':    return overlay(<OverrideLightsModal onClose={closeModal} />)
     case 'override-ac':        return overlay(<OverrideACModal onClose={closeModal} />)
     case 'change-password':    return overlay(<ChangePasswordModal onClose={closeModal} />)
     case 'session-info':       return overlay(<SessionInfoModal onClose={closeModal} />)
-    case 'signout':            return overlay(<SignOutModal onClose={closeModal} dispatch={dispatch} />)
+    case 'signout':            return overlay(<SignOutModal onClose={closeModal} onConfirm={handleSignOut} />)
     default:                   return null
   }
 }

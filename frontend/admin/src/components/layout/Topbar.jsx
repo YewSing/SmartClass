@@ -1,5 +1,4 @@
 import { useAdmin } from '../../context/AdminContext'
-import Button from '../ui/Button'
 
 const META = {
   dashboard:  { title: 'DASHBOARD',        path: 'Overview' },
@@ -12,7 +11,7 @@ const META = {
 }
 
 export default function Topbar() {
-  const { state, openModal } = useAdmin()
+  const { state } = useAdmin()
   const meta = META[state.currentView] ?? { title: state.currentView.toUpperCase(), path: '' }
 
   return (
@@ -22,11 +21,6 @@ export default function Topbar() {
         <div className="text-[12px] text-text3">
           Admin Panel <span className="text-text2">/ {meta.path}</span>
         </div>
-      </div>
-      <div className="ml-auto flex items-center gap-2.5">
-        <Button variant="ghost" size="sm" onClick={() => openModal('createUser')}>
-          ＋ Create User
-        </Button>
       </div>
     </div>
   )

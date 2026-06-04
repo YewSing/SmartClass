@@ -1,7 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useStudent } from '../context/StudentContext'
 import StatusBar from '../components/layout/StatusBar'
-import { ATT_SUMMARY, ATTENDANCE_GROUPS } from '../data/mockData'
 
 const STATUS_BADGE = {
   present: <span className="badge green dot">Present</span>,
@@ -11,9 +10,15 @@ const STATUS_BADGE = {
 }
 
 export default function Attendance() {
-  const { navigate, openModal } = useStudent()
+  const { state, navigate, openModal, loadAttendanceSummary, loadAttendanceGroups } = useStudent()
+  const { attendanceSummary, attendanceGroups } = state
   const [collapsed, setCollapsed] = useState({})
   const [activeFilter, setActiveFilter] = useState('All Classes')
+
+  useEffect(() => {
+    loadAttendanceSummary()
+    loadAttendanceGroups()
+  }, [loadAttendanceSummary, loadAttendanceGroups])
 
   const toggleGroup = (id) => setCollapsed(prev => ({ ...prev, [id]: !prev[id] }))
 
@@ -21,26 +26,25 @@ export default function Attendance() {
     navigate('att-session-detail', { session: session.detail, variant: session.variant })
   }
 
-  const handleReport = (e, session) => {
-    e.stopPropagation()
-    openModal('report-issue', { sessionLabel: `Lec 8 — Requirements Eng. · 29 Apr 2025` })
-  }
-
-  const filters = ['All Classes', 'WIA2005', 'WIA2004', 'WIA2003', 'WIX2001']
+  const summary = attendanceSummary ?? { present: 0, absent: 0, late: 0, rate: '—' }
+  const filters = ['All Classes', ...attendanceGroups.map(g => g.id.toUpperCase())]
+  const visibleGroups = activeFilter === 'All Classes'
+    ? attendanceGroups
+    : attendanceGroups.filter(g => g.label.toUpperCase().includes(activeFilter))
 
   return (
     <>
       <StatusBar time="10:09" />
       <div style={{ padding: '12px 16px 10px', background: 'var(--card)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
         <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)' }}>My Attendance</div>
-        <div style={{ fontSize: 12, color: 'var(--text-sub)', marginTop: 2 }}>All enrolled classes · Sem 2 2024/25</div>
+        <div style={{ fontSize: 12, color: 'var(--text-sub)', marginTop: 2 }}>All enrolled classes</div>
       </div>
 
       <div className="attend-summary-bar">
-        <div className="att-sum-chip present"><div className="n">{ATT_SUMMARY.present}</div><div className="l">Present</div></div>
-        <div className="att-sum-chip absent"><div className="n">{ATT_SUMMARY.absent}</div><div className="l">Absent</div></div>
-        <div className="att-sum-chip late"><div className="n">{ATT_SUMMARY.late}</div><div className="l">Late</div></div>
-        <div className="att-sum-chip rate"><div className="n">{ATT_SUMMARY.rate}</div><div className="l">Rate</div></div>
+        <div className="att-sum-chip present"><div className="n">{summary.present}</div><div className="l">Present</div></div>
+        <div className="att-sum-chip absent"><div className="n">{summary.absent}</div><div className="l">Absent</div></div>
+        <div className="att-sum-chip late"><div className="n">{summary.late}</div><div className="l">Late</div></div>
+        <div className="att-sum-chip rate"><div className="n">{summary.rate}</div><div className="l">Rate</div></div>
       </div>
 
       <div className="class-filter-row">
@@ -52,7 +56,11 @@ export default function Attendance() {
       </div>
 
       <div className="scroll-body">
-        {(activeFilter === 'All Classes' ? ATTENDANCE_GROUPS : ATTENDANCE_GROUPS.filter(g => g.label.includes(activeFilter))).map(group => (
+        {visibleGroups.length === 0 ? (
+          <div style={{ padding: '40px 24px', textAlign: 'center', color: 'var(--text-sub)', fontSize: 14 }}>
+            No attendance records yet.
+          </div>
+        ) : visibleGroups.map(group => (
           <div key={group.id}>
             <div
               className={`session-group-header-row${collapsed[group.id] ? ' collapsed' : ''}`}
@@ -73,21 +81,9 @@ export default function Attendance() {
                 <div className="session-att-info">
                   <div className="title">{session.title}</div>
                   <div className="sub">{session.sub}</div>
-                  {session.canReport && (
-                    <div style={{ marginTop: 5 }}>
-                      <button className="report-btn" onClick={(e) => handleReport(e, session)}>
-                        <i className="fa fa-flag" style={{ fontSize: 10 }}></i> Report issue
-                      </button>
-                    </div>
-                  )}
                 </div>
                 <div className="session-att-right">
                   {STATUS_BADGE[session.status]}
-                  {session.isLive && (
-                    <div className="live-chip" style={{ padding: '2px 7px', fontSize: 10 }}>
-                      <div className="live-dot" style={{ width: 5, height: 5 }}></div>Live
-                    </div>
-                  )}
                 </div>
               </div>
             ))}

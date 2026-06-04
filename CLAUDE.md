@@ -6,36 +6,60 @@ SmartClass is a classroom management system for UM (Universiti Malaya) with face
 ## Repo Structure
 ```
 SmartClass/
+├── backend/
+│   ├── app/            # FastAPI application (routers, models, schemas, services)
+│   ├── alembic/        # DB migrations
+│   ├── face_worker/    # Standalone face recognition worker process
+│   ├── scripts/        # seed.py — populates demo data
+│   └── docker-compose.yml
 └── frontend/
     ├── admin/      # Web dashboard for administrators
     ├── student/    # Mobile-sized UI for students
     └── lecturer/   # Mobile-sized UI for lecturers
 ```
 
-Each app is fully independent with its own `package.json`, `node_modules`, and `vite.config.js`.
+Each frontend app is fully independent with its own `package.json`, `node_modules`, and `vite.config.js`.
 
 ## Tech Stack
-- **Framework:** React 18 + Vite 5
-- **Styling:** Tailwind CSS 3
-- **State:** React Context API (no Redux)
-- **No backend yet** — all data is mocked via `src/data/mockData.js` and `src/services/api.js`
+- **Frontend:** React 18 + Vite 5, Tailwind CSS 3, React Context API
+- **Backend:** FastAPI + SQLAlchemy 2 async + asyncpg + PostgreSQL + pgvector
+- **Auth:** JWT (python-jose) + bcrypt (passlib)
+- **Face recognition:** InsightFace `buffalo_sc` (CPU)
+- **Infra:** Docker Compose (postgres+pgvector)
 
-## Running Each App
-Each app must be run independently from its own directory:
+## Running the Project
+
+### Backend
 ```bash
-cd frontend/admin    && npm install && npm run dev
-cd frontend/student  && npm install && npm run dev
-cd frontend/lecturer && npm install && npm run dev
+cd backend
+docker compose up -d          # start postgres+pgvector
+pip install -r requirements.txt
+alembic upgrade head
+python scripts/seed.py        # demo data
+uvicorn app.main:app --reload # API at localhost:8000
 ```
-Default Vite ports: admin → 5173, student → 5174, lecturer → 5175 (may vary).
+
+### Face Worker (separate terminal)
+```bash
+cd backend/face_worker
+pip install -r requirements.txt
+python worker.py
+```
+
+### Frontend Apps
+```bash
+cd frontend/admin    && npm install && npm run dev  # → localhost:5173
+cd frontend/student  && npm install && npm run dev  # → localhost:5174
+cd frontend/lecturer && npm install && npm run dev  # → localhost:5175
+```
 
 ## App-Specific Notes
 
 ### Admin (`frontend/admin/`)
 - Full web dashboard (not mobile-constrained)
-- Views: Dashboard, Users, Students, Lecturers, Enrollment, FaceData, AuditLog, Login
+- Views: Dashboard, Users, Students, Lecturers, Enrollment, FaceData, FaceReviewQueue, ClassManagement, AuditLog, Login
 - State managed in `src/context/AdminContext.jsx`
-- Mock users in `src/data/users.js`
+- API layer in `src/services/api.js` + `src/services/client.js` (real HTTP calls to backend)
 
 ### Student (`frontend/student/`)
 - Phone-frame UI (844px height, simulated mobile)
@@ -75,8 +99,5 @@ docs/
 
 **Diagrams still to be created:** System Architecture, Module Diagram, Class Diagram, ERD, Activity Diagrams, Navigation Diagram, Wireframes.
 
-## Key Prototype Files
-- `frontend/lecturer_app_prototype_v3_5_1.html` — standalone HTML prototype for lecturer app
-- `frontend/student_app_prototype_v2.html` — standalone HTML prototype for student app
-
-These are reference prototypes; the actual apps are in the subdirectories above.
+## WIP / Known Gaps
+- Face review queue frontend: entries load on login but the count badge and table do not auto-refresh — requires re-login or a manual refresh call to see new entries from the worker.

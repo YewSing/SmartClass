@@ -49,7 +49,7 @@ export default function LecturersView() {
               <td className="px-5 py-3 border-b border-border font-sans text-[12px] text-text1">{u.id}</td>
               <td className="px-5 py-3 border-b border-border text-[12.5px] text-text2">{u.dept}</td>
               <td className="px-5 py-3 border-b border-border text-[12.5px] text-text2">
-                {u.classes.length ? u.classes.join(', ') : <span className="text-text3">—</span>}
+                {u.classes.length ? u.classes.map(c => c.code).join(', ') : <span className="text-text3">—</span>}
               </td>
               <td className="px-5 py-3 border-b border-border"><StatusBadge status={u.status} /></td>
               <td className="px-5 py-3 border-b border-border">

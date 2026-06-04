@@ -2,12 +2,16 @@ import { useAdmin } from '../context/AdminContext'
 import Button from '../components/ui/Button'
 
 export default function FaceReviewView() {
-  const { state, dispatch, openModal, toast } = useAdmin()
+  const { state, dismissReview, openModal, toast } = useAdmin()
   const queue = state.unrecognisedQueue
 
-  const handleDismiss = (id) => {
-    dispatch({ type: 'DISMISS_REVIEW', payload: id })
-    toast('Review entry dismissed', 'info')
+  const handleDismiss = async (id) => {
+    try {
+      await dismissReview(id)
+      toast('Review entry dismissed', 'info')
+    } catch (e) {
+      toast(e.message, 'error')
+    }
   }
 
   const handlePromote = (entry) => {

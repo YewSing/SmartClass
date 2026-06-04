@@ -10,7 +10,11 @@ export default function UsersView() {
   const [roleFilter, setRoleFilter] = useState('')
 
   const filtered = state.users.filter(u =>
-    (!search || u.name.toLowerCase().includes(search.toLowerCase()) || u.id.toLowerCase().includes(search.toLowerCase())) &&
+    (!search ||
+      u.name.toLowerCase().includes(search.toLowerCase()) ||
+      u.email.toLowerCase().includes(search.toLowerCase()) ||
+      String(u.matric ?? u.staffId ?? '').toLowerCase().includes(search.toLowerCase())
+    ) &&
     (!roleFilter || u.role === roleFilter)
   )
 
@@ -72,7 +76,7 @@ export default function UsersView() {
                   </div>
                 </div>
               </td>
-              <td className="px-5 py-3 border-b border-border font-sans text-[12px] text-text1">{u.id}</td>
+              <td className="px-5 py-3 border-b border-border font-sans text-[12px] text-text1">{u.matric ?? u.staffId ?? `#${u.id}`}</td>
               <td className="px-5 py-3 border-b border-border"><RoleBadge role={u.role} /></td>
               <td className="px-5 py-3 border-b border-border text-[12.5px] text-text2">{u.phone}</td>
               <td className="px-5 py-3 border-b border-border"><StatusBadge status={u.status} /></td>

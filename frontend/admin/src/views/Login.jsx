@@ -2,14 +2,25 @@ import { useState } from 'react'
 import { useAdmin } from '../context/AdminContext'
 
 export default function Login() {
-  const { dispatch, toast } = useAdmin()
+  const { login, loadUsers, toast } = useAdmin()
   const [email, setEmail] = useState('admin@um.edu.my')
-  const [pass, setPass] = useState('password')
+  const [pass, setPass] = useState('Admin@1234')
+  const [loading, setLoading] = useState(false)
+  const [err, setErr] = useState('')
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!email) { toast('Enter your email', 'error'); return }
-    dispatch({ type: 'LOGIN' })
-    toast('Welcome back, Admin User', 'success')
+    setErr('')
+    setLoading(true)
+    try {
+      await login(email, pass)
+      await loadUsers()
+      toast('Welcome back, Admin', 'success')
+    } catch (e) {
+      setErr(e.message || 'Invalid credentials')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -24,6 +35,12 @@ export default function Login() {
             <div className="text-[12.5px] text-text3 mt-0.5">Admin Panel — UM FCSIT</div>
           </div>
         </div>
+
+        {err && (
+          <div className="mb-3 px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-[13px] text-red-700">
+            {err}
+          </div>
+        )}
 
         <div className="space-y-3.5">
           <div className="flex flex-col gap-1.5">
@@ -52,9 +69,10 @@ export default function Login() {
 
         <button
           onClick={handleLogin}
-          className="w-full mt-4 py-2.5 bg-accent hover:bg-accent-dk text-white font-semibold text-[14px] rounded-lg transition-colors"
+          disabled={loading}
+          className="w-full mt-4 py-2.5 bg-accent hover:bg-accent-dk text-white font-semibold text-[14px] rounded-lg transition-colors disabled:opacity-60"
         >
-          Sign In to Admin Panel
+          {loading ? 'Signing in…' : 'Sign In to Admin Panel'}
         </button>
 
         <p className="text-[11px] text-text3 text-center mt-4">

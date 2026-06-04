@@ -4,8 +4,9 @@ import Modal from '../ui/Modal'
 import Button from '../ui/Button'
 
 export default function FaceReviewPromoteModal() {
-  const { state, dispatch, closeModal, toast } = useAdmin()
+  const { state, promoteReview, closeModal, toast } = useAdmin()
   const [selectedUserId, setSelectedUserId] = useState('')
+  const [loading, setLoading] = useState(false)
 
   if (state.modal?.type !== 'faceReviewPromote') return null
 
@@ -17,13 +18,21 @@ export default function FaceReviewPromoteModal() {
 
   const handleClose = () => { closeModal(); setSelectedUserId('') }
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!selectedUserId) return
-    const student = state.users.find(u => u.id === selectedUserId)
-    dispatch({ type: 'PROMOTE_REVIEW', payload: { reviewId, userId: selectedUserId } })
-    closeModal()
-    setSelectedUserId('')
-    toast(`Face enrolled for ${student?.name.split(' ')[0]} from review queue`, 'success')
+    const numericId = parseInt(selectedUserId, 10)
+    const student = state.users.find(u => u.id === numericId)
+    setLoading(true)
+    try {
+      await promoteReview(reviewId, numericId)
+      closeModal()
+      setSelectedUserId('')
+      toast(`Face enrolled for ${student?.name.split(' ')[0]} from review queue`, 'success')
+    } catch (e) {
+      toast(e.message, 'error')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -34,8 +43,8 @@ export default function FaceReviewPromoteModal() {
       footer={
         <>
           <Button variant="ghost" onClick={handleClose}>Cancel</Button>
-          <Button variant="primary" onClick={handleConfirm} disabled={!selectedUserId}>
-            ⊙ Confirm Enrollment
+          <Button variant="primary" onClick={handleConfirm} disabled={!selectedUserId || loading}>
+            {loading ? 'Enrolling…' : '⊙ Confirm Enrollment'}
           </Button>
         </>
       }

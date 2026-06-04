@@ -47,7 +47,7 @@ export default function FaceDataView() {
                   <span className="text-[13.5px] font-medium text-text1">{u.name}</span>
                 </div>
               </td>
-              <td className="px-5 py-3 border-b border-border font-sans text-[12px] text-text1">{u.id}</td>
+              <td className="px-5 py-3 border-b border-border font-sans text-[12px] text-text1">{u.matric ?? '—'}</td>
               <td className="px-5 py-3 border-b border-border">
                 {u.face
                   ? <FaceBadge enrolled />

@@ -11,7 +11,8 @@ export default function StudentsView() {
   const students = allStudents.filter(u =>
     !search ||
     u.name.toLowerCase().includes(search.toLowerCase()) ||
-    u.id.toLowerCase().includes(search.toLowerCase())
+    String(u.matric ?? '').toLowerCase().includes(search.toLowerCase()) ||
+    u.email.toLowerCase().includes(search.toLowerCase())
   )
 
   const openProfile = (id) => {
@@ -43,7 +44,7 @@ export default function StudentsView() {
       <table className="w-full border-collapse">
         <thead>
           <tr className="bg-surface2">
-            {['Student', 'Matric ID', 'Enrolled Classes', 'Face Data', 'Status', 'Actions'].map(h => (
+            {['Student', 'Matric ID', 'Enrolled', 'Face Data', 'Status', 'Actions'].map(h => (
               <th key={h} className="text-[11px] font-semibold uppercase tracking-[0.07em] text-text3 px-5 py-2.5 text-left border-b border-border">{h}</th>
             ))}
           </tr>
@@ -62,11 +63,14 @@ export default function StudentsView() {
                   </div>
                 </div>
               </td>
-              <td className="px-5 py-3 border-b border-border font-sans text-[12px] text-text1">{u.id}</td>
-              <td className="px-5 py-3 border-b border-border text-[12.5px]">
-                {u.classes.length
-                  ? u.classes.map(c => <span key={c} className="font-sans text-[11px] text-accent mr-1">{c}</span>)
-                  : <span className="text-text3">None</span>}
+              <td className="px-5 py-3 border-b border-border font-sans text-[12px] text-text1">{u.matric ?? '—'}</td>
+              <td className="px-5 py-3 border-b border-border">
+                {(() => {
+                  const count = (u.occurrences ?? []).length
+                  return count > 0
+                    ? <span className="text-[12px] text-text2">{count} occurrence{count !== 1 ? 's' : ''}</span>
+                    : <span className="text-[12px] text-text3">None</span>
+                })()}
               </td>
               <td className="px-5 py-3 border-b border-border"><FaceBadge enrolled={u.face} /></td>
               <td className="px-5 py-3 border-b border-border"><StatusBadge status={u.status} /></td>

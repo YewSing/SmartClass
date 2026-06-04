@@ -3,12 +3,20 @@ import { useLecturer } from '../context/LecturerContext'
 import StatusBar from '../components/layout/StatusBar'
 
 export default function Login() {
-  const { dispatch, openModal } = useLecturer()
-  const [email, setEmail] = useState('drtan.wl@um.edu.my')
-  const [password, setPassword] = useState('password')
+  const { login, openModal, state } = useLecturer()
+  const [email, setEmail] = useState('ahmad.lecturer@um.edu.my')
+  const [password, setPassword] = useState('Lecturer@1234')
   const [showPw, setShowPw] = useState(false)
+  const [localErr, setLocalErr] = useState('')
 
-  const handleLogin = () => dispatch({ type: 'LOGIN' })
+  const handleLogin = async () => {
+    setLocalErr('')
+    try {
+      await login(email, password)
+    } catch (e) {
+      setLocalErr(e.message || 'Invalid credentials')
+    }
+  }
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'linear-gradient(160deg,#EBF2FF 0%,#F5F6F8 55%)' }}>
@@ -21,6 +29,11 @@ export default function Login() {
       <div className="login-form">
         <h2>Welcome back</h2>
         <div className="sub">Sign in with your university credentials</div>
+        {localErr && (
+          <div style={{ background: 'var(--red-lt)', color: 'var(--red-dk)', borderRadius: 8, padding: '8px 12px', fontSize: 13, marginBottom: 12 }}>
+            {localErr}
+          </div>
+        )}
         <div className="form-group">
           <label className="form-label">Email address</label>
           <div className="input-wrap">
@@ -39,8 +52,15 @@ export default function Login() {
           </div>
         </div>
         <div className="forgot-link" onClick={() => openModal('forgot-password')}>Forgot password?</div>
-        <button className="btn btn-primary btn-full" style={{ padding: 13 }} onClick={handleLogin}>
-          <i className="fa fa-sign-in-alt"></i> Sign In
+        <button
+          className="btn btn-primary btn-full"
+          style={{ padding: 13 }}
+          onClick={handleLogin}
+          disabled={state.loading}
+        >
+          {state.loading
+            ? <><i className="fa fa-spinner fa-spin"></i> Signing in…</>
+            : <><i className="fa fa-sign-in-alt"></i> Sign In</>}
         </button>
         <div className="login-note" style={{ marginTop: 14 }}>
           <i className="fa fa-info-circle"></i> Accounts are provisioned by administrators only

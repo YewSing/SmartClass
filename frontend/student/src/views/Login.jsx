@@ -1,22 +1,20 @@
 import { useState } from 'react'
 import { useStudent } from '../context/StudentContext'
 import StatusBar from '../components/layout/StatusBar'
-import { login } from '../services/api'
 
 export default function Login() {
-  const { dispatch, openModal } = useStudent()
-  const [email, setEmail] = useState('u23001234@siswa.um.edu.my')
-  const [password, setPassword] = useState('password')
+  const { login, openModal, state } = useStudent()
+  const [email, setEmail] = useState('student1@siswa.um.edu.my')
+  const [password, setPassword] = useState('Student@1234')
   const [showPw, setShowPw] = useState(false)
-  const [loading, setLoading] = useState(false)
+  const [localErr, setLocalErr] = useState('')
 
   const handleLogin = async () => {
-    setLoading(true)
+    setLocalErr('')
     try {
       await login(email, password)
-      dispatch({ type: 'LOGIN' })
-    } catch {
-      setLoading(false)
+    } catch (e) {
+      setLocalErr(e.message || 'Invalid credentials')
     }
   }
 
@@ -31,6 +29,11 @@ export default function Login() {
       <div className="login-form">
         <h2>Welcome back</h2>
         <div className="sub">Sign in with your student credentials</div>
+        {localErr && (
+          <div style={{ background: 'var(--red-lt)', color: 'var(--red-dk)', borderRadius: 8, padding: '8px 12px', fontSize: 13, marginBottom: 12 }}>
+            {localErr}
+          </div>
+        )}
         <div className="form-group">
           <label className="form-label">Matric email</label>
           <div className="input-wrap">
@@ -57,9 +60,11 @@ export default function Login() {
           className="btn btn-primary btn-full"
           style={{ padding: 13 }}
           onClick={handleLogin}
-          disabled={loading}
+          disabled={state.loading}
         >
-          {loading ? <i className="fa fa-spinner fa-spin"></i> : <><i className="fa fa-sign-in-alt"></i> Sign In</>}
+          {state.loading
+            ? <><i className="fa fa-spinner fa-spin"></i> Signing in…</>
+            : <><i className="fa fa-sign-in-alt"></i> Sign In</>}
         </button>
         <div className="login-note" style={{ marginTop: 14 }}>
           <i className="fa fa-info-circle"></i> Accounts are provisioned by administrators only
