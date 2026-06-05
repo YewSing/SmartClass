@@ -10,7 +10,6 @@ import FaceReviewPromoteModal from './components/modals/FaceReviewPromoteModal'
 import CourseDetailModal from './components/modals/CourseDetailModal'
 import Login from './views/Login'
 import Dashboard from './views/Dashboard'
-import UsersView from './views/UsersView'
 import StudentsView from './views/StudentsView'
 import LecturersView from './views/LecturersView'
 import FaceReviewView from './views/FaceReviewView'
@@ -20,7 +19,6 @@ import ClassManagementView from './views/ClassManagementView'
 
 const VIEWS = {
   dashboard:       Dashboard,
-  users:           UsersView,
   students:        StudentsView,
   lecturers:       LecturersView,
   classmanagement: ClassManagementView,
@@ -31,6 +29,8 @@ const VIEWS = {
 
 function AppShell() {
   const { state } = useAdmin()
+
+  if (state.restoring) return null
 
   if (!state.isLoggedIn) {
     return (

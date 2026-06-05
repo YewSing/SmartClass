@@ -18,8 +18,9 @@ const SENSOR_STATUS = { ok: { label: 'OK', cls: 'text-sc-green-dk' }, fault: { l
 
 export default function Dashboard() {
   const { state, dispatch } = useAdmin()
-  const students  = state.users.filter(u => u.role === 'Student')
-  const lecturers = state.users.filter(u => u.role === 'Lecturer')
+  const students  = state.users.filter(u => u.role === 'Student'  && u.status === 'Active')
+  const lecturers = state.users.filter(u => u.role === 'Lecturer' && u.status === 'Active')
+  const activeUsers = state.users.filter(u => u.status === 'Active')
   const pendingFace = students.filter(u => !u.face).length
   const queueCount  = state.unrecognisedQueue.length
   const faultCount  = Object.values(state.env.sensors).filter(s => s !== 'ok').length
@@ -30,10 +31,10 @@ export default function Dashboard() {
     <div className="space-y-6">
       {/* Stat cards */}
       <div className="grid grid-cols-4 gap-3.5">
-        <StatCard label="Total Users"         value={state.users.length} sub="↑ 3 this semester"                               accentColor="#1B6EF3" />
+        <StatCard label="Total Users"         value={activeUsers.length}                                                   accentColor="#1B6EF3" />
         <StatCard label="Students"            value={students.length}    sub={`${students.filter(u => u.face).length} face-enrolled`} accentColor="#12A564" />
-        <StatCard label="Lecturers"           value={lecturers.length}   sub="across 4 departments"                            accentColor="#7C3AED" />
-        <StatCard label="Pending Face Enroll" value={pendingFace}        sub="⚠ action needed"                                 accentColor="#E87722" />
+        <StatCard label="Lecturers"           value={lecturers.length}                                                       accentColor="#7C3AED" />
+        <StatCard label="Pending Face Enroll" value={pendingFace}        sub="⚠ action needed"                               accentColor="#E87722" />
       </div>
 
       <div className="grid grid-cols-3 gap-3.5">

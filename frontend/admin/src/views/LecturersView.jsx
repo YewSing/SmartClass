@@ -1,20 +1,38 @@
+import { useState, useEffect } from 'react'
 import { useAdmin } from '../context/AdminContext'
 import { avatarInitials } from '../components/ui/Avatar'
 import { StatusBadge } from '../components/ui/Badge'
 import Button from '../components/ui/Button'
+import Pagination from '../components/ui/Pagination'
 
 export default function LecturersView() {
-  const { state, dispatch, openModal } = useAdmin()
-  const staff = state.users.filter(u => u.role === 'Lecturer')
+  const { state, dispatch, openModal, updateUser, toast } = useAdmin()
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+
+  const allStaff = state.users.filter(u => u.role === 'Lecturer')
+
+  useEffect(() => { setPage(1) }, [pageSize])
+
+  const paginated = allStaff.slice((page - 1) * pageSize, page * pageSize)
 
   const openProfile = (id) => {
     dispatch({ type: 'SELECT_USER', payload: id })
     openModal('studentProfile')
   }
 
-  const openDelete = (id) => {
+  const openDeactivate = (id) => {
     dispatch({ type: 'SELECT_USER', payload: id })
     openModal('confirmDelete')
+  }
+
+  const handleReactivate = async (u) => {
+    try {
+      await updateUser(u.id, { status: 'active' })
+      toast(`Account reactivated: ${u.name}`, 'success')
+    } catch (e) {
+      toast(e.message, 'error')
+    }
   }
 
   return (
@@ -33,7 +51,7 @@ export default function LecturersView() {
           </tr>
         </thead>
         <tbody>
-          {staff.map(u => (
+          {paginated.map(u => (
             <tr key={u.id} className="hover:bg-gray-50">
               <td className="px-5 py-3 border-b border-border">
                 <div className="flex items-center gap-2.5">
@@ -46,7 +64,7 @@ export default function LecturersView() {
                   </div>
                 </div>
               </td>
-              <td className="px-5 py-3 border-b border-border font-sans text-[12px] text-text1">{u.id}</td>
+              <td className="px-5 py-3 border-b border-border font-sans text-[12px] text-text1">{u.staffId ?? '—'}</td>
               <td className="px-5 py-3 border-b border-border text-[12.5px] text-text2">{u.dept}</td>
               <td className="px-5 py-3 border-b border-border text-[12.5px] text-text2">
                 {u.classes.length ? u.classes.map(c => c.code).join(', ') : <span className="text-text3">—</span>}
@@ -55,13 +73,24 @@ export default function LecturersView() {
               <td className="px-5 py-3 border-b border-border">
                 <div className="flex gap-1.5">
                   <Button variant="ghost" size="sm" onClick={() => openProfile(u.id)}>✎ Edit</Button>
-                  <Button variant="danger" size="sm" onClick={() => openDelete(u.id)}>✕</Button>
+                  {u.status === 'Active'
+                    ? <Button variant="danger" size="sm" onClick={() => openDeactivate(u.id)}>Deactivate</Button>
+                    : <Button variant="primary" size="sm" onClick={() => handleReactivate(u)}>Reactivate</Button>
+                  }
                 </div>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
+
+      <Pagination
+        total={allStaff.length}
+        page={page}
+        pageSize={pageSize}
+        onPage={setPage}
+        onPageSize={setPageSize}
+      />
     </div>
   )
 }

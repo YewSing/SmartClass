@@ -1,19 +1,28 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAdmin } from '../context/AdminContext'
 import { avatarInitials } from '../components/ui/Avatar'
 import { StatusBadge, FaceBadge } from '../components/ui/Badge'
 import Button from '../components/ui/Button'
+import Pagination from '../components/ui/Pagination'
 
 export default function StudentsView() {
   const { state, dispatch, openModal } = useAdmin()
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+
   const allStudents = state.users.filter(u => u.role === 'Student')
-  const students = allStudents.filter(u =>
+  const filtered = allStudents.filter(u =>
     !search ||
     u.name.toLowerCase().includes(search.toLowerCase()) ||
     String(u.matric ?? '').toLowerCase().includes(search.toLowerCase()) ||
     u.email.toLowerCase().includes(search.toLowerCase())
   )
+
+  // Reset to page 1 when search or page size changes
+  useEffect(() => { setPage(1) }, [search, pageSize])
+
+  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize)
 
   const openProfile = (id) => {
     dispatch({ type: 'SELECT_USER', payload: id })
@@ -50,7 +59,7 @@ export default function StudentsView() {
           </tr>
         </thead>
         <tbody>
-          {students.map(u => (
+          {paginated.map(u => (
             <tr key={u.id} className="hover:bg-gray-50">
               <td className="px-5 py-3 border-b border-border">
                 <div className="flex items-center gap-2.5">
@@ -78,7 +87,7 @@ export default function StudentsView() {
                 <div className="flex gap-1.5">
                   <Button variant="ghost" size="sm" onClick={() => openProfile(u.id)}>✎ Profile</Button>
                   {!u.face && (
-                    <Button variant="primary" size="sm" onClick={() => openFaceEnroll(u.id)}>⊙ Enroll Face</Button>
+                    <Button variant="primary" size="sm" onClick={() => openFaceEnroll(u.id)}>⊙ Register Face</Button>
                   )}
                 </div>
               </td>
@@ -86,6 +95,14 @@ export default function StudentsView() {
           ))}
         </tbody>
       </table>
+
+      <Pagination
+        total={filtered.length}
+        page={page}
+        pageSize={pageSize}
+        onPage={setPage}
+        onPageSize={setPageSize}
+      />
     </div>
   )
 }

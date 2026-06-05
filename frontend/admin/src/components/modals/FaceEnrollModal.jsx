@@ -83,11 +83,11 @@ export default function FaceEnrollModal() {
     try {
       await enrollFace(user.id, captures.map(c => c.blob))
       setDone(true)
-      toast(`Face data enrolled for ${user.name.split(' ')[0]} — ${captures.length} samples`, 'success')
+      toast(`Face data registered for ${user.name.split(' ')[0]} — ${captures.length} samples`, 'success')
     } catch (e) {
       const msg = e.message ?? ''
       if (/503|model not loaded/i.test(msg)) {
-        setSaveErr('Enrolment failed — face recognition backend is unavailable. No data was saved. Please try again.')
+        setSaveErr('Registration failed — face recognition backend is unavailable. No data was saved. Please try again.')
       } else if (/422|no face/i.test(msg)) {
         setSaveErr('No face detected in any of the captured samples. Please retake with the student facing the camera clearly.')
       } else {
@@ -100,16 +100,16 @@ export default function FaceEnrollModal() {
 
   if (done) {
     return (
-      <Modal title="Enrolment Complete" onClose={handleClose} size="md"
+      <Modal title="Registration Complete" onClose={handleClose} size="md"
         footer={<Button variant="primary" onClick={handleClose}>Done</Button>}
       >
         <div className="text-center py-4">
           <div className="w-12 h-12 rounded-full bg-sc-green-lt flex items-center justify-center mx-auto mb-3">
             <i className="fa-solid fa-circle-check text-sc-green text-2xl" />
           </div>
-          <p className="text-[14px] font-semibold text-text1">Face data enrolled successfully.</p>
+          <p className="text-[14px] font-semibold text-text1">Face data registered successfully.</p>
           <p className="text-[13px] text-text2 mt-1">{captures.length} sample{captures.length !== 1 ? 's' : ''} captured for {user.name.split(' ')[0]}.</p>
-          <p className="text-[11px] text-text3 mt-3 leading-relaxed">NFR-01: All captured frames were discarded by the server immediately after embedding extraction.</p>
+          <p className="text-[11px] text-text3 mt-3 leading-relaxed">All captured frames are discarded by the server immediately after embedding extraction.</p>
         </div>
       </Modal>
     )
@@ -117,8 +117,8 @@ export default function FaceEnrollModal() {
 
   return (
     <Modal
-      title="Face Data Enrolment"
-      subtitle={`UC-08 — Live webcam capture · ${user.name}`}
+      title="Face Data Registration"
+      subtitle={`Live webcam capture · ${user.name}`}
       onClose={handleClose}
       size="lg"
       footer={
@@ -126,8 +126,8 @@ export default function FaceEnrollModal() {
           <Button variant="ghost" onClick={handleClose}>Cancel</Button>
           <Button variant="primary" onClick={handleSave} disabled={captures.length < MIN_SAMPLES || saving}>
             {saving
-              ? 'Enrolling…'
-              : `Save Enrolment${captures.length > 0 ? ` (${captures.length} sample${captures.length !== 1 ? 's' : ''})` : ''}`}
+              ? 'Registering…'
+              : `Save Registration${captures.length > 0 ? ` (${captures.length} sample${captures.length !== 1 ? 's' : ''})` : ''}`}
           </Button>
         </>
       }
@@ -218,11 +218,11 @@ export default function FaceEnrollModal() {
               ? `Capture at least ${MIN_SAMPLES} samples to enable Save.`
               : captures.length < MIN_SAMPLES
                 ? `${MIN_SAMPLES - captures.length} more sample${MIN_SAMPLES - captures.length !== 1 ? 's' : ''} needed.`
-                : 'Minimum reached — click "Save Enrolment" or add more samples.'}
+                : 'Minimum reached — click "Save Registration" or add more samples.'}
           </p>
 
           <p className="text-[11px] text-text3 text-center leading-relaxed border-t border-border pt-3">
-            NFR-01: All captured frames are discarded by the server immediately after embedding extraction.
+            All captured frames are discarded by the server immediately after embedding extraction.
           </p>
         </div>
       )}

@@ -128,8 +128,11 @@ export const removeFace = async (studentUserId) => {
 
 export function adaptReviewEntry(e) {
   const d = new Date(e.flagged_at)
-  const ts = d.toLocaleDateString('en-MY', { day: '2-digit', month: 'short', year: 'numeric' })
-    + ' ' + d.toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit' })
+  const ts = d.toLocaleDateString('en-MY', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kuala_Lumpur' })
+    + ' ' + d.toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kuala_Lumpur' })
+  const sessionDate = e.session_date
+    ? new Date(e.session_date).toLocaleDateString('en-MY', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kuala_Lumpur' })
+    : null
   return {
     id: e.id,
     ts,
@@ -137,6 +140,11 @@ export function adaptReviewEntry(e) {
     session: e.session_id ? `#${e.session_id}` : '—',
     confidence: e.similarity,
     occurrences: e.occurrences,
+    closestMatchId: e.closest_match_student_id ?? null,
+    closestMatchName: e.closest_match_name ?? null,
+    closestMatchConfidence: e.closest_match_confidence ?? null,
+    className: e.class_name ?? null,
+    sessionDate,
   }
 }
 
@@ -148,10 +156,10 @@ export const getReviewQueue = async () => {
 export const dismissReviewEntry = (id) =>
   apiCall('DELETE', `/admin/face-review/${id}`)
 
-export const promoteReviewEntry = (id, studentUserId) =>
-  apiCall('POST', `/admin/face-review/${id}/promote`, { student_user_id: studentUserId })
+export const promoteReviewEntry = (id, studentUserId, markPresent = false) =>
+  apiCall('POST', `/admin/face-review/${id}/promote`, { student_user_id: studentUserId, mark_present: markPresent })
 
 // ─── Audit log ────────────────────────────────────────────────────────────────
 
-export const getAuditLog = (page = 1) =>
-  apiCall('GET', `/admin/audit-logs?page=${page}&limit=50`)
+export const getAuditLog = (page = 1, limit = 50) =>
+  apiCall('GET', `/admin/audit-logs?page=${page}&limit=${limit}`)

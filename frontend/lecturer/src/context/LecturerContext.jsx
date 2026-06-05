@@ -14,6 +14,8 @@ const initialState = {
   sessions: [],
   selectedSession: null,
   students: [],
+  analytics: null,
+  analyticsLoading: false,
   modal: null,
   toasts: [],
   loading: false,
@@ -52,6 +54,10 @@ function reducer(state, action) {
       return { ...state, selectedSession: action.payload }
     case 'SET_STUDENTS':
       return { ...state, students: action.payload }
+    case 'SET_ANALYTICS':
+      return { ...state, analytics: action.payload, analyticsLoading: false }
+    case 'SET_ANALYTICS_LOADING':
+      return { ...state, analyticsLoading: action.payload }
     case 'UPDATE_STUDENT':
       return {
         ...state,
@@ -164,6 +170,17 @@ export function LecturerProvider({ children }) {
     dispatch({ type: 'SET_SELECTED_SESSION', payload: session })
   }, [])
 
+  const loadAnalytics = useCallback(async (occurrenceId) => {
+    dispatch({ type: 'SET_ANALYTICS_LOADING', payload: true })
+    try {
+      const data = await api.getAnalytics(occurrenceId)
+      dispatch({ type: 'SET_ANALYTICS', payload: data })
+    } catch (e) {
+      dispatch({ type: 'SET_ANALYTICS_LOADING', payload: false })
+      showToast(e.message, 'error')
+    }
+  }, [showToast])
+
   useEffect(() => {
     const handle = () => {
       if (wsRef.current) { wsRef.current.close(); wsRef.current = null }
@@ -222,6 +239,7 @@ export function LecturerProvider({ children }) {
     loadStudents,
     overrideStudent,
     selectSession,
+    loadAnalytics,
   }
 
   return (

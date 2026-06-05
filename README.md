@@ -4,15 +4,17 @@ A classroom management system featuring face recognition attendance, quiz manage
 
 ## Apps
 
-| App | Description | Directory |
-|-----|-------------|-----------|
-| Admin Dashboard | Web UI for managing users, enrollment, and face data | `frontend/admin/` |
-| Student App | Mobile-sized UI for attendance and participation | `frontend/student/` |
-| Lecturer App | Mobile-sized UI for sessions, quizzes, and analytics | `frontend/lecturer/` |
+| App | Type | Description | Directory |
+|-----|------|-------------|-----------|
+| Admin Dashboard | Web (React + Vite) | Manage users, enrollment, face data, audit logs | `frontend/admin/` |
+| Student App | Web (React + Vite) | Attendance and participation (phone-frame UI) | `frontend/student/` |
+| Lecturer App | Mobile (React Native + Expo) | Sessions, quizzes, analytics — runs on real phone | `mobile/lecturer/` |
 
 ## Tech Stack
 
-**Frontend:** React 18 + Vite 5, Tailwind CSS 3, React Context API
+**Web frontends:** React 18 + Vite 5, Tailwind CSS 3, React Context API
+
+**Lecturer mobile:** React Native + Expo SDK 54, React Navigation 6, AsyncStorage
 
 **Backend:** FastAPI + SQLAlchemy 2 (async) + PostgreSQL + pgvector, InsightFace, JWT auth, Docker Compose
 
@@ -25,6 +27,7 @@ A classroom management system featuring face recognition attendance, quiz manage
 - [Node.js](https://nodejs.org/) (v18+)
 - [Python](https://www.python.org/) 3.10+
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) (for PostgreSQL)
+- [Expo Go](https://expo.dev/go) on your phone (for the lecturer mobile app)
 
 ---
 
@@ -35,8 +38,6 @@ cd backend
 docker compose up -d
 ```
 
-Starts PostgreSQL + pgvector in the background.
-
 ---
 
 ### 2. Configure Environment
@@ -45,7 +46,7 @@ Starts PostgreSQL + pgvector in the background.
 cp .env.example .env
 ```
 
-Edit `.env` if you need to change the database URL or secret key. Skip this step if `.env` already exists.
+Edit `.env` if needed. Skip if `.env` already exists.
 
 ---
 
@@ -66,10 +67,12 @@ python scripts/seed.py
 
 ```bash
 cd backend
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --host 0.0.0.0
 ```
 
-API runs at **http://localhost:8000**. Docs at **http://localhost:8000/docs**.
+API at **http://localhost:8000** · Docs at **http://localhost:8000/docs**
+
+> `--host 0.0.0.0` is required so the lecturer mobile app on a physical device can reach the backend over WiFi.
 
 ---
 
@@ -83,32 +86,35 @@ pip install -r requirements.txt
 python worker.py
 ```
 
-The worker handles real-time face matching during attendance sessions.
-
 ---
 
-### 6. Start the Frontend Apps
-
-Each app runs independently. Open a new terminal for each:
+### 6. Start the Web Frontend Apps
 
 ```bash
 # Admin dashboard → http://localhost:5173
 cd frontend/admin
-npm install
-npm run dev
+npm install && npm run dev
 
 # Student app → http://localhost:5174
 cd frontend/student
-npm install
-npm run dev
-
-# Lecturer app → http://localhost:5175
-cd frontend/lecturer
-npm install
-npm run dev
+npm install && npm run dev
 ```
 
-> All three frontends can run simultaneously on their respective ports.
+---
+
+### 7. Run the Lecturer Mobile App
+
+```bash
+cd mobile/lecturer
+cp .env.example .env
+# Edit .env → set EXPO_PUBLIC_API_URL=http://<your-laptop-ip>:8000
+# Find your IP with: ipconfig (Windows) or ifconfig (Mac/Linux)
+
+npm install --legacy-peer-deps
+npm start
+```
+
+Scan the QR code with **Expo Go** on your phone. Both phone and laptop must be on the same WiFi.
 
 ---
 
@@ -122,33 +128,27 @@ SmartClass/
 │   ├── face_worker/    # Face recognition worker process
 │   ├── scripts/        # Seed scripts
 │   └── docker-compose.yml
-└── frontend/
-    ├── admin/
-    │   └── src/
-    │       ├── components/   # UI primitives and layout
-    │       ├── context/      # AdminContext (global state)
-    │       ├── data/         # Mock data
-    │       ├── services/     # API layer
-    │       └── views/        # Page components
-    ├── student/
-    │   └── src/
-    │       ├── components/
-    │       ├── context/      # StudentContext
-    │       ├── data/
-    │       ├── services/     # API layer
-    │       └── views/
-    └── lecturer/
-        └── src/
-            ├── components/
-            ├── context/      # LecturerContext
-            ├── data/
-            ├── services/     # API layer
-            └── views/
+├── frontend/
+│   ├── admin/          # Web admin dashboard
+│   └── student/        # Web student app (phone-frame UI)
+├── mobile/
+│   └── lecturer/       # React Native lecturer app (Expo)
+│       └── src/
+│           ├── screens/      # All 12 screens
+│           ├── components/   # Topbar, Badge, Toast, Modals
+│           ├── context/      # LecturerContext (state + API actions)
+│           ├── navigation/   # React Navigation setup
+│           ├── services/     # API layer + AsyncStorage client
+│           └── data/         # Mock data (quizzes, sensors)
+└── docs/
+    ├── requirements/
+    └── use-cases/
 ```
 
 ## Features
 
-- **Attendance** — Face recognition-based check-in, session management
-- **Quizzes** — Create quizzes, live results, breakdowns
-- **Analytics** — Participation tracking, classroom environment monitoring
-- **Admin** — User management, face data enrollment, audit logs
+- **Attendance** — Face recognition-based check-in, live session management
+- **Quizzes** — Create and push quizzes, live results, per-student breakdown
+- **Analytics** — Attendance rates, at-risk students, participation tracking
+- **Environment** — Live classroom sensor readings, actuator control
+- **Admin** — User management, face data enrollment, face review queue, audit logs

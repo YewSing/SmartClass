@@ -1,11 +1,13 @@
 import { createContext, useContext, useReducer, useCallback, useEffect } from 'react'
 import * as api from '../services/api'
+import { getToken } from '../services/client'
 
 const AdminContext = createContext(null)
 
 const initialState = {
   isLoggedIn: false,
-  currentView: 'dashboard',
+  restoring: !!localStorage.getItem('token'),
+  currentView: localStorage.getItem('view') ?? 'dashboard',
   users: [],
   allClasses: [],
   allCourses: [],
@@ -35,10 +37,13 @@ const initialState = {
 function reducer(state, action) {
   switch (action.type) {
     case 'LOGIN':
-      return { ...state, isLoggedIn: true }
+      return { ...state, isLoggedIn: true, restoring: false }
+
+    case 'RESTORE_DONE':
+      return { ...state, restoring: false }
 
     case 'LOGOUT':
-      return { ...state, isLoggedIn: false, currentView: 'dashboard', users: [], modal: null }
+      return { ...state, isLoggedIn: false, restoring: false, currentView: 'dashboard', users: [], modal: null }
 
     case 'SET_VIEW':
       return { ...state, currentView: action.payload }
@@ -105,16 +110,26 @@ function reducer(state, action) {
 
     case 'TOGGLE_OCCURRENCE_ENROLLMENT': {
       const { userId, occObj, enrolled } = action.payload
+      // Normalize: allClasses uses code/name; occurrences shape uses course_code/course_name
+      const normalized = {
+        id: occObj.id,
+        course_code: occObj.course_code ?? occObj.code,
+        course_name: occObj.course_name ?? occObj.name,
+        type: occObj.type,
+        label: occObj.label ?? null,
+        day_of_week: occObj.day_of_week,
+        start_time: occObj.start_time,
+        end_time: occObj.end_time,
+      }
       return {
         ...state,
         users: state.users.map(u => {
           if (u.id !== userId) return u
           const occurrences = enrolled
-            ? (u.occurrences ?? []).some(o => o.id === occObj.id)
+            ? (u.occurrences ?? []).some(o => o.id === normalized.id)
               ? u.occurrences
-              : [...(u.occurrences ?? []), occObj]
-            : (u.occurrences ?? []).filter(o => o.id !== occObj.id)
-          // keep classes in sync
+              : [...(u.occurrences ?? []), normalized]
+            : (u.occurrences ?? []).filter(o => o.id !== normalized.id)
           const classes = occurrences.map(o => ({ id: o.id, code: o.course_code, name: o.course_name }))
           return { ...u, occurrences, classes }
         }),
@@ -216,6 +231,28 @@ export function AdminProvider({ children }) {
     return () => window.removeEventListener('auth:expired', handle)
   }, [])
 
+  // Restore session from stored token on page reload
+  useEffect(() => {
+    if (!getToken()) return
+    api.getUsers()
+      .then(data => {
+        dispatch({ type: 'LOGIN' })
+        dispatch({ type: 'SET_USERS', payload: data.items })
+        api.getReviewQueue()
+          .then(queue => dispatch({ type: 'SET_REVIEW_QUEUE', payload: queue }))
+          .catch(() => {})
+      })
+      .catch(() => {
+        api.logout()
+        dispatch({ type: 'RESTORE_DONE' })
+      })
+  }, [])
+
+  // Persist current view so reload returns to the same page
+  useEffect(() => {
+    localStorage.setItem('view', state.currentView)
+  }, [state.currentView])
+
   // ── Classes / Courses ────────────────────────────────────────────────────────
   const loadAllClasses = useCallback(async () => {
     try {
@@ -253,7 +290,7 @@ export function AdminProvider({ children }) {
 
   const deactivateUser = useCallback(async (id) => {
     await api.deactivateUser(id)
-    dispatch({ type: 'DELETE_USER', payload: id })
+    dispatch({ type: 'UPDATE_USER', payload: { id, status: 'Inactive' } })
   }, [])
 
   // ── Enrollment ──────────────────────────────────────────────────────────────
@@ -299,8 +336,8 @@ export function AdminProvider({ children }) {
     dispatch({ type: 'DISMISS_REVIEW', payload: id })
   }, [])
 
-  const promoteReview = useCallback(async (reviewId, studentUserId) => {
-    await api.promoteReviewEntry(reviewId, studentUserId)
+  const promoteReview = useCallback(async (reviewId, studentUserId, markPresent = false) => {
+    await api.promoteReviewEntry(reviewId, studentUserId, markPresent)
     dispatch({ type: 'PROMOTE_REVIEW', payload: { reviewId, userId: studentUserId } })
   }, [])
 

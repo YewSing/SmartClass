@@ -24,8 +24,8 @@ function sessionAdapter(s) {
     class_code: s.class_code,
     class_name: s.class_name,
     day: d.getDate(),
-    month: d.toLocaleString('en', { month: 'short' }),
-    time: d.toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' }),
+    month: d.toLocaleString('en-MY', { month: 'short', timeZone: 'Asia/Kuala_Lumpur' }),
+    time: d.toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kuala_Lumpur' }),
     duration: s.closed_at ? durationStr(s.opened_at, s.closed_at) : null,
     open: s.status === 'open',
     present: s.present ?? 0,
@@ -164,8 +164,8 @@ export const exportReport = async (sessionId, format = 'csv') => {
 
 // ─── Analytics ────────────────────────────────────────────────────────────────
 
-export const getAnalytics = async (classId) => {
-  return apiCall('GET', `/lecturer/analytics?class_id=${classId}`)
+export const getAnalytics = async (occurrenceId) => {
+  return apiCall('GET', `/lecturer/analytics?occurrence_id=${occurrenceId}`)
 }
 
 // ─── Mocked (Module 3/4 — quiz; Module 5/6 — sensors) ────────────────────────

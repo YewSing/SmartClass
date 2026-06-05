@@ -18,21 +18,21 @@ function sessionToAttItem(s) {
   const date = new Date(s.date)
   const variant = mapStatus(s.status)
   const day   = String(date.getDate()).padStart(2, '0')
-  const month = date.toLocaleString('en', { month: 'short' })
+  const month = date.toLocaleString('en-MY', { month: 'short', timeZone: 'Asia/Kuala_Lumpur' })
   const dateBg    = variant === 'present' ? 'var(--green-lt)'  : variant === 'absent' ? 'var(--red-lt)'    : 'var(--orange-lt)'
   const dateColor = variant === 'present' ? 'var(--green)'     : variant === 'absent' ? 'var(--red)'       : 'var(--orange)'
 
   const checkinTime = s.detected_at
-    ? new Date(s.detected_at).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' })
+    ? new Date(s.detected_at).toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kuala_Lumpur' })
     : null
 
-  const dateLabel = date.toLocaleDateString('en', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+  const dateLabel = date.toLocaleDateString('en-MY', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kuala_Lumpur' })
 
   return {
     id: String(s.session_id),
     day, month, dateBg, dateColor,
     title: `${s.class_code} — Session`,
-    sub: `${date.toLocaleDateString('en', { weekday: 'short' })} · ${s.class_name}`,
+    sub: `${date.toLocaleDateString('en-MY', { weekday: 'short', timeZone: 'Asia/Kuala_Lumpur' })} · ${s.class_name}`,
     status: variant,
     isLive: false,
     variant,

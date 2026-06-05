@@ -2,11 +2,10 @@
 Business logic for opening and closing attendance sessions.
 Closing a session auto-marks all enrolled students who have no attendance record as absent.
 """
-from datetime import datetime
-
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+from app.core.timezone import now_myt
 from app.models.session import AttendanceSession
 from app.models.attendance import AttendanceRecord
 from app.models.class_ import Enrollment
@@ -17,7 +16,7 @@ async def close_session(session_id: int, db: AsyncSession) -> AttendanceSession:
     session = result.scalar_one()
 
     session.status = "closed"
-    session.closed_at = datetime.utcnow()
+    session.closed_at = now_myt()
 
     # Find all enrolled students for this occurrence
     enrolled = await db.execute(

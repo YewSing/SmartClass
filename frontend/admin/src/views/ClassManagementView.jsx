@@ -1,22 +1,28 @@
 import { useEffect, useState } from 'react'
 import { useAdmin } from '../context/AdminContext'
+import Pagination from '../components/ui/Pagination'
 
 export default function ClassManagementView() {
   const { state, loadAllCourses, openModal } = useAdmin()
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
 
   useEffect(() => { loadAllCourses() }, [])
+  useEffect(() => { setPage(1) }, [search, pageSize])
 
-  const courses = (state.allCourses ?? []).filter(c =>
+  const filtered = (state.allCourses ?? []).filter(c =>
     c.code.toLowerCase().includes(search.toLowerCase()) ||
     c.name.toLowerCase().includes(search.toLowerCase())
   )
+
+  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize)
 
   return (
     <div className="bg-surface border border-border rounded-xl overflow-hidden">
       <div className="flex items-center gap-3 px-5 py-4 border-b border-border">
         <span className="text-[14px] font-semibold text-text1">Class Management</span>
-        <span className="text-[12px] text-text3 ml-1">{courses.length} courses</span>
+        <span className="text-[12px] text-text3 ml-1">{filtered.length} courses</span>
         <div className="flex items-center gap-2 bg-surface2 border border-border rounded-lg px-3 py-1.5 ml-auto">
           <span className="text-text3 text-[13px]">⌕</span>
           <input
@@ -39,14 +45,14 @@ export default function ClassManagementView() {
           </tr>
         </thead>
         <tbody>
-          {courses.length === 0 ? (
+          {paginated.length === 0 ? (
             <tr>
               <td colSpan={5} className="px-5 py-10 text-center text-[13px] text-text3">
                 {(state.allCourses ?? []).length === 0 ? 'Loading…' : 'No courses match your search.'}
               </td>
             </tr>
           ) : (
-            courses.map(c => (
+            paginated.map(c => (
               <tr key={c.id} className="hover:bg-surface2 transition-colors">
                 <td className="px-5 py-3 border-b border-border">
                   <span className="font-semibold text-accent text-[13px]">{c.code}</span>
@@ -67,6 +73,14 @@ export default function ClassManagementView() {
           )}
         </tbody>
       </table>
+
+      <Pagination
+        total={filtered.length}
+        page={page}
+        pageSize={pageSize}
+        onPage={setPage}
+        onPageSize={setPageSize}
+      />
     </div>
   )
 }

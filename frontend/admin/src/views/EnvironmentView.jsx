@@ -1,11 +1,11 @@
 import { useAdmin } from '../context/AdminContext'
 
 const READINGS = [
-  { key: 'temperature', label: 'Temperature', unit: '°C', warn: v => v > 26, icon: '🌡' },
-  { key: 'humidity',    label: 'Humidity',    unit: '%',  warn: v => v > 70, icon: '💧' },
-  { key: 'lightLevel',  label: 'Light Level', unit: ' lux', warn: () => false, icon: '☀' },
-  { key: 'co2',         label: 'CO₂',         unit: ' ppm', warn: v => v > 800, icon: '💨' },
-  { key: 'occupancy',   label: 'Occupancy',   unit: ' persons', warn: () => false, icon: '👥' },
+  { key: 'temperature', label: 'Temperature', unit: '°C',      warn: v => v > 26,  icon: 'fa-solid fa-temperature-half' },
+  { key: 'humidity',    label: 'Humidity',    unit: '%',        warn: v => v > 70,  icon: 'fa-solid fa-droplet' },
+  { key: 'lightLevel',  label: 'Light Level', unit: ' lux',     warn: () => false,  icon: 'fa-solid fa-sun' },
+  { key: 'co2',         label: 'CO₂',         unit: ' ppm',     warn: v => v > 800, icon: 'fa-solid fa-wind' },
+  { key: 'occupancy',   label: 'Occupancy',   unit: ' persons', warn: () => false,  icon: 'fa-solid fa-users' },
 ]
 
 const SENSOR_STYLE = {
@@ -70,7 +70,7 @@ export default function EnvironmentView() {
       <div className="bg-surface border border-border rounded-xl overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <span className="text-[14px] font-semibold text-text1">Live Readings</span>
-          <span className="text-[12px] text-text3">Last updated {env.lastUpdated} · FR-050</span>
+          <span className="text-[12px] text-text3">Last updated {env.lastUpdated}</span>
         </div>
         <div className="grid grid-cols-5 divide-x divide-border">
           {READINGS.map(r => {
@@ -78,7 +78,7 @@ export default function EnvironmentView() {
             const isWarn = r.warn(raw)
             return (
               <div key={r.key} className={`px-5 py-5 ${isWarn ? 'bg-sc-orange-lt/40' : ''}`}>
-                <div className="text-[18px] mb-1">{r.icon}</div>
+                <div className="text-[18px] mb-1"><i className={r.icon} /></div>
                 <div className={`text-[22px] font-bold tracking-tight ${isWarn ? 'text-sc-orange' : 'text-text1'}`}>
                   {raw}{r.unit}
                 </div>
@@ -112,7 +112,7 @@ export default function EnvironmentView() {
       <div className="bg-surface border border-border rounded-xl overflow-hidden">
         <div className="px-5 py-4 border-b border-border">
           <span className="text-[14px] font-semibold text-text1">Sensor Health</span>
-          <span className="text-[12px] text-text3 ml-3">FR-051 — alerts generated on fault detection</span>
+          <span className="text-[12px] text-text3 ml-3">Alerts generated on fault detection</span>
         </div>
         <table className="w-full border-collapse">
           <thead>

@@ -4,10 +4,11 @@ can manually identify and promote them to enrollment (UC-07 / UC-08 alt flow).
 """
 from typing import Optional
 
+from app.core.timezone import now_myt
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete, text
+from sqlalchemy import select, text
 
 from app.core.config import settings
 from app.core.database import get_db
@@ -15,6 +16,7 @@ from app.core.deps import require_role
 from app.models.face_review import FaceReviewEntry
 from app.models.face import FaceEmbedding
 from app.models.user import User, Student
+from app.models.attendance import AttendanceRecord
 from app.services.audit_service import write_log
 
 router = APIRouter(tags=["face-review"])
@@ -46,12 +48,41 @@ class FaceReviewOut(BaseModel):
     similarity: float
     occurrences: int
     flagged_at: str  # ISO string
+    closest_match_student_id: Optional[int] = None
+    closest_match_name: Optional[str] = None
+    closest_match_confidence: Optional[float] = None
+    class_name: Optional[str] = None
+    session_date: Optional[str] = None  # ISO string of session opened_at
 
     model_config = {"from_attributes": True}
 
 
 class PromoteRequest(BaseModel):
     student_user_id: int
+    mark_present: bool = False
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+async def _find_closest_enrolled(db: AsyncSession, embedding: list[float]) -> tuple[Optional[int], Optional[float]]:
+    """
+    Returns (user_id, confidence) of the enrolled student whose face embedding
+    is nearest to the given embedding, or (None, None) if no enrolled faces exist.
+    """
+    result = await db.execute(
+        text("""
+            SELECT s.user_id, (1 - (fe.embedding <=> CAST(:vec AS vector))) AS score
+            FROM face_embeddings fe
+            JOIN students s ON s.id = fe.student_id
+            ORDER BY fe.embedding <=> CAST(:vec AS vector)
+            LIMIT 1
+        """),
+        {"vec": str(embedding)},
+    )
+    row = result.fetchone()
+    if row is None:
+        return None, None
+    return int(row.user_id), float(row.score)
 
 
 # ── Internal endpoint (worker → backend) ─────────────────────────────────────
@@ -68,6 +99,8 @@ async def report_unrecognised_face(
     """
     if len(body.embedding) != 512:
         raise HTTPException(status_code=400, detail="Embedding must be 512-dimensional")
+
+    closest_user_id, closest_conf = await _find_closest_enrolled(db, body.embedding)
 
     # Try to merge into an existing entry with similar embedding (same unrecognised person)
     merge_result = await db.execute(
@@ -90,6 +123,12 @@ async def report_unrecognised_face(
         if body.similarity > entry.similarity:
             entry.similarity = body.similarity
             entry.embedding = body.embedding
+            # Better embedding means a better closest-match reading
+            entry.closest_match_student_id = closest_user_id
+            entry.closest_match_confidence = closest_conf
+        elif entry.closest_match_student_id is None and closest_user_id is not None:
+            entry.closest_match_student_id = closest_user_id
+            entry.closest_match_confidence = closest_conf
         if body.session_id:
             entry.session_id = body.session_id
     else:
@@ -99,6 +138,8 @@ async def report_unrecognised_face(
             camera_device_id=body.camera_device_id,
             similarity=body.similarity,
             occurrences=1,
+            closest_match_student_id=closest_user_id,
+            closest_match_confidence=closest_conf,
         ))
 
 
@@ -110,19 +151,43 @@ async def list_review_queue(
     actor: User = Depends(_admin_only),
 ):
     result = await db.execute(
-        select(FaceReviewEntry).order_by(FaceReviewEntry.flagged_at.desc())
+        text("""
+            SELECT
+                fr.id,
+                fr.session_id,
+                fr.camera_device_id,
+                fr.similarity,
+                fr.occurrences,
+                fr.flagged_at,
+                fr.closest_match_student_id,
+                fr.closest_match_confidence,
+                u.name  AS closest_match_name,
+                c.name  AS class_name,
+                asess.opened_at AS session_opened_at
+            FROM face_review_entries fr
+            LEFT JOIN users u      ON u.id      = fr.closest_match_student_id
+            LEFT JOIN attendance_sessions asess ON asess.id = fr.session_id
+            LEFT JOIN class_occurrences co      ON co.id    = asess.occurrence_id
+            LEFT JOIN courses c                 ON c.id     = co.course_id
+            ORDER BY fr.flagged_at DESC
+        """)
     )
-    entries = result.scalars().all()
+    rows = result.fetchall()
     return [
         FaceReviewOut(
-            id=e.id,
-            session_id=e.session_id,
-            camera_device_id=e.camera_device_id,
-            similarity=e.similarity,
-            occurrences=e.occurrences,
-            flagged_at=e.flagged_at.isoformat(),
+            id=row.id,
+            session_id=row.session_id,
+            camera_device_id=row.camera_device_id,
+            similarity=row.similarity,
+            occurrences=row.occurrences,
+            flagged_at=row.flagged_at.isoformat(),
+            closest_match_student_id=row.closest_match_student_id,
+            closest_match_name=row.closest_match_name,
+            closest_match_confidence=row.closest_match_confidence,
+            class_name=row.class_name,
+            session_date=row.session_opened_at.isoformat() if row.session_opened_at else None,
         )
-        for e in entries
+        for row in rows
     ]
 
 
@@ -164,7 +229,7 @@ async def promote_review_entry(
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
 
-    # Upsert face embedding
+    # Upsert face embedding (replaces existing data for re-enrollment)
     existing_emb = await db.execute(
         select(FaceEmbedding).where(FaceEmbedding.student_id == student.id)
     )
@@ -174,9 +239,31 @@ async def promote_review_entry(
     else:
         db.add(FaceEmbedding(student_id=student.id, embedding=entry.embedding))
 
+    if body.mark_present and entry.session_id:
+        att_result = await db.execute(
+            select(AttendanceRecord).where(
+                AttendanceRecord.session_id == entry.session_id,
+                AttendanceRecord.student_id == student.id,
+            )
+        )
+        att = att_result.scalar_one_or_none()
+        now = now_myt()
+        if att:
+            att.status = "present"
+            att.override_by = actor.id
+            att.override_at = now
+        else:
+            db.add(AttendanceRecord(
+                session_id=entry.session_id,
+                student_id=student.id,
+                status="present",
+                override_by=actor.id,
+                override_at=now,
+            ))
+
     await db.delete(entry)
     await write_log(
         db, actor.id, "FACE_PROMOTE",
         "face_review_entry", entry_id,
-        new_val={"student_user_id": body.student_user_id},
+        new_val={"student_user_id": body.student_user_id, "mark_present": body.mark_present},
     )

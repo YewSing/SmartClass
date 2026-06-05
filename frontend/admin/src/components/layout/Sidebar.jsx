@@ -11,7 +11,6 @@ const NAV = [
   {
     label: 'User Management',
     items: [
-      { id: 'users',     icon: 'fa-solid fa-users',            label: 'All Users' },
       { id: 'students',  icon: 'fa-solid fa-graduation-cap',   label: 'Students' },
       { id: 'lecturers', icon: 'fa-solid fa-id-badge',         label: 'Lecturers' },
     ],

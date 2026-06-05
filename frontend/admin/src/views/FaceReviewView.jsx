@@ -1,9 +1,33 @@
+import { useEffect, useState } from 'react'
 import { useAdmin } from '../context/AdminContext'
 import Button from '../components/ui/Button'
+import Pagination from '../components/ui/Pagination'
+
+function MatchBadge({ confidence }) {
+  if (confidence === null) return <span className="text-[12px] text-text3">—</span>
+  const pct = Math.round(confidence * 100)
+  if (confidence >= 0.65)
+    return <span className="inline-flex items-center gap-1 text-[11.5px] font-semibold px-2 py-0.5 rounded-full bg-green-50 border border-green-200 text-green-700">{pct}% strong</span>
+  if (confidence >= 0.40)
+    return <span className="inline-flex items-center gap-1 text-[11.5px] font-semibold px-2 py-0.5 rounded-full bg-sc-orange-lt border border-sc-orange/30 text-sc-orange">{pct}% possible</span>
+  return <span className="inline-flex items-center gap-1 text-[11.5px] font-semibold px-2 py-0.5 rounded-full bg-red-50 border border-red-200 text-red-600">{pct}% weak</span>
+}
 
 export default function FaceReviewView() {
-  const { state, dismissReview, openModal, toast } = useAdmin()
+  const { state, dismissReview, openModal, toast, loadReviewQueue } = useAdmin()
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
   const queue = state.unrecognisedQueue
+
+  useEffect(() => {
+    const id = setInterval(() => loadReviewQueue(), 20_000)
+    return () => clearInterval(id)
+  }, [loadReviewQueue])
+
+  // Reset to first page when queue length changes (new entries or dismissals)
+  useEffect(() => { setPage(1) }, [queue.length, pageSize])
+
+  const paginated = queue.slice((page - 1) * pageSize, page * pageSize)
 
   const handleDismiss = async (id) => {
     try {
@@ -18,9 +42,6 @@ export default function FaceReviewView() {
     openModal('faceReviewPromote', { reviewId: entry.id })
   }
 
-  const confidenceCls = (c) =>
-    c >= 0.4 ? 'text-sc-orange' : 'text-red-500'
-
   return (
     <div className="space-y-5">
       {/* Banner */}
@@ -29,8 +50,8 @@ export default function FaceReviewView() {
         <div>
           <div className="text-[14px] font-semibold text-text1">Unrecognised Face Review Queue</div>
           <div className="text-[12px] text-text3 mt-0.5">
-            UC-07 / FR-005 — {queue.length} {queue.length === 1 ? 'face' : 'faces'} flagged by the recognition pipeline.
-            Identify each face to promote it to enrollment, or dismiss if not a student.
+            {queue.length} {queue.length === 1 ? 'face' : 'faces'} flagged by the recognition pipeline.
+            Each entry shows the closest registered student match — confirm identity and optionally mark attendance to resolve.
           </div>
         </div>
         {queue.length > 0 && (
@@ -49,44 +70,67 @@ export default function FaceReviewView() {
             <div className="text-[12.5px] text-text3">All flagged faces have been reviewed</div>
           </div>
         ) : (
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="bg-surface2">
-                {['Entry ID', 'Timestamp', 'Camera Source', 'Session', 'Confidence', 'Occurrences', 'Actions'].map(h => (
-                  <th key={h} className="text-[11px] font-semibold uppercase tracking-[0.07em] text-text3 px-5 py-2.5 text-left border-b border-border">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {queue.map(entry => (
-                <tr key={entry.id} className="hover:bg-gray-50">
-                  <td className="px-5 py-3 border-b border-border font-sans text-[12px] text-text3">{entry.id}</td>
-                  <td className="px-5 py-3 border-b border-border font-sans text-[12px] text-text2">{entry.ts}</td>
-                  <td className="px-5 py-3 border-b border-border text-[13px] text-text2">{entry.camera}</td>
-                  <td className="px-5 py-3 border-b border-border text-[13px] text-text2">{entry.session}</td>
-                  <td className="px-5 py-3 border-b border-border">
-                    <span className={`text-[13px] font-semibold ${confidenceCls(entry.confidence)}`}>
-                      {Math.round(entry.confidence * 100)}%
-                    </span>
-                    <span className="text-[11px] text-text3 ml-1">below threshold</span>
-                  </td>
-                  <td className="px-5 py-3 border-b border-border text-[13px] text-text2">
-                    {entry.occurrences}×
-                  </td>
-                  <td className="px-5 py-3 border-b border-border">
-                    <div className="flex gap-1.5">
-                      <Button variant="primary" size="sm" onClick={() => handlePromote(entry)}>
-                        ⊙ Identify & Enroll
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => handleDismiss(entry.id)}>
-                        Dismiss
-                      </Button>
-                    </div>
-                  </td>
+          <>
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-surface2">
+                  {['#', 'Flagged At', 'Closest Match', 'Match Score', 'Class / Session', 'Seen', 'Actions'].map(h => (
+                    <th key={h} className="text-[11px] font-semibold uppercase tracking-[0.07em] text-text3 px-4 py-2.5 text-left border-b border-border">{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {paginated.map(entry => (
+                  <tr key={entry.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 border-b border-border font-sans text-[12px] text-text3">{entry.id}</td>
+                    <td className="px-4 py-3 border-b border-border font-sans text-[12px] text-text2 whitespace-nowrap">{entry.ts}</td>
+                    <td className="px-4 py-3 border-b border-border">
+                      {entry.closestMatchName
+                        ? <span className="text-[13px] font-medium text-text1">{entry.closestMatchName}</span>
+                        : <span className="text-[12px] text-text3 italic">No registered faces</span>
+                      }
+                    </td>
+                    <td className="px-4 py-3 border-b border-border">
+                      <MatchBadge confidence={entry.closestMatchConfidence} />
+                    </td>
+                    <td className="px-4 py-3 border-b border-border">
+                      {entry.className
+                        ? (
+                          <div>
+                            <div className="text-[12.5px] font-medium text-text1">{entry.className}</div>
+                            {entry.sessionDate && (
+                              <div className="text-[11px] text-text3 mt-0.5">{entry.sessionDate}</div>
+                            )}
+                          </div>
+                        )
+                        : <span className="text-[12px] text-text3">—</span>
+                      }
+                    </td>
+                    <td className="px-4 py-3 border-b border-border text-[13px] font-semibold text-text2">
+                      {entry.occurrences}×
+                    </td>
+                    <td className="px-4 py-3 border-b border-border">
+                      <div className="flex gap-1.5">
+                        <Button variant="primary" size="sm" onClick={() => handlePromote(entry)}>
+                          Resolve
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleDismiss(entry.id)}>
+                          Dismiss
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <Pagination
+              total={queue.length}
+              page={page}
+              pageSize={pageSize}
+              onPage={setPage}
+              onPageSize={setPageSize}
+            />
+          </>
         )}
       </div>
     </div>

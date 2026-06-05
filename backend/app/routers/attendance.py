@@ -1,7 +1,7 @@
 import csv
 import io
-from datetime import datetime
 
+from app.core.timezone import now_myt
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -95,7 +95,7 @@ async def override_attendance(
     )
     record.status = body.status
     record.override_by = actor.id
-    record.override_at = datetime.utcnow()
+    record.override_at = now_myt()
     await db.flush()
 
     counts = await get_session_counts(record.session_id, db)

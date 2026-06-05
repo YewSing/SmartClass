@@ -12,7 +12,7 @@ const SIZES = {
 export default function Button({ variant = 'primary', size = 'md', children, className = '', ...props }) {
   return (
     <button
-      className={`inline-flex items-center gap-1.5 rounded-[7px] font-medium border transition-all duration-150 whitespace-nowrap cursor-pointer ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
+      className={`inline-flex items-center gap-1.5 rounded-[7px] font-medium border transition-all duration-150 whitespace-nowrap cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
       {...props}
     >
       {children}

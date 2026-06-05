@@ -3,7 +3,11 @@ from sqlalchemy.orm import DeclarativeBase
 
 from app.core.config import settings
 
-engine = create_async_engine(settings.DATABASE_URL, echo=False)
+engine = create_async_engine(
+    settings.DATABASE_URL,
+    echo=False,
+    connect_args={"server_settings": {"timezone": "Asia/Kuala_Lumpur"}},
+)
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
 

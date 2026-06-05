@@ -1,5 +1,5 @@
+from app.core.timezone import MYT
 from datetime import datetime
-
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -62,7 +62,7 @@ async def list_classes(
         occurrences = result.scalars().all()
 
         if not full and not settings.DEV_BYPASS_TIME_CHECK:
-            now = datetime.now()
+            now = datetime.now(MYT)
             today = _DAY_MAP[now.weekday()]
             current_time = now.strftime("%H:%M")
             occurrences = [

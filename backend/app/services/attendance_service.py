@@ -1,12 +1,11 @@
 """
 Writes attendance records and broadcasts WebSocket events.
 """
-from datetime import datetime
-
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from app.core.timezone import now_myt
 from app.models.attendance import AttendanceRecord
 from app.models.user import Student, User
 from app.services.session_service import get_session_counts
@@ -37,7 +36,7 @@ async def mark_present(
         session_id=session_id,
         student_id=student_id,
         status="present",
-        detected_at=datetime.utcnow(),
+        detected_at=now_myt(),
     )
     db.add(record)
     await db.flush()

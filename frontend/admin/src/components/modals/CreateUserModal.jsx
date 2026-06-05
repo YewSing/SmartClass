@@ -67,7 +67,7 @@ export default function CreateUserModal() {
   return (
     <Modal
       title="Create User Account"
-      subtitle="All accounts are admin-created (UC-29)"
+      subtitle="All accounts are admin-created"
       onClose={() => { closeModal(); setForm(emptyForm) }}
       size="lg"
       footer={

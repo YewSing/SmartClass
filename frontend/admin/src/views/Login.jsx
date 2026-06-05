@@ -76,7 +76,7 @@ export default function Login() {
         </button>
 
         <p className="text-[11px] text-text3 text-center mt-4">
-          ⚠ Access restricted to administrators only (NFR-03, NFR-04)
+          ⚠ Access restricted to administrators only
         </p>
       </div>
     </div>

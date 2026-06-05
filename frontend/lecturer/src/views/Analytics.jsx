@@ -1,21 +1,48 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useLecturer } from '../context/LecturerContext'
 import StatusBar from '../components/layout/StatusBar'
 import Topbar from '../components/layout/Topbar'
-import { ANALYTICS_ATT_BARS, ANALYTICS_ATT_LABELS, ANALYTICS_PAR_BARS, ANALYTICS_PAR_LABELS, AT_RISK } from '../data/mockData'
+import { ANALYTICS_PAR_BARS, ANALYTICS_PAR_LABELS } from '../data/mockData'
 
 const MAX_H = 110
 
+function rateColor(rate) {
+  return rate < 70 ? 'var(--red)' : 'var(--orange)'
+}
+
 export default function Analytics() {
-  const { navigate, openModal } = useLecturer()
+  const { state, openModal, loadAnalytics, loadAllClasses } = useLecturer()
+  const { allClasses, analytics, analyticsLoading } = state
   const [tab, setTab] = useState('att')
+  const [selectedOccId, setSelectedOccId] = useState(null)
+
+  useEffect(() => {
+    if (!allClasses.length) loadAllClasses()
+  }, [])
+
+  useEffect(() => {
+    if (allClasses.length && !selectedOccId) {
+      setSelectedOccId(allClasses[0].id)
+    }
+  }, [allClasses])
+
+  useEffect(() => {
+    if (selectedOccId) loadAnalytics(selectedOccId)
+  }, [selectedOccId])
+
+  const selectedClass = allClasses.find(c => c.id === selectedOccId)
+
+  const sessions = analytics?.sessions ?? []
+  const enrolled = analytics?.enrolled_count || 1
+  const barHeights = sessions.map(s => Math.round((s.present_count / enrolled) * MAX_H))
+  const barLabels = sessions.map(s => s.label.replace('Week ', 'W'))
 
   return (
     <>
       <StatusBar time="10:14" />
       <Topbar
         title="Analytics & Reports"
-        sub="WIA2005 — Sem 2 2024/25"
+        sub={selectedClass ? `${selectedClass.code} — ${selectedClass.name}` : ''}
         right={<button className="btn btn-primary btn-sm" onClick={() => openModal('export')}><i className="fa fa-download"></i> Export</button>}
       />
       <div className="tabs-row" style={{ flexShrink: 0 }}>
@@ -24,43 +51,70 @@ export default function Analytics() {
         ))}
       </div>
       <div className="filter-row">
-        <select style={{ flex: 1.4, padding: '7px 10px', fontSize: 12 }}><option>WIA2005 — Soft. Eng.</option><option>WIA2004 — Data Mining</option></select>
-        <select style={{ flex: 1, padding: '7px 10px', fontSize: 12 }}><option>This month</option><option>Last 30 days</option><option>Sem 2 2024/25</option></select>
+        <select
+          style={{ flex: 1.4, padding: '7px 10px', fontSize: 12 }}
+          value={selectedOccId ?? ''}
+          onChange={e => setSelectedOccId(Number(e.target.value))}
+        >
+          {allClasses.map(c => (
+            <option key={c.id} value={c.id}>{c.code} — {c.name}</option>
+          ))}
+        </select>
+        <select style={{ flex: 1, padding: '7px 10px', fontSize: 12 }}>
+          <option>This semester</option>
+        </select>
       </div>
       <div className="scroll-body">
         {tab === 'att' && (
-          <>
-            <div className="stat-row-grid" style={{ marginTop: 12 }}>
-              <div className="stat-chip"><div className="n">88.4%</div><div className="l">Avg attendance rate</div></div>
-              <div className="stat-chip"><div className="n">12</div><div className="l">Sessions held</div></div>
-            </div>
-            <div className="stat-row-grid">
-              <div className="stat-chip"><div className="n" style={{ color: 'var(--red)' }}>3</div><div className="l">Students at-risk (&lt;80%)</div></div>
-              <div className="stat-chip"><div className="n">26</div><div className="l">Enrolled</div></div>
-            </div>
-            <div className="chart-card">
-              <h3>Attendance per Session (students present)</h3>
-              <div className="mini-chart">
-                {ANALYTICS_ATT_BARS.map((h, i) => (
-                  <div key={i} className="bar-col">
-                    <div className="bar-vis blue" style={{ height: h }}></div>
-                    <div className="lbl-x">{ANALYTICS_ATT_LABELS[i]}</div>
-                  </div>
-                ))}
+          analyticsLoading ? (
+            <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-hint)', fontSize: 13 }}>Loading…</div>
+          ) : !analytics ? (
+            <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-hint)', fontSize: 13 }}>No data available</div>
+          ) : (
+            <>
+              <div className="stat-row-grid" style={{ marginTop: 12 }}>
+                <div className="stat-chip"><div className="n">{analytics.avg_attendance_rate}%</div><div className="l">Avg attendance rate</div></div>
+                <div className="stat-chip"><div className="n">{analytics.sessions_held}</div><div className="l">Sessions held</div></div>
               </div>
-            </div>
-            <div className="chart-card">
-              <h3>Students at risk (&lt;80% attendance)</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {AT_RISK.map(r => (
-                  <div key={r.name} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ fontSize: 13, color: 'var(--text)', flex: 1 }}>{r.name}</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: r.color }}>{r.pct}</div>
-                  </div>
-                ))}
+              <div className="stat-row-grid">
+                <div className="stat-chip"><div className="n" style={{ color: 'var(--red)' }}>{analytics.at_risk_students.length}</div><div className="l">Students at-risk (&lt;80%)</div></div>
+                <div className="stat-chip"><div className="n">{analytics.enrolled_count}</div><div className="l">Enrolled</div></div>
               </div>
-            </div>
-          </>
+              {sessions.length > 0 ? (
+                <div className="chart-card">
+                  <h3>Attendance per Session (students present)</h3>
+                  <div className="mini-chart">
+                    {barHeights.map((h, i) => (
+                      <div key={i} className="bar-col">
+                        <div className="bar-vis blue" style={{ height: h }}></div>
+                        <div className="lbl-x">{barLabels[i]}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="chart-card" style={{ color: 'var(--text-hint)', fontSize: 13 }}>
+                  No closed sessions yet.
+                </div>
+              )}
+              <div className="chart-card">
+                <h3>Students at risk (&lt;80% attendance)</h3>
+                {analytics.at_risk_students.length === 0 ? (
+                  <div style={{ fontSize: 13, color: 'var(--text-hint)' }}>No at-risk students.</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {analytics.at_risk_students.map(r => (
+                      <div key={r.student_id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ fontSize: 13, color: 'var(--text)', flex: 1 }}>{r.name}</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-hint)' }}>{r.present}/{r.total}</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: rateColor(r.rate) }}>{r.rate}%</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )
         )}
         {tab === 'par' && (
           <>

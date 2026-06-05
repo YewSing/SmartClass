@@ -20,3 +20,7 @@ class FaceReviewEntry(Base):
     similarity: Mapped[float] = mapped_column(nullable=False, default=0.0)
     occurrences: Mapped[int] = mapped_column(nullable=False, default=1)
     flagged_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
+    closest_match_student_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    closest_match_confidence: Mapped[Optional[float]] = mapped_column(nullable=True)

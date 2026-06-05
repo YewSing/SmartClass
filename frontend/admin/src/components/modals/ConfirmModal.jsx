@@ -58,7 +58,7 @@ export function ConfirmRemoveFaceModal() {
     try {
       await removeFace(user.id)
       closeModal()
-      toast(`Face data removed for ${user.name.split(' ')[0]} — NFR-01 compliant`, 'info')
+      toast(`Face data removed for ${user.name.split(' ')[0]}`, 'info')
     } catch (e) {
       toast(e.message, 'error')
     } finally {
