@@ -1,3 +1,5 @@
+from datetime import date, timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -29,6 +31,8 @@ def _occ_label(occ: ClassOccurrence) -> str:
 @router.get("/lecturer/analytics", response_model=LecturerAnalyticsOut)
 async def lecturer_analytics(
     occurrence_id: int = Query(...),
+    from_date: date | None = Query(None),
+    to_date: date | None = Query(None),
     db: AsyncSession = Depends(get_db),
     actor: User = Depends(_lecturer_or_admin),
 ):
@@ -46,12 +50,18 @@ async def lecturer_analytics(
 
     enrolled_count = len(occ.enrollments)
 
+    session_filters = [
+        AttendanceSession.occurrence_id == occurrence_id,
+        AttendanceSession.status == "closed",
+    ]
+    if from_date:
+        session_filters.append(AttendanceSession.opened_at >= from_date)
+    if to_date:
+        session_filters.append(AttendanceSession.opened_at < to_date + timedelta(days=1))
+
     sessions_result = await db.execute(
         select(AttendanceSession)
-        .where(
-            AttendanceSession.occurrence_id == occurrence_id,
-            AttendanceSession.status == "closed",
-        )
+        .where(*session_filters)
         .order_by(AttendanceSession.opened_at)
     )
     closed_sessions = sessions_result.scalars().all()
@@ -169,10 +179,7 @@ async def student_attendance_groups(
     for occ in occurrences:
         sessions_result = await db.execute(
             select(AttendanceSession)
-            .where(
-                AttendanceSession.occurrence_id == occ.id,
-                AttendanceSession.status == "closed",
-            )
+            .where(AttendanceSession.occurrence_id == occ.id)
             .order_by(AttendanceSession.opened_at.desc())
         )
         sessions = sessions_result.scalars().all()
@@ -182,6 +189,8 @@ async def student_attendance_groups(
         absent = 0
 
         for sess in sessions:
+            is_live = sess.status == "open"
+
             rec_result = await db.execute(
                 select(AttendanceRecord).where(
                     AttendanceRecord.session_id == sess.id,
@@ -189,11 +198,15 @@ async def student_attendance_groups(
                 )
             )
             rec = rec_result.scalar_one_or_none()
-            stu_status = rec.status if rec else "absent"
-            if stu_status == "present":
-                present += 1
+
+            if is_live:
+                stu_status = rec.status if rec else "pending"
             else:
-                absent += 1
+                stu_status = rec.status if rec else "absent"
+                if stu_status == "present":
+                    present += 1
+                else:
+                    absent += 1
 
             session_items.append(StudentAttendanceSessionOut(
                 session_id=sess.id,
@@ -201,6 +214,7 @@ async def student_attendance_groups(
                 class_code=occ.course.code,
                 class_name=_occ_label(occ),
                 status=stu_status,
+                is_live=is_live,
                 detected_at=rec.detected_at if rec else None,
                 overridden=bool(rec and rec.override_by),
             ))

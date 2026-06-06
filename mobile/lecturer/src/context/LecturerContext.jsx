@@ -52,15 +52,27 @@ function reducer(state, action) {
       return { ...state, analytics: action.payload, analyticsLoading: false }
     case 'SET_ANALYTICS_LOADING':
       return { ...state, analyticsLoading: action.payload }
-    case 'UPDATE_STUDENT':
+    case 'UPDATE_STUDENT': {
+      const updatedStudents = state.students.map(s =>
+        s.recordId === action.payload.record_id
+          ? { ...s, status: action.payload.status, overridden: true }
+          : s
+      )
+      const sessionId = state.selectedSession?.id
+      const present = updatedStudents.filter(s => s.status === 'present').length
+      const absent  = updatedStudents.filter(s => s.status === 'absent').length
+      const unid    = updatedStudents.filter(s => s.status === 'unidentified').length
       return {
         ...state,
-        students: state.students.map(s =>
-          s.recordId === action.payload.record_id
-            ? { ...s, status: action.payload.status, overridden: true }
-            : s
+        students: updatedStudents,
+        sessions: state.sessions.map(s =>
+          s.id === sessionId ? { ...s, present, absent, unid } : s
         ),
+        selectedSession: state.selectedSession?.id === sessionId
+          ? { ...state.selectedSession, present, absent, unid }
+          : state.selectedSession,
       }
+    }
     case 'OPEN_MODAL':
       return { ...state, modal: action.payload }
     case 'CLOSE_MODAL':
@@ -162,14 +174,24 @@ export function LecturerProvider({ children }) {
     dispatch({ type: 'SET_SELECTED_SESSION', payload: session })
   }, [])
 
-  const loadAnalytics = useCallback(async (occurrenceId) => {
+  const loadAnalytics = useCallback(async (occurrenceId, dateParams = {}) => {
     dispatch({ type: 'SET_ANALYTICS_LOADING', payload: true })
     try {
-      const data = await api.getAnalytics(occurrenceId)
+      const data = await api.getAnalytics(occurrenceId, dateParams)
       dispatch({ type: 'SET_ANALYTICS', payload: data })
     } catch (e) {
       dispatch({ type: 'SET_ANALYTICS_LOADING', payload: false })
       showToast(e.message, 'error')
+    }
+  }, [showToast])
+
+  const exportCsv = useCallback(async ({ scope, id, filename, dateParams = {} }) => {
+    try {
+      if (scope === 'session') await api.exportSessionCsv(id, filename)
+      else await api.exportOccurrenceCsv(id, filename, dateParams)
+    } catch (e) {
+      showToast(e.message ?? 'Export failed', 'error')
+      throw e
     }
   }, [showToast])
 
@@ -209,10 +231,16 @@ export function LecturerProvider({ children }) {
               ...openSession,
               present: data.counts.present ?? openSession.present,
               absent: data.counts.absent ?? openSession.absent,
-              unid: data.counts.unidentified ?? openSession.unid,
+              unid: data.counts.unid ?? openSession.unid,
             },
           })
         }
+      }
+      if (data.event === 'attendance_alert' && data.type === 'low_attendance') {
+        showToast(
+          `Low attendance — only ${Math.round(data.rate * 100)}% present (${data.present}/${data.enrolled} students)`,
+          'error'
+        )
       }
     }
     ws.onerror = () => showToast('Live updates disconnected', 'error')
@@ -236,6 +264,7 @@ export function LecturerProvider({ children }) {
     overrideStudent,
     selectSession,
     loadAnalytics,
+    exportCsv,
   }
 
   return (

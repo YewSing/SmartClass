@@ -7,14 +7,13 @@ import { LinearGradient } from 'expo-linear-gradient'
 import { Ionicons } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLecturer } from '../context/LecturerContext'
-import ModalRouter from '../components/Modals'
 import { C } from '../theme'
 
 export default function Login({ navigation }) {
-  const { login, openModal, state } = useLecturer()
+  const { login, state } = useLecturer()
   const insets = useSafeAreaInsets()
-  const [email, setEmail] = useState('ahmad.lecturer@um.edu.my')
-  const [password, setPassword] = useState('Lecturer@1234')
+  const [email, setEmail] = useState('devlecturer@um.edu.my')
+  const [password, setPassword] = useState('DevTest@1234')
   const [showPw, setShowPw] = useState(false)
   const [localErr, setLocalErr] = useState('')
 
@@ -77,6 +76,11 @@ export default function Login({ navigation }) {
                 placeholder="your@um.edu.my"
                 placeholderTextColor={C.textHint}
               />
+              {email ? (
+                <TouchableOpacity onPress={() => setEmail('')} style={styles.eyeBtn}>
+                  <Ionicons name="close-circle" size={18} color={C.textHint} />
+                </TouchableOpacity>
+              ) : null}
             </View>
 
             <Text style={styles.label}>Password</Text>
@@ -95,10 +99,6 @@ export default function Login({ navigation }) {
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity onPress={() => openModal('forgot-password')}>
-              <Text style={styles.forgotLink}>Forgot password?</Text>
-            </TouchableOpacity>
-
             <TouchableOpacity
               style={[styles.signInBtn, state.loading && styles.btnDisabled]}
               onPress={handleLogin}
@@ -114,14 +114,9 @@ export default function Login({ navigation }) {
               )}
             </TouchableOpacity>
 
-            <View style={styles.note}>
-              <Ionicons name="information-circle-outline" size={14} color={C.textHint} />
-              <Text style={styles.noteText}> Accounts are provisioned by administrators only</Text>
-            </View>
           </View>
         </ScrollView>
       </LinearGradient>
-      <ModalRouter navigation={navigation} />
     </KeyboardAvoidingView>
   )
 }
@@ -219,13 +214,6 @@ const styles = StyleSheet.create({
   eyeBtn: {
     padding: 4,
   },
-  forgotLink: {
-    fontSize: 13,
-    color: C.primary,
-    fontWeight: '600',
-    marginBottom: 18,
-    textAlign: 'right',
-  },
   signInBtn: {
     backgroundColor: C.primary,
     borderRadius: 10,
@@ -242,14 +230,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#fff',
-  },
-  note: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  noteText: {
-    fontSize: 12,
-    color: C.textHint,
   },
 })

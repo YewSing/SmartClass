@@ -1,7 +1,7 @@
 # SmartClass — Claude Code Guide
 
 ## Project Overview
-SmartClass is a classroom management system for UM (Universiti Malaya) with face recognition-based attendance tracking, quiz management, and participation analytics. It has two React web frontends (admin, student) and one React Native mobile app (lecturer).
+SmartClass is a classroom management system for UM (Universiti Malaya) with face recognition-based attendance tracking, quiz management, and participation analytics. It has one React web frontend (admin) and two React Native mobile apps (lecturer, student).
 
 ## Repo Structure
 ```
@@ -13,18 +13,17 @@ SmartClass/
 │   ├── scripts/        # seed.py — populates demo data
 │   └── docker-compose.yml
 ├── frontend/
-│   ├── admin/      # Web dashboard for administrators
-│   ├── student/    # Mobile-sized web UI for students (phone-frame simulation)
-│   └── lecturer/   # Legacy web version — to be removed once mobile/lecturer is finalized
+│   └── admin/      # Web dashboard for administrators
 └── mobile/
-    └── lecturer/   # React Native (Expo) app for lecturers
+    ├── lecturer/   # React Native (Expo) app for lecturers
+    └── student/    # React Native (Expo) app for students
 ```
 
-Web frontends are fully independent with their own `package.json`, `node_modules`, and `vite.config.js`. The mobile app uses Expo SDK 54.
+The web frontend is independent with its own `package.json`, `node_modules`, and `vite.config.js`. The mobile apps use Expo SDK 54.
 
 ## Tech Stack
-- **Web frontends:** React 18 + Vite 5, Tailwind CSS 3, React Context API
-- **Mobile (lecturer):** React Native + Expo SDK 54, React Navigation 6, AsyncStorage
+- **Web frontend (admin):** React 18 + Vite 5, Tailwind CSS 3, React Context API
+- **Mobile apps:** React Native + Expo SDK 54, React Navigation 6, AsyncStorage
 - **Backend:** FastAPI + SQLAlchemy 2 async + asyncpg + PostgreSQL + pgvector
 - **Auth:** JWT (python-jose) + bcrypt (passlib)
 - **Face recognition:** InsightFace `buffalo_sc` (CPU)
@@ -51,15 +50,14 @@ pip install -r requirements.txt
 python worker.py
 ```
 
-### Web Frontend Apps
+### Admin Web App
 ```bash
-cd frontend/admin    && npm install && npm run dev  # → localhost:5173
-cd frontend/student  && npm install && npm run dev  # → localhost:5174
+cd frontend/admin && npm install && npm run dev  # → localhost:5173
 ```
 
-### Lecturer Mobile App (React Native / Expo)
+### Mobile Apps (React Native / Expo)
 ```bash
-cd mobile/lecturer
+cd mobile/lecturer   # or mobile/student
 cp .env.example .env          # then set EXPO_PUBLIC_API_URL=http://<your-laptop-ip>:8000
 npm install --legacy-peer-deps
 npm start                     # scan QR with Expo Go on your phone
@@ -75,19 +73,18 @@ Both phone and laptop must be on the same WiFi network.
 - State managed in `src/context/AdminContext.jsx`
 - API layer in `src/services/api.js` + `src/services/client.js` (real HTTP calls to backend)
 
-### Student (`frontend/student/`)
-- Phone-frame UI (844px height, simulated mobile)
-- Views: Login, Home, Attendance, AttSessionDetail, AttReportStatus, Participation, PartSessionPerf, Profile
-- Bottom nav for navigation
-- State in `src/context/StudentContext.jsx`
+### Student (`mobile/student/`)
+- React Native app (Expo SDK 54), runs on physical Android/iOS via Expo Go
+- Screens: Login, Home, Attendance, AttSessionDetail, AttReportStatus, Participation, PartSessionPerf, Profile
+- Navigation: React Navigation 6 — bottom tabs + native stack per tab
+- API base URL set via `EXPO_PUBLIC_API_URL` in `.env`
 
 ### Lecturer (`mobile/lecturer/`)
 - React Native app (Expo SDK 54), runs on physical Android/iOS via Expo Go
 - Screens: Dashboard, AttendanceSessions, AttendanceDetail, QuizList, CreateQuiz, LiveResults, ResultsClosed, Breakdown, Analytics, Environment, Profile, Login
 - Navigation: React Navigation 6 — bottom tabs + native stack per tab
-- State in `src/context/LecturerContext.jsx` (same logic as web, navigation removed from context)
+- State in `src/context/LecturerContext.jsx`
 - API base URL set via `EXPO_PUBLIC_API_URL` in `.env`
-- `frontend/lecturer/` is the legacy web version, kept as reference until mobile is fully verified
 
 ## Component Conventions
 - `src/components/ui/` — reusable primitives (Button, Modal, Toast, Badge, etc.)
@@ -117,5 +114,4 @@ docs/
 **Diagrams still to be created:** System Architecture, Module Diagram, Class Diagram, ERD, Activity Diagrams, Navigation Diagram, Wireframes.
 
 ## WIP / Known Gaps
-- Face review queue frontend: entries load on login but the count badge and table do not auto-refresh — requires re-login or a manual refresh call to see new entries from the worker.
-- Lecturer mobile app: still being tested on device. Once confirmed working, `frontend/lecturer/` (legacy web version) should be deleted.
+- No known gaps at this time.

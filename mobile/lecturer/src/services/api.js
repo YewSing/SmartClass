@@ -1,4 +1,6 @@
-import { apiCall, getToken, setToken, clearToken, setRefreshToken, clearRefreshToken, BASE } from './client'
+import * as FileSystem from 'expo-file-system/legacy'
+import * as Sharing from 'expo-sharing'
+import { apiCall, apiCallRaw, getToken, setToken, clearToken, setRefreshToken, clearRefreshToken, BASE } from './client'
 import {
   QUIZZES, BREAKDOWN_ROWS, SENSORS,
   ANALYTICS_PAR_BARS, ANALYTICS_PAR_LABELS,
@@ -93,7 +95,15 @@ export const logout = async () => { clearToken(); clearRefreshToken() }
 
 export const getClasses = async () => {
   const list = await apiCall('GET', '/classes')
-  return list.map(c => ({ id: c.id, code: c.course_code, name: c.course_name }))
+  return list.map(c => ({
+    id: c.id,
+    code: c.course_code,
+    name: c.course_name,
+    day_of_week: c.day_of_week ?? null,
+    start_time: c.start_time ?? null,
+    end_time: c.end_time ?? null,
+    room: c.room ?? null,
+  }))
 }
 
 export const getLecturerAllClasses = async () => {
@@ -145,15 +155,38 @@ export const overrideAttendance = async (recordId, newStatus) => {
   return apiCall('PUT', `/attendance/${recordId}/override`, { status: newStatus })
 }
 
-// Export not supported in React Native (no DOM/blob APIs)
-export const exportReport = async (_sessionId, _format = 'csv') => {
-  throw new Error('Export not supported in the mobile app. Use the web dashboard to export reports.')
+// Writes CSV text to a temp file in the cache dir and opens the native share sheet.
+async function shareCsv(csvText, filename) {
+  if (!(await Sharing.isAvailableAsync())) {
+    throw new Error('Sharing is not available on this device.')
+  }
+  const uri = FileSystem.cacheDirectory + filename
+  await FileSystem.writeAsStringAsync(uri, csvText, { encoding: 'utf8' })
+  await Sharing.shareAsync(uri, { mimeType: 'text/csv', dialogTitle: 'Save CSV' })
+}
+
+export const exportSessionCsv = async (sessionId, filename) => {
+  const res = await apiCallRaw('GET', `/lecturer/sessions/${sessionId}/export?format=csv`)
+  const csvText = await res.text()
+  await shareCsv(csvText, filename)
+}
+
+export const exportOccurrenceCsv = async (occId, filename, dateParams = {}) => {
+  const qs = Object.keys(dateParams).length
+    ? '?' + Object.entries(dateParams).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&')
+    : ''
+  const res = await apiCallRaw('GET', `/lecturer/occurrences/${occId}/attendance/export${qs}`)
+  const csvText = await res.text()
+  await shareCsv(csvText, filename)
 }
 
 // ─── Analytics ────────────────────────────────────────────────────────────────
 
-export const getAnalytics = async (occurrenceId) => {
-  return apiCall('GET', `/lecturer/analytics?occurrence_id=${occurrenceId}`)
+export const getAnalytics = async (occurrenceId, dateParams = {}) => {
+  const qs = Object.keys(dateParams).length
+    ? '&' + Object.entries(dateParams).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&')
+    : ''
+  return apiCall('GET', `/lecturer/analytics?occurrence_id=${occurrenceId}${qs}`)
 }
 
 // ─── Mocked (Module 3/4 — quiz; Module 5/6 — sensors) ────────────────────────

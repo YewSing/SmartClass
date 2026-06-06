@@ -1,18 +1,112 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, Modal, FlatList, RefreshControl,
 } from 'react-native'
-import { Picker } from '@react-native-picker/picker'
 import Svg, { Polyline, Circle, Line, Text as SvgText } from 'react-native-svg'
 import { Ionicons } from '@expo/vector-icons'
 import { useLecturer } from '../context/LecturerContext'
 import Topbar from '../components/Topbar'
-import ModalRouter from '../components/Modals'
 import { ANALYTICS_PAR_BARS, ANALYTICS_PAR_LABELS } from '../data/mockData'
 import { C } from '../theme'
 
 const MAX_H = 90
 const TABS = [['att', 'Attendance'], ['par', 'Participation'], ['env', 'Environment']]
+
+function getDateParams(range) {
+  const today = new Date()
+  const pad = n => String(n).padStart(2, '0')
+  const fmt = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+  if (range === 'month') {
+    return { from_date: fmt(new Date(today.getFullYear(), today.getMonth(), 1)), to_date: fmt(today) }
+  }
+  if (range === 'week') {
+    const mon = new Date(today)
+    mon.setDate(today.getDate() - ((today.getDay() + 6) % 7))
+    return { from_date: fmt(mon), to_date: fmt(today) }
+  }
+  return {}
+}
+
+function Dropdown({ value, items, onChange }) {
+  const [open, setOpen] = useState(false)
+  const selected = items.find(i => i.value === value)
+  return (
+    <>
+      <TouchableOpacity style={ddStyles.box} onPress={() => setOpen(true)} activeOpacity={0.7}>
+        <Text style={ddStyles.label} numberOfLines={1}>{selected?.label ?? '—'}</Text>
+        <Ionicons name="chevron-down" size={14} color={C.text} />
+      </TouchableOpacity>
+      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+        <TouchableOpacity style={ddStyles.overlay} onPress={() => setOpen(false)} activeOpacity={1}>
+          <View style={ddStyles.sheet}>
+            <FlatList
+              data={items}
+              keyExtractor={i => String(i.value)}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[ddStyles.option, item.value === value && ddStyles.optionActive]}
+                  onPress={() => { onChange(item.value); setOpen(false) }}
+                >
+                  <Text style={[ddStyles.optionText, item.value === value && ddStyles.optionTextActive]}>
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </>
+  )
+}
+
+const ddStyles = StyleSheet.create({
+  box: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: C.border,
+    borderRadius: 8,
+    backgroundColor: C.bg,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 6,
+  },
+  label: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '500',
+    color: C.text,
+  },
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: C.card,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    maxHeight: 320,
+    paddingVertical: 8,
+  },
+  option: {
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+  },
+  optionActive: {
+    backgroundColor: C.blueLt,
+  },
+  optionText: {
+    fontSize: 14,
+    color: C.text,
+  },
+  optionTextActive: {
+    color: C.primary,
+    fontWeight: '700',
+  },
+})
 
 function rateColor(rate) {
   return rate < 70 ? C.red : C.orange
@@ -69,6 +163,7 @@ export default function Analytics({ navigation }) {
   const { allClasses, analytics, analyticsLoading } = state
   const [tab, setTab] = useState('att')
   const [selectedOccId, setSelectedOccId] = useState(null)
+  const [timeRange, setTimeRange] = useState('semester')
 
   useEffect(() => {
     if (!allClasses.length) loadAllClasses()
@@ -81,11 +176,22 @@ export default function Analytics({ navigation }) {
   }, [allClasses])
 
   useEffect(() => {
-    if (selectedOccId) loadAnalytics(selectedOccId)
-  }, [selectedOccId])
+    if (selectedOccId) loadAnalytics(selectedOccId, getDateParams(timeRange))
+  }, [selectedOccId, timeRange])
+
+  const [refreshing, setRefreshing] = useState(false)
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true)
+    await Promise.all([
+      loadAllClasses(),
+      selectedOccId ? loadAnalytics(selectedOccId, getDateParams(timeRange)) : Promise.resolve(),
+    ])
+    setRefreshing(false)
+  }, [loadAllClasses, loadAnalytics, selectedOccId, timeRange])
 
   const selectedClass = allClasses.find(c => c.id === selectedOccId)
   const sessions = analytics?.sessions ?? []
+  const atRisk = analytics?.at_risk_students ?? []
   const enrolled = analytics?.enrolled_count || 1
   const barHeights = sessions.map(s => Math.round((s.present_count / enrolled) * MAX_H))
   const barLabels = sessions.map(s => s.label.replace('Week ', 'W'))
@@ -94,9 +200,27 @@ export default function Analytics({ navigation }) {
     <View style={styles.flex}>
       <Topbar
         title="Analytics & Reports"
-        sub={selectedClass ? `${selectedClass.code} — ${selectedClass.name}` : ''}
+
         right={
-          <TouchableOpacity style={styles.exportBtn} onPress={() => openModal('export')}>
+          <TouchableOpacity
+            style={[styles.exportBtn, tab !== 'att' && { opacity: 0.5 }]}
+            onPress={() => {
+              if (tab !== 'att' || !selectedOccId || !analytics) return
+              const cls = allClasses.find(c => c.id === selectedOccId)
+              const rangeLabel = timeRange === 'semester' ? 'This semester'
+                               : timeRange === 'month' ? 'This month'
+                               : 'This week'
+              openModal('export', {
+                scope: 'occurrence',
+                id: selectedOccId,
+                filename: `attendance_report_${cls?.code ?? 'report'}_${new Date().getFullYear()}.csv`,
+                dateParams: getDateParams(timeRange),
+                subtitle: `${cls?.code ?? ''} · ${rangeLabel}`,
+                sessionCount: analytics.sessions_held,
+                studentCount: analytics.enrolled_count,
+              })
+            }}
+          >
             <Ionicons name="download-outline" size={14} color="#fff" />
             <Text style={styles.exportBtnText}>Export</Text>
           </TouchableOpacity>
@@ -116,27 +240,29 @@ export default function Analytics({ navigation }) {
         ))}
       </View>
 
-      {/* Picker row */}
+      {/* Filter row */}
       <View style={styles.pickerRow}>
-        <View style={styles.pickerWrap}>
-          <Picker
-            selectedValue={selectedOccId}
-            onValueChange={v => setSelectedOccId(v)}
-            style={styles.picker}
-          >
-            {allClasses.map(c => (
-              <Picker.Item key={c.id} label={`${c.code} — ${c.name}`} value={c.id} />
-            ))}
-          </Picker>
-        </View>
-        <View style={styles.pickerWrap}>
-          <Picker selectedValue="semester" style={styles.picker}>
-            <Picker.Item label="This semester" value="semester" />
-          </Picker>
-        </View>
+        <Dropdown
+          value={selectedOccId}
+          items={allClasses.map(c => ({ label: `${c.code} — ${c.name}`, value: c.id }))}
+          onChange={v => setSelectedOccId(v)}
+        />
+        <Dropdown
+          value={timeRange}
+          items={[
+            { label: 'This semester', value: 'semester' },
+            { label: 'This month', value: 'month' },
+            { label: 'This week', value: 'week' },
+          ]}
+          onChange={v => setTimeRange(v)}
+        />
       </View>
 
-      <ScrollView style={styles.flex} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.flex}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} colors={[C.primary]} />}
+      >
         {/* Attendance tab */}
         {tab === 'att' && (
           analyticsLoading ? (
@@ -161,7 +287,7 @@ export default function Analytics({ navigation }) {
               </View>
               <View style={styles.statGrid}>
                 <View style={styles.statChip}>
-                  <Text style={[styles.statNum, { color: C.red }]}>{analytics.at_risk_students.length}</Text>
+                  <Text style={[styles.statNum, { color: C.red }]}>{atRisk.length}</Text>
                   <Text style={styles.statLbl}>Students at-risk (&lt;80%)</Text>
                 </View>
                 <View style={styles.statChip}>
@@ -183,11 +309,11 @@ export default function Analytics({ navigation }) {
 
               <View style={styles.chartCard}>
                 <Text style={styles.chartTitle}>Students at risk (&lt;80% attendance)</Text>
-                {analytics.at_risk_students.length === 0 ? (
+                {atRisk.length === 0 ? (
                   <Text style={styles.hintText}>No at-risk students.</Text>
                 ) : (
                   <View style={styles.riskList}>
-                    {analytics.at_risk_students.map(r => (
+                    {atRisk.map(r => (
                       <View key={r.student_id} style={styles.riskRow}>
                         <Text style={styles.riskName}>{r.name}</Text>
                         <Text style={styles.riskFraction}>{r.present}/{r.total}</Text>
@@ -300,7 +426,6 @@ export default function Analytics({ navigation }) {
 
         <View style={{ height: 20 }} />
       </ScrollView>
-      <ModalRouter navigation={navigation} />
     </View>
   )
 }
@@ -352,18 +477,6 @@ const styles = StyleSheet.create({
     backgroundColor: C.card,
     borderBottomWidth: 1,
     borderBottomColor: C.border,
-  },
-  pickerWrap: {
-    flex: 1,
-    borderWidth: 1.5,
-    borderColor: C.border,
-    borderRadius: 8,
-    backgroundColor: C.bg,
-    overflow: 'hidden',
-  },
-  picker: {
-    fontSize: 12,
-    height: 40,
   },
   statGrid: {
     flexDirection: 'row',

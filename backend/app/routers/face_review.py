@@ -18,6 +18,8 @@ from app.models.face import FaceEmbedding
 from app.models.user import User, Student
 from app.models.attendance import AttendanceRecord
 from app.services.audit_service import write_log
+from app.services.session_service import get_session_counts
+from app.websocket.manager import manager
 
 router = APIRouter(tags=["face-review"])
 
@@ -114,6 +116,8 @@ async def report_unrecognised_face(
     )
     existing_row = merge_result.fetchone()
 
+    should_broadcast = not existing_row  # always broadcast for brand-new entries
+
     if existing_row:
         entry_result = await db.execute(
             select(FaceReviewEntry).where(FaceReviewEntry.id == existing_row.id)
@@ -129,7 +133,9 @@ async def report_unrecognised_face(
         elif entry.closest_match_student_id is None and closest_user_id is not None:
             entry.closest_match_student_id = closest_user_id
             entry.closest_match_confidence = closest_conf
-        if body.session_id:
+        if body.session_id and entry.session_id != body.session_id:
+            # Entry is being reassigned to the current session — count changes
+            should_broadcast = True
             entry.session_id = body.session_id
     else:
         db.add(FaceReviewEntry(
@@ -141,6 +147,15 @@ async def report_unrecognised_face(
             closest_match_student_id=closest_user_id,
             closest_match_confidence=closest_conf,
         ))
+
+    if should_broadcast and body.session_id:
+        await db.flush()
+        counts = await get_session_counts(body.session_id, db)
+        await manager.broadcast(body.session_id, {
+            "event": "attendance_update",
+            "session_id": body.session_id,
+            "counts": counts,
+        })
 
 
 # ── Admin endpoints ───────────────────────────────────────────────────────────

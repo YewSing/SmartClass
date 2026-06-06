@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
@@ -10,6 +11,10 @@ from app.models.class_ import Course, ClassOccurrence, Enrollment
 from app.models.face import FaceEmbedding
 from app.schemas.class_ import CourseListOut, OccurrenceOut, OccurrenceStudentOut
 from app.services.audit_service import write_log
+
+
+class AssignLecturerRequest(BaseModel):
+    lecturer_user_id: int
 
 router = APIRouter(prefix="/admin", tags=["admin-courses"])
 
@@ -83,7 +88,7 @@ async def list_course_occurrences(
             end_time=o.end_time,
             room=o.room,
             lecturer_id=o.lecturer_id,
-            lecturer_name=o.lecturer.user.name,
+            lecturer_name=o.lecturer.user.name if o.lecturer else None,
             label=o.label,
             enrolled_count=len(o.enrollments),
         )
@@ -152,6 +157,50 @@ async def enroll_student_in_occurrence(
 
     db.add(Enrollment(student_id=student.id, occurrence_id=occurrence_id))
     await write_log(db, actor.id, "ENROLL_ADD", "student", student_user_id, new_val={"occurrence_id": occurrence_id})
+
+
+@router.put("/occurrences/{occurrence_id}/lecturer", status_code=status.HTTP_204_NO_CONTENT)
+async def assign_lecturer_to_occurrence(
+    occurrence_id: int,
+    body: AssignLecturerRequest,
+    db: AsyncSession = Depends(get_db),
+    actor: User = Depends(_admin_only),
+):
+    occ_result = await db.execute(select(ClassOccurrence).where(ClassOccurrence.id == occurrence_id))
+    occ = occ_result.scalar_one_or_none()
+    if not occ:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Occurrence not found")
+
+    lec_result = await db.execute(select(Lecturer).where(Lecturer.user_id == body.lecturer_user_id))
+    lecturer = lec_result.scalar_one_or_none()
+    if not lecturer:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lecturer not found")
+
+    old_lecturer_id = occ.lecturer_id
+    occ.lecturer_id = lecturer.id
+    await write_log(
+        db, actor.id, "OCCURRENCE_ASSIGN_LECTURER", "class_occurrence", occurrence_id,
+        old_val={"lecturer_id": old_lecturer_id}, new_val={"lecturer_id": lecturer.id},
+    )
+
+
+@router.delete("/occurrences/{occurrence_id}/lecturer", status_code=status.HTTP_204_NO_CONTENT)
+async def unassign_lecturer_from_occurrence(
+    occurrence_id: int,
+    db: AsyncSession = Depends(get_db),
+    actor: User = Depends(_admin_only),
+):
+    occ_result = await db.execute(select(ClassOccurrence).where(ClassOccurrence.id == occurrence_id))
+    occ = occ_result.scalar_one_or_none()
+    if not occ:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Occurrence not found")
+
+    old_lecturer_id = occ.lecturer_id
+    occ.lecturer_id = None
+    await write_log(
+        db, actor.id, "OCCURRENCE_UNASSIGN_LECTURER", "class_occurrence", occurrence_id,
+        old_val={"lecturer_id": old_lecturer_id}, new_val={"lecturer_id": None},
+    )
 
 
 @router.delete("/occurrences/{occurrence_id}/students/{student_user_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -48,11 +48,21 @@ export const logout = () => { clearToken(); clearRefreshToken() }
 
 // ─── Users ────────────────────────────────────────────────────────────────────
 
-export const getUsers = async (role, page = 1) => {
-  const qs = new URLSearchParams({ page, limit: 50 })
-  if (role) qs.set('role', role)
-  const data = await apiCall('GET', `/admin/users?${qs}`)
-  return { ...data, items: data.items.map(adaptUser) }
+export const getUsers = async (role) => {
+  const limit = 100
+  const build = (p) => {
+    const qs = new URLSearchParams({ page: p, limit })
+    if (role) qs.set('role', role)
+    return apiCall('GET', `/admin/users?${qs}`)
+  }
+  const first = await build(1)
+  let items = first.items.map(adaptUser)
+  const totalPages = Math.ceil(first.total / limit)
+  for (let p = 2; p <= totalPages; p++) {
+    const more = await build(p)
+    items = items.concat(more.items.map(adaptUser))
+  }
+  return { items, total: first.total }
 }
 
 export const createUser = async (body) => {
@@ -110,6 +120,14 @@ export const enrollInOccurrence = async (occurrenceId, studentUserId) => {
 
 export const unenrollFromOccurrence = async (occurrenceId, studentUserId) => {
   await apiCall('DELETE', `/admin/occurrences/${occurrenceId}/students/${studentUserId}`)
+}
+
+export const assignLecturerToOccurrence = async (occurrenceId, lecturerUserId) => {
+  await apiCall('PUT', `/admin/occurrences/${occurrenceId}/lecturer`, { lecturer_user_id: lecturerUserId })
+}
+
+export const removeLecturerFromOccurrence = async (occurrenceId) => {
+  await apiCall('DELETE', `/admin/occurrences/${occurrenceId}/lecturer`)
 }
 
 // ─── Face ─────────────────────────────────────────────────────────────────────

@@ -32,8 +32,8 @@ class OccurrenceOut(BaseModel):
     start_time: str
     end_time: str
     room: Optional[str] = None
-    lecturer_id: int
-    lecturer_name: str
+    lecturer_id: Optional[int] = None
+    lecturer_name: Optional[str] = None
     label: Optional[str] = None
     enrolled_count: int = 0
 

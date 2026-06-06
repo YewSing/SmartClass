@@ -6,7 +6,6 @@ import { Ionicons } from '@expo/vector-icons'
 import { useLecturer } from '../context/LecturerContext'
 import Topbar from '../components/Topbar'
 import Badge from '../components/Badge'
-import ModalRouter from '../components/Modals'
 import { C } from '../theme'
 
 const INFO_FIELDS = (lecturer) => [
@@ -17,9 +16,8 @@ const INFO_FIELDS = (lecturer) => [
 ]
 
 const ACTIONS = [
-  { icon: 'lock-closed-outline', bg: C.yellowLt, color: C.yellowDk, label: 'Change Password',         type: 'change-password', danger: false },
-  { icon: 'time-outline',        bg: C.greenLt,  color: C.greenDk,  label: 'Session & Login Activity', type: 'session-info',    danger: false },
-  { icon: 'log-out-outline',     bg: C.redLt,    color: C.red,       label: 'Sign Out',                 type: 'signout',         danger: true  },
+  { icon: 'lock-closed-outline', bg: C.yellowLt, color: C.yellowDk, label: 'Change Password', type: 'change-password', danger: false },
+  { icon: 'log-out-outline',     bg: C.redLt,    color: C.red,       label: 'Sign Out',        type: 'signout',         danger: true  },
 ]
 
 export default function Profile({ navigation }) {
@@ -28,13 +26,6 @@ export default function Profile({ navigation }) {
 
   useEffect(() => { loadAllClasses() }, [])
 
-  // Group by course code
-  const courseMap = {}
-  for (const c of allClasses) {
-    if (!courseMap[c.code]) courseMap[c.code] = { name: c.name, occs: [] }
-    courseMap[c.code].occs.push(c)
-  }
-  const courses = Object.entries(courseMap)
   const initials = lecturer?.initials ?? '??'
 
   return (
@@ -79,34 +70,33 @@ export default function Profile({ navigation }) {
         {/* Assigned classes */}
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Assigned Classes — Current Semester</Text>
-          {courses.length === 0 ? (
+          {allClasses.length === 0 ? (
             <View style={styles.profileField}>
               <Text style={styles.noClassText}>No classes assigned</Text>
             </View>
-          ) : courses.map(([code, { name, occs }]) => (
-            <View key={code} style={[styles.profileField, { flexDirection: 'column', gap: 8 }]}>
-              <View style={styles.courseHeader}>
-                <View style={[styles.fieldIcon, { backgroundColor: C.blueLt }]}>
-                  <Ionicons name="book-outline" size={16} color={C.primary} />
-                </View>
-                <View style={styles.fieldContent}>
-                  <Text style={styles.fieldLabel}>{code}</Text>
-                  <Text style={styles.fieldValue}>{name}</Text>
-                </View>
+          ) : allClasses.map(o => (
+            <View key={o.id} style={styles.classCard}>
+              {/* Row 1: code · type badge · students */}
+              <View style={styles.classRow1}>
+                <Text style={styles.classCode}>{o.code}</Text>
+                <Badge
+                  variant={o.type === 'LECTURE' ? 'blue' : 'green'}
+                  style={styles.classBadge}
+                  textStyle={styles.classBadgeText}
+                >
+                  {o.type === 'LECTURE' ? 'Lec' : (o.label ?? 'Tut')}
+                </Badge>
+                <View style={{ flex: 1 }} />
+                <Badge variant="gray" style={styles.classBadge} textStyle={styles.classBadgeText}>
+                  {o.enrolled_count} students
+                </Badge>
               </View>
-              <View style={styles.occsContainer}>
-                {occs.map(o => (
-                  <View key={o.id} style={styles.occRow}>
-                    <Badge variant={o.type === 'LECTURE' ? 'blue' : 'green'} style={styles.occBadge}>
-                      {o.type === 'LECTURE' ? 'Lec' : (o.label ?? 'Tut')}
-                    </Badge>
-                    <Text style={styles.occText} numberOfLines={1}>
-                      {o.day_of_week} {o.start_time}–{o.end_time}{o.room ? ` · ${o.room}` : ''}
-                    </Text>
-                    <Badge variant="gray" style={styles.occBadge}>{o.enrolled_count} students</Badge>
-                  </View>
-                ))}
-              </View>
+              {/* Row 2: course name */}
+              <Text style={styles.className}>{o.name}</Text>
+              {/* Row 3: time + location */}
+              <Text style={styles.classTime}>
+                {o.day_of_week} {o.start_time}–{o.end_time}{o.room ? ` · ${o.room}` : ''}
+              </Text>
             </View>
           ))}
         </View>
@@ -133,7 +123,6 @@ export default function Profile({ navigation }) {
           SmartClass Lecturer App · v1.0.0 · University of Malaya
         </Text>
       </ScrollView>
-      <ModalRouter navigation={navigation} />
     </View>
   )
 }
@@ -253,27 +242,35 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: C.textHint,
   },
-  courseHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  occsContainer: {
-    paddingLeft: 48,
+  classCard: {
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
     gap: 6,
   },
-  occRow: {
+  classRow1: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    flexWrap: 'wrap',
+    gap: 8,
   },
-  occBadge: {
+  classCode: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: C.textSub,
+  },
+  classBadge: {
     paddingHorizontal: 6,
     paddingVertical: 1,
   },
-  occText: {
-    flex: 1,
+  classBadgeText: {
+    fontWeight: '500',
+  },
+  className: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: C.text,
+  },
+  classTime: {
     fontSize: 12,
     color: C.textSub,
   },

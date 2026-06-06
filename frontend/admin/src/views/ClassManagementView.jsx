@@ -31,6 +31,9 @@ export default function ClassManagementView() {
             placeholder="Search courses…"
             className="bg-transparent outline-none text-[13px] text-text1 w-48 placeholder:text-text3"
           />
+          {search && (
+            <button onClick={() => setSearch('')} className="text-text3 hover:text-text1 text-[12px] leading-none flex-shrink-0">✕</button>
+          )}
         </div>
       </div>
 

@@ -1,9 +1,11 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.routers import auth, admin_users, admin_students, admin_courses, classes, sessions, attendance, internal, analytics, audit, face_review
+from app.services.attendance_service import low_attendance_monitor
 from app.websocket import router as ws_router
 
 
@@ -19,7 +21,16 @@ async def lifespan(app: FastAPI):
     except ImportError:
         app.state.face_app = None
         print("WARNING: insightface not installed — face endpoints will return 503.")
-    yield
+
+    monitor_task = asyncio.create_task(low_attendance_monitor())
+    try:
+        yield
+    finally:
+        monitor_task.cancel()
+        try:
+            await monitor_task
+        except asyncio.CancelledError:
+            pass
 
 
 app = FastAPI(title="SmartClass API", version="0.1.0", lifespan=lifespan)

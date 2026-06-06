@@ -1,12 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
-  View, Text, FlatList, TouchableOpacity, TextInput, StyleSheet,
+  View, Text, FlatList, TouchableOpacity, TextInput, StyleSheet, RefreshControl,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useLecturer } from '../context/LecturerContext'
 import Topbar from '../components/Topbar'
 import Badge from '../components/Badge'
-import ModalRouter from '../components/Modals'
 import { C } from '../theme'
 
 const AVATAR_BG_CYCLE = [C.blueLt, C.greenLt, C.orangeLt]
@@ -21,6 +20,14 @@ export default function AttendanceDetail({ navigation }) {
   useEffect(() => {
     if (selectedSession?.id) loadStudents(selectedSession.id)
   }, [selectedSession?.id])
+
+  const [refreshing, setRefreshing] = useState(false)
+  const onRefresh = useCallback(async () => {
+    if (!selectedSession?.id) return
+    setRefreshing(true)
+    await loadStudents(selectedSession.id)
+    setRefreshing(false)
+  }, [loadStudents, selectedSession?.id])
 
   const filtered = [...students]
     .filter(s =>
@@ -67,7 +74,29 @@ export default function AttendanceDetail({ navigation }) {
         title={sessionTitle}
         sub={sessionSub}
         onBack={() => navigation.goBack()}
-        right={selectedSession?.open ? <Badge variant="green" dot>Open</Badge> : null}
+        right={
+          selectedSession?.open
+            ? <Badge variant="green" dot>Open</Badge>
+            : selectedSession
+              ? (
+                <TouchableOpacity
+                  style={styles.exportBtn}
+                  onPress={() => openModal('export', {
+                    scope: 'session',
+                    id: selectedSession.id,
+                    filename: `attendance_${selectedSession.class_code}_${selectedSession.month}${selectedSession.day}.csv`,
+                    dateParams: {},
+                    subtitle: `${selectedSession.class_code} · ${selectedSession.day} ${selectedSession.month}`,
+                    sessionCount: 1,
+                    studentCount: students.length,
+                  })}
+                >
+                  <Ionicons name="download-outline" size={14} color="#fff" />
+                  <Text style={styles.exportBtnText}>Export</Text>
+                </TouchableOpacity>
+              )
+              : null
+        }
       />
 
       {/* Search bar */}
@@ -80,6 +109,11 @@ export default function AttendanceDetail({ navigation }) {
           value={search}
           onChangeText={setSearch}
         />
+        {search ? (
+          <TouchableOpacity onPress={() => setSearch('')} style={{ marginLeft: 8 }}>
+            <Ionicons name="close-circle" size={16} color={C.textHint} />
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       {/* Sort row */}
@@ -99,15 +133,29 @@ export default function AttendanceDetail({ navigation }) {
         renderItem={renderItem}
         ListFooterComponent={<View style={{ height: 20 }} />}
         style={styles.list}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} colors={[C.primary]} />}
       />
 
-      <ModalRouter navigation={navigation} />
     </View>
   )
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: C.bg },
+  exportBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: C.primary,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    gap: 4,
+  },
+  exportBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#fff',
+  },
   list: { flex: 1, backgroundColor: C.card, borderTopWidth: 1, borderTopColor: C.border },
   searchBar: {
     flexDirection: 'row',
@@ -168,11 +216,11 @@ const styles = StyleSheet.create({
   },
   avatarText: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   studentName: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '500',
     color: C.text,
   },
   studentId: {

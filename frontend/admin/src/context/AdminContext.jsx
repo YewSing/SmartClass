@@ -303,11 +303,19 @@ export function AdminProvider({ children }) {
     dispatch({ type: 'TOGGLE_ENROLLMENT', payload: { userId, classObj, enrolled } })
   }, [])
 
-  const toggleOccurrenceEnrollment = useCallback(async (userId, occObj, enrolled) => {
-    if (enrolled) {
-      await api.enrollInOccurrence(occObj.id, userId)
+  const toggleOccurrenceEnrollment = useCallback(async (userId, userRole, occObj, enrolled) => {
+    if (userRole === 'Lecturer') {
+      if (enrolled) {
+        await api.assignLecturerToOccurrence(occObj.id, userId)
+      } else {
+        await api.removeLecturerFromOccurrence(occObj.id)
+      }
     } else {
-      await api.unenrollFromOccurrence(occObj.id, userId)
+      if (enrolled) {
+        await api.enrollInOccurrence(occObj.id, userId)
+      } else {
+        await api.unenrollFromOccurrence(occObj.id, userId)
+      }
     }
     dispatch({ type: 'TOGGLE_OCCURRENCE_ENROLLMENT', payload: { userId, occObj, enrolled } })
   }, [])
@@ -330,6 +338,12 @@ export function AdminProvider({ children }) {
       dispatch({ type: 'SET_REVIEW_QUEUE', payload: queue })
     } catch (e) { toast(e.message, 'error') }
   }, [toast])
+
+  useEffect(() => {
+    if (!state.isLoggedIn) return
+    const id = setInterval(() => loadReviewQueue(), 30_000)
+    return () => clearInterval(id)
+  }, [state.isLoggedIn, loadReviewQueue])
 
   const dismissReview = useCallback(async (id) => {
     await api.dismissReviewEntry(id)

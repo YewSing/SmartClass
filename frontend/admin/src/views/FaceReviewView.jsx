@@ -20,8 +20,7 @@ export default function FaceReviewView() {
   const queue = state.unrecognisedQueue
 
   useEffect(() => {
-    const id = setInterval(() => loadReviewQueue(), 20_000)
-    return () => clearInterval(id)
+    loadReviewQueue()
   }, [loadReviewQueue])
 
   // Reset to first page when queue length changes (new entries or dismissals)

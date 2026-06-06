@@ -117,4 +117,28 @@ export async function apiCall(method, path, body, _isRetry = false) {
   return res.status === 204 ? null : res.json()
 }
 
+export async function apiCallRaw(method, path, _isRetry = false) {
+  const token = getToken()
+  const res = await fetch(`${BASE}${path}`, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  })
+
+  if (res.status === 401 && !_isRetry && path !== '/auth/login') {
+    const refreshed = await _doRefresh()
+    if (refreshed) return apiCallRaw(method, path, true)
+    _forceLogout()
+    throw new Error('Session expired. Please log in again.')
+  }
+
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}))
+    throw new Error(e.detail ?? `HTTP ${res.status}`)
+  }
+  return res
+}
+
 export { BASE }

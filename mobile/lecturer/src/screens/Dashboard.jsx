@@ -1,13 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, RefreshControl,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useLecturer } from '../context/LecturerContext'
 import Badge from '../components/Badge'
-import ModalRouter from '../components/Modals'
-import { QUIZZES } from '../data/mockData'
 import { C } from '../theme'
 
 const DAY_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -17,8 +15,8 @@ function nowHHMM() {
   return `${String(n.getHours()).padStart(2, '0')}:${String(n.getMinutes()).padStart(2, '0')}`
 }
 
-function computeNextClass(allClasses) {
-  if (!allClasses.length) return null
+function computeNextClasses(allClasses, limit = 3) {
+  if (!allClasses.length) return []
   const todayIdx = (new Date().getDay() + 6) % 7
   const hhmm = nowHHMM()
 
@@ -31,7 +29,8 @@ function computeNextClass(allClasses) {
       return { ...c, daysAway }
     })
     .filter(Boolean)
-    .sort((a, b) => a.daysAway - b.daysAway || a.start_time.localeCompare(b.start_time))[0] ?? null
+    .sort((a, b) => a.daysAway - b.daysAway || a.start_time.localeCompare(b.start_time))
+    .slice(0, limit)
 }
 
 function nextLabel(c) {
@@ -52,10 +51,18 @@ export default function Dashboard({ navigation }) {
     loadAllClasses()
   }, [])
 
+  const [refreshing, setRefreshing] = useState(false)
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true)
+    await Promise.all([loadClasses(), loadSessions(), loadAllClasses()])
+    setRefreshing(false)
+  }, [loadClasses, loadSessions, loadAllClasses])
+
   const activeSession = sessions.find(s => s.open)
   const sessionOpen   = Boolean(activeSession)
   const firstClass    = classes[0]
-  const nextClass     = useMemo(() => computeNextClass(allClasses), [allClasses])
+  const nextClasses   = useMemo(() => computeNextClasses(allClasses), [allClasses])
+  const nextClass     = nextClasses[0] ?? null
 
   const handleToggleSession = async () => {
     if (toggling) return
@@ -81,7 +88,13 @@ export default function Dashboard({ navigation }) {
       : 'No classes this week'
 
   const headerMeta = firstClass
-    ? `${firstClass.day_of_week} ${firstClass.start_time}–${firstClass.end_time}${firstClass.room ? ` · ${firstClass.room}` : ''}`
+    ? [
+        firstClass.day_of_week,
+        firstClass.start_time && firstClass.end_time
+          ? `${firstClass.start_time}–${firstClass.end_time}`
+          : null,
+        firstClass.room ?? null,
+      ].filter(Boolean).join(' · ')
     : nextClass
       ? `Next: ${nextLabel(nextClass)}`
       : ''
@@ -91,6 +104,7 @@ export default function Dashboard({ navigation }) {
       style={styles.flex}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + 8 }]}
       showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} colors={[C.primary]} />}
     >
       {/* App header */}
       <View style={styles.appHeader}>
@@ -138,9 +152,43 @@ export default function Dashboard({ navigation }) {
             </Text>
           </TouchableOpacity>
         </View>
+
+        {!sessionOpen && (
+          <>
+            <View style={styles.cardDivider} />
+            {firstClass ? (
+              <View style={styles.cardExtra}>
+                <Ionicons name="school" size={14} color={C.green} style={{ marginTop: 1 }} />
+                <Text style={styles.cardExtraText}>
+                  {firstClass.code} is ongoing — open a session above to start tracking attendance.
+                </Text>
+              </View>
+            ) : nextClasses.length ? (
+              <View>
+                <View style={styles.cardExtraHeader}>
+                  <Ionicons name="calendar-outline" size={13} color={C.textSub} />
+                  <Text style={styles.cardExtraLabel}>Upcoming</Text>
+                </View>
+                {nextClasses.map((c, i) => (
+                  <View key={c.id} style={[styles.nextClassRow, i > 0 && styles.nextClassRowBorder]}>
+                    <Text style={styles.cardExtraTitle}>{c.code} — {c.name}</Text>
+                    <Text style={styles.cardExtraMeta}>
+                      {nextLabel(c)}{c.room ? ` · ${c.room}` : ''}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <View style={styles.cardExtra}>
+                <Ionicons name="hourglass-outline" size={14} color={C.textSub} style={{ marginTop: 1 }} />
+                <Text style={styles.cardExtraText}>No classes scheduled this week.</Text>
+              </View>
+            )}
+          </>
+        )}
       </View>
 
-      {sessionOpen ? (
+      {sessionOpen && (
         <>
           {/* Attendance */}
           <View style={styles.sectionHeader}>
@@ -148,7 +196,7 @@ export default function Dashboard({ navigation }) {
           </View>
           <TouchableOpacity
             style={styles.card}
-            onPress={() => navigation.navigate('AttendanceSessions')}
+            onPress={() => navigation.navigate('Attendance')}
           >
             <View style={styles.attendStats}>
               <View style={styles.attendStat}>
@@ -174,7 +222,7 @@ export default function Dashboard({ navigation }) {
           <View style={[styles.sectionHeader, { paddingTop: 4 }]}>
             <Text style={styles.sectionTitle}>Quiz &amp; Poll</Text>
           </View>
-          <TouchableOpacity style={styles.createQuizBtn} onPress={() => navigation.navigate('CreateQuiz')}>
+          <TouchableOpacity style={styles.createQuizBtn} onPress={() => navigation.navigate('Quiz', { screen: 'CreateQuiz' })}>
             <View style={styles.createQuizIcon}>
               <Ionicons name="add" size={18} color={C.primary} />
             </View>
@@ -184,71 +232,12 @@ export default function Dashboard({ navigation }) {
             </View>
             <Ionicons name="chevron-forward" size={14} color={C.primary} />
           </TouchableOpacity>
-
-          {QUIZZES.map(q => (
-            <TouchableOpacity key={q.id} style={styles.quizCardItem} onPress={() => openModal('quiz', q)}>
-              <View style={styles.quizCardTop}>
-                <Text style={styles.quizQ} numberOfLines={2}>{q.question}</Text>
-                <Badge variant={q.status === 'active' ? 'blue' : q.status === 'closed' ? 'gray' : 'yellow'}>
-                  {q.status.charAt(0).toUpperCase() + q.status.slice(1)}
-                </Badge>
-              </View>
-              <View style={styles.rowGap}>
-                <Ionicons name="time-outline" size={11} color={C.textHint} />
-                <Text style={styles.metaSmall}>Today, {q.time}{q.timer ? ` · ${q.timer} timer` : ''}</Text>
-              </View>
-            </TouchableOpacity>
-          ))}
         </>
-      ) : firstClass ? (
-        <View style={styles.emptyState}>
-          <Ionicons name="school" size={40} color={C.green} style={{ marginBottom: 12 }} />
-          <Text style={styles.emptyTitle}>Class is in Progress</Text>
-          <Text style={styles.emptySub}>
-            {firstClass.code} is ongoing. Open a session to start attendance tracking.
-          </Text>
-          <TouchableOpacity
-            style={[styles.openSessionBtn, toggling && styles.btnDisabled]}
-            onPress={handleToggleSession}
-            disabled={toggling}
-          >
-            <Ionicons name="play-circle-outline" size={16} color="#fff" />
-            <Text style={styles.openSessionText}>{toggling ? 'Opening…' : ' Open Session'}</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <View style={styles.emptyState}>
-          <Ionicons name="hourglass-outline" size={40} color={C.textHint} style={{ marginBottom: 12 }} />
-          <Text style={styles.emptyTitle}>No Class Right Now</Text>
-          {nextClass ? (
-            <View style={styles.nextClassCard}>
-              <Text style={styles.nextClassLabel}>Next Class</Text>
-              <Text style={styles.nextClassName}>{nextClass.code} — {nextClass.name}</Text>
-              <View style={styles.rowGap}>
-                <Ionicons name="calendar-outline" size={12} color={C.textSub} />
-                <Text style={styles.nextClassMeta}>{nextLabel(nextClass)}</Text>
-                {nextClass.room ? (
-                  <>
-                    <Ionicons name="location-outline" size={12} color={C.textSub} />
-                    <Text style={styles.nextClassMeta}>{nextClass.room}</Text>
-                  </>
-                ) : null}
-              </View>
-            </View>
-          ) : (
-            <Text style={styles.emptySub}>No upcoming classes scheduled this week.</Text>
-          )}
-          <TouchableOpacity style={[styles.openSessionBtn, styles.btnDisabled]} disabled>
-            <Ionicons name="play-circle-outline" size={16} color="#fff" />
-            <Text style={styles.openSessionText}> Open Session</Text>
-          </TouchableOpacity>
-        </View>
       )}
 
       {/* Environment strip */}
       <View style={[styles.sectionHeader, { paddingTop: 8, paddingBottom: 6 }]}>
         <Text style={styles.sectionTitle}>Environment</Text>
-        <Text style={styles.envHint}>Always live · not session-bound</Text>
       </View>
       <TouchableOpacity style={styles.envStrip} onPress={() => navigation.navigate('Environment')}>
         <View style={styles.envStripTop}>
@@ -272,12 +261,11 @@ export default function Dashboard({ navigation }) {
       </TouchableOpacity>
       <View style={{ height: 20 }} />
     </ScrollView>
-    <ModalRouter navigation={navigation} />
   </>)
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
+  flex: { flex: 1, backgroundColor: C.bg },
   content: {
     backgroundColor: C.bg,
     paddingHorizontal: 16,
@@ -390,16 +378,11 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   sectionTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: C.textSub,
+    fontSize: 11,
+    fontWeight: '600',
+    color: C.textHint,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
-  },
-  envHint: {
-    fontSize: 11,
-    color: C.textHint,
-    fontStyle: 'italic',
   },
   card: {
     backgroundColor: C.card,
@@ -459,7 +442,7 @@ const styles = StyleSheet.create({
   },
   createQuizTitle: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
     color: C.text,
   },
   createQuizSub: {
@@ -467,87 +450,54 @@ const styles = StyleSheet.create({
     color: C.textSub,
     marginTop: 1,
   },
-  quizCardItem: {
-    backgroundColor: C.card,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: C.border,
-    gap: 6,
+  cardDivider: {
+    height: 1,
+    backgroundColor: C.border,
+    marginVertical: 12,
   },
-  quizCardTop: {
+  cardExtra: {
     flexDirection: 'row',
-    gap: 8,
     alignItems: 'flex-start',
+    gap: 8,
   },
-  quizQ: {
+  cardExtraText: {
     flex: 1,
-    fontSize: 13,
-    fontWeight: '600',
-    color: C.text,
-    lineHeight: 19,
-  },
-  emptyState: {
-    alignItems: 'center',
-    padding: 24,
-    marginVertical: 16,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: C.text,
-    marginBottom: 8,
-  },
-  emptySub: {
-    fontSize: 13,
+    fontSize: 12,
     color: C.textSub,
-    textAlign: 'center',
-    marginBottom: 20,
-    lineHeight: 20,
+    lineHeight: 18,
   },
-  openSessionBtn: {
+  cardExtraHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: C.green,
-    borderRadius: 10,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    marginTop: 8,
-    gap: 6,
+    gap: 5,
+    marginBottom: 8,
   },
-  openSessionText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  nextClassCard: {
-    backgroundColor: C.gray50,
-    borderWidth: 1,
-    borderColor: C.border,
-    borderRadius: 10,
-    padding: 14,
-    marginBottom: 16,
-    width: '100%',
-    gap: 4,
-  },
-  nextClassLabel: {
+  cardExtraLabel: {
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.8,
     color: C.textHint,
     marginBottom: 2,
   },
-  nextClassName: {
-    fontSize: 14,
-    fontWeight: '700',
+  cardExtraTitle: {
+    fontSize: 13,
+    fontWeight: '600',
     color: C.text,
-    marginBottom: 4,
+    marginBottom: 2,
   },
-  nextClassMeta: {
+  cardExtraMeta: {
     fontSize: 12,
     color: C.textSub,
+  },
+  nextClassRow: {
+    paddingTop: 8,
+    gap: 2,
+  },
+  nextClassRowBorder: {
+    borderTopWidth: 1,
+    borderTopColor: C.border,
+    marginTop: 8,
   },
   envStrip: {
     backgroundColor: C.card,
@@ -564,7 +514,7 @@ const styles = StyleSheet.create({
   },
   envStripTitle: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
     color: C.text,
   },
   envMetrics: {

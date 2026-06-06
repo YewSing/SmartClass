@@ -30,7 +30,7 @@ def _occurrence_to_out(occ: ClassOccurrence, enrolled_count: int = 0) -> Occurre
         end_time=occ.end_time,
         room=occ.room,
         lecturer_id=occ.lecturer_id,
-        lecturer_name=occ.lecturer.user.name,
+        lecturer_name=occ.lecturer.user.name if occ.lecturer else None,
         label=occ.label,
         enrolled_count=enrolled_count,
     )

@@ -5,7 +5,6 @@ import { Ionicons } from '@expo/vector-icons'
 import { useLecturer } from '../context/LecturerContext'
 import Topbar from '../components/Topbar'
 import Badge from '../components/Badge'
-import ModalRouter from '../components/Modals'
 import { C } from '../theme'
 
 const SENSORS = [
@@ -114,7 +113,6 @@ export default function Environment({ navigation }) {
 
         <View style={{ height: 20 }} />
       </ScrollView>
-      <ModalRouter navigation={navigation} />
     </View>
   )
 }

@@ -81,10 +81,10 @@ export default function CreateUserModal() {
     >
       <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-text3 mb-3">Account Details</p>
       <div className="grid grid-cols-2 gap-3.5">
-        <Field label="Full Name" required>
+        <Field label="Full Name" required value={form.name} onClear={() => set('name', '')}>
           <input placeholder="e.g. Ahmad Fariz bin Hassan" value={form.name} onChange={e => set('name', e.target.value)} />
         </Field>
-        <Field label="Email" required>
+        <Field label="Email" required value={form.email} onClear={() => set('email', '')}>
           <input type="email" placeholder="e.g. u2024001@siswa.um.edu.my" value={form.email} onChange={e => set('email', e.target.value)} />
         </Field>
         <Field label="Password" required>
@@ -98,16 +98,16 @@ export default function CreateUserModal() {
           </select>
         </Field>
         {form.role === 'Student' && (
-          <Field label="Matric No." required>
+          <Field label="Matric No." required value={form.matric} onClear={() => set('matric', '')}>
             <input placeholder="e.g. U2024001" value={form.matric} onChange={e => set('matric', e.target.value)} />
           </Field>
         )}
         {form.role === 'Lecturer' && (
-          <Field label="Staff ID" required>
+          <Field label="Staff ID" required value={form.staffId} onClear={() => set('staffId', '')}>
             <input placeholder="e.g. WL2019-0047" value={form.staffId} onChange={e => set('staffId', e.target.value)} />
           </Field>
         )}
-        <Field label="Phone Number">
+        <Field label="Phone Number" value={form.phone} onClear={() => set('phone', '')}>
           <input type="tel" placeholder="+60123456789" value={form.phone} onChange={e => set('phone', e.target.value)} />
         </Field>
         {form.role === 'Lecturer' && (
@@ -122,14 +122,17 @@ export default function CreateUserModal() {
   )
 }
 
-function Field({ label, required, children }) {
+function Field({ label, required, children, value, onClear }) {
   return (
     <div className="flex flex-col gap-1.5">
       <label className="text-[12px] font-medium text-text2">
         {label}{required && <span className="text-sc-red"> *</span>}
       </label>
-      <div className="[&_input]:w-full [&_select]:w-full [&_input]:bg-surface2 [&_select]:bg-surface2 [&_input]:border [&_select]:border [&_input]:border-border [&_select]:border-border [&_input]:rounded-lg [&_select]:rounded-lg [&_input]:px-3 [&_select]:px-3 [&_input]:py-2 [&_select]:py-2 [&_input]:text-[13.5px] [&_select]:text-[13.5px] [&_input]:text-text1 [&_select]:text-text2 [&_input]:outline-none [&_select]:outline-none [&_input:focus]:border-accent [&_select:focus]:border-accent">
+      <div className={`relative [&_input]:w-full [&_select]:w-full [&_input]:bg-surface2 [&_select]:bg-surface2 [&_input]:border [&_select]:border [&_input]:border-border [&_select]:border-border [&_input]:rounded-lg [&_select]:rounded-lg [&_input]:px-3 [&_select]:px-3 [&_input]:py-2 [&_select]:py-2 [&_input]:text-[13.5px] [&_select]:text-[13.5px] [&_input]:text-text1 [&_select]:text-text2 [&_input]:outline-none [&_select]:outline-none [&_input:focus]:border-accent [&_select:focus]:border-accent${onClear ? ' [&_input]:pr-7' : ''}`}>
         {children}
+        {onClear && value && (
+          <button type="button" onClick={onClear} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text3 hover:text-text1 text-[11px] leading-none">✕</button>
+        )}
       </div>
     </div>
   )

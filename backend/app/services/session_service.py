@@ -3,12 +3,13 @@ Business logic for opening and closing attendance sessions.
 Closing a session auto-marks all enrolled students who have no attendance record as absent.
 """
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from app.core.timezone import now_myt
 from app.models.session import AttendanceSession
 from app.models.attendance import AttendanceRecord
 from app.models.class_ import Enrollment
+from app.models.face_review import FaceReviewEntry
 
 
 async def close_session(session_id: int, db: AsyncSession) -> AttendanceSession:
@@ -40,12 +41,31 @@ async def close_session(session_id: int, db: AsyncSession) -> AttendanceSession:
 
 
 async def get_session_counts(session_id: int, db: AsyncSession) -> dict:
-    records = await db.execute(
-        select(AttendanceRecord.status).where(AttendanceRecord.session_id == session_id)
+    occ_result = await db.execute(
+        select(AttendanceSession.occurrence_id).where(AttendanceSession.id == session_id)
     )
-    statuses = [r[0] for r in records.all()]
+    occurrence_id = occ_result.scalar_one_or_none()
+
+    enrolled = 0
+    if occurrence_id:
+        enrolled_result = await db.execute(
+            select(func.count()).select_from(Enrollment).where(Enrollment.occurrence_id == occurrence_id)
+        )
+        enrolled = enrolled_result.scalar_one()
+
+    present_result = await db.execute(
+        select(func.count()).select_from(AttendanceRecord).where(
+            AttendanceRecord.session_id == session_id,
+            AttendanceRecord.status == "present",
+        )
+    )
+    present = present_result.scalar_one()
+
+    unid_result = await db.execute(
+        select(func.count()).select_from(FaceReviewEntry).where(FaceReviewEntry.session_id == session_id)
+    )
     return {
-        "present": statuses.count("present"),
-        "absent": statuses.count("absent"),
-        "unid": statuses.count("unidentified"),
+        "present": present,
+        "absent": max(0, enrolled - present),
+        "unid": unid_result.scalar_one(),
     }

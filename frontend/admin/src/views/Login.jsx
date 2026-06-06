@@ -45,14 +45,19 @@ export default function Login() {
         <div className="space-y-3.5">
           <div className="flex flex-col gap-1.5">
             <label className="text-[12px] font-medium text-text2">Email / Staff ID</label>
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleLogin()}
-              className="bg-surface2 border border-border rounded-lg px-3 py-2.5 text-[13.5px] text-text1 outline-none focus:border-accent transition-colors"
-              placeholder="admin@um.edu.my"
-            />
+            <div className="relative">
+              <input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleLogin()}
+                className="w-full bg-surface2 border border-border rounded-lg px-3 py-2.5 pr-8 text-[13.5px] text-text1 outline-none focus:border-accent transition-colors"
+                placeholder="admin@um.edu.my"
+              />
+              {email && (
+                <button onClick={() => setEmail('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-text3 hover:text-text1 text-[12px] leading-none">✕</button>
+              )}
+            </div>
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-[12px] font-medium text-text2">Password</label>

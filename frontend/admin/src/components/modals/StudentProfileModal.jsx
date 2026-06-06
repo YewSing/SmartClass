@@ -51,7 +51,7 @@ export default function StudentProfileModal() {
   const handleToggle = async (occObj, enroll) => {
     setEnrolling(occObj.id)
     try {
-      await toggleOccurrenceEnrollment(user.id, occObj, enroll)
+      await toggleOccurrenceEnrollment(user.id, user.role, occObj, enroll)
       toast(
         enroll
           ? `Added to ${occObj.code} ${occObj.type === 'LECTURE' ? 'Lecture' : (occObj.label ?? 'Tutorial')}`
@@ -120,20 +120,30 @@ export default function StudentProfileModal() {
             <div className="space-y-3 mb-3">
               <div className="flex flex-col gap-1.5">
                 <label className="text-[12px] font-medium text-text2">Full Name</label>
-                <input
-                  value={editName}
-                  onChange={e => setEditName(e.target.value)}
-                  className="bg-surface2 border border-border rounded-lg px-3 py-2 text-[13.5px] text-text1 outline-none focus:border-accent"
-                />
+                <div className="relative">
+                  <input
+                    value={editName}
+                    onChange={e => setEditName(e.target.value)}
+                    className="w-full bg-surface2 border border-border rounded-lg px-3 py-2 pr-7 text-[13.5px] text-text1 outline-none focus:border-accent"
+                  />
+                  {editName && (
+                    <button onClick={() => setEditName('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text3 hover:text-text1 text-[11px] leading-none">✕</button>
+                  )}
+                </div>
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-[12px] font-medium text-text2">Phone</label>
-                <input
-                  type="tel"
-                  value={editPhone}
-                  onChange={e => setEditPhone(e.target.value)}
-                  className="bg-surface2 border border-border rounded-lg px-3 py-2 text-[13.5px] text-text1 outline-none focus:border-accent"
-                />
+                <div className="relative">
+                  <input
+                    type="tel"
+                    value={editPhone}
+                    onChange={e => setEditPhone(e.target.value)}
+                    className="w-full bg-surface2 border border-border rounded-lg px-3 py-2 pr-7 text-[13.5px] text-text1 outline-none focus:border-accent"
+                  />
+                  {editPhone && (
+                    <button onClick={() => setEditPhone('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text3 hover:text-text1 text-[11px] leading-none">✕</button>
+                  )}
+                </div>
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-[12px] font-medium text-text2">Email</label>
@@ -174,11 +184,10 @@ export default function StudentProfileModal() {
                       <span className="text-text2">{occurrenceLabel(o)}</span>
                     </div>
                     <button
-                      onClick={() => handleToggle(o, false)}
-                      disabled={enrolling === o.id}
-                      className="text-text3 hover:text-sc-red text-sm transition-colors px-1 disabled:opacity-40"
+                      onClick={() => openModal('confirmRemoveOccurrence', { occObj: o, userId: user.id, userRole: user.role, userName: user.name })}
+                      className="text-text3 hover:text-sc-red text-sm transition-colors px-1"
                     >
-                      {enrolling === o.id ? '…' : '✕'}
+                      ✕
                     </button>
                   </div>
                 ))}
@@ -188,12 +197,17 @@ export default function StudentProfileModal() {
 
           <div className="px-4 py-3 border-t border-border">
             <p className="text-[11px] text-text3 mb-2 font-medium uppercase tracking-wide">Add Occurrence</p>
-            <input
-              value={addSearch}
-              onChange={e => setAddSearch(e.target.value)}
-              placeholder="Search by course code or name…"
-              className="mb-2 w-full bg-surface2 border border-border rounded-lg px-3 py-1.5 text-[12.5px] text-text1 outline-none focus:border-accent placeholder:text-text3"
-            />
+            <div className="relative mb-2">
+              <input
+                value={addSearch}
+                onChange={e => setAddSearch(e.target.value)}
+                placeholder="Search by course code or name…"
+                className="w-full bg-surface2 border border-border rounded-lg px-3 py-1.5 pr-7 text-[12.5px] text-text1 outline-none focus:border-accent placeholder:text-text3"
+              />
+              {addSearch && (
+                <button onClick={() => setAddSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-text3 hover:text-text1 text-[11px] leading-none">✕</button>
+              )}
+            </div>
             {addSearch.length >= 2 && (
               <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
                 {available.length === 0 ? (

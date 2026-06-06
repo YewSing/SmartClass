@@ -46,6 +46,9 @@ export default function StudentsView() {
             placeholder="Search students…"
             className="bg-transparent outline-none text-[13px] text-text1 w-48 placeholder:text-text3"
           />
+          {search && (
+            <button onClick={() => setSearch('')} className="text-text3 hover:text-text1 text-[12px] leading-none flex-shrink-0">✕</button>
+          )}
         </div>
         <Button variant="primary" size="sm" onClick={() => openModal('createUser')}>＋ Add Student</Button>
       </div>

@@ -40,6 +40,7 @@ class StudentAttendanceSessionOut(BaseModel):
     class_code: str
     class_name: str
     status: str
+    is_live: bool = False
     detected_at: Optional[datetime] = None
     overridden: bool = False
 

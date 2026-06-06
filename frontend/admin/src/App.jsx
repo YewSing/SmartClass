@@ -5,7 +5,7 @@ import ToastContainer from './components/ui/Toast'
 import CreateUserModal from './components/modals/CreateUserModal'
 import StudentProfileModal from './components/modals/StudentProfileModal'
 import FaceEnrollModal from './components/modals/FaceEnrollModal'
-import { ConfirmDeleteModal, ConfirmRemoveFaceModal } from './components/modals/ConfirmModal'
+import { ConfirmDeleteModal, ConfirmRemoveFaceModal, ConfirmRemoveOccurrenceModal } from './components/modals/ConfirmModal'
 import FaceReviewPromoteModal from './components/modals/FaceReviewPromoteModal'
 import CourseDetailModal from './components/modals/CourseDetailModal'
 import Login from './views/Login'
@@ -59,6 +59,7 @@ function AppShell() {
       <FaceEnrollModal />
       <ConfirmDeleteModal />
       <ConfirmRemoveFaceModal />
+      <ConfirmRemoveOccurrenceModal />
       <FaceReviewPromoteModal />
       <CourseDetailModal />
 

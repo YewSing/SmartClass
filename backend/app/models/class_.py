@@ -32,11 +32,11 @@ class ClassOccurrence(Base):
     start_time: Mapped[str] = mapped_column(String(10), nullable=False)  # "08:00"
     end_time: Mapped[str] = mapped_column(String(10), nullable=False)    # "10:00"
     room: Mapped[Optional[str]] = mapped_column(String(255))
-    lecturer_id: Mapped[int] = mapped_column(ForeignKey("lecturers.id"), nullable=False, index=True)
+    lecturer_id: Mapped[Optional[int]] = mapped_column(ForeignKey("lecturers.id"), nullable=True, index=True)
     label: Mapped[Optional[str]] = mapped_column(String(100))            # "Tutorial Group 1"
 
     course: Mapped["Course"] = relationship(back_populates="occurrences")
-    lecturer: Mapped["Lecturer"] = relationship(back_populates="occurrences")
+    lecturer: Mapped[Optional["Lecturer"]] = relationship(back_populates="occurrences")
     enrollments: Mapped[list["Enrollment"]] = relationship(
         back_populates="occurrence", cascade="all, delete-orphan"
     )

@@ -1,5 +1,6 @@
 import csv
 import io
+from datetime import date, timedelta
 
 from app.core.timezone import now_myt
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -168,6 +169,87 @@ async def export_session(
         ])
 
     filename = f"attendance_{session.occurrence.course.code}_{session.opened_at.strftime('%Y%m%d')}.csv"
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.get("/lecturer/occurrences/{occ_id}/attendance/export")
+async def export_occurrence(
+    occ_id: int,
+    from_date: date | None = Query(None),
+    to_date: date | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+    actor: User = Depends(_lecturer_or_admin),
+):
+    occ_result = await db.execute(
+        select(ClassOccurrence)
+        .options(selectinload(ClassOccurrence.course))
+        .where(ClassOccurrence.id == occ_id)
+    )
+    occ = occ_result.scalar_one_or_none()
+    if not occ:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Occurrence not found")
+
+    session_filters = [
+        AttendanceSession.occurrence_id == occ_id,
+        AttendanceSession.status == "closed",
+    ]
+    if from_date:
+        session_filters.append(AttendanceSession.opened_at >= from_date)
+    if to_date:
+        session_filters.append(AttendanceSession.opened_at < to_date + timedelta(days=1))
+
+    sessions_result = await db.execute(
+        select(AttendanceSession)
+        .where(*session_filters)
+        .order_by(AttendanceSession.opened_at)
+    )
+    sessions = sessions_result.scalars().all()
+
+    enrolled = await db.execute(
+        select(Student)
+        .options(selectinload(Student.user))
+        .join(Enrollment, Enrollment.student_id == Student.id)
+        .where(Enrollment.occurrence_id == occ_id)
+        .order_by(Student.matric_no)
+    )
+    students = enrolled.scalars().all()
+
+    records_by_session: dict[int, dict[int, str]] = {}
+    for sess in sessions:
+        recs = await db.execute(
+            select(AttendanceRecord).where(AttendanceRecord.session_id == sess.id)
+        )
+        records_by_session[sess.id] = {r.student_id: r.status for r in recs.scalars().all()}
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    session_labels = [s.opened_at.strftime('%d-%b') for s in sessions]
+    writer.writerow(["Matric No", "Name"] + session_labels + ["Total", "Rate"])
+
+    for stu in students:
+        row = [stu.matric_no, stu.user.name]
+        present = 0
+        for sess in sessions:
+            att = records_by_session[sess.id].get(stu.id, "absent")
+            if att == "present":
+                row.append("P")
+                present += 1
+            elif att == "unidentified":
+                row.append("U")
+            else:
+                row.append("A")
+        total = len(sessions)
+        rate = round((present / total) * 100, 1) if total > 0 else 0.0
+        row += [f"{present}/{total}", f"{rate}%"]
+        writer.writerow(row)
+
+    year = sessions[0].opened_at.year if sessions else now_myt().year
+    filename = f"attendance_report_{occ.course.code}_{year}.csv"
     output.seek(0)
     return StreamingResponse(
         iter([output.getvalue()]),

@@ -1,6 +1,6 @@
-import { useEffect } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet,
+  View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useLecturer } from '../context/LecturerContext'
@@ -13,6 +13,13 @@ export default function AttendanceSessions({ navigation }) {
   const { sessions } = state
 
   useEffect(() => { loadSessions() }, [])
+
+  const [refreshing, setRefreshing] = useState(false)
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true)
+    await loadSessions()
+    setRefreshing(false)
+  }, [loadSessions])
 
   const handleSessionClick = (session) => {
     selectSession(session)
@@ -58,22 +65,24 @@ export default function AttendanceSessions({ navigation }) {
   return (
     <View style={styles.flex}>
       <Topbar title="Attendance" sub="All sessions" />
-      {sessions.length === 0 ? (
-        <View style={styles.empty}>
-          <Text style={styles.emptyText}>No sessions yet. Open a session from the dashboard.</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={sessions}
-          keyExtractor={s => String(s.id)}
-          renderItem={renderItem}
-          ListHeaderComponent={
-            <Text style={styles.countLabel}>{sessions.length} session{sessions.length !== 1 ? 's' : ''}</Text>
-          }
-          ListFooterComponent={<View style={{ height: 20 }} />}
-          style={styles.list}
-        />
-      )}
+      <FlatList
+        data={sessions}
+        keyExtractor={s => String(s.id)}
+        renderItem={renderItem}
+        ListHeaderComponent={
+          sessions.length > 0
+            ? <Text style={styles.countLabel}>{sessions.length} session{sessions.length !== 1 ? 's' : ''}</Text>
+            : null
+        }
+        ListEmptyComponent={
+          <View style={styles.empty}>
+            <Text style={styles.emptyText}>No sessions yet. Open a session from the dashboard.</Text>
+          </View>
+        }
+        ListFooterComponent={<View style={{ height: 20 }} />}
+        style={styles.list}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} colors={[C.primary]} />}
+      />
     </View>
   )
 }
@@ -108,7 +117,7 @@ const styles = StyleSheet.create({
     padding: 12,
     borderWidth: 1,
     borderColor: C.border,
-    gap: 12,
+    gap: 16,
   },
   dateBlock: {
     width: 44,
@@ -123,7 +132,7 @@ const styles = StyleSheet.create({
   },
   dateMonth: {
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -133,7 +142,7 @@ const styles = StyleSheet.create({
   },
   sessionTitle: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
     color: C.text,
   },
   sessionSub: {
@@ -158,6 +167,6 @@ const styles = StyleSheet.create({
   },
   chipText: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '500',
   },
 })
