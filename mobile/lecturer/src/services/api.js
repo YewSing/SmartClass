@@ -151,8 +151,11 @@ export const getStudents = async (sessionId) => {
   return list.map(studentAdapter)
 }
 
-export const overrideAttendance = async (recordId, newStatus) => {
-  return apiCall('PUT', `/attendance/${recordId}/override`, { status: newStatus })
+export const overrideAttendance = async (recordId, newStatus, sessionId, studentId) => {
+  if (recordId) {
+    return apiCall('PUT', `/attendance/${recordId}/override`, { status: newStatus })
+  }
+  return apiCall('PUT', `/lecturer/sessions/${sessionId}/attendance/override`, { student_id: studentId, status: newStatus })
 }
 
 // Writes CSV text to a temp file in the cache dir and opens the native share sheet.

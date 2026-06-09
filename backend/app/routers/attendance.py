@@ -15,7 +15,7 @@ from app.models.user import User, Student, Lecturer
 from app.models.class_ import Enrollment, ClassOccurrence
 from app.models.session import AttendanceSession
 from app.models.attendance import AttendanceRecord
-from app.schemas.session import AttendanceStudentOut, OverrideRequest
+from app.schemas.session import AttendanceStudentOut, OverrideRequest, SessionOverrideRequest
 from app.services.audit_service import write_log
 from app.services.session_service import get_session_counts
 from app.websocket.manager import manager
@@ -120,6 +120,79 @@ async def override_attendance(
         name=record.student.user.name,
         status=record.status,
         detected_at=record.detected_at,
+        overridden=True,
+    )
+
+
+@router.put("/lecturer/sessions/{session_id}/attendance/override", response_model=AttendanceStudentOut)
+async def override_session_attendance(
+    session_id: int,
+    body: SessionOverrideRequest,
+    db: AsyncSession = Depends(get_db),
+    actor: User = Depends(_lecturer_or_admin),
+):
+    """Create-or-update an attendance record for a student who has no existing record (not_recorded → present/absent)."""
+    if body.status not in ("present", "absent"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Status must be 'present' or 'absent'")
+
+    student_result = await db.execute(
+        select(Student)
+        .options(selectinload(Student.user))
+        .where(Student.id == body.student_id)
+    )
+    student = student_result.scalar_one_or_none()
+    if not student:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found")
+
+    rec_result = await db.execute(
+        select(AttendanceRecord)
+        .where(AttendanceRecord.session_id == session_id, AttendanceRecord.student_id == body.student_id)
+    )
+    record = rec_result.scalar_one_or_none()
+
+    now = now_myt()
+    if record:
+        old_status = record.status
+        record.status = body.status
+        record.override_by = actor.id
+        record.override_at = now
+        await db.flush()
+    else:
+        record = AttendanceRecord(
+            session_id=session_id,
+            student_id=body.student_id,
+            status=body.status,
+            override_by=actor.id,
+            override_at=now,
+        )
+        db.add(record)
+        await db.flush()  # assigns record.id
+        old_status = "not_recorded"
+
+    await write_log(db, actor.id, "ATTENDANCE_OVERRIDE", "attendance_record", record.id,
+        old_val={"status": old_status}, new_val={"status": body.status})
+    await db.flush()
+
+    counts = await get_session_counts(session_id, db)
+    await manager.broadcast(session_id, {
+        "event": "attendance_override",
+        "session_id": session_id,
+        "counts": counts,
+        "student": {
+            "id": record.student_id,
+            "name": student.user.name,
+            "matric_no": student.matric_no,
+            "status": record.status,
+            "record_id": record.id,
+        },
+    })
+
+    return AttendanceStudentOut(
+        record_id=record.id,
+        student_id=record.student_id,
+        matric_no=student.matric_no,
+        name=student.user.name,
+        status=record.status,
         overridden=True,
     )
 

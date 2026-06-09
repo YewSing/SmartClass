@@ -42,6 +42,11 @@ class OverrideRequest(BaseModel):
     status: str  # present | absent
 
 
+class SessionOverrideRequest(BaseModel):
+    student_id: int
+    status: str  # present | absent
+
+
 class FaceMatchRequest(BaseModel):
     embedding: list[float]
     session_id: int

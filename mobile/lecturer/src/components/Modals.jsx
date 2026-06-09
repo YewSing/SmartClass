@@ -210,10 +210,9 @@ function StudentModal({ visible, onClose, data, overrideStudent }) {
   const inits = data.initials ?? data.name.split(' ').map(p => p[0]).join('').substring(0, 2).toUpperCase()
 
   const handleOverride = async (newStatus) => {
-    if (!data.recordId) { onClose(); return }
     setBusy(true)
     try {
-      await overrideStudent(data.recordId, newStatus)
+      await overrideStudent(data.recordId, newStatus, data.studentId)
       onClose()
     } catch {
       setBusy(false)

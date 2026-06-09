@@ -53,11 +53,16 @@ function reducer(state, action) {
     case 'SET_ANALYTICS_LOADING':
       return { ...state, analyticsLoading: action.payload }
     case 'UPDATE_STUDENT': {
-      const updatedStudents = state.students.map(s =>
-        s.recordId === action.payload.record_id
-          ? { ...s, status: action.payload.status, overridden: true }
+      // payload from API: { record_id, student_id, status }
+      // payload from WS:  { id (=student_id), record_id, status, ... }
+      const payloadStudentId = action.payload.student_id ?? action.payload.id
+      const updatedStudents = state.students.map(s => {
+        const byRecordId = action.payload.record_id != null && s.recordId === action.payload.record_id
+        const byStudentId = payloadStudentId != null && s.studentId === payloadStudentId
+        return (byRecordId || byStudentId)
+          ? { ...s, recordId: action.payload.record_id ?? s.recordId, status: action.payload.status, overridden: true }
           : s
-      )
+      })
       const sessionId = state.selectedSession?.id
       const present = updatedStudents.filter(s => s.status === 'present').length
       const absent  = updatedStudents.filter(s => s.status === 'absent').length
@@ -162,13 +167,14 @@ export function LecturerProvider({ children }) {
     } catch (e) { showToast(e.message, 'error') }
   }, [showToast])
 
-  const overrideStudent = useCallback(async (recordId, newStatus) => {
+  const overrideStudent = useCallback(async (recordId, newStatus, studentId) => {
+    const sessionId = state.selectedSession?.id
     try {
-      await api.overrideAttendance(recordId, newStatus)
-      dispatch({ type: 'UPDATE_STUDENT', payload: { record_id: recordId, status: newStatus } })
+      const result = await api.overrideAttendance(recordId, newStatus, sessionId, studentId)
+      dispatch({ type: 'UPDATE_STUDENT', payload: { record_id: result.record_id, student_id: result.student_id, status: result.status } })
       showToast(`Marked ${newStatus}`, 'success')
     } catch (e) { showToast(e.message, 'error'); throw e }
-  }, [showToast])
+  }, [showToast, state.selectedSession?.id])
 
   const selectSession = useCallback((session) => {
     dispatch({ type: 'SET_SELECTED_SESSION', payload: session })
