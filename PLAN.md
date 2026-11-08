@@ -26,7 +26,7 @@ These M8 tasks run before everything else after the T04 checkpoint, so the stude
 
 - [x] **T80 [API] Characterisation tests for KB + assistant.** Depends on: T01, T04.
   Done when: `db` tests cover materials list, sync (Moodle mocked), chat session CRUD and message answer (LLM mocked through the adapter), course access control (not-enrolled → 403), at least 10 tests.
-- [ ] **T93 [API] Phone-friendly answer format.** Depends on: T80.
+- [x] **T93 [API] Phone-friendly answer format.** Depends on: T80.
   Done when: the system prompt forbids LaTeX and asks for plain-text formulas; a backend cleanup step runs on every answer before it is saved and converts any remaining LaTeX (`$$…$$`, `\frac{a}{b}`, `\text{}`, `\times`, `\%`) to readable text; citations are renumbered 1, 2, 3… by first appearance in both the answer text and the citation list; unit tests cover each conversion and the renumbering, including an answer citing [1], [2], [4].
 - [ ] **T84 [API] Open cited source (FR-809).** Depends on: T80.
   Done when: `GET /student/assistant/materials/{id}/file` streams the material (proxied from Moodle, enrolled students only) and citations carry page/slide numbers the app can open; tests.

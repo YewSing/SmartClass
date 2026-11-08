@@ -234,6 +234,17 @@ async def test_uncited_answer_is_general_and_invalid_citations_dropped(student_c
     assert "[7]" not in reply["content"]
 
 
+async def test_latex_answer_is_cleaned_before_it_is_saved(student_client, classroom, kb, fake_llm):
+    """T93: the stored answer is plain text, so the phone never shows raw LaTeX."""
+    fake_llm.answer = r"BVA covers $$\frac{\text{edges}}{\text{classes}} \times 100\%$$ of cases [1]."
+    chat = await _new_chat(student_client, classroom["course_id"])
+    reply = (await student_client.post(f"/student/assistant/sessions/{chat['id']}/messages",
+                                       json={"content": "What is BVA?"})).json()
+    assert reply["content"] == "BVA covers\nedges/classes × 100%\nof cases [1]."
+    msgs = (await student_client.get(f"/student/assistant/sessions/{chat['id']}/messages")).json()
+    assert msgs[-1]["content"] == reply["content"]
+
+
 async def test_no_materials_tells_the_llm_so(student_client, classroom, fake_llm):
     fake_llm.answer = "General answer."
     chat = await _new_chat(student_client, classroom["course_id"])

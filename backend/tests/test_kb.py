@@ -159,7 +159,8 @@ def test_parse_answer_maps_citations_in_order_and_drops_invalid():
     raw = "BVA tests edges [2]. It pairs with EP [1][2]. Made up [9]."
     text, citations, source = parse_answer(raw, [_passage(1), _passage(2)])
     assert "[9]" not in text
-    assert [c["n"] for c in citations] == [2, 1]
+    assert text == "BVA tests edges [1]. It pairs with EP [2][1]. Made up ."  # renumbered by first appearance (T93)
+    assert [c["n"] for c in citations] == [1, 2]
     assert citations[0]["location"] == "slides 2-3" and citations[0]["material_id"] == 102
     assert source == SOURCE_COURSE
 
