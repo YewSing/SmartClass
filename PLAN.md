@@ -19,6 +19,22 @@ Spec: `docs/requirements/*.md`, `docs/use-cases/UC-M*.md`. Rules: `CLAUDE.md` �
 - [ ] **T03 [INFRA] Mobile + web E2E harness.** Depends on: T01.
   Done when: `scripts/e2e-mobile.sh <app> <flow>` boots AVD `Pixel_4_API_35` (headless if possible), adds `$LOCALAPPDATA/Android/Sdk/platform-tools` to PATH, starts the backend and Expo (`EXPO_PUBLIC_API_URL=http://10.0.2.2:8000`), opens the app in Expo Go and runs `mobile/<app>/e2e/<flow>.yaml` with Maestro (install the Maestro CLI if missing; Java 21 is present). `smoke.yaml` for both apps (login screen visible) passes. The script cleans up on exit (trap): it stops the uvicorn and Expo processes it started and the emulator if it booted it, so the next round doesn't find ports 8000/8081 taken. The lecturer app gets its Expo web dependencies (`react-native-web`, `react-dom`, `@expo/metro-runtime`), and `mobile/lecturer/e2e-web/` has a Playwright smoke test (the login page renders in the browser) runnable via `npm run e2e:web`. If Maestro can't be installed or Expo Go can't be automated, write the exact error under Blocked.
 - [ ] **T04 [HUMAN] Checkpoint: review T01–T03.** The loop stops here (all feature tasks depend on T04). Yew Sing (or a Claude review session) checks the T01–T03 diffs and PROGRESS.md, then ticks `[x]` to let the loop continue.
+
+## 0b. Week 7 demo — AI chat first
+
+These M8 tasks run before everything else after the T04 checkpoint, so the student chat screen is ready for the Week 7 monitoring demo. The rest of M8 stays in section 4.
+
+- [ ] **T80 [API] Characterisation tests for KB + assistant.** Depends on: T01, T04.
+  Done when: `db` tests cover materials list, sync (Moodle mocked), chat session CRUD and message answer (LLM mocked through the adapter), course access control (not-enrolled → 403), at least 10 tests.
+- [ ] **T93 [API] Phone-friendly answer format.** Depends on: T80.
+  Done when: the system prompt forbids LaTeX and asks for plain-text formulas; a backend cleanup step runs on every answer before it is saved and converts any remaining LaTeX (`$$…$$`, `\frac{a}{b}`, `\text{}`, `\times`, `\%`) to readable text; citations are renumbered 1, 2, 3… by first appearance in both the answer text and the citation list; unit tests cover each conversion and the renumbering, including an answer citing [1], [2], [4].
+- [ ] **T84 [API] Open cited source (FR-809).** Depends on: T80.
+  Done when: `GET /student/assistant/materials/{id}/file` streams the material (proxied from Moodle, enrolled students only) and citations carry page/slide numbers the app can open; tests.
+- [ ] **T89 [UI] Student app: assistant chat with citations.** Depends on: T84, T93, T03.
+  Done when: new Assistant tab: course picker, sessions list, chat with citation chips that open the source; general-knowledge label shown; Maestro flow asks a question with the backend's LLM mocked (`LLM_FAKE=1` env flag added for E2E) and sees a citation.
+
+## 0c. Lecturer web
+
 - [ ] **T05 [UI] Lecturer app runs in the browser.** Depends on: T03, T04.
   Done when: the existing lecturer app (same code, Expo web) works in a desktop browser: every current screen opens without a runtime error; phone-only modules have web fallbacks (e.g. token storage); layouts use wide screens through a side navigation and a sensible content width instead of a stretched phone column, while the phone layout stays unchanged; `npx expo export --platform web` and the Android export both pass; `scripts/check.sh` runs the web export when `mobile/lecturer/src` changes; a Playwright flow logs a lecturer in at 1280 px and reaches the dashboard with no horizontal scrolling, and the existing Maestro `smoke.yaml` still passes.
 
@@ -94,10 +110,6 @@ Spec: `docs/requirements/*.md`, `docs/use-cases/UC-M*.md`. Rules: `CLAUDE.md` �
 
 ## 4. Module 8 — AI Learning Assistant
 
-- [ ] **T80 [API] Characterisation tests for KB + assistant.** Depends on: T01, T04.
-  Done when: `db` tests cover materials list, sync (Moodle mocked), chat session CRUD and message answer (LLM mocked through the adapter), course access control (not-enrolled → 403), at least 10 tests.
-- [ ] **T93 [API] Phone-friendly answer format.** Depends on: T80.
-  Done when: the system prompt forbids LaTeX and asks for plain-text formulas; a backend cleanup step runs on every answer before it is saved and converts any remaining LaTeX (`$$…$$`, `\frac{a}{b}`, `\text{}`, `\times`, `\%`) to readable text; citations are renumbered 1, 2, 3… by first appearance in both the answer text and the citation list; unit tests cover each conversion and the renumbering, including an answer citing [1], [2], [4].
 - [ ] **T81 [API] Scheduled material sync + lecturer materials status (FR-803, FR-804).** Depends on: T80.
   Done when: sync runs on a configurable schedule for all courses; only the course's lecturer (or admin) can trigger a sync or list status; tests.
 - [ ] **T82 [INFRA] Live Gemini test suite + record/replay + Q&A evaluation harness (NFR-18, NFR-19, NFR-21).** Depends on: T80.
@@ -109,8 +121,6 @@ Spec: `docs/requirements/*.md`, `docs/use-cases/UC-M*.md`. Rules: `CLAUDE.md` �
   - **Automatic trigger:** `scripts/check.sh` runs `pytest -m live` itself when the round changed `app/services/kb/` or any prompt file (diff vs `SMARTCLASS_BASE`). It runs **at most once per code state**: a hash of `app/services/kb/` + prompts is stored in `.claude/.live-pass` (git-ignored) after a pass, and check.sh skips the live suite when the hash is unchanged. Otherwise the Stop hook and the loop script calling check.sh several times per round would burn the daily quota. If Gemini's daily quota is exhausted, the live tests skip with reason `LLM_QUOTA` and check.sh prints `LIVE TESTS PENDING (quota)`; the task is then marked `[~]` with "re-run live tests" instead of blocking the loop.
   - **Eval harness:** `backend/eval/qa_set.jsonl` (draft ~20 in-syllabus + 5 off-syllabus questions over the seeded courses, `draft: true`) and `scripts/eval_assistant.py`, which runs them throttled and reports citation-support, off-syllabus labelling, latency (NFR-14) and an LLM-judged correctness score, for the report.
 - [ ] **T83 [HUMAN] Review and finalise the Q&A evaluation set** (correct answers, remove `draft`).
-- [ ] **T84 [API] Open cited source (FR-809).** Depends on: T80.
-  Done when: `GET /student/assistant/materials/{id}/file` streams the material (proxied from Moodle, enrolled students only) and citations carry page/slide numbers the app can open; tests.
 - [ ] **T85 [API] Summary / study guide (FR-810).** Depends on: T82.
   Done when: `POST /student/assistant/summaries {course_id, material_id | topic, kind: summary|study_guide}` returns structured markdown with citations; replay/mock tests + live cases added to the T82 suite (≥3: material summary, topic study guide, topic not in materials) with recorded fixtures.
 - [ ] **T86 [API] Flashcards + practice questions (FR-811).** Depends on: T82.
@@ -119,8 +129,6 @@ Spec: `docs/requirements/*.md`, `docs/use-cases/UC-M*.md`. Rules: `CLAUDE.md` �
   Done when: each student question is tagged with a topic (from the cited materials/sections or a cheap LLM label); the lecturer endpoint returns topics with ≥3 distinct students only and no names or text; tests prove that k<3 topics are hidden and that no endpoint exposes another student's chat.
 - [ ] **T88 [API] Retrieval interface for Module 6 (FR-814).** Depends on: T80.
   Done when: `app/services/kb/retrieval_api.py` (`search(course_id, query, k)` → passages with source) is documented in `docs/interfaces.md`; tests.
-- [ ] **T89 [UI] Student app: assistant chat with citations.** Depends on: T84, T93, T03.
-  Done when: new Assistant tab: course picker, sessions list, chat with citation chips that open the source; general-knowledge label shown; Maestro flow asks a question with the backend's LLM mocked (`LLM_FAKE=1` env flag added for E2E) and sees a citation.
 - [ ] **T90 [UI] Student app: summaries + flashcards/practice.** Depends on: T85, T86, T89.
   Done when: screens for generate summary, flip flashcards, answer practice questions; Maestro flow with the fake LLM.
 - [ ] **T91 [UI] Lecturer app: materials status + sync button + question trends.** Depends on: T81, T87, T03.

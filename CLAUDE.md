@@ -142,7 +142,7 @@ Long jobs run as one task per fresh session. Start everything with `/run-plan [r
 - Stay inside the task's scope; note follow-up ideas in PROGRESS.md under "Next" instead of doing them.
 
 ## Merging to main
-Shino builds on `main`, so only finished, checked work goes there.
+Shino builds on `main` or her own branches, so only finished, checked work goes there.
 1. Yew Sing says "prepare the merge" or runs `/prepare-merge`, or Claude suggests it at a milestone.
 2. Claude runs the checks in `.claude/commands/prepare-merge.md`, fixes problems on the work branch, and resolves conflicts there if `main` has changed.
 3. Claude gives Yew Sing the GitHub link and a note for Shino. Yew Sing clicks Merge.

@@ -21,3 +21,7 @@ Short log, newest entry at the bottom of "Log". Each entry is at most 5 lines:
 - Decisions: lecturer app also runs in a browser (Expo web); small admin role with web-only screens inside it; `frontend/admin` retired after T22, T46, T96, once Shino confirms (T95).
 - Changed: PLAN.md adds T05, T22, T93, T95, T96 and edits T03, T46, T89; CLAUDE.md gets the web direction and "Merging to main"; new `/prepare-merge` command.
 - Next: T01.
+
+### T00c — Week 7 priority — 2026-11-09
+- Decisions: the student AI chat screen must be ready for the Week 7 demo, so T80, T93, T84, T89 now run right after the T04 checkpoint (PLAN.md section 0b). Dependencies are unchanged.
+- Next: T01.
