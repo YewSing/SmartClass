@@ -74,5 +74,5 @@ Short log, newest entry at the bottom of "Log". Each entry is at most 5 lines:
 ### T93 — Phone-friendly answer format — 2026-11-09
 - Changed: new `services/kb/answer_format.py` (`clean_latex`: `$$`/`\[ \]`/`\( \)`/maths-looking `$…$`, `\frac`, `\sqrt`, `\text`-family, `\times`/relations/Greek, `\%`, `^{}`/`_{}`; code spans untouched); `assistant.py` adds prompt rule 6 (no LaTeX), cleans every answer before `parse_answer` and the save, and renumbers citations 1, 2, 3… by first appearance.
 - Decisions: `$…$` is only stripped when the inside looks like maths (or is a single letter), so "$5 or $10" stays; display formulas go on their own line; unknown `\cmd` loses its backslash only inside maths, so `\n` in prose stays.
-- Interface: `citations[].n` is now the display number (1..k), not the retrieval passage index. Tests: new `test_answer_format.py` (23) + 1 `db` test; `test_kb` renumbering assertion updated to [1, 2] (intended change); check.sh 107 passing; reviewer PASS.
+- Interface: `citations[].n` is now the display number (1..k), not the retrieval passage index. Tests: new `test_answer_format.py` (21) + 1 `db` test; `test_kb` renumbering assertion updated to [1, 2] (intended change); check.sh 107 passing; reviewer PASS.
 - Next: T84.
