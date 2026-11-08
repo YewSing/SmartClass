@@ -31,7 +31,7 @@ Every SmartClass feature runs in SmartClass. Moodle is only the source of data a
 |----|-------------|----------|-------|
 | FR-101 | The system shall authenticate students and lecturers with their SPeCTRUM (Moodle) username and password through Moodle's token-based web-service login. SmartClass shall never store the Moodle password. | Must Have | Student, Lecturer |
 | FR-102 | The system shall create a SmartClass account automatically on a user's first successful Moodle login. The role (student or lecturer) shall be derived from the user's Moodle course roles. | Must Have | System |
-| FR-103 | The system shall authenticate administrators with a local email and password, independent of Moodle. | Must Have | Admin |
+| FR-103 | The system shall authenticate administrators with a local email and password, independent of Moodle, in the web app only. The phone apps have no administrator sign-in. | Must Have | Admin |
 | FR-104 | The system shall retrieve courses, student enrolments and lecturer assignments from Moodle on login and on a manual or scheduled sync, and shall reflect enrolments added or removed in Moodle. Class lists shall not be maintained separately in SmartClass. | Must Have | System |
 | FR-105 | The system shall enforce role-based access control with three roles (Student, Lecturer, Administrator), so each user can only reach the functions and data their role permits. | Must Have | System |
 | FR-106 | The system shall issue a short-lived access token and a refresh token after login, and shall support logout. | Must Have | System |
@@ -74,13 +74,13 @@ Until M2 exists, these events appear as live updates inside the relevant app scr
 | ID | Description | Priority | Actor |
 |----|-------------|----------|-------|
 | FR-301 | The system shall let a lecturer open and close an attendance session for a scheduled class of a course they teach. | Must Have | Lecturer |
-| FR-302 | The system shall record a student as **Present**, with a timestamp, when Module 4 submits a verified recognition for that student during an open session. Only the first recognition counts. | Must Have | System |
-| FR-303 | The system shall mark every enrolled student without a Present record as **Absent** when the session closes. | Must Have | System |
-| FR-304 | The system shall use exactly two attendance statuses: Present and Absent. | Must Have | System |
+| FR-302 | The system shall record a student as **Present**, with a timestamp, when Module 4 submits a verified recognition for that student during an open session. If that recognition comes more than a configurable time (default 15 minutes) after the session opened, the status is **Late** instead. Only the first recognition counts. | Must Have | System |
+| FR-303 | The system shall mark every enrolled student without a Present or Late record as **Absent** when the session closes. | Must Have | System |
+| FR-304 | The system shall use four attendance statuses: Present, Late, Excused and Absent. Excused is set only by a lecturer's override (for example, for a medical certificate). | Must Have | System |
 | FR-305 | The system shall let the lecturer manually override a student's status for a session, with a mandatory reason. Each override shall be logged with actor, old status, new status, reason and timestamp. | Must Have | Lecturer |
-| FR-306 | The system shall show the lecturer a live view of an open session: who is present, who is not yet recognised, and the counts. It shall update without a manual refresh. | Must Have | Lecturer |
+| FR-306 | The system shall show the lecturer a live view of an open session: who is present or late, who is not yet recognised, and the counts. It shall update without a manual refresh. | Must Have | Lecturer |
 | FR-307 | The system shall keep the attendance history of every student for every session of each course. | Must Have | System |
-| FR-308 | The system shall calculate each student's attendance rate per course (Present sessions ÷ closed sessions). | Must Have | System |
+| FR-308 | The system shall calculate each student's attendance rate per course ((Present + Late sessions) ÷ (closed sessions − Excused sessions)), so Late counts as attended and Excused doesn't count against the student. | Must Have | System |
 | FR-309 | The system shall let a student view their own attendance history and attendance rate per course. | Must Have | Student |
 | FR-310 | The system shall let a lecturer generate attendance reports for a session, or for a course over a date range, and export them as CSV. | Should Have | Lecturer |
 | FR-311 | The system shall copy the finalised attendance of a closed session to the matching session of the course's Moodle Attendance activity (`mod_attendance`). Failed syncs shall be retried automatically. | Must Have | System |
@@ -181,7 +181,7 @@ Module 8 turns each course's lecturer materials into a course knowledge base. St
 
 - **Moodle simulation:** FR-101 uses the simulated SPeCTRUM's username and password. Real SPeCTRUM uses Microsoft 365 SSO, so signing in against the live system would need Microsoft OAuth and approval from UM IT. This is recorded as a scope limitation and future work.
 - **Face privacy:** selfies and card photos are used only for verification and are then deleted. Only embeddings are kept (NFR-01, NFR-02). Lecturers never approve a face from memory: FR-113 always shows the card next to the selfie.
-- **Attendance statuses:** only Present and Absent (FR-304). Moodle's Attendance plugin has more statuses; SmartClass maps to its Present and Absent statuses only.
+- **Attendance statuses:** Present, Late, Excused and Absent (FR-304), which map one-to-one to Moodle's Attendance plugin.
 - **No liveness detection** (proposal §4.9). The camera is at the entrance under the lecturer's supervision.
 - **Assistant language:** English only. An LLM API is required (provider set in configuration). Answers prefer course materials (FR-805) over general knowledge (FR-806).
 - **Thresholds** (face similarity, consecutive frames, card-match similarity, aggregate minimum group size, retention periods) are configuration values, not hard-coded.

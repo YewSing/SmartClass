@@ -39,3 +39,8 @@ Short log, newest entry at the bottom of "Log". Each entry is at most 5 lines:
 - Decisions: tests pin current behaviour as-is (e.g. session CSV exports missing records as "absent"; face-review closest match stores users.id). No production code changed; 2 pre-existing bugs logged under Next.
 - Interface/schema changes: none. Tests: 33 `db` passing, check.sh 45 passing; reviewer PASS.
 - Next: T03.
+
+### T00d — Plan corrections while the loop runs — 2026-11-09
+- Decisions (Yew Sing): four attendance statuses, replacing Present/Absent only. Defaults: Late after 15 min from session open; Late counts as attended; Excused is lecturer-only and left out of the rate. Admins use the browser only.
+- Changed: FR-103, FR-302–FR-304, FR-306, FR-308, UC-M3/M4; PLAN.md T13, T30–T33, T35, T38, T39, T41, T43, T44, T99; new checkpoints T94, T23, T48 that stop the loop.
+- Next: continue the plan.

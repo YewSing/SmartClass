@@ -6,7 +6,7 @@ Spec: `docs/requirements/*.md`, `docs/use-cases/UC-M*.md`. Rules: `CLAUDE.md` �
 
 **Tags:** `[API]` backend · `[UI]` mobile/web, done only when its E2E flow passes · `[INFRA]` tooling · `[HUMAN]` the loop skips it; Yew Sing does it
 
-**Picking rule:** the first `[ ]` task, top to bottom, whose `Depends on` tasks are all `[x]` or `[~]` and which isn't `[HUMAN]`.
+**Picking rule:** the first `[ ]` task, top to bottom, whose `Depends on` tasks are all `[x]` or `[~]` and which isn't `[HUMAN]`. **A `[HUMAN] Checkpoint` stops the loop:** no task below an unticked checkpoint may start. Other `[HUMAN]` tasks are simply skipped.
 
 ---
 
@@ -32,6 +32,7 @@ These M8 tasks run before everything else after the T04 checkpoint, so the stude
   Done when: `GET /student/assistant/materials/{id}/file` streams the material (proxied from Moodle, enrolled students only) and citations carry page/slide numbers the app can open; tests.
 - [ ] **T89 [UI] Student app: assistant chat with citations.** Depends on: T84, T93, T03.
   Done when: new Assistant tab: course picker, sessions list, chat with citation chips that open the source; general-knowledge label shown; Maestro flow asks a question with the backend's LLM mocked (`LLM_FAKE=1` env flag added for E2E) and sees a citation.
+- [ ] **T94 [HUMAN] Checkpoint: try the AI chat before Week 7.** Yew Sing asks real questions on a phone and taps citations. A Claude session reviews the work so far, then Yew Sing can say "prepare the merge".
 
 ## 0c. Lecturer web
 
@@ -47,7 +48,7 @@ These M8 tasks run before everything else after the T04 checkpoint, so the stude
 - [ ] **T12 [API] Admin accounts: deactivate/reactivate, create admin, audit (FR-103, FR-108, FR-118).** Depends on: T02, T04.
   Done when: a deactivated user can't log in (local or Moodle) and can't refresh tokens; an admin can't deactivate themselves; each change writes an audit entry; tests for each rule.
 - [ ] **T13 [UI] Mobile login uses Moodle credentials (both apps).** Depends on: T10, T03.
-  Done when: both login screens ask for SPeCTRUM username + password and call `/auth/moodle-login`; error messages for 401 and 503; Maestro flows `login.yaml` log in `student1` / `lecturer1` and reach the home screen.
+  Done when: both login screens ask for SPeCTRUM username + password and call `/auth/moodle-login`; error messages for 401 and 503; the phone apps have no administrator sign-in, because admins use the browser only; Maestro flows `login.yaml` log in `student1` / `lecturer1` and reach the home screen.
 - [ ] **T14 [API] PDPA consent + withdrawal (FR-109, FR-116, NFR-03).** Depends on: T02, T04.
   Done when: migration adds a consent record (student, version, accepted_at, withdrawn_at); `POST /student/me/face-consent`, `DELETE /student/me/face-consent` (deletes embeddings at once, audited); enrolment endpoints refuse without active consent; tests.
 - [ ] **T15 [API] Card verification service (FR-111).** Depends on: T01, T04.
@@ -66,47 +67,49 @@ These M8 tasks run before everything else after the T04 checkpoint, so the stude
   Done when: `/auth/me` returns name, matric/staff number, email, faculty, courses, face status (students); test.
 - [ ] **T22 [UI] Admin area inside the lecturer web app (FR-103, FR-108, FR-117).** Depends on: T05, T11, T12, T17.
   Done when: the browser login offers administrator sign-in with local email + password; admin-role logins land on an admin area, available on web only, with these screens: accounts (view, deactivate/reactivate, create admin), verification fallback + face data reset, audit log, and Moodle sync status with a sync button. Lecturer logins never see these screens and the server still returns 403 to them. Playwright flows: an admin deactivates and reactivates an account; a lecturer sees no admin navigation and gets 403 from an admin endpoint.
+- [ ] **T23 [HUMAN] Checkpoint: M1 and admin screens on real devices.** Yew Sing tries Moodle login, face enrolment and lecturer review on a phone, and the admin area in a browser. A Claude session reviews the work so far.
 
 ## 2. Module 3 — Attendance Management
 
-- [ ] **T30 [API] Present/Absent only (FR-304).** Depends on: T02, T04.
-  Done when: attendance status is limited to `present | absent` (data migration: existing `unidentified` records → `absent`, and unidentified faces live only in the face-review table); the API, seed and tests are updated; CHECK constraint in the DB.
+- [ ] **T30 [API] Four attendance statuses (FR-302–FR-304).** Depends on: T02, T04.
+  Done when: attendance status is limited to `present | late | excused | absent`; a first recognition more than `ATTENDANCE_LATE_AFTER_MINUTES` (config, default 15) after the session opened records `late`; `excused` is only ever set by a lecturer override (data migration: existing `unidentified` records → `absent`, and unidentified faces live only in the face-review table); the API, seed and tests are updated; CHECK constraint in the DB.
 - [ ] **T31 [API] Override with mandatory reason + full audit (FR-305, NFR-06).** Depends on: T30.
   Done when: both override endpoints require a non-empty reason (422 otherwise) and audit actor, old, new, reason, time; only the course's lecturer may override (403 test).
 - [ ] **T32 [API] Attendance rate + history (FR-307–FR-309).** Depends on: T30.
-  Done when: rate = present ÷ closed sessions per student per course; student endpoint returns per-course rate + session history; lecturer endpoint returns per-student rates for a course; tests including zero closed sessions.
+  Done when: rate = (present + late) ÷ (closed sessions − excused) per student per course, with status counts returned too; student endpoint returns per-course rate + session history; lecturer endpoint returns per-student rates for a course; tests including zero closed sessions and every session excused.
 - [ ] **T33 [API] Reports + CSV export for course/date range (FR-310).** Depends on: T32.
-  Done when: CSV for a session and for a course over `from`/`to` (students × sessions + rate); tests check headers and rows.
+  Done when: CSV for a session and for a course over `from`/`to` (students × sessions showing all four statuses + rate); tests check headers and rows.
 - [ ] **T34 [INFRA] Moodle Attendance plugin in the simulated SPeCTRUM.** Depends on: T01, T04.
   Done when: `backend/moodle/scripts/setup.sh` installs `mod_attendance` (version matching Moodle 4.5) idempotently, adds its web-service functions (`mod_attendance_add_session`, `mod_attendance_get_sessions`, `mod_attendance_update_user_status`, …) to the `smartclass` service, and `seed.sh` adds an Attendance activity to each seeded course; a `moodle` test calls `mod_attendance_get_sessions` successfully.
 - [ ] **T35 [API] Sync closed sessions to Moodle Attendance (FR-311, NFR-20, NFR-22).** Depends on: T34, T30.
-  Done when: closing a session queues a sync that finds or creates the matching Moodle attendance session and sets each student's status (Present/Absent mapped to the plugin's status ids); the sync status (`pending | synced | failed`) is stored on the session; failures retry with backoff; idempotent; unit tests with respx + one `moodle` test end-to-end.
+  Done when: closing a session queues a sync that finds or creates the matching Moodle attendance session and sets each student's status (all four statuses mapped one-to-one to the plugin's status ids); the sync status (`pending | synced | failed`) is stored on the session; failures retry with backoff; idempotent; unit tests with respx + one `moodle` test end-to-end.
 - [ ] **T36 [API] Re-sync after override + retry endpoint (FR-312).** Depends on: T35, T31.
   Done when: an override on a synced session sets it back to `pending` and re-syncs; `POST /lecturer/sessions/{id}/moodle-sync` retries now; sync status in the session API; tests.
 - [ ] **T37 [API] Read interface for Module 7 (FR-313).** Depends on: T32.
   Done when: `app/services/attendance_read.py` exposes documented functions (records per course/student, rates, consecutive absences); `docs/interfaces.md` describes them for Shino; tests.
 - [ ] **T38 [UI] Lecturer app: live session, override with reason, sync status.** Depends on: T31, T36, T03.
-  Done when: the session screen updates live over the websocket, override asks for a reason, sync status is shown with a Retry button; Maestro flow opens a session, overrides a student with a reason and closes it.
+  Done when: the session screen updates live over the websocket, late students are shown separately, override offers all four statuses and asks for a reason, sync status is shown with a Retry button; Maestro flow opens a session, overrides a student to Excused with a reason and closes it.
 - [ ] **T39 [UI] Student app: attendance rate + history per course.** Depends on: T32, T03.
-  Done when: the Attendance screen shows per-course rate and session list from the real API; Maestro flow checks a seeded rate.
+  Done when: the Attendance screen shows per-course rate, status counts and session list (all four statuses) from the real API; Maestro flow checks a seeded rate.
 
 ## 3. Module 4 — Face Recognition Verification
 
 - [ ] **T40 [API] Camera device registry + per-device keys + heartbeat (FR-408, NFR-07, NFR-23).** Depends on: T02, T04.
   Done when: admins can register a device (name, room) and get its key once (stored hashed), regenerate a key (old one revoked); device endpoints authenticate with `X-Device-Key` instead of the shared internal key; `POST /device/heartbeat`; online = heartbeat within 60 s; tests.
 - [ ] **T41 [API] Server-side recognition from face crops (FR-402–FR-405, NFR-10, NFR-22).** Depends on: T40, T30.
-  Done when: `POST /device/faces` (multipart crop(s)) embeds on the server, matches only students enrolled in the open session's course above the threshold, keeps per-device consecutive-match votes (default 3) and records Present through the attendance service; non-enrolled matches are logged, not recorded; tests with InsightFace sample images (match, below threshold, not enrolled, vote counting, duplicate).
+  Done when: `POST /device/faces` (multipart crop(s)) embeds on the server, matches only students enrolled in the open session's course above the threshold, keeps per-device consecutive-match votes (default 3) and records Present or Late through the attendance service; non-enrolled matches are logged, not recorded; tests with InsightFace sample images (match, late arrival, below threshold, not enrolled, vote counting, duplicate).
 - [ ] **T42 [API] Device client for Pi and webcam (FR-401, FR-409, FR-411).** Depends on: T41.
   Done when: `device_client/` (replaces `face_worker/`'s role) polls for an open session for its room, detects faces locally (light model suitable for a Pi), POSTs crops with its key, sends heartbeats, optionally buffers while offline; runs on the laptop with a USB webcam via `python -m device_client --camera 0`; unit tests for the detection → crop → post logic with a fake camera.
 - [ ] **T43 [API] Unrecognised faces → lecturer review (FR-407, FR-410, NFR-02).** Depends on: T41.
-  Done when: unmatched crops are stored per session; the session's lecturer lists them, assigns one to an enrolled, not-yet-present student (Present, source `face_review`, audited) or dismisses; crops are deleted on resolution, with a retention job after 7 days; admin keeps access as a fallback; tests.
+  Done when: unmatched crops are stored per session; the session's lecturer lists them, assigns one to an enrolled, student not yet recorded (Present or Late from the crop's capture time, source `face_review`, audited) or dismisses; crops are deleted on resolution, with a retention job after 7 days; admin keeps access as a fallback; tests.
 - [ ] **T44 [API] Recognition feedback events (FR-406, NFR-12).** Depends on: T41.
-  Done when: on Present, a websocket event goes to the lecturer's session channel and to the student's channel, and `app/services/notify.py` exposes `emit(event, user_ids, payload)` as the M2 hook (logs only for now, documented in `docs/interfaces.md`); tests.
+  Done when: on Present or Late, a websocket event goes to the lecturer's session channel and to the student's channel, and `app/services/notify.py` exposes `emit(event, user_ids, payload)` as the M2 hook (logs only for now, documented in `docs/interfaces.md`); tests.
 - [ ] **T45 [UI] Lecturer unrecognised-faces screen + student "attendance recorded" banner.** Depends on: T43, T44, T03.
   Done when: Maestro flows: lecturer assigns a seeded unrecognised face; the student app shows the banner after a simulated recognition.
 - [ ] **T46 [UI] Admin area: device management page.** Depends on: T40, T22.
   Done when: page lists devices with online status, registers a device and shows the key once, regenerates a key; Playwright test.
 - [ ] **T47 [HUMAN] Run the device client on the Raspberry Pi** with the Pi camera at the door; measure NFR-11 (fps) and NFR-10; record results in PROGRESS.md.
+- [ ] **T48 [HUMAN] Checkpoint: full attendance run.** Yew Sing runs one class end to end with the camera: open session, Present and Late recognition, override to Excused, close, and check the statuses in Moodle. A Claude session reviews the work so far.
 
 ## 4. Module 8 — AI Learning Assistant
 
@@ -143,6 +146,6 @@ These M8 tasks run before everything else after the T04 checkpoint, so the stude
   Done when: PROGRESS.md lists every old admin view and where it went (Users → accounts; FaceData, FaceReviewQueue → verification fallback; AuditLog → audit log; Students, Lecturers, Enrollment, ClassManagement → replaced by Moodle sync; Dashboard → removed); `frontend/admin/` is deleted; `scripts/check.sh`, README and CLAUDE.md no longer refer to it; no backend endpoint is removed unless a test shows nothing uses it; `bash scripts/check.sh` and the admin-area Playwright flows pass.
 - [ ] **T98 [INFRA] Docs refresh.** Depends on: all API tasks of M1/M3/M4/M8.
   Done when: README and CLAUDE.md run instructions match reality (device client, Moodle plugin, E2E); `docs/interfaces.md` is complete.
-- [ ] **T99 [HUMAN] UAT preparation** (VPS deploy, test accounts, consent forms).
+- [ ] **T99 [HUMAN] UAT preparation** (VPS deploy, test accounts, consent forms, and installable Android APKs of the student and lecturer apps pointed at the server, e.g. with EAS Build, because Expo Go needs the laptop's dev server).
 
 **Deferred (not in this plan, waiting on M6):** FR-820–FR-824.

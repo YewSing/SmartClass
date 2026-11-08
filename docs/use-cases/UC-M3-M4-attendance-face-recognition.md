@@ -27,7 +27,7 @@
 - **Actor:** System (Raspberry Pi device + backend)
 - **Description:** The Pi at the door detects faces and sends crops to the backend, which identifies the student and records attendance.
 - **Preconditions:** A session is open for the device's room; students have active face data (UC-104).
-- **Postconditions:** Recognised students are Present (UC-402); unmatched faces are flagged (UC-404).
+- **Postconditions:** Recognised students are Present or Late (UC-402); unmatched faces are flagged (UC-404).
 
 **Main Flow:**
 1. The Pi polls for an open session for its room and starts capturing (FR-401).
@@ -47,14 +47,14 @@
 
 ---
 
-## UC-402: Record Present and give feedback
+## UC-402: Record Present or Late and give feedback
 
 - **Actor:** System
 - **Preconditions:** UC-401 confirmed a student; session still open.
-- **Postconditions:** Present record with timestamp and device ID; student and lecturer informed.
+- **Postconditions:** Present or Late record with timestamp and device ID; student and lecturer informed.
 
 **Main Flow:**
-1. System writes Present for the student and session, unless one already exists (FR-302, NFR-22).
+1. System writes Present, or Late if past the configured time (FR-302), for the student and session, unless one already exists (FR-302, NFR-22).
 2. Lecturer's live view updates without refresh (FR-306).
 3. Student is told on their phone "Attendance recorded for <course>" (FR-406). This is delivered through Module 2's notification event; until M2 exists, it shows as a live update in the student app.
 
@@ -68,7 +68,7 @@
 - **Actor:** Lecturer
 - **Main Flow:**
 1. Lecturer opens the live session view.
-2. System shows Present and Not-yet-recognised students, counts, device status, and pending unrecognised faces. These update live (FR-306).
+2. System shows Present, Late and Not-yet-recognised students, counts, device status, and pending unrecognised faces. These update live (FR-306).
 
 ---
 
@@ -76,12 +76,12 @@
 
 - **Actor:** Lecturer
 - **Preconditions:** A face was detected but not matched during a session (FR-407).
-- **Postconditions:** Face assigned to a student (marked Present) or dismissed; crop deleted (FR-410, NFR-02).
+- **Postconditions:** Face assigned to a student (marked Present or Late) or dismissed; crop deleted (FR-410, NFR-02).
 
 **Main Flow:**
 1. Lecturer opens Unrecognised Faces from the live view.
 2. System shows each crop with time and similarity to the closest candidate.
-3. Lecturer assigns the crop to an enrolled student who is not yet present. System records Present with "manual (face review)" as the source and writes an audit entry.
+3. Lecturer assigns the crop to an enrolled student not yet recorded. System records Present or Late from the capture time, with "manual (face review)" as the source and writes an audit entry.
 4. System deletes the crop.
 
 **Alternative Flows:**
@@ -92,11 +92,11 @@
 ## UC-304: Close the session
 
 - **Actor:** Lecturer
-- **Postconditions:** Every enrolled student is Present or Absent; Moodle sync queued (UC-306).
+- **Postconditions:** Every enrolled student has a status (Present, Late, Excused or Absent); Moodle sync queued (UC-306).
 
 **Main Flow:**
 1. Lecturer taps "End attendance".
-2. System marks every enrolled student without a Present record as Absent (FR-303).
+2. System marks every enrolled student without a Present or Late record as Absent (FR-303).
 3. The device stops capturing.
 4. System queues the Moodle sync (FR-311).
 
@@ -109,7 +109,7 @@
 - **Postconditions:** Status changed; audit entry written; re-sync queued if already synced.
 
 **Main Flow:**
-1. Lecturer selects a student in a session and switches Present ↔ Absent.
+1. Lecturer selects a student in a session and changes their status to Present, Late, Excused or Absent.
 2. System requires a reason (FR-305).
 3. System saves the change and audits actor, old status, new status, reason and time (NFR-06).
 4. If the session was already synced, system queues a re-sync (FR-312).
@@ -120,11 +120,11 @@
 
 - **Actor:** System
 - **Preconditions:** Session closed; the Moodle course has an Attendance activity.
-- **Postconditions:** The Moodle Attendance session holds the same Present/Absent statuses; SmartClass marks the sync "synced".
+- **Postconditions:** The Moodle Attendance session holds the same statuses; SmartClass marks the sync "synced".
 
 **Main Flow:**
 1. System finds, or creates, the Moodle Attendance session for this class date and time (FR-311).
-2. System maps Present/Absent to the activity's Present/Absent statuses and sends each student's status.
+2. System maps the four statuses one-to-one to the activity's statuses and sends each student's status.
 3. System marks the session "synced" with a timestamp (FR-312).
 
 **Exception Flows:**
