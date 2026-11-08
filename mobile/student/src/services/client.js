@@ -117,4 +117,11 @@ export async function apiCall(method, path, body, _isRetry = false) {
   return res.status === 204 ? null : res.json()
 }
 
+// For requests that can't go through apiCall (file downloads): try a refresh after a 401
+export async function refreshAccessToken() {
+  const ok = await _doRefresh()
+  if (!ok) _forceLogout()
+  return ok
+}
+
 export { BASE }

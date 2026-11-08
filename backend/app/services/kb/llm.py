@@ -32,7 +32,29 @@ def _get_client():
     return _client
 
 
+FAKE_COURSE_ANSWER = "This is a test answer from your course materials [1]."
+FAKE_GENERAL_ANSWER = (
+    "This isn't covered in your course materials, so here's a general explanation: this is a test answer."
+)
+
+
+def fake_chat(messages: list[dict]) -> str:
+    """Deterministic reply for E2E runs (LLM_FAKE=1), shaped like the real prompts' answers.
+
+    A follow-up rewrite gets the latest question back; an answer cites passage [1] when the
+    prompt carries course passages, otherwise it is a general-knowledge answer.
+    """
+    last = messages[-1]["content"]
+    if "standalone search query" in messages[0]["content"]:
+        return last.rsplit("Latest question:", 1)[-1].strip()
+    if "\n[1] " in last:
+        return FAKE_COURSE_ANSWER
+    return FAKE_GENERAL_ANSWER
+
+
 async def chat(messages: list[dict], max_tokens: int | None = None, temperature: float = 0.2) -> str:
+    if settings.LLM_FAKE:
+        return fake_chat(messages)
     client = _get_client()
     # Thinking models (Gemini 3.x) can spend tens of seconds reasoning; "low" keeps chat snappy
     extra = {"reasoning_effort": settings.LLM_REASONING_EFFORT} if settings.LLM_REASONING_EFFORT else {}

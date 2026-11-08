@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     LLM_TIMEOUT_SECONDS: float = 45.0
     LLM_MAX_OUTPUT_TOKENS: int = 1200
     LLM_REASONING_EFFORT: str = ""   # e.g. "low" for Gemini thinking models; empty = not sent
+    LLM_FAKE: bool = False           # E2E only: canned answers, no provider call (see llm.fake_chat)
     ASSISTANT_HISTORY_TURNS: int = 3          # previous Q/A pairs sent for follow-ups
     ASSISTANT_REWRITE_FOLLOWUPS: bool = True  # rewrite follow-ups into standalone retrieval queries
     ASSISTANT_TOP_K: int = 8

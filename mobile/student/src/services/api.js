@@ -156,6 +156,25 @@ export const getAttendanceGroups = async () => {
   return Object.values(merged)
 }
 
+// ─── AI Learning Assistant (Module 8) ─────────────────────────────────────────
+
+export const getAssistantCourses = () => apiCall('GET', '/student/assistant/courses')
+
+export const getChatSessions = (courseId) =>
+  apiCall('GET', `/student/assistant/sessions?course_id=${courseId}`)
+
+export const createChatSession = (courseId) =>
+  apiCall('POST', '/student/assistant/sessions', { course_id: courseId })
+
+export const deleteChatSession = (sessionId) =>
+  apiCall('DELETE', `/student/assistant/sessions/${sessionId}`)
+
+export const getChatMessages = (sessionId) =>
+  apiCall('GET', `/student/assistant/sessions/${sessionId}/messages`)
+
+export const sendChatMessage = (sessionId, content) =>
+  apiCall('POST', `/student/assistant/sessions/${sessionId}/messages`, { content })
+
 // ─── Mocked (Module 3/4 — participation/quiz) ─────────────────────────────────
 
 const delay = (ms) => new Promise(res => setTimeout(res, ms))

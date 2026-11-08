@@ -18,6 +18,9 @@ import AttReportStatus from '../screens/AttReportStatus'
 import Participation from '../screens/Participation'
 import PartSessionPerf from '../screens/PartSessionPerf'
 import Profile from '../screens/Profile'
+import Assistant from '../screens/Assistant'
+import AssistantChat from '../screens/AssistantChat'
+import AssistantSource from '../screens/AssistantSource'
 
 const Stack = createNativeStackNavigator()
 const Tab   = createBottomTabNavigator()
@@ -51,6 +54,16 @@ function ParticipationStack() {
   )
 }
 
+function AssistantStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="AssistantScreen" component={Assistant} />
+      <Stack.Screen name="AssistantChat"   component={AssistantChat} />
+      <Stack.Screen name="AssistantSource" component={AssistantSource} />
+    </Stack.Navigator>
+  )
+}
+
 function ProfileStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -64,6 +77,7 @@ function ProfileStack() {
 const TAB_ICONS = {
   Home:          { active: 'home',                inactive: 'home-outline' },
   Attendance:    { active: 'calendar',            inactive: 'calendar-outline' },
+  Assistant:     { active: 'sparkles',            inactive: 'sparkles-outline' },
   Participation: { active: 'stats-chart',         inactive: 'stats-chart-outline' },
   Profile:       { active: 'person',              inactive: 'person-outline' },
 }
@@ -96,6 +110,7 @@ function MainTabs() {
     >
       <Tab.Screen name="Home"          component={HomeStack}          options={{ title: 'Home' }} />
       <Tab.Screen name="Attendance"    component={AttendanceStack}    options={{ title: 'Attendance' }} />
+      <Tab.Screen name="Assistant"     component={AssistantStack}     options={{ title: 'Assistant' }} />
       <Tab.Screen name="Participation" component={ParticipationStack} options={{ title: 'Participation' }} />
       <Tab.Screen name="Profile"       component={ProfileStack}       options={{ title: 'Profile' }} />
     </Tab.Navigator>

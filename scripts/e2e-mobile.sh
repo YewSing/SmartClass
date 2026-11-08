@@ -120,12 +120,13 @@ export ANDROID_SERIAL=$serial
 adb shell input keyevent 82 >/dev/null 2>&1 || true     # unlock screen
 
 # --- backend -----------------------------------------------------------------
+# E2E never calls the real LLM: the backend we start answers with canned replies (LLM_FAKE=1).
 if curl -s --max-time 2 "http://127.0.0.1:$API_PORT/health" >/dev/null; then
-  echo "== backend already running on :$API_PORT"
+  echo "== backend already running on :$API_PORT (not started by this script, so LLM_FAKE may be off)"
 else
-  echo "== starting backend on :$API_PORT"
+  echo "== starting backend on :$API_PORT (LLM_FAKE=1)"
   (cd "$root/backend" && docker compose up -d >/dev/null 2>&1) || echo "   (docker compose up failed; continuing)"
-  (cd "$root/backend" && exec python -m uvicorn app.main:app --host 0.0.0.0 --port "$API_PORT") \
+  (cd "$root/backend" && LLM_FAKE=1 exec python -m uvicorn app.main:app --host 0.0.0.0 --port "$API_PORT") \
     > "$logdir/e2e-backend-$stamp.log" 2>&1 &
   started_pids+=($!)
   wait_for 60 "backend /health" curl -sf "http://127.0.0.1:$API_PORT/health" || { tail -20 "$logdir/e2e-backend-$stamp.log"; exit 1; }

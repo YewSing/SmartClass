@@ -1,0 +1,71 @@
+# Assistant: a student asks a question about a course and opens the cited source.
+# Run: bash scripts/e2e-mobile.sh student assistant
+# Needs the dev database with indexed WIA2005 materials (Moodle sync) and the seeded student
+# 23004002 (enrolled in WIA2005). The script starts the backend with LLM_FAKE=1, so the answer is
+# the canned one citing passage [1] and no real LLM is called.
+appId: host.exp.exponent
+---
+- extendedWaitUntil:
+    visible: "Welcome back|Continue"
+    timeout: 180000
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+- extendedWaitUntil:
+    visible: "Welcome back"
+    timeout: 60000
+
+# Log in as a student enrolled in a course that has materials
+- tapOn: "Clear email"
+- tapOn: "your@siswa.um.edu.my"
+- inputText: "23004002@siswa.um.edu.my"
+- hideKeyboard
+- tapOn: "Sign In"
+
+- extendedWaitUntil:
+    visible: "Assistant"
+    timeout: 60000
+- tapOn: "Assistant"
+- extendedWaitUntil:
+    visible: "New chat"
+    timeout: 30000
+# The first course with materials is preselected and its chip scrolled into view
+- extendedWaitUntil:
+    visible: "WIA2005"
+    timeout: 10000
+- tapOn: "WIA2005"
+- assertVisible: "WIA2005 · .*"
+- assertVisible: "[0-9]+ materials from SPeCTRUM"
+- tapOn: "New chat"
+
+- assertVisible: "Ask about WIA2005"
+- tapOn:
+    id: "assistant-input"
+- inputText: "What is a greedy algorithm?"
+- hideKeyboard
+- tapOn:
+    id: "assistant-send"
+
+# The answer cites passage [1]; its chip shows the material and page/slide
+- extendedWaitUntil:
+    visible: "This is a test answer from your course materials \\[1\\]\\."
+    timeout: 60000
+- assertVisible: "\\[1\\]"
+- assertNotVisible: "General knowledge · not from your course materials"
+- tapOn: "\\[1\\]"
+
+- extendedWaitUntil:
+    visible: "Source \\[1\\]"
+    timeout: 15000
+- assertVisible: "Cited passage"
+- assertVisible: "Open file at (page|slide|section) [0-9]+"
+
+# Back in the chat list, the new chat is saved under its question
+- back
+- back
+- extendedWaitUntil:
+    visible: "Your chats"
+    timeout: 15000
+- assertVisible: "What is a greedy algorithm\\?"

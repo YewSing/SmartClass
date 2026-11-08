@@ -77,7 +77,7 @@ export default function Login() {
                 placeholderTextColor={C.textHint}
               />
               {email ? (
-                <TouchableOpacity onPress={() => setEmail('')} style={styles.eyeBtn}>
+                <TouchableOpacity onPress={() => setEmail('')} style={styles.eyeBtn} accessibilityLabel="Clear email">
                   <Ionicons name="close-circle" size={18} color={C.textHint} />
                 </TouchableOpacity>
               ) : null}

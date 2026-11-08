@@ -30,7 +30,7 @@ These M8 tasks run before everything else after the T04 checkpoint, so the stude
   Done when: the system prompt forbids LaTeX and asks for plain-text formulas; a backend cleanup step runs on every answer before it is saved and converts any remaining LaTeX (`$$…$$`, `\frac{a}{b}`, `\text{}`, `\times`, `\%`) to readable text; citations are renumbered 1, 2, 3… by first appearance in both the answer text and the citation list; unit tests cover each conversion and the renumbering, including an answer citing [1], [2], [4].
 - [x] **T84 [API] Open cited source (FR-809).** Depends on: T80.
   Done when: `GET /student/assistant/materials/{id}/file` streams the material (proxied from Moodle, enrolled students only) and citations carry page/slide numbers the app can open; tests.
-- [ ] **T89 [UI] Student app: assistant chat with citations.** Depends on: T84, T93, T03.
+- [x] **T89 [UI] Student app: assistant chat with citations.** Depends on: T84, T93, T03.
   Done when: new Assistant tab: course picker, sessions list, chat with citation chips that open the source; general-knowledge label shown; Maestro flow asks a question with the backend's LLM mocked (`LLM_FAKE=1` env flag added for E2E) and sees a citation.
 - [ ] **T94 [HUMAN] Checkpoint: try the AI chat before Week 7.** Yew Sing asks real questions on a phone and taps citations. A Claude session reviews the work so far, then Yew Sing can say "prepare the merge".
 
