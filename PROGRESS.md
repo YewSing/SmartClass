@@ -8,7 +8,7 @@ Short log, newest entry at the bottom of "Log". Each entry is at most 5 lines:
 
 ## Next
 <!-- Follow-up ideas found during tasks that are out of the current task's scope. -->
-- (T00f) `GET /lecturer/analytics` (`routers/analytics.py`, M7, Shino) lets any lecturer read any class's analytics (NFR-04). Not changed because it's her module; `core/deps.py` `ensure_teaches_occurrence` is ready for it. Tell Shino.
+- (T00f) `GET /lecturer/analytics` (`routers/analytics.py`, M7, Shino) lets any lecturer read any class's analytics (NFR-04). Not changed because it's her module; the issue and fix are written up for her under Module 7 in `docs/requirements/functional-requirements.md`.
 
 ## Log
 

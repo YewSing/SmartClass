@@ -136,6 +136,10 @@ Interfaces M8 needs from M6 (deferred FRs FR-820–FR-824): quiz results per stu
 Purpose (from proposal): engagement indicators (attendance, participation, confusion, quiz trends), lecturer dashboards and rule-based at-risk alerts.
 **FRs to be written by the module owner.** Attendance data comes from FR-313.
 
+> **Open issue for Shino (found 2026-11-09, not fixed because M7 is your module):** `GET /lecturer/analytics` in `backend/app/routers/analytics.py` checks that the caller is a lecturer or admin, but not that a lecturer teaches the class in `occurrence_id`. Any lecturer can read any class's analytics, including the names, matric numbers and attendance rates of its at-risk students. NFR-04 says lecturers may only reach the courses they teach.
+>
+> **Fix:** when the caller is a lecturer, call `await ensure_teaches_occurrence(db, actor, occurrence_id)` (from `app.core.deps`) after the "Occurrence not found" check. It returns 403 if they aren't assigned to the class. `backend/tests/test_lecturer_access.py` shows how to test it. Delete this note once it's fixed.
+
 ---
 
 ## Module 8 — Personalized Learning: AI Learning Assistant (Owner: Yew Sing)
