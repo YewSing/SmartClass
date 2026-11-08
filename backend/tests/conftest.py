@@ -143,6 +143,60 @@ async def users() -> dict[str, User]:
         return {"admin": admin, "lecturer": lec_user, "student": stu_user}
 
 
+@pytest.fixture
+async def classroom(users) -> dict:
+    """CS101 lecture owned by the test lecturer with 3 enrolled students (incl. the test student),
+    plus CS202 owned by another lecturer. Returns plain ids."""
+    from sqlalchemy import select
+
+    from app.models.class_ import ClassOccurrence, Course, Enrollment
+
+    async with AsyncSessionLocal() as db:
+        lec = (await db.execute(select(Lecturer).where(Lecturer.user_id == users["lecturer"].id))).scalar_one()
+        stu = (await db.execute(select(Student).where(Student.user_id == users["student"].id))).scalar_one()
+
+        other_lec_user = User(email="other.lecturer@um.edu.my", password_hash=hash_password("Other@1234"),
+                              role="lecturer", name="Other Lecturer", status="active")
+        extra_users = [
+            User(email=f"student{i}@siswa.um.edu.my", password_hash=hash_password("Student@1234"),
+                 role="student", name=f"Student {i}", status="active")
+            for i in (2, 3)
+        ]
+        db.add_all([other_lec_user, *extra_users])
+        await db.flush()
+        other_lec = Lecturer(user_id=other_lec_user.id, staff_id="STAFF-T002", dept="Computer Science")
+        extra_students = [
+            Student(user_id=u.id, matric_no=f"S000000{i}", programme="Software Engineering")
+            for i, u in zip((2, 3), extra_users)
+        ]
+        db.add_all([other_lec, *extra_students])
+        await db.flush()
+
+        course = Course(code="CS101", name="Intro to Testing")
+        other_course = Course(code="CS202", name="Other Course")
+        db.add_all([course, other_course])
+        await db.flush()
+        occ = ClassOccurrence(course_id=course.id, type="LECTURE", day_of_week="Mon",
+                              start_time="08:00", end_time="10:00", room="DK1", lecturer_id=lec.id)
+        other_occ = ClassOccurrence(course_id=other_course.id, type="LECTURE", day_of_week="Tue",
+                                    start_time="10:00", end_time="12:00", room="DK2", lecturer_id=other_lec.id)
+        db.add_all([occ, other_occ])
+        await db.flush()
+        students = [stu, *extra_students]
+        db.add_all([Enrollment(student_id=s.id, occurrence_id=occ.id) for s in students])
+        await db.commit()
+        return {
+            "course_id": course.id,
+            "occurrence_id": occ.id,
+            "other_occurrence_id": other_occ.id,
+            "lecturer_id": lec.id,
+            "other_lecturer_id": other_lec.id,
+            "other_lecturer_user_id": other_lec_user.id,
+            "student_ids": [s.id for s in students],  # students.id, ordered by matric_no
+            "student_user_ids": [s.user_id for s in students],
+        }
+
+
 def _client(token: str | None = None) -> httpx.AsyncClient:
     headers = {"Authorization": f"Bearer {token}"} if token else {}
     return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test", headers=headers)
@@ -163,6 +217,12 @@ async def admin_client(users):
 @pytest.fixture
 async def lecturer_client(users):
     async with _client(create_access_token(users["lecturer"].id, "lecturer")) as c:
+        yield c
+
+
+@pytest.fixture
+async def other_lecturer_client(classroom):
+    async with _client(create_access_token(classroom["other_lecturer_user_id"], "lecturer")) as c:
         yield c
 
 

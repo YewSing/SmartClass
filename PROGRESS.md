@@ -8,6 +8,8 @@ Short log, newest entry at the bottom of "Log". Each entry is at most 5 lines:
 
 ## Next
 <!-- Follow-up ideas found during tasks that are out of the current task's scope. -->
+- (T02) Lecturer write/read endpoints (open/close session, overrides, roster, CSV exports) don't check the lecturer teaches that occurrence — NFR-04; fix with T31/T33 and add cross-lecturer tests (`other_lecturer_client` fixture exists).
+- (T02) `POST /lecturer/sessions` as admin (no Lecturer row) sets `lecturer_id=0` → FK error/500; decide whether admins may open sessions.
 
 ## Log
 
@@ -31,3 +33,9 @@ Short log, newest entry at the bottom of "Log". Each entry is at most 5 lines:
 - Decisions: `db` tests use `smartclass_test` (from DATABASE_URL, or TEST_DATABASE_URL; name must end `_test`), dropped/recreated + `alembic upgrade head` once per session, TRUNCATE after each test; role clients use `create_access_token` directly; `live`/`moodle` auto-skip in conftest when LLM_API_KEY / MOODLE_TOKEN empty.
 - Interface/schema changes: none. Tests: 17 passing (12 KB + 5 db); `ruff check .` clean; check.sh passes (needs docker postgres up).
 - Next: T02, T03.
+
+### T02 — Characterisation tests — 2026-11-09
+- Changed: `tests/conftest.py` adds `classroom` (CS101 + 3 enrolled students, CS202 for another lecturer) and `other_lecturer_client`; new `tests/test_char_{auth,sessions,attendance,face_review}.py` (28 tests).
+- Decisions: tests pin current behaviour as-is (e.g. session CSV exports missing records as "absent"; face-review closest match stores users.id). No production code changed; 2 pre-existing bugs logged under Next.
+- Interface/schema changes: none. Tests: 33 `db` passing, check.sh 45 passing; reviewer PASS.
+- Next: T03.
