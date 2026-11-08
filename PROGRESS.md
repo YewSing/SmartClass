@@ -76,3 +76,9 @@ Short log, newest entry at the bottom of "Log". Each entry is at most 5 lines:
 - Decisions: `$…$` is only stripped when the inside looks like maths (or is a single letter), so "$5 or $10" stays; display formulas go on their own line; unknown `\cmd` loses its backslash only inside maths, so `\n` in prose stays.
 - Interface: `citations[].n` is now the display number (1..k), not the retrieval passage index. Tests: new `test_answer_format.py` (21) + 1 `db` test; `test_kb` renumbering assertion updated to [1, 2] (intended change); check.sh 107 passing; reviewer PASS.
 - Next: T84.
+
+### T84 — Open cited source — 2026-11-09
+- Changed: `moodle_client.py` adds `open_file` (streamed GET with token; Moodle's JSON errors, HTTP ≥400 and connection errors become `MoodleError` before any bytes); `routers/assistant.py` adds `GET /student/assistant/materials/{id}/file`; `Citation` gets `file_url` and `open_page`.
+- Decisions: student only, enrolled in the material's course (403), unknown id 404, local dev materials without a Moodle file 404, Moodle failure 502; served `inline` with a UTF-8 filename and `Cache-Control: private`; `open_page` = `location_start` (page or slide, per `location_type`); both fields are computed, so citations stored earlier carry them too.
+- Interface: new endpoint above; `citations[]` gain `file_url` (API path) and `open_page`. No schema change. Tests: new `test_assistant_open_source.py` (11: 7 `db` + 4 respx); check.sh 118 passing; reviewer PASS.
+- Next: T89 (the app opens `file_url` with the token and jumps to `open_page`; slides need a viewer that can, or show "slide N").

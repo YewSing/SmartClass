@@ -27,6 +27,20 @@ class MoodleFile:
         return f"moodle:{self.module_id}:{self.file_path}{self.file_name}"
 
 
+class MoodleFileStream:
+    """An open Moodle file download, read in chunks so big slide decks aren't held in memory."""
+
+    def __init__(self, resp: httpx.Response):
+        self._resp = resp
+        self.content_type = resp.headers.get("content-type") or None
+
+    def aiter_bytes(self):
+        return self._resp.aiter_bytes()
+
+    async def aclose(self) -> None:
+        await self._resp.aclose()
+
+
 class MoodleClient:
     def __init__(self, base_url: str | None = None, token: str | None = None, timeout: float = 60.0):
         self.base_url = (base_url or settings.MOODLE_URL).rstrip("/")
@@ -80,6 +94,27 @@ class MoodleClient:
                         mimetype=c.get("mimetype"),
                     ))
         return files
+
+    async def open_file(self, file_url: str) -> MoodleFileStream:
+        """Start streaming a file. Errors are raised before any bytes are sent; the caller closes it."""
+        req = self._http.build_request("GET", file_url, params={"token": self.token})
+        try:
+            resp = await self._http.send(req, stream=True)
+        except httpx.HTTPError as exc:
+            raise MoodleError(f"download failed: {exc.__class__.__name__}") from exc
+        content_type = resp.headers.get("content-type", "")
+        if resp.status_code >= 400 or content_type.startswith("application/json"):
+            # Moodle reports a bad token or missing file as a small JSON body
+            await resp.aread()
+            await resp.aclose()
+            detail = f"HTTP {resp.status_code}"
+            if content_type.startswith("application/json"):
+                try:
+                    detail = resp.json().get("errorcode") or detail
+                except ValueError:
+                    pass
+            raise MoodleError(f"download failed: {detail}")
+        return MoodleFileStream(resp)
 
     async def download(self, file_url: str) -> bytes:
         resp = await self._http.get(file_url, params={"token": self.token})

@@ -1,7 +1,9 @@
 """AI Learning Assistant (Module 8): student chat API and lecturer knowledge-base status."""
 from dataclasses import asdict
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -137,6 +139,45 @@ async def send_message(session_id: int, body: MessageCreate, db: AsyncSession = 
     await db.refresh(reply)
     return MessageOut(id=reply.id, role=reply.role, content=reply.content, citations=reply.citations or [],
                       source_type=reply.source_type, created_at=reply.created_at)
+
+
+# ── student: open a cited source (FR-809) ─────────────────────────────────────
+
+@router.get("/student/assistant/materials/{material_id}/file")
+async def open_material_file(material_id: int, db: AsyncSession = Depends(get_db),
+                             user: User = Depends(_student_only)):
+    """Stream a course file from Moodle, so the app can show it at the cited page or slide."""
+    student = await _student(db, user)
+    material = (await db.execute(select(KbMaterial).where(KbMaterial.id == material_id))).scalar_one_or_none()
+    if not material:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Material not found")
+    await _enrolled_course(db, student.id, material.course_id)
+    if material.source != "moodle" or not material.file_url:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "This material has no file to open")
+
+    # Not `async with`: the client must stay open until the response body has been sent
+    client = None
+    try:
+        client = MoodleClient()
+        stream = await client.open_file(material.file_url)
+    except MoodleError as exc:
+        if client:
+            await client.__aexit__(None, None, None)
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Could not fetch the file from Moodle: {exc}")
+
+    async def body():
+        try:
+            async for chunk in stream.aiter_bytes():
+                yield chunk
+        finally:
+            await stream.aclose()
+            await client.__aexit__(None, None, None)
+
+    media_type = material.mimetype or stream.content_type or "application/octet-stream"
+    return StreamingResponse(body(), media_type=media_type, headers={
+        "Content-Disposition": f"inline; filename*=UTF-8''{quote(material.file_name)}",
+        "Cache-Control": "private, max-age=300",
+    })
 
 
 # ── lecturer / admin: knowledge base status and sync ──────────────────────────
