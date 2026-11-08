@@ -10,6 +10,7 @@ Short log, newest entry at the bottom of "Log". Each entry is at most 5 lines:
 <!-- Follow-up ideas found during tasks that are out of the current task's scope. -->
 - (T02) Lecturer write/read endpoints (open/close session, overrides, roster, CSV exports) don't check the lecturer teaches that occurrence — NFR-04; fix with T31/T33 and add cross-lecturer tests (`other_lecturer_client` fixture exists).
 - (T02) `POST /lecturer/sessions` as admin (no Lecturer row) sets `lecturer_id=0` → FK error/500; decide whether admins may open sessions.
+- No runnable task (2026-11-09): T01–T03 done; T04 `[HUMAN] Checkpoint` is unticked, so the loop is stopped until Yew Sing reviews T01–T03 and ticks it.
 
 ## Log
 
