@@ -10,6 +10,12 @@ Short log, newest entry at the bottom of "Log". Each entry is at most 5 lines:
 <!-- Follow-up ideas found during tasks that are out of the current task's scope. -->
 - (T00f) `GET /lecturer/analytics` (`routers/analytics.py`, M7, Shino) lets any lecturer read any class's analytics (NFR-04). Not changed because it's her module; the issue and fix are written up for her under Module 7 in `docs/requirements/functional-requirements.md`.
 - No runnable task (2026-11-09): T94 `[HUMAN] Checkpoint` (try the AI chat before Week 7) is unticked, so every remaining task is blocked behind it. Yew Sing ticks T94 to resume.
+- REVIEW: T81 - NFR-08: a failed Moodle download can return the Moodle token to the caller. `MoodleClient.download` uses `raise_for_status()`, whose message includes the full URL with `?token=`; `sync.py:76` puts that text in `report.failed`, which the sync API returns (`schemas/assistant.py:93`) and `scripts/kb_sync.py` prints. Older code, found in this review. T84's `open_file` already avoids it, so reuse that error handling and add a test that the token is never in `failed`. Fix before merging to main.
+- REVIEW: T84/T89 - FR-809 and UC step 6 say the source opens in the app at the cited page or slide. It actually opens in another app from the start, and the screen tells the student which page to go to (on web it uses `#page=N`). Yew Sing decides: change the FR/UC to match, or build an in-app viewer.
+- REVIEW: T89 - FR-808 (Must Have) lets students rename chats. `PATCH /student/assistant/sessions/{id}` exists, but the app has no rename and no later task covers it.
+- REVIEW: T93/T89 - answers show in a plain `<Text>`, and the prompt asks for bullet points without banning markdown. T93 only cleans LaTeX, so `**bold**` or `* ` from Gemini would probably show as typed. Not confirmed with a real answer; check during T94.
+- REVIEW: T82 - no `live` tests or `tests/fixtures/llm/` exist yet, so T93's no-LaTeX prompt rule and the renumbered citations have never been checked against real Gemini in a test. Add both to the T82 live suite.
+- REVIEW: T89 - `e2e-mobile.sh` only warns if a backend is already running on the port, so the flow could use one without `LLM_FAKE` and call real Gemini; it should stop instead. `assistant.yaml` also needs indexed WIA2005 in the dev DB, which seed data alone doesn't provide, leaves one chat per run, and never taps "Open file".
 
 ## Log
 
