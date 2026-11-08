@@ -8,7 +8,6 @@ Short log, newest entry at the bottom of "Log". Each entry is at most 5 lines:
 
 ## Next
 <!-- Follow-up ideas found during tasks that are out of the current task's scope. -->
-- No runnable task (2026-11-09): T01–T03 done; T04 `[HUMAN] Checkpoint` is unticked, so the loop is stopped until Yew Sing reviews T01–T03 and ticks it.
 - (T00f) `GET /lecturer/analytics` (`routers/analytics.py`, M7, Shino) lets any lecturer read any class's analytics (NFR-04). Not changed because it's her module; `core/deps.py` `ensure_teaches_occurrence` is ready for it. Tell Shino.
 
 ## Log
