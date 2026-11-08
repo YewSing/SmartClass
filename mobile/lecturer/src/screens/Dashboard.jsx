@@ -114,7 +114,7 @@ export default function Dashboard({ navigation }) {
           </View>
           <Text style={styles.brandName}>SmartClass</Text>
         </View>
-        <TouchableOpacity style={styles.profileBtn} onPress={() => navigation.navigate('Profile')}>
+        <TouchableOpacity style={styles.profileBtn} accessibilityLabel="Profile" onPress={() => navigation.navigate('Profile')}>
           <Text style={styles.profileInitials}>{lecturer?.initials ?? 'ME'}</Text>
         </TouchableOpacity>
       </View>

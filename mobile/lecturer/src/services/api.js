@@ -1,6 +1,5 @@
-import * as FileSystem from 'expo-file-system/legacy'
-import * as Sharing from 'expo-sharing'
 import { apiCall, apiCallRaw, getToken, setToken, clearToken, setRefreshToken, clearRefreshToken, BASE } from './client'
+import { saveCsv } from './saveCsv'
 import {
   QUIZZES, BREAKDOWN_ROWS,
   ANALYTICS_PAR_BARS, ANALYTICS_PAR_LABELS,
@@ -158,20 +157,10 @@ export const overrideAttendance = async (recordId, newStatus, sessionId, student
   return apiCall('PUT', `/lecturer/sessions/${sessionId}/attendance/override`, { student_id: studentId, status: newStatus })
 }
 
-// Writes CSV text to a temp file in the cache dir and opens the native share sheet.
-async function shareCsv(csvText, filename) {
-  if (!(await Sharing.isAvailableAsync())) {
-    throw new Error('Sharing is not available on this device.')
-  }
-  const uri = FileSystem.cacheDirectory + filename
-  await FileSystem.writeAsStringAsync(uri, csvText, { encoding: 'utf8' })
-  await Sharing.shareAsync(uri, { mimeType: 'text/csv', dialogTitle: 'Save CSV' })
-}
-
 export const exportSessionCsv = async (sessionId, filename) => {
   const res = await apiCallRaw('GET', `/lecturer/sessions/${sessionId}/export?format=csv`)
   const csvText = await res.text()
-  await shareCsv(csvText, filename)
+  await saveCsv(csvText, filename)
 }
 
 export const exportOccurrenceCsv = async (occId, filename, dateParams = {}) => {
@@ -180,7 +169,7 @@ export const exportOccurrenceCsv = async (occId, filename, dateParams = {}) => {
     : ''
   const res = await apiCallRaw('GET', `/lecturer/occurrences/${occId}/attendance/export${qs}`)
   const csvText = await res.text()
-  await shareCsv(csvText, filename)
+  await saveCsv(csvText, filename)
 }
 
 // ─── Analytics ────────────────────────────────────────────────────────────────

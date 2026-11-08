@@ -8,21 +8,24 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useLecturer } from '../context/LecturerContext'
 import { navigateTo } from '../navigation/navigationRef'
+import { useWideLayout } from '../hooks/useWideLayout'
 import { C } from '../theme'
 import Badge from './Badge'
 
 // ─── Sheet wrapper ─────────────────────────────────────────────────────────────
 
+// Bottom sheet on phones; a centred dialog on wide (desktop browser) screens.
 function Sheet({ visible, onClose, children }) {
   const { bottom } = useSafeAreaInsets()
+  const wide = useWideLayout()
   return (
-    <Modal transparent animationType="slide" visible={visible} onRequestClose={onClose}>
-      <View style={styles.overlay}>
+    <Modal transparent animationType={wide ? 'fade' : 'slide'} visible={visible} onRequestClose={onClose}>
+      <View style={[styles.overlay, wide && styles.overlayWide]}>
         <TouchableWithoutFeedback onPress={onClose}>
           <View style={StyleSheet.absoluteFillObject} />
         </TouchableWithoutFeedback>
-        <View style={[styles.sheet, { paddingBottom: bottom }]}>
-          <View style={styles.handle} />
+        <View style={[styles.sheet, wide ? styles.dialog : { paddingBottom: bottom }]}>
+          {!wide && <View style={styles.handle} />}
           <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" bounces={false}>
             {children}
           </ScrollView>
@@ -423,6 +426,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 12,
     maxHeight: Dimensions.get('window').height * 0.85,
+  },
+  overlayWide: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dialog: {
+    width: '100%',
+    maxWidth: 480,
+    borderRadius: 16,
+    paddingTop: 22,
+    paddingBottom: 20,
   },
   handle: {
     width: 40,

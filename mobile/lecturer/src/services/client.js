@@ -9,35 +9,44 @@ let _refreshToken = null
 
 // ─── Storage init (call once on app startup) ──────────────────────────────────
 
+// AsyncStorage is backed by localStorage on web. If the browser blocks storage
+// (private window, blocked site data) the app still starts; tokens just live in memory.
 export async function initStorage() {
-  _token = await AsyncStorage.getItem('token')
-  _refreshToken = await AsyncStorage.getItem('refresh_token')
+  try {
+    _token = await AsyncStorage.getItem('token')
+    _refreshToken = await AsyncStorage.getItem('refresh_token')
+  } catch {
+    _token = null
+    _refreshToken = null
+  }
 }
 
 // ─── Token accessors ──────────────────────────────────────────────────────────
+
+const ignore = () => {}
 
 export function getToken() { return _token }
 
 export function setToken(t) {
   _token = t
-  AsyncStorage.setItem('token', t)
+  AsyncStorage.setItem('token', t).catch(ignore)
 }
 
 export function clearToken() {
   _token = null
-  AsyncStorage.removeItem('token')
+  AsyncStorage.removeItem('token').catch(ignore)
 }
 
 export function getRefreshToken() { return _refreshToken }
 
 export function setRefreshToken(t) {
   _refreshToken = t
-  AsyncStorage.setItem('refresh_token', t)
+  AsyncStorage.setItem('refresh_token', t).catch(ignore)
 }
 
 export function clearRefreshToken() {
   _refreshToken = null
-  AsyncStorage.removeItem('refresh_token')
+  AsyncStorage.removeItem('refresh_token').catch(ignore)
 }
 
 // ─── Auth expiry listeners (replaces window.dispatchEvent) ───────────────────

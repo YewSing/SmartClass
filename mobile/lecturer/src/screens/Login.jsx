@@ -156,6 +156,9 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   formCard: {
+    width: '100%',
+    maxWidth: 440,
+    alignSelf: 'center',
     backgroundColor: C.card,
     borderRadius: 16,
     padding: 22,

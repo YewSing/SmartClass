@@ -36,7 +36,7 @@ These M8 tasks run before everything else after the T04 checkpoint, so the stude
 
 ## 0c. Lecturer web
 
-- [ ] **T05 [UI] Lecturer app runs in the browser.** Depends on: T03, T04.
+- [x] **T05 [UI] Lecturer app runs in the browser.** Depends on: T03, T04.
   Done when: the existing lecturer app (same code, Expo web) works in a desktop browser: every current screen opens without a runtime error; phone-only modules have web fallbacks (e.g. token storage); layouts use wide screens through a side navigation and a sensible content width instead of a stretched phone column, while the phone layout stays unchanged; `npx expo export --platform web` and the Android export both pass; `scripts/check.sh` runs the web export when `mobile/lecturer/src` changes; a Playwright flow logs a lecturer in at 1280 px and reaches the dashboard with no horizontal scrolling, and the existing Maestro `smoke.yaml` still passes.
 
 ## 1. Module 1 — User Management
