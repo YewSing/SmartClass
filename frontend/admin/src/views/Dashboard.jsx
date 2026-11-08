@@ -10,11 +10,8 @@ const ACTION_LABELS = {
   USER_DEACTIVATE:'Account deactivated',
   FACE_REMOVE:    'Face data removed',
   USER_UPDATE:    'Profile updated',
-  ENV_OVERRIDE:   'Env. control override',
   FACE_PROMOTE:   'Face promoted from review queue',
 }
-
-const SENSOR_STATUS = { ok: { label: 'OK', cls: 'text-sc-green-dk' }, fault: { label: 'Fault', cls: 'text-red-500' }, offline: { label: 'Offline', cls: 'text-text3' } }
 
 export default function Dashboard() {
   const { state, dispatch } = useAdmin()
@@ -23,7 +20,6 @@ export default function Dashboard() {
   const activeUsers = state.users.filter(u => u.status === 'Active')
   const pendingFace = students.filter(u => !u.face).length
   const queueCount  = state.unrecognisedQueue.length
-  const faultCount  = Object.values(state.env.sensors).filter(s => s !== 'ok').length
 
   const recent = AUDIT_LOG.slice(0, 5)
 
@@ -70,27 +66,12 @@ export default function Dashboard() {
           </table>
         </div>
 
-        {/* System health */}
+        {/* Face review */}
         <div className="bg-surface border border-border rounded-xl overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-            <span className="text-[14px] font-semibold text-text1">System Health</span>
-            {faultCount > 0
-              ? <span className="text-[11px] font-semibold text-red-500 bg-red-50 border border-red-200 rounded-full px-2 py-0.5">{faultCount} fault{faultCount > 1 ? 's' : ''}</span>
-              : <span className="text-[11px] font-semibold text-sc-green-dk bg-sc-green-lt rounded-full px-2 py-0.5">All OK</span>
-            }
+            <span className="text-[14px] font-semibold text-text1">Face Review</span>
           </div>
-          <div className="px-5 py-4 space-y-2.5">
-            {Object.entries(state.env.sensors).map(([name, status]) => {
-              const s = SENSOR_STATUS[status] ?? SENSOR_STATUS.offline
-              return (
-                <div key={name} className="flex items-center justify-between">
-                  <span className="text-[13px] text-text2">{name}</span>
-                  <span className={`text-[12px] font-semibold ${s.cls}`}>{s.label === 'OK' ? '✓ ' : '✕ '}{s.label}</span>
-                </div>
-              )
-            })}
-          </div>
-          <div className="px-5 pb-4 pt-2 border-t border-border">
+          <div className="px-5 py-4">
             <div className="flex items-center justify-between text-[12px] text-text3 mb-1">
               <span>Pending face review</span>
               <span className="font-semibold text-sc-orange">{queueCount}</span>

@@ -13,7 +13,6 @@ import Dashboard from './views/Dashboard'
 import StudentsView from './views/StudentsView'
 import LecturersView from './views/LecturersView'
 import FaceReviewView from './views/FaceReviewView'
-import EnvironmentView from './views/EnvironmentView'
 import AuditLogView from './views/AuditLogView'
 import ClassManagementView from './views/ClassManagementView'
 
@@ -23,7 +22,6 @@ const VIEWS = {
   lecturers:       LecturersView,
   classmanagement: ClassManagementView,
   facereview:      FaceReviewView,
-  environment:     EnvironmentView,
   audit:           AuditLogView,
 }
 

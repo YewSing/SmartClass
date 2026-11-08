@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, Modal, FlatList, RefreshControl,
 } from 'react-native'
-import Svg, { Polyline, Circle, Line, Text as SvgText } from 'react-native-svg'
+import Svg, { Polyline, Circle } from 'react-native-svg'
 import { Ionicons } from '@expo/vector-icons'
 import { useLecturer } from '../context/LecturerContext'
 import Topbar from '../components/Topbar'
@@ -10,7 +10,7 @@ import { ANALYTICS_PAR_BARS, ANALYTICS_PAR_LABELS } from '../data/mockData'
 import { C } from '../theme'
 
 const MAX_H = 90
-const TABS = [['att', 'Attendance'], ['par', 'Participation'], ['env', 'Environment']]
+const TABS = [['att', 'Attendance'], ['par', 'Participation']]
 
 function getDateParams(range) {
   const today = new Date()
@@ -370,56 +370,6 @@ export default function Analytics({ navigation }) {
                 ))}
               </Svg>
               <Text style={styles.svgNote}>Average % correct over weeks (↑ trend)</Text>
-            </View>
-          </>
-        )}
-
-        {/* Environment tab */}
-        {tab === 'env' && (
-          <>
-            <View style={styles.statGrid}>
-              <View style={styles.statChip}>
-                <Text style={styles.statNum}>25.8°C</Text>
-                <Text style={styles.statLbl}>Avg temperature</Text>
-              </View>
-              <View style={styles.statChip}>
-                <Text style={styles.statNum}>1180</Text>
-                <Text style={styles.statLbl}>Avg CO₂ (ppm)</Text>
-              </View>
-            </View>
-            <View style={styles.chartCard}>
-              <Text style={styles.chartTitle}>Temperature history (°C)</Text>
-              <Svg width="100%" height={90} viewBox="0 0 300 90">
-                <Polyline
-                  points="10,55 60,50 110,58 160,44 210,52 270,46 290,42"
-                  fill="none"
-                  stroke={C.primary}
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                {[[10,55],[60,50],[110,58],[160,44],[210,52],[270,46],[290,42]].map(([x,y],i) => (
-                  <Circle key={i} cx={x} cy={y} r="3.5" fill={C.primary} />
-                ))}
-              </Svg>
-            </View>
-            <View style={styles.chartCard}>
-              <Text style={styles.chartTitle}>CO₂ history (ppm)</Text>
-              <Svg width="100%" height={90} viewBox="0 0 300 90">
-                <Line x1="10" y1="35" x2="290" y2="35" stroke="#f5c5c5" strokeWidth="1" strokeDasharray="4,3" />
-                <SvgText x="210" y="31" fontSize="9" fill={C.red}>1500 ppm limit</SvgText>
-                <Polyline
-                  points="10,72 60,65 110,52 160,68 210,44 270,58 290,50"
-                  fill="none"
-                  stroke={C.red}
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                {[[10,72],[60,65],[110,52],[160,68],[210,44],[270,58],[290,50]].map(([x,y],i) => (
-                  <Circle key={i} cx={x} cy={y} r="3.5" fill={C.red} />
-                ))}
-              </Svg>
             </View>
           </>
         )}

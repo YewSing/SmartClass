@@ -15,23 +15,6 @@ const initialState = {
   modal: null,
   toasts: [],
   unrecognisedQueue: [],     // no backend endpoint yet — stays empty
-  env: {
-    temperature: 28.4,
-    humidity: 65,
-    lightLevel: 420,
-    co2: 812,
-    occupancy: 12,
-    acStatus: 'auto',
-    lightStatus: 'auto',
-    lastUpdated: '09:15:04',
-    sensors: {
-      'Temp Sensor':          'ok',
-      'LDR Sensor':           'ok',
-      'CO₂ Sensor':           'fault',
-      'Camera (Front-Left)':  'ok',
-      'Camera (Front-Right)': 'ok',
-    },
-  },
 }
 
 function reducer(state, action) {
@@ -177,9 +160,6 @@ function reducer(state, action) {
         ),
       }
     }
-
-    case 'ENV_OVERRIDE':
-      return { ...state, env: { ...state.env, ...action.payload } }
 
     case 'ADD_TOAST':
       return { ...state, toasts: [...state.toasts, action.payload] }

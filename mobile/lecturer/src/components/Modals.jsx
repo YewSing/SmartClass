@@ -295,122 +295,6 @@ function ExportModal({ visible, onClose, data }) {
   )
 }
 
-// ─── OverrideLightsModal ───────────────────────────────────────────────────────
-
-function OverrideLightsModal({ visible, onClose }) {
-  const [mode, setMode] = useState('Auto')
-  const [on, setOn] = useState(true)
-  return (
-    <Sheet visible={visible} onClose={onClose}>
-      <View style={[styles.rowGap, { marginBottom: 16 }]}>
-        <View style={[styles.actIcon, { backgroundColor: C.yellowLt }]}>
-          <Ionicons name="bulb-outline" size={20} color={C.yellow} />
-        </View>
-        <ModalTitle>Lights Override</ModalTitle>
-      </View>
-      <Text style={styles.overrideGroupLabel}>Control Mode</Text>
-      <View style={styles.pillRow}>
-        {['Auto', 'Manual'].map(m => (
-          <TouchableOpacity key={m} style={[styles.pill, mode === m && styles.pillActive]} onPress={() => setMode(m)}>
-            <Text style={[styles.pillText, mode === m && styles.pillTextActive]}>{m}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-      <Text style={styles.overrideGroupLabel}>State</Text>
-      <View style={styles.pillRow}>
-        <TouchableOpacity style={[styles.pill, on && styles.pillActive]} onPress={() => setOn(true)}>
-          <Text style={[styles.pillText, on && styles.pillTextActive]}>ON</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.pill, !on && styles.pillDanger]} onPress={() => setOn(false)}>
-          <Text style={[styles.pillText, !on && styles.pillTextActive]}>OFF</Text>
-        </TouchableOpacity>
-      </View>
-      <BtnPrimary label="Confirm Override" icon="checkmark" onPress={onClose} />
-      <Divider />
-      <BtnOutline label="Cancel" onPress={onClose} />
-    </Sheet>
-  )
-}
-
-// ─── OverrideACModal ───────────────────────────────────────────────────────────
-
-function OverrideACModal({ visible, onClose }) {
-  const [mode, setMode] = useState('Auto')
-  const [on, setOn] = useState(true)
-  const [temp, setTemp] = useState(23)
-
-  const presets = [
-    { v: 18, label: '18°C', sub: 'Very cool', bg: C.blueLt, color: C.blueDk },
-    { v: 23, label: '23°C', sub: 'Recommended', bg: C.blueLt, color: C.blueDk },
-    { v: 26, label: '26°C', sub: 'Energy saving', bg: C.yellowLt, color: C.yellowDk },
-  ]
-
-  return (
-    <Sheet visible={visible} onClose={onClose}>
-      <View style={[styles.rowGap, { marginBottom: 16 }]}>
-        <View style={[styles.actIcon, { backgroundColor: C.blueLt }]}>
-          <Ionicons name="snow-outline" size={20} color={C.primary} />
-        </View>
-        <ModalTitle>AC Override</ModalTitle>
-      </View>
-      <Text style={styles.overrideGroupLabel}>Control Mode</Text>
-      <View style={styles.pillRow}>
-        {['Auto', 'Manual'].map(m => (
-          <TouchableOpacity key={m} style={[styles.pill, mode === m && styles.pillActive]} onPress={() => setMode(m)}>
-            <Text style={[styles.pillText, mode === m && styles.pillTextActive]}>{m}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-      <Text style={styles.overrideGroupLabel}>State</Text>
-      <View style={styles.pillRow}>
-        <TouchableOpacity style={[styles.pill, on && styles.pillActive]} onPress={() => setOn(true)}>
-          <Text style={[styles.pillText, on && styles.pillTextActive]}>ON</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.pill, !on && styles.pillDanger]} onPress={() => setOn(false)}>
-          <Text style={[styles.pillText, !on && styles.pillTextActive]}>OFF</Text>
-        </TouchableOpacity>
-      </View>
-      <Text style={styles.overrideGroupLabel}>Target Temperature</Text>
-      <View style={styles.tempRow}>
-        <TouchableOpacity
-          style={styles.tempBtn}
-          onPress={() => setTemp(t => Math.max(16, t - 1))}
-        >
-          <Ionicons name="remove" size={20} color={C.primary} />
-        </TouchableOpacity>
-        <Text style={styles.tempDisplay}>{temp}<Text style={styles.tempUnit}> °C</Text></Text>
-        <TouchableOpacity
-          style={styles.tempBtn}
-          onPress={() => setTemp(t => Math.min(30, t + 1))}
-        >
-          <Ionicons name="add" size={20} color={C.primary} />
-        </TouchableOpacity>
-      </View>
-      <View style={styles.presetRow}>
-        {presets.map(p => (
-          <TouchableOpacity
-            key={p.v}
-            style={[styles.presetCard, { backgroundColor: p.bg }, temp === p.v && styles.presetCardSelected]}
-            onPress={() => setTemp(p.v)}
-          >
-            <Text style={[styles.presetLabel, { color: p.color }]}>{p.label}</Text>
-            <Text style={[styles.presetSub, { color: p.color }]}>{p.sub}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-      <View style={styles.infoBox}>
-        <Ionicons name="information-circle-outline" size={14} color={C.blueDk} />
-        <Text style={[styles.infoText, { marginLeft: 6 }]}>
-          In Auto mode, AC activates when occupancy ≥ 5. Temperature setpoint applies in both modes.
-        </Text>
-      </View>
-      <BtnPrimary label="Confirm Override" icon="checkmark" onPress={onClose} />
-      <Divider />
-      <BtnOutline label="Cancel" onPress={onClose} />
-    </Sheet>
-  )
-}
-
 // ─── ChangePasswordModal ───────────────────────────────────────────────────────
 
 function ChangePasswordModal({ visible, onClose }) {
@@ -518,8 +402,6 @@ export default function ModalRouter() {
       <QuizModal visible={type === 'quiz'} onClose={closeModal} quiz={type === 'quiz' ? data : null} />
       <StudentModal visible={type === 'student'} onClose={closeModal} data={type === 'student' ? data : null} overrideStudent={overrideStudent} />
       <ExportModal visible={type === 'export'} onClose={closeModal} data={data} />
-      <OverrideLightsModal visible={type === 'override-lights'} onClose={closeModal} />
-      <OverrideACModal visible={type === 'override-ac'} onClose={closeModal} />
       <ChangePasswordModal visible={type === 'change-password'} onClose={closeModal} />
       <SignOutModal visible={type === 'signout'} onClose={closeModal} onConfirm={handleSignOut} />
     </>
@@ -650,20 +532,6 @@ const styles = StyleSheet.create({
     color: C.yellowDk,
     flex: 1,
   },
-  infoBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: C.blueLt,
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 14,
-  },
-  infoText: {
-    fontSize: 12,
-    color: C.blueDk,
-    flex: 1,
-    lineHeight: 18,
-  },
   rowBetween: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -769,98 +637,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: C.text,
-  },
-  overrideGroupLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: C.text,
-    marginBottom: 8,
-    marginTop: 4,
-  },
-  pillRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 16,
-  },
-  pill: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 1.5,
-    borderColor: C.border,
-    alignItems: 'center',
-  },
-  pillActive: {
-    backgroundColor: C.primary,
-    borderColor: C.primary,
-  },
-  pillDanger: {
-    backgroundColor: C.red,
-    borderColor: C.red,
-  },
-  pillText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: C.text,
-  },
-  pillTextActive: {
-    color: '#fff',
-  },
-  tempRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 20,
-    marginBottom: 14,
-  },
-  tempBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    borderWidth: 1.5,
-    borderColor: C.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: C.blueLt,
-  },
-  tempDisplay: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: C.text,
-  },
-  tempUnit: {
-    fontSize: 18,
-    fontWeight: '400',
-    color: C.textSub,
-  },
-  presetRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 14,
-  },
-  presetCard: {
-    flex: 1,
-    borderRadius: 8,
-    padding: 8,
-    alignItems: 'center',
-  },
-  presetCardSelected: {
-    borderWidth: 2,
-    borderColor: C.primary,
-  },
-  presetLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  presetSub: {
-    fontSize: 10,
-    marginTop: 2,
-  },
-  actIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 })
