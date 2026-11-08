@@ -64,3 +64,9 @@ Short log, newest entry at the bottom of "Log". Each entry is at most 5 lines:
 ### T00g — Lecturer AI — 2026-11-09
 - Decisions (Yew Sing): lecturers get "ask my materials" and a "before next class" summary, both in M8, built after the student study tools. Quiz drafting stays in M6 and at-risk alerts in M7.
 - Changed: FR-815, FR-816, UC-810, UC-811, walkthrough; PLAN.md adds T100, T101, T102.
+
+### T80 — Characterisation tests for KB + assistant — 2026-11-09
+- Changed: new `backend/tests/test_char_assistant.py` (18 `db` tests): student courses, chat CRUD + ownership, answers with citations/general/no materials/follow-up rewrite/LLM down, staff materials list, Moodle sync (add, error retry, delete, 502s), access control incl. not-enrolled → 403.
+- Decisions: LLM mocked by patching `llm.chat`; embeddings patched to a fixed vector so real hybrid search runs on seeded `kb_chunks`; `MoodleClient` replaced in the router. No production code changed.
+- Interface/schema changes: none. Tests: check.sh 85 passing; reviewer PASS. One early run flaked (users vanished mid-test), likely another process sharing `smartclass_test`; 3 later runs clean.
+- Next: T93, T84.
