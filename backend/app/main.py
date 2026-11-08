@@ -4,8 +4,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import auth, admin_users, admin_students, admin_courses, classes, sessions, attendance, internal, analytics, audit, face_review
+from app.routers import auth, admin_users, admin_students, admin_courses, classes, sessions, attendance, internal, analytics, audit, face_review, assistant
 from app.services.attendance_service import low_attendance_monitor
+from app.services.kb.sync import kb_sync_loop
 from app.websocket import router as ws_router
 
 
@@ -22,15 +23,24 @@ async def lifespan(app: FastAPI):
         app.state.face_app = None
         print("WARNING: insightface not installed — face endpoints will return 503.")
 
-    monitor_task = asyncio.create_task(low_attendance_monitor())
+    try:
+        from app.services.kb.embedder import warm_up
+        await asyncio.to_thread(warm_up)
+        print("Knowledge base embedding model loaded.")
+    except Exception as exc:
+        print(f"WARNING: embedding model not loaded ({exc}) - assistant search will load it on first use.")
+
+    tasks = [asyncio.create_task(low_attendance_monitor()), asyncio.create_task(kb_sync_loop())]
     try:
         yield
     finally:
-        monitor_task.cancel()
-        try:
-            await monitor_task
-        except asyncio.CancelledError:
-            pass
+        for task in tasks:
+            task.cancel()
+        for task in tasks:
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
 
 app = FastAPI(title="SmartClass API", version="0.1.0", lifespan=lifespan)
@@ -61,6 +71,7 @@ app.include_router(analytics.router)
 app.include_router(ws_router.router)
 app.include_router(audit.router)
 app.include_router(face_review.router)
+app.include_router(assistant.router)
 
 
 @app.get("/health")
