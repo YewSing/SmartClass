@@ -6,8 +6,8 @@ from app.core.database import AsyncSessionLocal
 from app.core.security import decode_token
 from app.models.session import AttendanceSession
 from app.models.attendance import AttendanceRecord
-from app.models.user import Student
-from app.models.class_ import Enrollment
+from app.models.user import Lecturer, Student
+from app.models.class_ import ClassOccurrence, Enrollment
 from app.services.session_service import get_session_counts
 from app.websocket.manager import manager
 
@@ -22,7 +22,7 @@ async def attendance_ws(
 ):
     """
     Real-time attendance feed for a session.
-    Authenticate via ?token=<JWT>. Lecturer role required.
+    Authenticate via ?token=<JWT>. Only the lecturer assigned to the session's class may connect (NFR-04).
     Pushes attendance_update / attendance_override / session_closed events.
     """
     payload = decode_token(token)
@@ -30,7 +30,7 @@ async def attendance_ws(
     role = payload.get("role")
     token_type = payload.get("type")
 
-    if not user_id or token_type != "access" or role not in ("lecturer", "admin"):
+    if not user_id or token_type != "access" or role != "lecturer":
         await websocket.close(code=1008)
         return
 
@@ -40,6 +40,15 @@ async def attendance_ws(
         )
         session = session_result.scalar_one_or_none()
         if not session:
+            await websocket.close(code=1008)
+            return
+
+        teaching_user_id = await db.scalar(
+            select(Lecturer.user_id)
+            .join(ClassOccurrence, ClassOccurrence.lecturer_id == Lecturer.id)
+            .where(ClassOccurrence.id == session.occurrence_id)
+        )
+        if teaching_user_id != int(user_id):
             await websocket.close(code=1008)
             return
 

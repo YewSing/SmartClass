@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
-from app.core.deps import require_role
+from app.core.deps import ensure_teaches_occurrence, require_role
 from app.models.user import User, Student
 from app.models.class_ import Enrollment, ClassOccurrence
 from app.models.session import AttendanceSession
@@ -22,20 +22,30 @@ from app.websocket.manager import manager
 
 router = APIRouter(tags=["attendance"])
 
-_lecturer_or_admin = require_role("lecturer", "admin")
+_lecturer = require_role("lecturer")
+
+
+async def _get_taught_session(db: AsyncSession, actor: User, session_id: int) -> AttendanceSession:
+    """The session, or 404 if unknown and 403 if the actor doesn't teach its class."""
+    session = await db.scalar(
+        select(AttendanceSession)
+        .options(selectinload(AttendanceSession.occurrence).selectinload(ClassOccurrence.course))
+        .where(AttendanceSession.id == session_id)
+    )
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+    await ensure_teaches_occurrence(db, actor, session.occurrence_id)
+    return session
 
 
 @router.get("/lecturer/sessions/{session_id}/attendance", response_model=list[AttendanceStudentOut])
 async def get_session_attendance(
     session_id: int,
     db: AsyncSession = Depends(get_db),
-    actor: User = Depends(_lecturer_or_admin),
+    actor: User = Depends(_lecturer),
 ):
     """Full student roster for a session with their current attendance status."""
-    session_result = await db.execute(select(AttendanceSession).where(AttendanceSession.id == session_id))
-    session = session_result.scalar_one_or_none()
-    if not session:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+    session = await _get_taught_session(db, actor, session_id)
 
     # All enrolled students in this class
     enrolled = await db.execute(
@@ -73,7 +83,7 @@ async def override_attendance(
     record_id: int,
     body: OverrideRequest,
     db: AsyncSession = Depends(get_db),
-    actor: User = Depends(_lecturer_or_admin),
+    actor: User = Depends(_lecturer),
 ):
     if body.status not in ("present", "absent"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Status must be 'present' or 'absent'")
@@ -86,6 +96,7 @@ async def override_attendance(
     record = result.scalar_one_or_none()
     if not record:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attendance record not found")
+    await _get_taught_session(db, actor, record.session_id)
 
     old_status = record.status
 
@@ -129,11 +140,12 @@ async def override_session_attendance(
     session_id: int,
     body: SessionOverrideRequest,
     db: AsyncSession = Depends(get_db),
-    actor: User = Depends(_lecturer_or_admin),
+    actor: User = Depends(_lecturer),
 ):
     """Create-or-update an attendance record for a student who has no existing record (not_recorded → present/absent)."""
     if body.status not in ("present", "absent"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Status must be 'present' or 'absent'")
+    await _get_taught_session(db, actor, session_id)
 
     student_result = await db.execute(
         select(Student)
@@ -202,16 +214,9 @@ async def export_session(
     session_id: int,
     format: str = Query("csv", pattern="^(csv)$"),
     db: AsyncSession = Depends(get_db),
-    actor: User = Depends(_lecturer_or_admin),
+    actor: User = Depends(_lecturer),
 ):
-    session_result = await db.execute(
-        select(AttendanceSession)
-        .options(selectinload(AttendanceSession.occurrence).selectinload(ClassOccurrence.course))
-        .where(AttendanceSession.id == session_id)
-    )
-    session = session_result.scalar_one_or_none()
-    if not session:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+    session = await _get_taught_session(db, actor, session_id)
 
     enrolled = await db.execute(
         select(Student)
@@ -256,7 +261,7 @@ async def export_occurrence(
     from_date: date | None = Query(None),
     to_date: date | None = Query(None),
     db: AsyncSession = Depends(get_db),
-    actor: User = Depends(_lecturer_or_admin),
+    actor: User = Depends(_lecturer),
 ):
     occ_result = await db.execute(
         select(ClassOccurrence)
@@ -266,6 +271,7 @@ async def export_occurrence(
     occ = occ_result.scalar_one_or_none()
     if not occ:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Occurrence not found")
+    await ensure_teaches_occurrence(db, actor, occ_id)
 
     session_filters = [
         AttendanceSession.occurrence_id == occ_id,
