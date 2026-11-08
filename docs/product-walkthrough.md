@@ -35,8 +35,9 @@ A plain-language picture of the finished plan for Yew Sing's modules (M1, M3, M4
 
 **Going to class**
 1. Walks past the camera at the door while the session is open. They don't need to touch their phone.
-2. Sees "attendance recorded" in the app.
-3. Can check their attendance rate and history per course.
+2. Sees "attendance recorded" in the app, while the app is open. Push notifications come with Shino's M2.
+3. If the camera missed them, taps "I'm here but wasn't recognised". The lecturer checks in the room and confirms.
+4. Can check their attendance rate and history per course.
 
 **Studying with the AI**
 1. Opens the Assistant tab, picks an enrolled course, and starts or continues a chat. Other courses' materials can't be reached.
@@ -52,18 +53,20 @@ A plain-language picture of the finished plan for Yew Sing's modules (M1, M3, M4
 ## Lecturer
 
 **Attendance in class**
-1. Opens a session for their class. The door camera only captures while a session is open.
-2. Watches a live list of Present, Late and not yet recognised, without refreshing.
-3. Unrecognised faces appear as photos. The lecturer assigns one to a student or dismisses it.
-4. Can change any student's status at any time, and must give a reason. Every change is logged.
-5. Ends the session. Everyone without a record becomes Absent.
-6. Attendance is copied to Moodle automatically, with a synced, pending or failed label and a Retry button. If Moodle is down, nothing is lost.
-7. Can export a CSV for a session or a date range.
+1. Sets each class's weekly day, time and room once. The session then opens by itself, 15 minutes before class.
+2. Can change the time for one class, before or during it, without touching the weekly schedule. Can also start now, end early, extend or cancel.
+3. Watches a live list of Present, Late and not yet recognised, without refreshing.
+4. Gets an in-app alert when a student flags "I'm here but wasn't recognised". The alert shows the student's name and matric number, plus the closest unmatched camera photo if there is one. The lecturer checks in the room, by asking for a raised hand or the matric card, then confirms or rejects. Lecturers are never asked to recognise a face from memory.
+5. Can change any student's status at any time, and must give a reason. Every change is logged.
+6. The session closes at the scheduled end, or when the lecturer ends it. Everyone without a record becomes Absent. If nothing was recorded and the lecturer did nothing, for example on a public holiday, nobody is marked Absent until the lecturer says whether the class was held.
+7. Attendance is copied to Moodle automatically, with a synced, pending or failed label and a Retry button. If Moodle is down, nothing is lost.
+8. If someone changed a status directly in Moodle, it's never overwritten silently. The lecturer sees both values and chooses. Students can't mark themselves in Moodle for these sessions.
+9. Can export a CSV for a session or a date range.
 
 **Other jobs**
 - **Face verification queue:** sees the selfie and card side by side with the system's result, then approves or rejects with a reason. Lecturers of any of that student's courses can do this.
 - **Course materials:** uploads files to SPeCTRUM as usual. SmartClass picks them up automatically, or through a Sync button. A status list shows which files the AI can read.
-- **Question trends:** sees the most-asked topics and most-cited materials, only for topics at least 3 students asked about, with no names or question text.
+- **Question trends:** sees three lists: most-asked topics, most-cited materials, and most-asked topics the materials don't cover. Topics appear only when at least 3 students asked, with no names or question text.
 
 **Phone or browser:** the same features and data. The browser has a side menu and a wider layout.
 
@@ -77,7 +80,7 @@ A small role for jobs that don't suit a lecturer, in the browser only:
 - View the audit log, and check or start the Moodle sync.
 - Register door cameras, and issue or replace their keys.
 
-The old `frontend/admin` site is deleted after these screens exist and Shino confirms she doesn't need it.
+The old `frontend/admin` site is deleted after these screens exist. Shino has confirmed she doesn't need it.
 
 ---
 
@@ -99,6 +102,8 @@ The old `frontend/admin` site is deleted after these screens exist and Shino con
 | Analytics and at-risk alerts | Shino's M7. It reads our attendance data |
 | AI lock during a quiz, weak-topic recommendations, explaining wrong quiz answers | Mine, but they need M6 quiz results first |
 | PDF attendance reports | A nice-to-have in the requirements, with no task in the plan |
+| OCR for scanned PDFs | Skipped for now. Lecturers see "no extractable text" |
+| The student Participation screen | Stays a mock-up until Shino's M5 |
 
 ---
 
@@ -108,7 +113,8 @@ All of these are settings that can change later.
 
 | Setting | Value |
 |---|---|
-| Late | Recognised more than 15 min after the lecturer opens the session |
+| Session opens | 15 min before the scheduled start |
+| Late | Recognised more than 15 min after the class's start, following any time change |
 | Attendance rate | (Present + Late) ÷ (closed sessions − Excused) |
 | Excused | Only a lecturer can set it |
 | Frames needed to confirm a face | 3 in a row |
@@ -120,16 +126,3 @@ All of these are settings that can change later.
 | Assistant language | English |
 
 ---
-
-## Questions for you
-
-These are the places where the plan may not match what you expect.
-
-1. **Student "report an attendance problem":** the student app has a mock-up screen for this ("Face recognition did not detect me"), but no requirement or task covers it, so it would stay fake. Build it, or remove the screen? *Suggestion: build it. Missed detections will happen, and it makes a good demo.*
-2. **Student not recognised at all:** today they become Absent unless the lecturer notices. Is the lecturer's override enough, or does this strengthen question 1?
-3. **The Late clock starts when the lecturer opens the session,** not at the scheduled class time. If a lecturer opens it 20 minutes late, nobody is Late. *Suggestion: keep it. It's simple and fair to students.*
-4. **Scanned PDFs:** the AI can't read them, and the lecturer only sees "no extractable text". Is that acceptable, or do you want OCR? *Suggestion: skip OCR unless time remains.*
-5. **Telling lecturers what's missing:** we discussed showing topics students ask about that the materials don't cover. The plan only has most-asked topics and most-cited materials. Add it? *Suggestion: add it as a small task, since it's a clear benefit for lecturers.*
-6. **Attendance edited directly in Moodle** isn't copied back. SmartClass is the master, and its next sync can overwrite that edit. Is that okay? *Suggestion: yes.*
-7. **"Attendance recorded" only shows while the app is open** until Shino's notifications exist. Is that fine for your demo?
-8. **Old student screens:** Participation is mock data, and likely belongs to Shino's M5. Should it stay visible until she builds it?

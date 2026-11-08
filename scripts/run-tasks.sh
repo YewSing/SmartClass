@@ -9,6 +9,13 @@ LIMIT_WAIT_MIN=30      # on a Claude usage limit: wait this long, then retry the
 LIMIT_MAX_WAITS=12     # ... at most this many times (6 hours)
 root=$(cd "$(dirname "$0")/.." && pwd); cd "$root"
 
+# Only one loop at a time: two runs overwrite each other's files and test database.
+lock=".claude/.loop.lock"
+if [ -f "$lock" ] && kill -0 "$(cat "$lock")" 2>/dev/null; then
+  echo "Another loop is already running (PID $(cat "$lock")). Not starting."; exit 1
+fi
+echo $$ > "$lock"; trap 'rm -f "$lock"' EXIT
+
 branch=$(git branch --show-current)
 [ "$branch" != "main" ] || { echo "Refusing to run on main. Switch to a feature branch."; exit 1; }
 [ -z "$(git status --porcelain --untracked-files=no)" ] || { echo "Uncommitted changes. Commit or stash first."; exit 1; }
@@ -52,6 +59,9 @@ while [ "$done_rounds" -lt "$N" ]; do
     echo "   check.sh fails after the round - stopping"; break
   fi
   git push -q origin "$branch" 2>/dev/null || echo "   (push failed; continuing)"
-  case "$subject" in *": blocked"*) echo "   task blocked - stopping. See PROGRESS.md"; break;; esac
+  case "$subject" in
+    *": blocked"*) echo "   task blocked - stopping. See PROGRESS.md"; break;;
+    *"no runnable task"*) echo "   waiting on a checkpoint - stopping"; break;;
+  esac
 done
 echo "Finished $done_rounds round(s). Summary: PROGRESS.md · git log --oneline -$done_rounds"

@@ -49,3 +49,4 @@ backend/moodle/.env.moodle
 .claude/logs/
 .claude/.stop-blocks
 .claude/.live-pass
+.claude/.loop.lock

@@ -1,24 +1,28 @@
 # Use Cases: Modules 3 & 4 — Attendance Management and Facial Recognition Verification
 
 **Modules:** 3 (Attendance Management), 4 (Facial Recognition Attendance Verification) | **Owner:** Yew Sing
-**Requirements:** FR-301–FR-314, FR-401–FR-411, NFR-02, NFR-06, NFR-07, NFR-10–NFR-13, NFR-16, NFR-20, NFR-22–NFR-25
+**Requirements:** FR-301–FR-320, FR-401–FR-411, NFR-02, NFR-06, NFR-07, NFR-10–NFR-13, NFR-16, NFR-20, NFR-22–NFR-25
 
 ---
 
-## UC-301: Open an attendance session
+## UC-301: A class session opens from its schedule
 
-- **Actor:** Lecturer
-- **Preconditions:** Lecturer is logged in and teaches the course; a class is scheduled.
+- **Actor:** System; Lecturer for changes
+- **Preconditions:** The class has a weekly schedule (FR-315).
 - **Postconditions:** Session is open; the room's camera device starts capturing (UC-401).
 
 **Main Flow:**
-1. Lecturer taps the scheduled class on the dashboard, then "Start attendance" (≤ 3 taps, NFR-25).
-2. System opens the session (FR-301) and links it to the room's camera device.
-3. System shows the live session view (UC-303).
+1. At the configured time before the class (default 15 minutes), system opens the session (FR-301) and links it to the room's camera device.
+2. Lecturer can open the live session view at any time (UC-303).
+
+**Alternative Flows:**
+- *Time changed or forgot to update:* before or during the class, lecturer changes the time for this class only; the Late clock follows the new start (FR-316).
+- *Unscheduled or make-up class:* lecturer taps "Start now".
+- *Class cancelled:* lecturer cancels it, and no attendance is recorded.
 
 **Exception Flows:**
-- *Session already open for this class:* show the existing session.
-- *Room's device offline:* open anyway, warn the lecturer, suggest the backup webcam (FR-409, NFR-23).
+- *Room's device offline:* session opens anyway; warn the lecturer and suggest the backup webcam (FR-409, NFR-23).
+
 
 ---
 
@@ -68,37 +72,45 @@
 - **Actor:** Lecturer
 - **Main Flow:**
 1. Lecturer opens the live session view.
-2. System shows Present, Late and Not-yet-recognised students, counts, device status, and pending unrecognised faces. These update live (FR-306).
+2. System shows Present, Late and Not-yet-recognised students, counts, device status, and pending student flags. These update live (FR-306).
 
 ---
 
-## UC-404: Resolve an unrecognised face
+## UC-404: Student flags "not recognised"; lecturer resolves
 
-- **Actor:** Lecturer
-- **Preconditions:** A face was detected but not matched during a session (FR-407).
-- **Postconditions:** Face assigned to a student (marked Present or Late) or dismissed; crop deleted (FR-410, NFR-02).
+- **Actor:** Student, Lecturer
+- **Preconditions:** Session is open; the student is enrolled and has no record (FR-318).
+- **Postconditions:** Flag confirmed (Present or Late) or rejected; any matching crop deleted (FR-410, NFR-02).
 
 **Main Flow:**
-1. Lecturer opens Unrecognised Faces from the live view.
-2. System shows each crop with time and similarity to the closest candidate.
-3. Lecturer assigns the crop to an enrolled student not yet recorded. System records Present or Late from the capture time, with "manual (face review)" as the source and writes an audit entry.
-4. System deletes the crop.
+1. Student taps "I'm here but wasn't recognised".
+2. Lecturer gets an alert in the live view, showing the student's name, matric number and the closest unmatched face, if any.
+3. Lecturer checks in the room, for example by asking the student to raise a hand or show their matric card.
+4. Lecturer confirms. System records Present or Late from the flag time, with "student flag" as the source, and writes an audit entry (FR-319).
+5. Student sees the result.
 
 **Alternative Flows:**
-- *Dismiss (not a student of this class, false detection):* crop deleted, nothing recorded.
+- *Student isn't in the room:* lecturer rejects with a reason; the student stays without a record.
+- *Not resolved before the class ends:* student is Absent, and the flag stays in the lecturer's list. Confirming later updates the record and re-syncs to Moodle.
+- *Unmatched face nobody claims:* lecturer does nothing; the crop is deleted within 7 days.
+
 
 ---
 
 ## UC-304: Close the session
 
-- **Actor:** Lecturer
+- **Actor:** System; Lecturer if ending early
 - **Postconditions:** Every enrolled student has a status (Present, Late, Excused or Absent); Moodle sync queued (UC-306).
 
 **Main Flow:**
-1. Lecturer taps "End attendance".
+1. The scheduled end arrives, or the lecturer taps "End attendance".
 2. System marks every enrolled student without a Present or Late record as Absent (FR-303).
 3. The device stops capturing.
 4. System queues the Moodle sync (FR-311).
+
+**Exception Flows:**
+- *No recognitions and no lecturer action:* nobody is marked Absent and nothing syncs. Lecturer is asked whether the class was held (FR-317).
+
 
 ---
 
@@ -130,6 +142,7 @@
 **Exception Flows:**
 - *Moodle unreachable or error:* mark "failed", retry with backoff (NFR-20); lecturer sees the status and can "Retry now".
 - *Student unknown to Moodle:* skip them and report them in the sync result.
+- *Status changed in Moodle:* don't overwrite it; show the lecturer both values and let them choose (FR-320).
 
 ---
 

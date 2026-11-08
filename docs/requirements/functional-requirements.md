@@ -63,7 +63,7 @@ Purpose (from proposal): role-based dashboards plus push, email and in-app notif
 Interfaces Modules 1, 3, 4 and 8 expect from M2 (a notification event the other modules can raise):
 - `attendance.recorded` → student ("Attendance recorded for WIF3001") — FR-406
 - `face_enrolment.result` → student (approved or rejected) — FR-114
-- `face_enrolment.pending_review`, `face.unrecognised` → lecturer — FR-113, FR-407
+- `face_enrolment.pending_review`, `attendance.flagged` → lecturer — FR-113, FR-318
 
 Until M2 exists, these events appear as live updates inside the relevant app screens.
 
@@ -73,8 +73,8 @@ Until M2 exists, these events appear as live updates inside the relevant app scr
 
 | ID | Description | Priority | Actor |
 |----|-------------|----------|-------|
-| FR-301 | The system shall let a lecturer open and close an attendance session for a scheduled class of a course they teach. | Must Have | Lecturer |
-| FR-302 | The system shall record a student as **Present**, with a timestamp, when Module 4 submits a verified recognition for that student during an open session. If that recognition comes more than a configurable time (default 15 minutes) after the session opened, the status is **Late** instead. Only the first recognition counts. | Must Have | System |
+| FR-301 | The system shall open each class's attendance session automatically at its scheduled time, starting a configurable time before the class (default 15 minutes), and close it at the scheduled end. | Must Have | System |
+| FR-302 | The system shall record a student as **Present**, with a timestamp, when Module 4 submits a verified recognition for that student during an open session. If that recognition comes more than a configurable time (default 15 minutes) after the class's effective start time, the status is **Late** instead. Only the first recognition counts. | Must Have | System |
 | FR-303 | The system shall mark every enrolled student without a Present or Late record as **Absent** when the session closes. | Must Have | System |
 | FR-304 | The system shall use four attendance statuses: Present, Late, Excused and Absent. Excused is set only by a lecturer's override (for example, for a medical certificate). | Must Have | System |
 | FR-305 | The system shall let the lecturer manually override a student's status for a session, with a mandatory reason. Each override shall be logged with actor, old status, new status, reason and timestamp. | Must Have | Lecturer |
@@ -87,6 +87,12 @@ Until M2 exists, these events appear as live updates inside the relevant app scr
 | FR-312 | The system shall re-sync a session to Moodle when its attendance is overridden after the first sync, and shall show the lecturer each session's sync status (pending, synced, failed). | Should Have | Lecturer |
 | FR-313 | The system shall expose attendance records and rates through an internal read interface for Module 7 (Learning Analytics). | Must Have | System |
 | FR-314 | The system shall export attendance reports as PDF. | Could Have | Lecturer |
+| FR-315 | The system shall let a lecturer set the weekly schedule (day, time, room) of the classes they teach. Moodle doesn't supply a timetable, so the schedule is kept in SmartClass. | Must Have | Lecturer |
+| FR-316 | The system shall let the lecturer, for one class and before or during it, change the time, start now, end early, extend or cancel. These changes are audited and don't alter the weekly schedule. | Must Have | Lecturer |
+| FR-317 | When a session reaches its end with no recognitions and no lecturer action, the system shall not mark anyone Absent or sync to Moodle until the lecturer confirms whether the class was held. | Must Have | System, Lecturer |
+| FR-318 | The system shall let an enrolled student with no attendance record flag in the app, during an open session, that they are in class but weren't recognised, and shall alert the lecturer in the app. | Must Have | Student |
+| FR-319 | The system shall let the lecturer confirm a flag, recording Present or Late from the flag time, or reject it with a reason. The decision is audited and shown to the student. An unresolved flag leaves the student Absent and stays in the lecturer's list. | Must Have | Lecturer |
+| FR-320 | The system shall compare synced sessions with Moodle and never silently overwrite a status changed there. It shall show the lecturer both values and let them choose. Student self-marking in Moodle stays off for these sessions. | Should Have | Lecturer |
 
 ---
 
@@ -100,7 +106,7 @@ Until M2 exists, these events appear as live updates inside the relevant app scr
 | FR-404 | The system shall confirm a student only after they are matched consistently across a configurable number of consecutive frames (default 3). | Must Have | System |
 | FR-405 | The system shall submit each confirmed recognition, with timestamp and device ID, to Module 3 to record attendance. | Must Have | System |
 | FR-406 | The system shall give feedback on recognition: the student is told on their phone that attendance was recorded, and the lecturer's live session view shows them as present or late. | Must Have | Student, Lecturer |
-| FR-407 | The system shall flag faces that are detected but not matched for lecturer review, showing the face crop. The lecturer can assign it to an enrolled student (marking them Present or Late from the capture time) or dismiss it. | Must Have | Lecturer |
+| FR-407 | The system shall keep faces that are detected but not matched as supporting evidence, not as a task for the lecturer. When a student flags (FR-318), the lecturer sees the closest unmatched face with its similarity. Lecturers are never asked to identify a face from memory. | Must Have | Lecturer |
 | FR-408 | The system shall let administrators register camera devices, assign each to a room, and regenerate a device's key. Each device's online or offline status (heartbeat) shall be shown. | Should Have | Admin |
 | FR-409 | The system shall support a USB webcam (Logitech) on a laptop as a backup capture device, using the same pipeline. | Should Have | System |
 | FR-410 | The system shall delete unrecognised-face crops once they are resolved, or after a retention period. | Should Have | System |
@@ -162,7 +168,7 @@ Module 8 turns each course's lecturer materials into a course knowledge base. St
 
 | ID | Description | Priority | Actor |
 |----|-------------|----------|-------|
-| FR-813 | The system shall show lecturers anonymised aggregates of what students ask the assistant (most-asked topics and the materials cited most often). A topic is shown only when at least 3 distinct students asked about it. Lecturers shall never be able to read individual students' chats. | Should Have | Lecturer |
+| FR-813 | The system shall show lecturers anonymised aggregates of what students ask the assistant (most-asked topics, the materials cited most often, and most-asked topics the materials don't cover). A topic is shown only when at least 3 distinct students asked about it. Lecturers shall never be able to read individual students' chats. | Should Have | Lecturer |
 | FR-814 | The system shall provide an internal retrieval interface over a course's knowledge base for Module 6 (quiz generation). | Should Have | System |
 
 ### 8D. Deferred — depends on Module 6 quiz results
@@ -180,7 +186,7 @@ Module 8 turns each course's lecturer materials into a course knowledge base. St
 ## Notes and assumptions
 
 - **Moodle simulation:** FR-101 uses the simulated SPeCTRUM's username and password. Real SPeCTRUM uses Microsoft 365 SSO, so signing in against the live system would need Microsoft OAuth and approval from UM IT. This is recorded as a scope limitation and future work.
-- **Face privacy:** selfies and card photos are used only for verification and are then deleted. Only embeddings are kept (NFR-01, NFR-02). Lecturers never approve a face from memory: FR-113 always shows the card next to the selfie.
+- **Face privacy:** selfies and card photos are used only for verification and are then deleted. Only embeddings are kept (NFR-01, NFR-02). Lecturers never approve a face from memory: FR-113 always shows the card next to the selfie, and attendance flags (FR-319) are checked in the room.
 - **Attendance statuses:** Present, Late, Excused and Absent (FR-304), which map one-to-one to Moodle's Attendance plugin.
 - **No liveness detection** (proposal §4.9). The camera is at the entrance under the lecturer's supervision.
 - **Assistant language:** English only. An LLM API is required (provider set in configuration). Answers prefer course materials (FR-805) over general knowledge (FR-806).
