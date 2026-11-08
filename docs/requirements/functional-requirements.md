@@ -170,6 +170,8 @@ Module 8 turns each course's lecturer materials into a course knowledge base. St
 |----|-------------|----------|-------|
 | FR-813 | The system shall show lecturers anonymised aggregates of what students ask the assistant (most-asked topics, the materials cited most often, and most-asked topics the materials don't cover). A topic is shown only when at least 3 distinct students asked about it. Lecturers shall never be able to read individual students' chats. | Should Have | Lecturer |
 | FR-814 | The system shall provide an internal retrieval interface over a course's knowledge base for Module 6 (quiz generation). | Should Have | System |
+| FR-815 | The system shall let a lecturer ask questions over the materials of a course they teach, through the same assistant students use and with citations, so they can check what students are told. These chats are private to the lecturer and are not counted in question trends. | Should Have | Lecturer |
+| FR-816 | The system shall generate a short "before next class" summary for the lecturer from the question trends (FR-813): what to revisit, with material sections, and what the materials don't cover. It shall use only the aggregates (topics asked by at least 3 students), never individual chats. | Should Have | Lecturer |
 
 ### 8D. Deferred — depends on Module 6 quiz results
 

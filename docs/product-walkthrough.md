@@ -67,6 +67,8 @@ A plain-language picture of the finished plan for Yew Sing's modules (M1, M3, M4
 - **Face verification queue:** sees the selfie and card side by side with the system's result, then approves or rejects with a reason. Lecturers of any of that student's courses can do this.
 - **Course materials:** uploads files to SPeCTRUM as usual. SmartClass picks them up automatically, or through a Sync button. A status list shows which files the AI can read.
 - **Question trends:** sees three lists: most-asked topics, most-cited materials, and most-asked topics the materials don't cover. Topics appear only when at least 3 students asked, with no names or question text.
+- **Before next class summary:** a short AI note on what to revisit and what the materials don't cover, built only from those anonymous lists.
+- **Ask my materials:** chats with the same AI students use, with citations, to check what students are being told. These chats stay private and don't count in the trends.
 
 **Phone or browser:** the same features and data. The browser has a side menu and a wider layout.
 

@@ -1,7 +1,7 @@
 # Use Cases: Module 8 — Personalized Learning (AI Learning Assistant)
 
 **Module:** 8 | **Owner:** Yew Sing
-**Requirements:** FR-801–FR-814 (FR-820–FR-824 deferred until Module 6 exists), NFR-08, NFR-09, NFR-14, NFR-15, NFR-18, NFR-19, NFR-21, NFR-28
+**Requirements:** FR-801–FR-816 (FR-820–FR-824 deferred until Module 6 exists), NFR-08, NFR-09, NFR-14, NFR-15, NFR-18, NFR-19, NFR-21, NFR-28
 
 ---
 
@@ -87,6 +87,28 @@
 1. Lecturer opens "What students ask" for the course.
 2. System shows the most-asked topics and most-cited materials over a chosen period. Only topics asked by at least 3 distinct students appear, with no names or chat text (FR-813, NFR-09).
 3. Lecturer can open the cited material sections to decide what to revisit in class.
+
+---
+
+## UC-810: Lecturer asks their own materials
+
+- **Actor:** Lecturer
+- **Main Flow:**
+1. Lecturer opens "Ask my materials" for a course they teach.
+2. Lecturer asks a question and gets the same cited answer a student would (FR-815).
+3. Lecturer can spot a wrong answer or a gap, then fix or add materials in SPeCTRUM.
+
+---
+
+## UC-811: Read the "before next class" summary
+
+- **Actor:** Lecturer
+- **Main Flow:**
+1. Lecturer opens "Before next class" for a course.
+2. System shows a short summary of what to revisit, with material sections, and what the materials don't cover (FR-816).
+
+**Alternative Flows:**
+- *Too few questions so far:* system says there aren't enough questions yet.
 
 ---
 
