@@ -9,6 +9,7 @@ Short log, newest entry at the bottom of "Log". Each entry is at most 5 lines:
 ## Next
 <!-- Follow-up ideas found during tasks that are out of the current task's scope. -->
 - (T00f) `GET /lecturer/analytics` (`routers/analytics.py`, M7, Shino) lets any lecturer read any class's analytics (NFR-04). Not changed because it's her module; the issue and fix are written up for her under Module 7 in `docs/requirements/functional-requirements.md`.
+- No runnable task (2026-11-09): T94 `[HUMAN] Checkpoint` (try the AI chat before Week 7) is unticked, so every remaining task is blocked behind it. Yew Sing ticks T94 to resume.
 
 ## Log
 
