@@ -1,0 +1,121 @@
+# PLAN — Yew Sing's modules (M1, M3, M4, M8)
+
+Spec: `docs/requirements/*.md`, `docs/use-cases/UC-M*.md`. Rules: `CLAUDE.md` → "Task Loop Rules".
+
+**Legend:** `[ ]` todo · `[x]` done · `[~]` done but needs a manual check (see PROGRESS.md) · `[!]` blocked
+**Tags:** `[API]` backend · `[UI]` mobile/web, done only when its E2E flow passes · `[INFRA]` tooling · `[HUMAN]` the loop skips it; Yew Sing does it
+**Picking rule:** the first `[ ]` task, top to bottom, whose `Depends on` tasks are all `[x]` or `[~]` and which isn't `[HUMAN]`.
+
+---
+
+## 0. Foundation
+
+- [ ] **T01 [INFRA] Test + lint baseline.** Depends on: —.
+  Done when: `backend/pytest.ini` defines markers `db`, `live`, `moodle`, `e2e` and `asyncio_default_fixture_loop_scope`; `backend/tests/conftest.py` gives `db` tests a separate `smartclass_test` database on the docker postgres (created + migrated with alembic per test session, cleaned between tests) and an authenticated `httpx.AsyncClient` fixture per role; the 15 existing ruff errors are fixed (unused imports; `app/core/config.py` re-saved as UTF-8 without changing its content) so `ruff check .` in `backend/` passes with the existing `ruff.toml`; `requirements-dev.txt` (pytest, pytest-asyncio, respx, ruff); one sample `db` test (login with seeded admin) passes; `bash scripts/check.sh` passes.
+- [ ] **T02 [API] Characterisation tests for existing behaviour.** Depends on: T01.
+  Done when: `db` tests cover the current auth (login/refresh/me), session open/close, attendance list/override and CSV export, and face-review endpoints — at least 12 tests, all passing against the unchanged code. No production code changes except real bugs, each noted in PROGRESS.md.
+- [ ] **T03 [INFRA] Mobile + web E2E harness.** Depends on: T01.
+  Done when: `scripts/e2e-mobile.sh <app> <flow>` boots AVD `Pixel_4_API_35` (headless if possible), adds `$LOCALAPPDATA/Android/Sdk/platform-tools` to PATH, starts the backend and Expo (`EXPO_PUBLIC_API_URL=http://10.0.2.2:8000`), opens the app in Expo Go and runs `mobile/<app>/e2e/<flow>.yaml` with Maestro (install the Maestro CLI if missing; Java 21 is present). `smoke.yaml` for both apps (login screen visible) passes. `frontend/admin/e2e/` has a Playwright smoke test (login page renders) runnable via `npm run e2e`. If Maestro can't be installed or Expo Go can't be automated, write the exact error under Blocked.
+- [ ] **T04 [HUMAN] Review PLAN.md + first two loop results.** Yew Sing reads the T01–T02 diffs and PROGRESS.md before raising the loop count.
+
+## 1. Module 1 — User Management
+
+- [ ] **T10 [API] Moodle login + account auto-creation (FR-101, FR-102, FR-106).** Depends on: T02.
+  Done when: `POST /auth/moodle-login {username, password}` gets a token from Moodle `login/token.php` (service `smartclass`), reads the profile via `core_webservice_get_site_info`, creates or updates the SmartClass user (lecturer if they teach any course in Moodle, else student) and returns the same token shape as `/auth/login`; the password is never stored or logged; wrong credentials → 401 with a generic message; Moodle down → 503. Unit tests mock Moodle with respx (≥6 cases); one `moodle` test logs in `student1` against the local Moodle.
+- [ ] **T11 [API] Course + enrolment sync from Moodle (FR-104).** Depends on: T10.
+  Done when: a sync service maps Moodle courses → SmartClass courses/occurrences (record the mapping decision in PROGRESS.md), adds and removes enrolments and lecturer assignments to match Moodle, runs for the user on login, on `POST /admin/moodle/sync`, and on a schedule (interval from config); idempotent (running twice changes nothing). Tests: add, remove, idempotency, Moodle failure leaves data unchanged.
+- [ ] **T12 [API] Admin accounts: deactivate/reactivate, create admin, audit (FR-103, FR-108, FR-118).** Depends on: T02.
+  Done when: a deactivated user can't log in (local or Moodle) and can't refresh tokens; an admin can't deactivate themselves; each change writes an audit entry; tests for each rule.
+- [ ] **T13 [UI] Mobile login uses Moodle credentials (both apps).** Depends on: T10, T03.
+  Done when: both login screens ask for SPeCTRUM username + password and call `/auth/moodle-login`; error messages for 401 and 503; Maestro flows `login.yaml` log in `student1` / `lecturer1` and reach the home screen.
+- [ ] **T14 [API] PDPA consent + withdrawal (FR-109, FR-116, NFR-03).** Depends on: T02.
+  Done when: migration adds a consent record (student, version, accepted_at, withdrawn_at); `POST /student/me/face-consent`, `DELETE /student/me/face-consent` (deletes embeddings at once, audited); enrolment endpoints refuse without active consent; tests.
+- [ ] **T15 [API] Card verification service (FR-111).** Depends on: T01.
+  Done when: `app/services/face_verification.py` provides (a) a selfie ↔ card face similarity check using InsightFace, and (b) matric number + name extraction from a card image with a **local** OCR library (card images must not leave the server — PDPA; e.g. `rapidocr-onnxruntime`), with thresholds in config. Tests use generated card images (PIL: rendered matric number/name/faculty text + an InsightFace sample face pasted in) for: match, wrong face, wrong matric number, unreadable card.
+- [ ] **T16 [API] Face self-enrolment endpoint (FR-110, FR-112, FR-115, NFR-01).** Depends on: T14, T15.
+  Done when: `POST /student/me/face-enrolment` (multipart: 3–5 selfies + card) → auto-approves (embeddings stored, status `active`) when both checks pass, else status `pending_review`; `GET /student/me/face-enrolment` returns the status and any rejection reason; images are deleted after the decision (pending ones are kept only until review, and NFR-01 applies); tests for both paths and for image deletion.
+- [ ] **T17 [API] Lecturer verification queue + admin fallback (FR-113, FR-114, FR-117).** Depends on: T16.
+  Done when: lecturers of any of the student's courses can list pending submissions (selfie + card images, OCR result, account matric/name, score) and approve or reject with a reason; admins can do the same and reset face data; other lecturers get 403; each decision is audited and the images deleted; tests.
+- [ ] **T18 [UI] Student app: consent + guided selfie + card capture + status.** Depends on: T16, T03.
+  Done when: Profile → "Face enrolment" walks through consent → 3 selfies → card photo → result/status screen; Maestro flow runs up to the consent and status screens (camera steps may use the emulator's virtual camera; if they can't be automated, mark `[~]`).
+- [ ] **T19 [UI] Lecturer app: face verification queue.** Depends on: T17, T03.
+  Done when: a lecturer screen lists pending submissions with side-by-side images and approve/reject (reason required); Maestro flow approves a seeded pending submission.
+- [ ] **T20 [API] Profile fields (FR-107).** Depends on: T11.
+  Done when: `/auth/me` returns name, matric/staff number, email, faculty, courses, face status (students); test.
+
+## 2. Module 3 — Attendance Management
+
+- [ ] **T30 [API] Present/Absent only (FR-304).** Depends on: T02.
+  Done when: attendance status is limited to `present | absent` (data migration: existing `unidentified` records → `absent`, and unidentified faces live only in the face-review table); the API, seed and tests are updated; CHECK constraint in the DB.
+- [ ] **T31 [API] Override with mandatory reason + full audit (FR-305, NFR-06).** Depends on: T30.
+  Done when: both override endpoints require a non-empty reason (422 otherwise) and audit actor, old, new, reason, time; only the course's lecturer may override (403 test).
+- [ ] **T32 [API] Attendance rate + history (FR-307–FR-309).** Depends on: T30.
+  Done when: rate = present ÷ closed sessions per student per course; student endpoint returns per-course rate + session history; lecturer endpoint returns per-student rates for a course; tests including zero closed sessions.
+- [ ] **T33 [API] Reports + CSV export for course/date range (FR-310).** Depends on: T32.
+  Done when: CSV for a session and for a course over `from`/`to` (students × sessions + rate); tests check headers and rows.
+- [ ] **T34 [INFRA] Moodle Attendance plugin in the simulated SPeCTRUM.** Depends on: T01.
+  Done when: `backend/moodle/scripts/setup.sh` installs `mod_attendance` (version matching Moodle 4.5) idempotently, adds its web-service functions (`mod_attendance_add_session`, `mod_attendance_get_sessions`, `mod_attendance_update_user_status`, …) to the `smartclass` service, and `seed.sh` adds an Attendance activity to each seeded course; a `moodle` test calls `mod_attendance_get_sessions` successfully.
+- [ ] **T35 [API] Sync closed sessions to Moodle Attendance (FR-311, NFR-20, NFR-22).** Depends on: T34, T30.
+  Done when: closing a session queues a sync that finds or creates the matching Moodle attendance session and sets each student's status (Present/Absent mapped to the plugin's status ids); the sync status (`pending | synced | failed`) is stored on the session; failures retry with backoff; idempotent; unit tests with respx + one `moodle` test end-to-end.
+- [ ] **T36 [API] Re-sync after override + retry endpoint (FR-312).** Depends on: T35, T31.
+  Done when: an override on a synced session sets it back to `pending` and re-syncs; `POST /lecturer/sessions/{id}/moodle-sync` retries now; sync status in the session API; tests.
+- [ ] **T37 [API] Read interface for Module 7 (FR-313).** Depends on: T32.
+  Done when: `app/services/attendance_read.py` exposes documented functions (records per course/student, rates, consecutive absences); `docs/interfaces.md` describes them for Shino; tests.
+- [ ] **T38 [UI] Lecturer app: live session, override with reason, sync status.** Depends on: T31, T36, T03.
+  Done when: the session screen updates live over the websocket, override asks for a reason, sync status is shown with a Retry button; Maestro flow opens a session, overrides a student with a reason and closes it.
+- [ ] **T39 [UI] Student app: attendance rate + history per course.** Depends on: T32, T03.
+  Done when: the Attendance screen shows per-course rate and session list from the real API; Maestro flow checks a seeded rate.
+
+## 3. Module 4 — Face Recognition Verification
+
+- [ ] **T40 [API] Camera device registry + per-device keys + heartbeat (FR-408, NFR-07, NFR-23).** Depends on: T02.
+  Done when: admins can register a device (name, room) and get its key once (stored hashed), regenerate a key (old one revoked); device endpoints authenticate with `X-Device-Key` instead of the shared internal key; `POST /device/heartbeat`; online = heartbeat within 60 s; tests.
+- [ ] **T41 [API] Server-side recognition from face crops (FR-402–FR-405, NFR-10, NFR-22).** Depends on: T40, T30.
+  Done when: `POST /device/faces` (multipart crop(s)) embeds on the server, matches only students enrolled in the open session's course above the threshold, keeps per-device consecutive-match votes (default 3) and records Present through the attendance service; non-enrolled matches are logged, not recorded; tests with InsightFace sample images (match, below threshold, not enrolled, vote counting, duplicate).
+- [ ] **T42 [API] Device client for Pi and webcam (FR-401, FR-409, FR-411).** Depends on: T41.
+  Done when: `device_client/` (replaces `face_worker/`'s role) polls for an open session for its room, detects faces locally (light model suitable for a Pi), POSTs crops with its key, sends heartbeats, optionally buffers while offline; runs on the laptop with a USB webcam via `python -m device_client --camera 0`; unit tests for the detection → crop → post logic with a fake camera.
+- [ ] **T43 [API] Unrecognised faces → lecturer review (FR-407, FR-410, NFR-02).** Depends on: T41.
+  Done when: unmatched crops are stored per session; the session's lecturer lists them, assigns one to an enrolled, not-yet-present student (Present, source `face_review`, audited) or dismisses; crops are deleted on resolution, with a retention job after 7 days; admin keeps access as a fallback; tests.
+- [ ] **T44 [API] Recognition feedback events (FR-406, NFR-12).** Depends on: T41.
+  Done when: on Present, a websocket event goes to the lecturer's session channel and to the student's channel, and `app/services/notify.py` exposes `emit(event, user_ids, payload)` as the M2 hook (logs only for now, documented in `docs/interfaces.md`); tests.
+- [ ] **T45 [UI] Lecturer unrecognised-faces screen + student "attendance recorded" banner.** Depends on: T43, T44, T03.
+  Done when: Maestro flows: lecturer assigns a seeded unrecognised face; the student app shows the banner after a simulated recognition.
+- [ ] **T46 [UI] Admin web: device management page.** Depends on: T40, T03.
+  Done when: page lists devices with online status, registers a device and shows the key once, regenerates a key; Playwright test.
+- [ ] **T47 [HUMAN] Run the device client on the Raspberry Pi** with the Pi camera at the door; measure NFR-11 (fps) and NFR-10; record results in PROGRESS.md.
+
+## 4. Module 8 — AI Learning Assistant
+
+- [ ] **T80 [API] Characterisation tests for KB + assistant.** Depends on: T01.
+  Done when: `db` tests cover materials list, sync (Moodle mocked), chat session CRUD and message answer (LLM mocked through the adapter), course access control (not-enrolled → 403), at least 10 tests.
+- [ ] **T81 [API] Scheduled material sync + lecturer materials status (FR-803, FR-804).** Depends on: T80.
+  Done when: sync runs on a configurable schedule for all courses; only the course's lecturer (or admin) can trigger a sync or list status; tests.
+- [ ] **T82 [INFRA] Live LLM tests + Q&A evaluation harness (NFR-18, NFR-19).** Depends on: T80.
+  Done when: `live` tests (≤5) call the real configured LLM with a client-side rate limiter (configurable RPM, default 10); `backend/eval/qa_set.jsonl` (draft ~20 in-syllabus + 5 off-syllabus questions from the seeded materials, marked `draft: true`) and `scripts/eval_assistant.py` print correctness-judging inputs, citation presence and off-syllabus labelling rates.
+- [ ] **T83 [HUMAN] Review and finalise the Q&A evaluation set** (correct answers, remove `draft`).
+- [ ] **T84 [API] Open cited source (FR-809).** Depends on: T80.
+  Done when: `GET /student/assistant/materials/{id}/file` streams the material (proxied from Moodle, enrolled students only) and citations carry page/slide numbers the app can open; tests.
+- [ ] **T85 [API] Summary / study guide (FR-810).** Depends on: T80.
+  Done when: `POST /student/assistant/summaries {course_id, material_id | topic, kind: summary|study_guide}` returns structured markdown with citations; LLM-mocked tests + 1 `live` test.
+- [ ] **T86 [API] Flashcards + practice questions (FR-811).** Depends on: T80.
+  Done when: endpoint returns validated JSON (cards: front/back/citation; questions: stem/options/answer/explanation/citation); malformed LLM output is retried once, then 502; tests + 1 `live` test.
+- [ ] **T87 [API] Anonymised question trends for lecturers (FR-813, NFR-09).** Depends on: T80.
+  Done when: each student question is tagged with a topic (from the cited materials/sections or a cheap LLM label); the lecturer endpoint returns topics with ≥3 distinct students only and no names or text; tests prove that k<3 topics are hidden and that no endpoint exposes another student's chat.
+- [ ] **T88 [API] Retrieval interface for Module 6 (FR-814).** Depends on: T80.
+  Done when: `app/services/kb/retrieval_api.py` (`search(course_id, query, k)` → passages with source) is documented in `docs/interfaces.md`; tests.
+- [ ] **T89 [UI] Student app: assistant chat with citations.** Depends on: T84, T03.
+  Done when: new Assistant tab: course picker, sessions list, chat with citation chips that open the source; general-knowledge label shown; Maestro flow asks a question with the backend's LLM mocked (`LLM_FAKE=1` env flag added for E2E) and sees a citation.
+- [ ] **T90 [UI] Student app: summaries + flashcards/practice.** Depends on: T85, T86, T89.
+  Done when: screens for generate summary, flip flashcards, answer practice questions; Maestro flow with the fake LLM.
+- [ ] **T91 [UI] Lecturer app: materials status + sync button + question trends.** Depends on: T81, T87, T03.
+  Done when: Maestro flow triggers a sync and sees the statuses and the trends list.
+- [ ] **T92 [API] YouTube suggestions (FR-812, Could Have).** Depends on: T85.
+  Done when: YouTube Data API search behind config (`YOUTUBE_API_KEY`; feature off when empty); mocked tests. Needs Yew Sing to add the key to `.env`.
+
+## 5. Wrap-up
+
+- [ ] **T98 [INFRA] Docs refresh.** Depends on: all API tasks of M1/M3/M4/M8.
+  Done when: README and CLAUDE.md run instructions match reality (device client, Moodle plugin, E2E); `docs/interfaces.md` is complete.
+- [ ] **T99 [HUMAN] UAT preparation** (VPS deploy, test accounts, consent forms).
+
+**Deferred (not in this plan, waiting on M6):** FR-820–FR-824.

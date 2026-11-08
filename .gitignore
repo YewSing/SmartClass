@@ -37,3 +37,7 @@ Thumbs.db
 
 # Local Moodle simulation (contains service token)
 backend/moodle/.env.moodle
+
+# Claude task loop (local state)
+.claude/logs/
+.claude/.stop-blocks

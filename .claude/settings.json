@@ -1,0 +1,65 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bash scripts/*)",
+      "Bash(python -m pytest*)",
+      "Bash(pytest*)",
+      "Bash(ruff *)",
+      "Bash(alembic *)",
+      "Bash(python -m alembic *)",
+      "Bash(pip install *)",
+      "Bash(python -m pip install *)",
+      "Bash(python scripts/*)",
+      "Bash(python -m *)",
+      "Bash(python -c *)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git show*)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git stash *)",
+      "Bash(git rev-parse*)",
+      "Bash(git branch --show-current)",
+      "Bash(npm *)",
+      "Bash(npx *)",
+      "Bash(docker compose *)",
+      "Bash(docker ps*)",
+      "Bash(docker exec *)",
+      "Bash(docker inspect *)",
+      "Bash(maestro *)",
+      "Bash(adb *)",
+      "Bash(curl *localhost*)",
+      "Bash(curl *127.0.0.1*)",
+      "Bash(ls*)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(grep *)",
+      "Bash(find *)",
+      "Bash(wc *)",
+      "Bash(mkdir *)",
+      "Bash(sleep *)"
+    ],
+    "deny": [
+      "Read(./backend/.env)",
+      "Read(./backend/moodle/.env.moodle)",
+      "Read(./mobile/*/.env)",
+      "Bash(cat *.env*)",
+      "Bash(git push*)",
+      "Bash(git reset --hard*)",
+      "Bash(git checkout -- *)",
+      "Bash(git clean*)",
+      "Bash(rm -rf *)",
+      "Bash(docker compose down -v*)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      { "hooks": [ { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/stop-check.sh\"", "timeout": 600 } ] }
+    ],
+    "PostToolUse": [
+      { "matcher": "Edit|Write", "hooks": [ { "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/lint-edited.sh\"" } ] }
+    ]
+  }
+}
