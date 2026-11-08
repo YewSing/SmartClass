@@ -125,14 +125,15 @@ docs/
 - Admin web build: `cd frontend/admin && npm run build`
 
 ## Task Loop Rules (PLAN.md / PROGRESS.md)
-Long jobs run as one task per fresh session via `/next-task` (see `scripts/run-tasks.sh`).
+Long jobs run as one task per fresh session. Start everything with `/run-plan [rounds]` (it runs `scripts/run-tasks.sh` in the background, one fresh Opus session per task running `/next-task`, and reports at the end). The reviewer subagent runs on Sonnet.
 - **One task per session.** Pick the first unchecked task in `PLAN.md` whose dependencies are all `[x]` and which is not tagged `[HUMAN]`. Never start a second task.
 - A task is **DONE** only when: code written, tests written, `bash scripts/check.sh` passes, its "Done when" line is met, and the reviewer agent found no unresolved real problems.
 - `[UI]` tasks are done only when their Maestro (mobile) or Playwright (admin) flow passes. If the E2E setup is broken, mark the task `[~]` and explain in PROGRESS.md.
 - **Never delete, skip or weaken a test to make it pass.** If a test looks wrong, leave it failing and write why in PROGRESS.md under "Blocked".
+  `scripts/test_guard.py` (part of check.sh) fails the round if a test is removed or skipped, unless PROGRESS.md gets a `TEST-CHANGE: <test> - <why>` line; the reviewer judges the reason. Put skip logic for `live`/`moodle` tests in `conftest.py`, not in test files.
 - If stuck after 3 genuine attempts at the same problem, write it under `## Blocked` in PROGRESS.md and stop.
 - Changing a shared interface (API path/shape, DB schema, migration) must be noted in the PROGRESS.md entry. Every schema change needs an Alembic migration.
-- Tests: unit tests mock Moodle and the LLM. Real-LLM tests carry `@pytest.mark.live`, stay few and small (free-tier RPM/RPD limits), and are never part of `check.sh`.
+- Tests: normal tests never call Moodle or the LLM; they replay recorded real Gemini responses (`tests/fixtures/llm/`) or use mocks for error cases. Real-LLM tests carry `@pytest.mark.live`, use only the synthetic test course, and check structure/grounding, not exact wording. check.sh runs them automatically when a round changes `app/services/kb/` or prompts (see T82). Any new AI feature adds its cases to the live suite and records fixtures.
 - Course materials and face/card images are never committed (copyright, PDPA). Test images are generated or use InsightFace's bundled sample images.
 - Never read or print `backend/.env` or any secret. Never commit secrets.
 - On Windows use the Bash tool (Git Bash) for commands, not PowerShell.

@@ -2,6 +2,7 @@
 name: reviewer
 description: Read-only reviewer for one SmartClass PLAN.md task. Use after a task is implemented and checks pass, before committing. Reviews the uncommitted diff for real bugs, spec mismatches, and weakened or fake tests.
 tools: Read, Grep, Glob, Bash
+model: sonnet
 ---
 
 You review ONE task's change in the SmartClass repo. You do not edit files.

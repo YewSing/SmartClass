@@ -3,7 +3,9 @@
 Spec: `docs/requirements/*.md`, `docs/use-cases/UC-M*.md`. Rules: `CLAUDE.md` → "Task Loop Rules".
 
 **Legend:** `[ ]` todo · `[x]` done · `[~]` done but needs a manual check (see PROGRESS.md) · `[!]` blocked
+
 **Tags:** `[API]` backend · `[UI]` mobile/web, done only when its E2E flow passes · `[INFRA]` tooling · `[HUMAN]` the loop skips it; Yew Sing does it
+
 **Picking rule:** the first `[ ]` task, top to bottom, whose `Depends on` tasks are all `[x]` or `[~]` and which isn't `[HUMAN]`.
 
 ---
@@ -32,12 +34,14 @@ Spec: `docs/requirements/*.md`, `docs/use-cases/UC-M*.md`. Rules: `CLAUDE.md` �
   Done when: migration adds a consent record (student, version, accepted_at, withdrawn_at); `POST /student/me/face-consent`, `DELETE /student/me/face-consent` (deletes embeddings at once, audited); enrolment endpoints refuse without active consent; tests.
 - [ ] **T15 [API] Card verification service (FR-111).** Depends on: T01.
   Done when: `app/services/face_verification.py` provides (a) a selfie ↔ card face similarity check using InsightFace, and (b) matric number + name extraction from a card image with a **local** OCR library (card images must not leave the server — PDPA; e.g. `rapidocr-onnxruntime`), with thresholds in config. Tests use generated card images (PIL: rendered matric number/name/faculty text + an InsightFace sample face pasted in) for: match, wrong face, wrong matric number, unreadable card.
+  Also (c) a **photo quality check** that returns specific, fixable reasons: `no_card_found`, `blurry` (Laplacian variance), `glare` (share of near-white saturated pixels inside the card area), `too_dark`, `card_too_small`/`angled`, `no_face_on_card`. To avoid rejecting good photos: thresholds live in config, and the quality check only **blocks** when OCR *also* fails to read a valid matric number. If OCR reads the matric number with high confidence, the photo is accepted even if the glare score is high. Tests: generated glare (white ellipse overlay), blur (Gaussian), dark and clean cards, including "glare present but text readable → accepted".
 - [ ] **T16 [API] Face self-enrolment endpoint (FR-110, FR-112, FR-115, NFR-01).** Depends on: T14, T15.
-  Done when: `POST /student/me/face-enrolment` (multipart: 3–5 selfies + card) → auto-approves (embeddings stored, status `active`) when both checks pass, else status `pending_review`; `GET /student/me/face-enrolment` returns the status and any rejection reason; images are deleted after the decision (pending ones are kept only until review, and NFR-01 applies); tests for both paths and for image deletion.
+  Done when: `POST /student/me/face-enrolment` (multipart: 3–5 selfies + card) → auto-approves (embeddings stored, status `active`) when both checks pass, else status `pending_review`; `GET /student/me/face-enrolment` returns the status and any rejection reason; images are deleted after the decision (pending ones are kept only until review, and NFR-01 applies); tests for both paths and for image deletion. Before saving anything, the card photo goes through the T15 quality check: a blocking quality failure returns 422 with the reason codes and a user-facing message (e.g. "Glare is covering your card details. Tilt the card away from the light and retake."), and nothing is stored. After 2 blocked attempts, the student may choose "submit anyway", which sends it to lecturer review instead of blocking a third time.
 - [ ] **T17 [API] Lecturer verification queue + admin fallback (FR-113, FR-114, FR-117).** Depends on: T16.
   Done when: lecturers of any of the student's courses can list pending submissions (selfie + card images, OCR result, account matric/name, score) and approve or reject with a reason; admins can do the same and reset face data; other lecturers get 403; each decision is audited and the images deleted; tests.
 - [ ] **T18 [UI] Student app: consent + guided selfie + card capture + status.** Depends on: T16, T03.
-  Done when: Profile → "Face enrolment" walks through consent → 3 selfies → card photo → result/status screen; Maestro flow runs up to the consent and status screens (camera steps may use the emulator's virtual camera; if they can't be automated, mark `[~]`).
+  Done when: Profile → "Face enrolment" walks through consent → 3 selfies → card photo (card-outline guide on the camera screen; on a 422 the specific retake message is shown with a Retake button, and "submit anyway" after 2 tries) → result/status screen; Maestro flow runs up to the consent and status screens (camera steps may use the emulator's virtual camera; if they can't be automated, mark `[~]`).
+- [ ] **T21 [HUMAN] Calibrate card checks on real photos.** Depends on: T16. Yew Sing takes ~10 photos of his own matric card (clean, glare, blur, angled, dim) into a local, git-ignored folder `backend/eval/cards/` and runs `python scripts/eval_card_quality.py` (written in T16), which prints the quality scores + OCR result per photo. Adjust the thresholds in `.env` until good photos pass and bad ones get the right message.
 - [ ] **T19 [UI] Lecturer app: face verification queue.** Depends on: T17, T03.
   Done when: a lecturer screen lists pending submissions with side-by-side images and approve/reject (reason required); Maestro flow approves a seeded pending submission.
 - [ ] **T20 [API] Profile fields (FR-107).** Depends on: T11.
@@ -90,15 +94,21 @@ Spec: `docs/requirements/*.md`, `docs/use-cases/UC-M*.md`. Rules: `CLAUDE.md` �
   Done when: `db` tests cover materials list, sync (Moodle mocked), chat session CRUD and message answer (LLM mocked through the adapter), course access control (not-enrolled → 403), at least 10 tests.
 - [ ] **T81 [API] Scheduled material sync + lecturer materials status (FR-803, FR-804).** Depends on: T80.
   Done when: sync runs on a configurable schedule for all courses; only the course's lecturer (or admin) can trigger a sync or list status; tests.
-- [ ] **T82 [INFRA] Live LLM tests + Q&A evaluation harness (NFR-18, NFR-19).** Depends on: T80.
-  Done when: `live` tests (≤5) call the real configured LLM with a client-side rate limiter (configurable RPM, default 10); `backend/eval/qa_set.jsonl` (draft ~20 in-syllabus + 5 off-syllabus questions from the seeded materials, marked `draft: true`) and `scripts/eval_assistant.py` print correctness-judging inputs, citation presence and off-syllabus labelling rates.
+- [ ] **T82 [INFRA] Live Gemini test suite + record/replay + Q&A evaluation harness (NFR-18, NFR-19, NFR-21).** Depends on: T80.
+  Done when:
+  - **Synthetic test course:** `backend/tests/fixtures/course/` holds 3 short teaching documents written for testing (e.g. software-testing notes; no real course material), indexed into the test DB by a fixture. Live tests use only this, so they are stable and copyright-free.
+  - **LLM adapter hardening (production code):** client-side rate limiter (`LLM_RPM`, default 10), retry with backoff on 429/5xx (max 3), and a distinct `LLMQuotaExhausted` error for daily-quota exhaustion.
+  - **Live suite** `backend/tests/live/` (`@pytest.mark.live`, about 30–40 calls per run). It checks *structure and grounding*, never exact wording: ≥8 in-syllabus questions (answer parses; ≥1 citation; every citation points to a passage that was actually retrieved; cited passage contains the key term); ≥4 off-syllabus questions (labelled general knowledge, no fake citations); 2 follow-up conversations (the stand-alone query keeps the topic); prompt-injection text inside a document doesn't change the answer format; an empty-course question → general-knowledge answer. Each case may retry once for nondeterminism; a case failing twice fails the suite.
+  - **Record/replay:** `pytest -m live --record-llm` saves the real responses to `backend/tests/fixtures/llm/*.json`. Normal (non-live) tests replay them, so the parsing/citation code is tested every round against *real* Gemini output at zero cost. Hand-written mocks stay only for error cases Gemini rarely produces (malformed output, timeout, 429).
+  - **Automatic trigger:** `scripts/check.sh` runs `pytest -m live` itself when the round changed `app/services/kb/` or any prompt file (diff vs `SMARTCLASS_BASE`). If Gemini's daily quota is exhausted, the live tests skip with reason `LLM_QUOTA` and check.sh prints `LIVE TESTS PENDING (quota)`; the task is then marked `[~]` with "re-run live tests" instead of blocking the loop.
+  - **Eval harness:** `backend/eval/qa_set.jsonl` (draft ~20 in-syllabus + 5 off-syllabus questions over the seeded courses, `draft: true`) and `scripts/eval_assistant.py`, which runs them throttled and reports citation-support, off-syllabus labelling, latency (NFR-14) and an LLM-judged correctness score, for the report.
 - [ ] **T83 [HUMAN] Review and finalise the Q&A evaluation set** (correct answers, remove `draft`).
 - [ ] **T84 [API] Open cited source (FR-809).** Depends on: T80.
   Done when: `GET /student/assistant/materials/{id}/file` streams the material (proxied from Moodle, enrolled students only) and citations carry page/slide numbers the app can open; tests.
-- [ ] **T85 [API] Summary / study guide (FR-810).** Depends on: T80.
-  Done when: `POST /student/assistant/summaries {course_id, material_id | topic, kind: summary|study_guide}` returns structured markdown with citations; LLM-mocked tests + 1 `live` test.
-- [ ] **T86 [API] Flashcards + practice questions (FR-811).** Depends on: T80.
-  Done when: endpoint returns validated JSON (cards: front/back/citation; questions: stem/options/answer/explanation/citation); malformed LLM output is retried once, then 502; tests + 1 `live` test.
+- [ ] **T85 [API] Summary / study guide (FR-810).** Depends on: T82.
+  Done when: `POST /student/assistant/summaries {course_id, material_id | topic, kind: summary|study_guide}` returns structured markdown with citations; replay/mock tests + live cases added to the T82 suite (≥3: material summary, topic study guide, topic not in materials) with recorded fixtures.
+- [ ] **T86 [API] Flashcards + practice questions (FR-811).** Depends on: T82.
+  Done when: endpoint returns validated JSON (cards: front/back/citation; questions: stem/options/answer/explanation/citation); malformed LLM output is retried once, then 502; replay/mock tests + live cases in the T82 suite (≥4: flashcards and practice questions for 2 materials each, JSON schema-valid, every citation real) with recorded fixtures.
 - [ ] **T87 [API] Anonymised question trends for lecturers (FR-813, NFR-09).** Depends on: T80.
   Done when: each student question is tagged with a topic (from the cited materials/sections or a cheap LLM label); the lecturer endpoint returns topics with ≥3 distinct students only and no names or text; tests prove that k<3 topics are hidden and that no endpoint exposes another student's chat.
 - [ ] **T88 [API] Retrieval interface for Module 6 (FR-814).** Depends on: T80.

@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
-# Run PLAN.md tasks one per fresh Claude session.
+# Run PLAN.md tasks one per fresh Claude session (Opus), until done, blocked, or N rounds.
 # Usage (Git Bash, repo root):  bash scripts/run-tasks.sh [rounds=2] [max_turns=80]
+#   e.g. overnight: bash scripts/run-tasks.sh 30
 set -uo pipefail
 N=${1:-2}; TURNS=${2:-80}
+MODEL=${SMARTCLASS_MODEL:-opus}
+LIMIT_WAIT_MIN=30      # on a Claude usage limit: wait this long, then retry the same round
+LIMIT_MAX_WAITS=12     # ... at most this many times (6 hours)
 root=$(cd "$(dirname "$0")/.." && pwd); cd "$root"
 
 branch=$(git branch --show-current)
@@ -17,16 +21,26 @@ done
 
 mkdir -p .claude/logs
 export SMARTCLASS_LOOP=1
-for i in $(seq 1 "$N"); do
+done_rounds=0; waits=0
+while [ "$done_rounds" -lt "$N" ]; do
   before=$(git rev-parse HEAD)
+  export SMARTCLASS_BASE="$before"     # test guard compares against the round's starting commit
   rm -f .claude/.stop-blocks
   log=".claude/logs/round-$(date +%Y%m%d-%H%M%S).log"
-  echo "== Round $i/$N  (log: $log)"
-  claude -p "/next-task" --permission-mode acceptEdits --max-turns "$TURNS" > "$log" 2>&1
+  echo "== Round $((done_rounds + 1))/$N  $(date +%H:%M)  (log: $log)"
+  claude -p "/next-task" --model "$MODEL" --permission-mode acceptEdits --max-turns "$TURNS" \
+    --disallowedTools "Bash(git push*)" > "$log" 2>&1
 
   if [ "$before" = "$(git rev-parse HEAD)" ]; then
+    if grep -qiE "usage limit|limit reached|rate limit|overloaded" "$log" && [ "$waits" -lt "$LIMIT_MAX_WAITS" ]; then
+      waits=$((waits + 1))
+      [ -z "$(git status --porcelain --untracked-files=no)" ] || git stash push -u -q -m "loop: partial work before usage limit"
+      echo "   Claude usage limit - waiting ${LIMIT_WAIT_MIN} min (wait $waits/$LIMIT_MAX_WAITS), then retrying this round"
+      sleep $((LIMIT_WAIT_MIN * 60)); continue
+    fi
     echo "   no commit this round - stopping. Read $log"; break
   fi
+  waits=0; done_rounds=$((done_rounds + 1))
   subject=$(git log -1 --format=%s); echo "   committed: $subject"
   if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
     echo "   uncommitted changes left behind - stopping"; break
@@ -37,4 +51,4 @@ for i in $(seq 1 "$N"); do
   git push -q origin "$branch" 2>/dev/null || echo "   (push failed; continuing)"
   case "$subject" in *": blocked"*) echo "   task blocked - stopping. See PROGRESS.md"; break;; esac
 done
-echo "Done. Read PROGRESS.md, then: git log --oneline -$N"
+echo "Finished $done_rounds round(s). Summary: PROGRESS.md · git log --oneline -$done_rounds"

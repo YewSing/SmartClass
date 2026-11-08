@@ -3,6 +3,8 @@
 # Excludes live LLM, Moodle and E2E tests (slow / external).
 set -euo pipefail
 cd "$(dirname "$0")/../backend"
+echo "== test guard"
+python ../scripts/test_guard.py
 echo "== ruff"
 ruff check .
 echo "== pytest (not live/moodle/e2e)"
