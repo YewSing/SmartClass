@@ -17,22 +17,22 @@ Spec: `docs/requirements/*.md`, `docs/use-cases/UC-M*.md`. Rules: `CLAUDE.md` �
 - [ ] **T02 [API] Characterisation tests for existing behaviour.** Depends on: T01.
   Done when: `db` tests cover the current auth (login/refresh/me), session open/close, attendance list/override and CSV export, and face-review endpoints — at least 12 tests, all passing against the unchanged code. No production code changes except real bugs, each noted in PROGRESS.md.
 - [ ] **T03 [INFRA] Mobile + web E2E harness.** Depends on: T01.
-  Done when: `scripts/e2e-mobile.sh <app> <flow>` boots AVD `Pixel_4_API_35` (headless if possible), adds `$LOCALAPPDATA/Android/Sdk/platform-tools` to PATH, starts the backend and Expo (`EXPO_PUBLIC_API_URL=http://10.0.2.2:8000`), opens the app in Expo Go and runs `mobile/<app>/e2e/<flow>.yaml` with Maestro (install the Maestro CLI if missing; Java 21 is present). `smoke.yaml` for both apps (login screen visible) passes. `frontend/admin/e2e/` has a Playwright smoke test (login page renders) runnable via `npm run e2e`. If Maestro can't be installed or Expo Go can't be automated, write the exact error under Blocked.
-- [ ] **T04 [HUMAN] Review PLAN.md + first two loop results.** Yew Sing reads the T01–T02 diffs and PROGRESS.md before raising the loop count.
+  Done when: `scripts/e2e-mobile.sh <app> <flow>` boots AVD `Pixel_4_API_35` (headless if possible), adds `$LOCALAPPDATA/Android/Sdk/platform-tools` to PATH, starts the backend and Expo (`EXPO_PUBLIC_API_URL=http://10.0.2.2:8000`), opens the app in Expo Go and runs `mobile/<app>/e2e/<flow>.yaml` with Maestro (install the Maestro CLI if missing; Java 21 is present). `smoke.yaml` for both apps (login screen visible) passes. The script cleans up on exit (trap): it stops the uvicorn and Expo processes it started and the emulator if it booted it, so the next round doesn't find ports 8000/8081 taken. `frontend/admin/e2e/` has a Playwright smoke test (login page renders) runnable via `npm run e2e`. If Maestro can't be installed or Expo Go can't be automated, write the exact error under Blocked.
+- [ ] **T04 [HUMAN] Checkpoint: review T01–T03.** The loop stops here (all feature tasks depend on T04). Yew Sing (or a Claude review session) checks the T01–T03 diffs and PROGRESS.md, then ticks `[x]` to let the loop continue.
 
 ## 1. Module 1 — User Management
 
-- [ ] **T10 [API] Moodle login + account auto-creation (FR-101, FR-102, FR-106).** Depends on: T02.
+- [ ] **T10 [API] Moodle login + account auto-creation (FR-101, FR-102, FR-106).** Depends on: T02, T04.
   Done when: `POST /auth/moodle-login {username, password}` gets a token from Moodle `login/token.php` (service `smartclass`), reads the profile via `core_webservice_get_site_info`, creates or updates the SmartClass user (lecturer if they teach any course in Moodle, else student) and returns the same token shape as `/auth/login`; the password is never stored or logged; wrong credentials → 401 with a generic message; Moodle down → 503. Unit tests mock Moodle with respx (≥6 cases); one `moodle` test logs in `student1` against the local Moodle.
 - [ ] **T11 [API] Course + enrolment sync from Moodle (FR-104).** Depends on: T10.
   Done when: a sync service maps Moodle courses → SmartClass courses/occurrences (record the mapping decision in PROGRESS.md), adds and removes enrolments and lecturer assignments to match Moodle, runs for the user on login, on `POST /admin/moodle/sync`, and on a schedule (interval from config); idempotent (running twice changes nothing). Tests: add, remove, idempotency, Moodle failure leaves data unchanged.
-- [ ] **T12 [API] Admin accounts: deactivate/reactivate, create admin, audit (FR-103, FR-108, FR-118).** Depends on: T02.
+- [ ] **T12 [API] Admin accounts: deactivate/reactivate, create admin, audit (FR-103, FR-108, FR-118).** Depends on: T02, T04.
   Done when: a deactivated user can't log in (local or Moodle) and can't refresh tokens; an admin can't deactivate themselves; each change writes an audit entry; tests for each rule.
 - [ ] **T13 [UI] Mobile login uses Moodle credentials (both apps).** Depends on: T10, T03.
   Done when: both login screens ask for SPeCTRUM username + password and call `/auth/moodle-login`; error messages for 401 and 503; Maestro flows `login.yaml` log in `student1` / `lecturer1` and reach the home screen.
-- [ ] **T14 [API] PDPA consent + withdrawal (FR-109, FR-116, NFR-03).** Depends on: T02.
+- [ ] **T14 [API] PDPA consent + withdrawal (FR-109, FR-116, NFR-03).** Depends on: T02, T04.
   Done when: migration adds a consent record (student, version, accepted_at, withdrawn_at); `POST /student/me/face-consent`, `DELETE /student/me/face-consent` (deletes embeddings at once, audited); enrolment endpoints refuse without active consent; tests.
-- [ ] **T15 [API] Card verification service (FR-111).** Depends on: T01.
+- [ ] **T15 [API] Card verification service (FR-111).** Depends on: T01, T04.
   Done when: `app/services/face_verification.py` provides (a) a selfie ↔ card face similarity check using InsightFace, and (b) matric number + name extraction from a card image with a **local** OCR library (card images must not leave the server — PDPA; e.g. `rapidocr-onnxruntime`), with thresholds in config. Tests use generated card images (PIL: rendered matric number/name/faculty text + an InsightFace sample face pasted in) for: match, wrong face, wrong matric number, unreadable card.
   Also (c) a **photo quality check** that returns specific, fixable reasons: `no_card_found`, `blurry` (Laplacian variance), `glare` (share of near-white saturated pixels inside the card area), `too_dark`, `card_too_small`/`angled`, `no_face_on_card`. To avoid rejecting good photos: thresholds live in config, and the quality check only **blocks** when OCR *also* fails to read a valid matric number. If OCR reads the matric number with high confidence, the photo is accepted even if the glare score is high. Tests: generated glare (white ellipse overlay), blur (Gaussian), dark and clean cards, including "glare present but text readable → accepted".
 - [ ] **T16 [API] Face self-enrolment endpoint (FR-110, FR-112, FR-115, NFR-01).** Depends on: T14, T15.
@@ -49,7 +49,7 @@ Spec: `docs/requirements/*.md`, `docs/use-cases/UC-M*.md`. Rules: `CLAUDE.md` �
 
 ## 2. Module 3 — Attendance Management
 
-- [ ] **T30 [API] Present/Absent only (FR-304).** Depends on: T02.
+- [ ] **T30 [API] Present/Absent only (FR-304).** Depends on: T02, T04.
   Done when: attendance status is limited to `present | absent` (data migration: existing `unidentified` records → `absent`, and unidentified faces live only in the face-review table); the API, seed and tests are updated; CHECK constraint in the DB.
 - [ ] **T31 [API] Override with mandatory reason + full audit (FR-305, NFR-06).** Depends on: T30.
   Done when: both override endpoints require a non-empty reason (422 otherwise) and audit actor, old, new, reason, time; only the course's lecturer may override (403 test).
@@ -57,7 +57,7 @@ Spec: `docs/requirements/*.md`, `docs/use-cases/UC-M*.md`. Rules: `CLAUDE.md` �
   Done when: rate = present ÷ closed sessions per student per course; student endpoint returns per-course rate + session history; lecturer endpoint returns per-student rates for a course; tests including zero closed sessions.
 - [ ] **T33 [API] Reports + CSV export for course/date range (FR-310).** Depends on: T32.
   Done when: CSV for a session and for a course over `from`/`to` (students × sessions + rate); tests check headers and rows.
-- [ ] **T34 [INFRA] Moodle Attendance plugin in the simulated SPeCTRUM.** Depends on: T01.
+- [ ] **T34 [INFRA] Moodle Attendance plugin in the simulated SPeCTRUM.** Depends on: T01, T04.
   Done when: `backend/moodle/scripts/setup.sh` installs `mod_attendance` (version matching Moodle 4.5) idempotently, adds its web-service functions (`mod_attendance_add_session`, `mod_attendance_get_sessions`, `mod_attendance_update_user_status`, …) to the `smartclass` service, and `seed.sh` adds an Attendance activity to each seeded course; a `moodle` test calls `mod_attendance_get_sessions` successfully.
 - [ ] **T35 [API] Sync closed sessions to Moodle Attendance (FR-311, NFR-20, NFR-22).** Depends on: T34, T30.
   Done when: closing a session queues a sync that finds or creates the matching Moodle attendance session and sets each student's status (Present/Absent mapped to the plugin's status ids); the sync status (`pending | synced | failed`) is stored on the session; failures retry with backoff; idempotent; unit tests with respx + one `moodle` test end-to-end.
@@ -72,7 +72,7 @@ Spec: `docs/requirements/*.md`, `docs/use-cases/UC-M*.md`. Rules: `CLAUDE.md` �
 
 ## 3. Module 4 — Face Recognition Verification
 
-- [ ] **T40 [API] Camera device registry + per-device keys + heartbeat (FR-408, NFR-07, NFR-23).** Depends on: T02.
+- [ ] **T40 [API] Camera device registry + per-device keys + heartbeat (FR-408, NFR-07, NFR-23).** Depends on: T02, T04.
   Done when: admins can register a device (name, room) and get its key once (stored hashed), regenerate a key (old one revoked); device endpoints authenticate with `X-Device-Key` instead of the shared internal key; `POST /device/heartbeat`; online = heartbeat within 60 s; tests.
 - [ ] **T41 [API] Server-side recognition from face crops (FR-402–FR-405, NFR-10, NFR-22).** Depends on: T40, T30.
   Done when: `POST /device/faces` (multipart crop(s)) embeds on the server, matches only students enrolled in the open session's course above the threshold, keeps per-device consecutive-match votes (default 3) and records Present through the attendance service; non-enrolled matches are logged, not recorded; tests with InsightFace sample images (match, below threshold, not enrolled, vote counting, duplicate).
@@ -90,7 +90,7 @@ Spec: `docs/requirements/*.md`, `docs/use-cases/UC-M*.md`. Rules: `CLAUDE.md` �
 
 ## 4. Module 8 — AI Learning Assistant
 
-- [ ] **T80 [API] Characterisation tests for KB + assistant.** Depends on: T01.
+- [ ] **T80 [API] Characterisation tests for KB + assistant.** Depends on: T01, T04.
   Done when: `db` tests cover materials list, sync (Moodle mocked), chat session CRUD and message answer (LLM mocked through the adapter), course access control (not-enrolled → 403), at least 10 tests.
 - [ ] **T81 [API] Scheduled material sync + lecturer materials status (FR-803, FR-804).** Depends on: T80.
   Done when: sync runs on a configurable schedule for all courses; only the course's lecturer (or admin) can trigger a sync or list status; tests.
@@ -100,7 +100,7 @@ Spec: `docs/requirements/*.md`, `docs/use-cases/UC-M*.md`. Rules: `CLAUDE.md` �
   - **LLM adapter hardening (production code):** client-side rate limiter (`LLM_RPM`, default 10), retry with backoff on 429/5xx (max 3), and a distinct `LLMQuotaExhausted` error for daily-quota exhaustion.
   - **Live suite** `backend/tests/live/` (`@pytest.mark.live`, about 30–40 calls per run). It checks *structure and grounding*, never exact wording: ≥8 in-syllabus questions (answer parses; ≥1 citation; every citation points to a passage that was actually retrieved; cited passage contains the key term); ≥4 off-syllabus questions (labelled general knowledge, no fake citations); 2 follow-up conversations (the stand-alone query keeps the topic); prompt-injection text inside a document doesn't change the answer format; an empty-course question → general-knowledge answer. Each case may retry once for nondeterminism; a case failing twice fails the suite.
   - **Record/replay:** `pytest -m live --record-llm` saves the real responses to `backend/tests/fixtures/llm/*.json`. Normal (non-live) tests replay them, so the parsing/citation code is tested every round against *real* Gemini output at zero cost. Hand-written mocks stay only for error cases Gemini rarely produces (malformed output, timeout, 429).
-  - **Automatic trigger:** `scripts/check.sh` runs `pytest -m live` itself when the round changed `app/services/kb/` or any prompt file (diff vs `SMARTCLASS_BASE`). If Gemini's daily quota is exhausted, the live tests skip with reason `LLM_QUOTA` and check.sh prints `LIVE TESTS PENDING (quota)`; the task is then marked `[~]` with "re-run live tests" instead of blocking the loop.
+  - **Automatic trigger:** `scripts/check.sh` runs `pytest -m live` itself when the round changed `app/services/kb/` or any prompt file (diff vs `SMARTCLASS_BASE`). It runs **at most once per code state**: a hash of `app/services/kb/` + prompts is stored in `.claude/.live-pass` (git-ignored) after a pass, and check.sh skips the live suite when the hash is unchanged. Otherwise the Stop hook and the loop script calling check.sh several times per round would burn the daily quota. If Gemini's daily quota is exhausted, the live tests skip with reason `LLM_QUOTA` and check.sh prints `LIVE TESTS PENDING (quota)`; the task is then marked `[~]` with "re-run live tests" instead of blocking the loop.
   - **Eval harness:** `backend/eval/qa_set.jsonl` (draft ~20 in-syllabus + 5 off-syllabus questions over the seeded courses, `draft: true`) and `scripts/eval_assistant.py`, which runs them throttled and reports citation-support, off-syllabus labelling, latency (NFR-14) and an LLM-judged correctness score, for the report.
 - [ ] **T83 [HUMAN] Review and finalise the Q&A evaluation set** (correct answers, remove `draft`).
 - [ ] **T84 [API] Open cited source (FR-809).** Depends on: T80.

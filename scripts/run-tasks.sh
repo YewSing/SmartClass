@@ -15,6 +15,7 @@ branch=$(git branch --show-current)
 
 echo "Starting postgres..."
 (cd backend && docker compose up -d) > /dev/null 2>&1
+(cd backend/moodle && docker compose up -d) > /dev/null 2>&1   # simulated SPeCTRUM for moodle tests
 for _ in $(seq 1 30); do
   docker inspect -f '{{.State.Health.Status}}' backend-db-1 2>/dev/null | grep -q healthy && break; sleep 2
 done

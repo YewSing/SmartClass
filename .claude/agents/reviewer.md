@@ -17,6 +17,7 @@ Do this:
    - **Done when is actually met:** each clause, one by one. Say which clause is unmet.
    - **Correctness:** bugs, wrong status codes, missing role checks (NFR-04), missing audit (NFR-06), data leaks (NFR-09 chat privacy, face/card images NFR-01), async/session misuse, missing Alembic migration for model changes.
    - **Scope:** changes outside the task, or touching Shino's modules (M2, M5, M6, M7) beyond an agreed interface/stub.
+   - **Dependencies:** every new third-party import is pinned in `backend/requirements.txt` (or the app's `package.json`); no package used only because it happened to be installed locally.
    - **Secrets / files:** no keys, `.env`, course materials or real face/card images added.
 4. Ignore style nits that ruff doesn't flag.
 
