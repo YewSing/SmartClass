@@ -13,6 +13,8 @@ branch=$(git branch --show-current)
 [ "$branch" != "main" ] || { echo "Refusing to run on main. Switch to a feature branch."; exit 1; }
 [ -z "$(git status --porcelain --untracked-files=no)" ] || { echo "Uncommitted changes. Commit or stash first."; exit 1; }
 
+echo "Backing up app DB + Moodle data (undo with: bash scripts/restore-data.sh)..."
+bash scripts/backup-data.sh || { echo "Backup failed - not starting the loop."; exit 1; }
 echo "Starting postgres..."
 (cd backend && docker compose up -d) > /dev/null 2>&1
 (cd backend/moodle && docker compose up -d) > /dev/null 2>&1   # simulated SPeCTRUM for moodle tests
