@@ -15,6 +15,7 @@ Short log, newest entry at the bottom of "Log". Each entry is at most 5 lines:
 - REVIEW: T89 - FR-808 (Must Have) lets students rename chats. `PATCH /student/assistant/sessions/{id}` exists, but the app has no rename and no later task covers it.
 - REVIEW: T93/T89 - answers show in a plain `<Text>`, and the prompt asks for bullet points without banning markdown. T93 only cleans LaTeX, so `**bold**` or `* ` from Gemini would probably show as typed. Not confirmed with a real answer; check during T94.
 - REVIEW: T82 - no `live` tests or `tests/fixtures/llm/` exist yet, so T93's no-LaTeX prompt rule and the renumbered citations have never been checked against real Gemini in a test. Add both to the T82 live suite.
+- LOOP (T10): the reviewer subagent and the Stop hook's check.sh both drop and recreate `smartclass_test`, so if they run at the same time both get random "relation does not exist" / FK / 401 failures (seen 3 times in T10; a clean solo run passed). Fix: a per-process test DB name (e.g. suffix the PID) or a lock in conftest.
 - REVIEW: T89 - `e2e-mobile.sh` only warns if a backend is already running on the port, so the flow could use one without `LLM_FAKE` and call real Gemini; it should stop instead. `assistant.yaml` also needs indexed WIA2005 in the dev DB, which seed data alone doesn't provide, leaves one chat per run, and never taps "Open file".
 
 ## Log
@@ -101,3 +102,9 @@ Short log, newest entry at the bottom of "Log". Each entry is at most 5 lines:
 - Decisions: the phone layout is unchanged below 900 px or off web. The Playwright config starts its own backend on :8001 (`LLM_FAKE=1`, dev DB) and Expo web on :8092 with `reuseExistingServer: false`, because :8082 was running the student app and the old config would have tested that app. Logs in as the seeded devlecturer.
 - Interface: CORS adds `localhost:8092`. No API/schema change. Tests: `test_cors.py` (5); new `e2e-web/desktop.spec.js` (3: 1280 px login + no sideways overflow, every screen and dialog with no page error, phone width keeps the bottom tabs) + smoke all pass; web + android exports pass; Maestro lecturer smoke PASS (the first run lost the emulator's Metro connection, the rerun passed); check.sh 129 passing; reviewer PASS.
 - Next: T10.
+
+### T10 — Moodle login + account auto-creation — 2026-11-09
+- Changed: new `services/moodle_auth.py` (token.php with service `smartclass`, then with the user's own token: site info, `core_user_get_users_by_field`, courses + enrolled users for the role); `POST /auth/moodle-login`; `verify_password` is False for no hash; `UserOut` shows only the profile matching `role`.
+- Decisions: find by `moodle_user_id`, else link by email (case-insensitive); admin or inactive → 401; teacher = `editingteacher`/`teacher` in any course; matric/staff no = Moodle idnumber, username only when creating; old profile row kept on a role change; audit `MOODLE_ACCOUNT_CREATE`/`MOODLE_ROLE_CHANGE` with the user as actor; Moodle errors `invalidlogin`/`suspended`/… → 401, network/5xx/bad JSON/WS misconfigured → 503.
+- Interface/schema: new endpoint; migration `c3d4e5f6a7b8` adds `users.moodle_user_id` (unique) and makes `password_hash` nullable (applied to the dev DB). Tests: `test_moodle_login.py` 20 respx/db + 3 `moodle` (student1, lecturer1, wrong password) pass; check.sh 149 passing.
+- Next: T11 (the courses read here can feed the sync); a Moodle idnumber clashing with another student's matric would give a 500, not handled.

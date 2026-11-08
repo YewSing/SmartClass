@@ -19,7 +19,8 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
-    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    password_hash: Mapped[Optional[str]] = mapped_column(String(255))  # NULL for Moodle accounts (NFR-05)
+    moodle_user_id: Mapped[Optional[int]] = mapped_column(unique=True, index=True)
     role: Mapped[str] = mapped_column(String(20), nullable=False)  # admin | lecturer | student
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     phone: Mapped[Optional[str]] = mapped_column(String(50))
