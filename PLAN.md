@@ -17,8 +17,10 @@ Spec: `docs/requirements/*.md`, `docs/use-cases/UC-M*.md`. Rules: `CLAUDE.md` �
 - [ ] **T02 [API] Characterisation tests for existing behaviour.** Depends on: T01.
   Done when: `db` tests cover the current auth (login/refresh/me), session open/close, attendance list/override and CSV export, and face-review endpoints — at least 12 tests, all passing against the unchanged code. No production code changes except real bugs, each noted in PROGRESS.md.
 - [ ] **T03 [INFRA] Mobile + web E2E harness.** Depends on: T01.
-  Done when: `scripts/e2e-mobile.sh <app> <flow>` boots AVD `Pixel_4_API_35` (headless if possible), adds `$LOCALAPPDATA/Android/Sdk/platform-tools` to PATH, starts the backend and Expo (`EXPO_PUBLIC_API_URL=http://10.0.2.2:8000`), opens the app in Expo Go and runs `mobile/<app>/e2e/<flow>.yaml` with Maestro (install the Maestro CLI if missing; Java 21 is present). `smoke.yaml` for both apps (login screen visible) passes. The script cleans up on exit (trap): it stops the uvicorn and Expo processes it started and the emulator if it booted it, so the next round doesn't find ports 8000/8081 taken. `frontend/admin/e2e/` has a Playwright smoke test (login page renders) runnable via `npm run e2e`. If Maestro can't be installed or Expo Go can't be automated, write the exact error under Blocked.
+  Done when: `scripts/e2e-mobile.sh <app> <flow>` boots AVD `Pixel_4_API_35` (headless if possible), adds `$LOCALAPPDATA/Android/Sdk/platform-tools` to PATH, starts the backend and Expo (`EXPO_PUBLIC_API_URL=http://10.0.2.2:8000`), opens the app in Expo Go and runs `mobile/<app>/e2e/<flow>.yaml` with Maestro (install the Maestro CLI if missing; Java 21 is present). `smoke.yaml` for both apps (login screen visible) passes. The script cleans up on exit (trap): it stops the uvicorn and Expo processes it started and the emulator if it booted it, so the next round doesn't find ports 8000/8081 taken. The lecturer app gets its Expo web dependencies (`react-native-web`, `react-dom`, `@expo/metro-runtime`), and `mobile/lecturer/e2e-web/` has a Playwright smoke test (the login page renders in the browser) runnable via `npm run e2e:web`. If Maestro can't be installed or Expo Go can't be automated, write the exact error under Blocked.
 - [ ] **T04 [HUMAN] Checkpoint: review T01–T03.** The loop stops here (all feature tasks depend on T04). Yew Sing (or a Claude review session) checks the T01–T03 diffs and PROGRESS.md, then ticks `[x]` to let the loop continue.
+- [ ] **T05 [UI] Lecturer app runs in the browser.** Depends on: T03, T04.
+  Done when: the existing lecturer app (same code, Expo web) works in a desktop browser: every current screen opens without a runtime error; phone-only modules have web fallbacks (e.g. token storage); layouts use wide screens through a side navigation and a sensible content width instead of a stretched phone column, while the phone layout stays unchanged; `npx expo export --platform web` and the Android export both pass; `scripts/check.sh` runs the web export when `mobile/lecturer/src` changes; a Playwright flow logs a lecturer in at 1280 px and reaches the dashboard with no horizontal scrolling, and the existing Maestro `smoke.yaml` still passes.
 
 ## 1. Module 1 — User Management
 
@@ -46,6 +48,8 @@ Spec: `docs/requirements/*.md`, `docs/use-cases/UC-M*.md`. Rules: `CLAUDE.md` �
   Done when: a lecturer screen lists pending submissions with side-by-side images and approve/reject (reason required); Maestro flow approves a seeded pending submission.
 - [ ] **T20 [API] Profile fields (FR-107).** Depends on: T11.
   Done when: `/auth/me` returns name, matric/staff number, email, faculty, courses, face status (students); test.
+- [ ] **T22 [UI] Admin area inside the lecturer web app (FR-103, FR-108, FR-117).** Depends on: T05, T11, T12, T17.
+  Done when: the browser login offers administrator sign-in with local email + password; admin-role logins land on an admin area, available on web only, with these screens: accounts (view, deactivate/reactivate, create admin), verification fallback + face data reset, audit log, and Moodle sync status with a sync button. Lecturer logins never see these screens and the server still returns 403 to them. Playwright flows: an admin deactivates and reactivates an account; a lecturer sees no admin navigation and gets 403 from an admin endpoint.
 
 ## 2. Module 3 — Attendance Management
 
@@ -84,7 +88,7 @@ Spec: `docs/requirements/*.md`, `docs/use-cases/UC-M*.md`. Rules: `CLAUDE.md` �
   Done when: on Present, a websocket event goes to the lecturer's session channel and to the student's channel, and `app/services/notify.py` exposes `emit(event, user_ids, payload)` as the M2 hook (logs only for now, documented in `docs/interfaces.md`); tests.
 - [ ] **T45 [UI] Lecturer unrecognised-faces screen + student "attendance recorded" banner.** Depends on: T43, T44, T03.
   Done when: Maestro flows: lecturer assigns a seeded unrecognised face; the student app shows the banner after a simulated recognition.
-- [ ] **T46 [UI] Admin web: device management page.** Depends on: T40, T03.
+- [ ] **T46 [UI] Admin area: device management page.** Depends on: T40, T22.
   Done when: page lists devices with online status, registers a device and shows the key once, regenerates a key; Playwright test.
 - [ ] **T47 [HUMAN] Run the device client on the Raspberry Pi** with the Pi camera at the door; measure NFR-11 (fps) and NFR-10; record results in PROGRESS.md.
 
@@ -92,6 +96,8 @@ Spec: `docs/requirements/*.md`, `docs/use-cases/UC-M*.md`. Rules: `CLAUDE.md` �
 
 - [ ] **T80 [API] Characterisation tests for KB + assistant.** Depends on: T01, T04.
   Done when: `db` tests cover materials list, sync (Moodle mocked), chat session CRUD and message answer (LLM mocked through the adapter), course access control (not-enrolled → 403), at least 10 tests.
+- [ ] **T93 [API] Phone-friendly answer format.** Depends on: T80.
+  Done when: the system prompt forbids LaTeX and asks for plain-text formulas; a backend cleanup step runs on every answer before it is saved and converts any remaining LaTeX (`$$…$$`, `\frac{a}{b}`, `\text{}`, `\times`, `\%`) to readable text; citations are renumbered 1, 2, 3… by first appearance in both the answer text and the citation list; unit tests cover each conversion and the renumbering, including an answer citing [1], [2], [4].
 - [ ] **T81 [API] Scheduled material sync + lecturer materials status (FR-803, FR-804).** Depends on: T80.
   Done when: sync runs on a configurable schedule for all courses; only the course's lecturer (or admin) can trigger a sync or list status; tests.
 - [ ] **T82 [INFRA] Live Gemini test suite + record/replay + Q&A evaluation harness (NFR-18, NFR-19, NFR-21).** Depends on: T80.
@@ -113,7 +119,7 @@ Spec: `docs/requirements/*.md`, `docs/use-cases/UC-M*.md`. Rules: `CLAUDE.md` �
   Done when: each student question is tagged with a topic (from the cited materials/sections or a cheap LLM label); the lecturer endpoint returns topics with ≥3 distinct students only and no names or text; tests prove that k<3 topics are hidden and that no endpoint exposes another student's chat.
 - [ ] **T88 [API] Retrieval interface for Module 6 (FR-814).** Depends on: T80.
   Done when: `app/services/kb/retrieval_api.py` (`search(course_id, query, k)` → passages with source) is documented in `docs/interfaces.md`; tests.
-- [ ] **T89 [UI] Student app: assistant chat with citations.** Depends on: T84, T03.
+- [ ] **T89 [UI] Student app: assistant chat with citations.** Depends on: T84, T93, T03.
   Done when: new Assistant tab: course picker, sessions list, chat with citation chips that open the source; general-knowledge label shown; Maestro flow asks a question with the backend's LLM mocked (`LLM_FAKE=1` env flag added for E2E) and sees a citation.
 - [ ] **T90 [UI] Student app: summaries + flashcards/practice.** Depends on: T85, T86, T89.
   Done when: screens for generate summary, flip flashcards, answer practice questions; Maestro flow with the fake LLM.
@@ -124,6 +130,9 @@ Spec: `docs/requirements/*.md`, `docs/use-cases/UC-M*.md`. Rules: `CLAUDE.md` �
 
 ## 5. Wrap-up
 
+- [ ] **T95 [HUMAN] Confirm with Shino that `frontend/admin` can go.** Check that none of her modules (M2, M5, M6, M7) still rely on it or plan to build on it.
+- [ ] **T96 [INFRA] Retire `frontend/admin`.** Depends on: T22, T46, T95.
+  Done when: PROGRESS.md lists every old admin view and where it went (Users → accounts; FaceData, FaceReviewQueue → verification fallback; AuditLog → audit log; Students, Lecturers, Enrollment, ClassManagement → replaced by Moodle sync; Dashboard → removed); `frontend/admin/` is deleted; `scripts/check.sh`, README and CLAUDE.md no longer refer to it; no backend endpoint is removed unless a test shows nothing uses it; `bash scripts/check.sh` and the admin-area Playwright flows pass.
 - [ ] **T98 [INFRA] Docs refresh.** Depends on: all API tasks of M1/M3/M4/M8.
   Done when: README and CLAUDE.md run instructions match reality (device client, Moodle plugin, E2E); `docs/interfaces.md` is complete.
 - [ ] **T99 [HUMAN] UAT preparation** (VPS deploy, test accounts, consent forms).

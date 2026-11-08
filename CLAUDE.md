@@ -3,6 +3,8 @@
 ## Project Overview
 SmartClass is a classroom management system for UM (Universiti Malaya): Moodle-based login, face recognition attendance (Raspberry Pi at the entrance), attendance management synced to Moodle, and an AI learning assistant over course materials. It has one React web frontend (admin) and two React Native mobile apps (lecturer, student). A local Moodle (`backend/moodle/`) simulates UM SPeCTRUM. Scope is defined by `PROJECT PROPOSAL PAPER.pdf` (8 modules); IoT environment control and desk projection were dropped.
 
+**Web direction (decided 2026-11-09):** lecturers also use the lecturer app in a browser (same Expo code via Expo web). Administrators stay as a small role with a few web-only screens inside that app. `frontend/admin` is retired once PLAN.md T22, T46 and T96 are done; keep it working until then.
+
 ## Repo Structure
 ```
 SmartClass/
@@ -128,7 +130,7 @@ docs/
 Long jobs run as one task per fresh session. Start everything with `/run-plan [rounds]` (it runs `scripts/run-tasks.sh` in the background, one fresh Opus session per task running `/next-task`, and reports at the end). The reviewer subagent runs on Sonnet.
 - **One task per session.** Pick the first unchecked task in `PLAN.md` whose dependencies are all `[x]` and which is not tagged `[HUMAN]`. Never start a second task.
 - A task is **DONE** only when: code written, tests written, `bash scripts/check.sh` passes, its "Done when" line is met, and the reviewer agent found no unresolved real problems.
-- `[UI]` tasks are done only when their Maestro (mobile) or Playwright (admin) flow passes. If the E2E setup is broken, mark the task `[~]` and explain in PROGRESS.md.
+- `[UI]` tasks are done only when their Maestro (mobile) or Playwright (lecturer web) flow passes. If the E2E setup is broken, mark the task `[~]` and explain in PROGRESS.md.
 - **Never delete, skip or weaken a test to make it pass.** If a test looks wrong, leave it failing and write why in PROGRESS.md under "Blocked".
   `scripts/test_guard.py` (part of check.sh) fails the round if a test is removed or skipped, unless PROGRESS.md gets a `TEST-CHANGE: <test> - <why>` line; the reviewer judges the reason. Put skip logic for `live`/`moodle` tests in `conftest.py`, not in test files.
 - If stuck after 3 genuine attempts at the same problem, write it under `## Blocked` in PROGRESS.md and stop.
@@ -138,6 +140,14 @@ Long jobs run as one task per fresh session. Start everything with `/run-plan [r
 - Never read or print `backend/.env` or any secret. Never commit secrets.
 - On Windows use the Bash tool (Git Bash) for commands, not PowerShell.
 - Stay inside the task's scope; note follow-up ideas in PROGRESS.md under "Next" instead of doing them.
+
+## Merging to main
+Shino builds on `main`, so only finished, checked work goes there.
+1. Yew Sing says "prepare the merge" or runs `/prepare-merge`, or Claude suggests it at a milestone.
+2. Claude runs the checks in `.claude/commands/prepare-merge.md`, fixes problems on the work branch, and resolves conflicts there if `main` has changed.
+3. Claude gives Yew Sing the GitHub link and a note for Shino. Yew Sing clicks Merge.
+
+Claude commits and pushes work branches freely, but never pushes to `main` or force-pushes (blocked in `.claude/settings.json`).
 
 ## WIP / Known Gaps
 - See `PLAN.md` (task list) and `PROGRESS.md` (log). FRs marked Deferred depend on Module 6.
