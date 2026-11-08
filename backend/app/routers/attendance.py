@@ -10,8 +10,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
-from app.core.deps import require_role, get_current_user
-from app.models.user import User, Student, Lecturer
+from app.core.deps import require_role
+from app.models.user import User, Student
 from app.models.class_ import Enrollment, ClassOccurrence
 from app.models.session import AttendanceSession
 from app.models.attendance import AttendanceRecord

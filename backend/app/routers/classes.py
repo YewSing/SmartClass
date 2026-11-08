@@ -7,10 +7,9 @@ from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.deps import get_current_user, require_role
+from app.core.deps import get_current_user
 from app.models.user import User, Student, Lecturer
 from app.models.class_ import ClassOccurrence, Enrollment
-from app.models.face import FaceEmbedding
 from app.schemas.class_ import OccurrenceOut, OccurrenceStudentOut
 
 _DAY_MAP = {0: "Mon", 1: "Tue", 2: "Wed", 3: "Thu", 4: "Fri", 5: "Sat", 6: "Sun"}

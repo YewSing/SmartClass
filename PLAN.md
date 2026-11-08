@@ -12,7 +12,7 @@ Spec: `docs/requirements/*.md`, `docs/use-cases/UC-M*.md`. Rules: `CLAUDE.md` �
 
 ## 0. Foundation
 
-- [ ] **T01 [INFRA] Test + lint baseline.** Depends on: —.
+- [x] **T01 [INFRA] Test + lint baseline.** Depends on: —.
   Done when: `backend/pytest.ini` defines markers `db`, `live`, `moodle`, `e2e` and `asyncio_default_fixture_loop_scope`; `backend/tests/conftest.py` gives `db` tests a separate `smartclass_test` database on the docker postgres (created + migrated with alembic per test session, cleaned between tests) and an authenticated `httpx.AsyncClient` fixture per role; the 15 existing ruff errors are fixed (unused imports; `app/core/config.py` re-saved as UTF-8 without changing its content) so `ruff check .` in `backend/` passes with the existing `ruff.toml`; `requirements-dev.txt` (pytest, pytest-asyncio, respx, ruff); one sample `db` test (login with seeded admin) passes; `bash scripts/check.sh` passes.
 - [ ] **T02 [API] Characterisation tests for existing behaviour.** Depends on: T01.
   Done when: `db` tests cover the current auth (login/refresh/me), session open/close, attendance list/override and CSV export, and face-review endpoints — at least 12 tests, all passing against the unchanged code. No production code changes except real bugs, each noted in PROGRESS.md.

@@ -17,7 +17,6 @@ Environment variables (copy from .env and set in shell, or create face_worker/.e
 """
 import os
 import signal
-import sys
 import time
 from pathlib import Path
 

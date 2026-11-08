@@ -8,7 +8,6 @@ from app.core.database import get_db
 from app.core.deps import require_role
 from app.models.user import User, Student, Lecturer
 from app.models.class_ import Course, ClassOccurrence, Enrollment
-from app.models.face import FaceEmbedding
 from app.schemas.class_ import CourseListOut, OccurrenceOut, OccurrenceStudentOut
 from app.services.audit_service import write_log
 
