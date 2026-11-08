@@ -1,0 +1,165 @@
+{
+  "materials_root": "/materials",
+  "default_exclude": [
+    "**/*assignment*/**",
+    "**/*Assignment*",
+    "**/Group Project/**",
+    "**/Lab/**",
+    "**/Tutorial Work/**",
+    "**/PYQ/**",
+    "**/CamScanner*",
+    "**/__MACOSX/**"
+  ],
+  "allowed_extensions": [
+    "pdf",
+    "pptx",
+    "docx"
+  ],
+  "courses": [
+    {
+      "shortname": "WIF3001",
+      "fullname": "WIF3001 Software Testing",
+      "source_folder": "SEM 6/WIF3001 Software Testing",
+      "include": [],
+      "exclude": [
+        "**/WIF3001-P-*",
+        "**/22*",
+        "**/Attachment*",
+        "Alternative Assessment/**",
+        "**/*Alternative Assessment*"
+      ]
+    },
+    {
+      "shortname": "WIF3004",
+      "fullname": "WIF3004 Software Architecture and Design Paradigm",
+      "source_folder": "SEM 6/WIF3004 Software Architecture and Design Paradigm",
+      "include": [],
+      "exclude": [
+        "**/YongYewSing*",
+        "**/*Alternative Assessment*",
+        "**/*AI Use Declaration*",
+        "**/5-layer-architecture-draft*"
+      ]
+    },
+    {
+      "shortname": "WIA2005",
+      "fullname": "WIA2005 Algorithm Design and Analysis",
+      "source_folder": "SEM 4/WIA2005 Algorithmn Design and Analysis",
+      "include": [],
+      "exclude": []
+    }
+  ],
+  "users": [
+    {
+      "username": "lecturer1",
+      "password": "Lecturer123!",
+      "firstname": "Aminah",
+      "lastname": "Rahman",
+      "email": "lecturer1@example.com"
+    },
+    {
+      "username": "lecturer2",
+      "password": "Lecturer123!",
+      "firstname": "Chong",
+      "lastname": "Wei Ming",
+      "email": "lecturer2@example.com"
+    },
+    {
+      "username": "student1",
+      "password": "Student123!",
+      "firstname": "Ali",
+      "lastname": "Hassan",
+      "email": "student1@example.com"
+    },
+    {
+      "username": "student2",
+      "password": "Student123!",
+      "firstname": "Siti",
+      "lastname": "Nurhaliza",
+      "email": "student2@example.com"
+    },
+    {
+      "username": "student3",
+      "password": "Student123!",
+      "firstname": "Kumar",
+      "lastname": "Raj",
+      "email": "student3@example.com"
+    },
+    {
+      "username": "student4",
+      "password": "Student123!",
+      "firstname": "Mei Ling",
+      "lastname": "Tan",
+      "email": "student4@example.com"
+    },
+    {
+      "username": "student5",
+      "password": "Student123!",
+      "firstname": "Daniel",
+      "lastname": "Lee",
+      "email": "student5@example.com"
+    }
+  ],
+  "enrolments": [
+    {
+      "course": "WIF3001",
+      "username": "lecturer1",
+      "role": "editingteacher"
+    },
+    {
+      "course": "WIF3004",
+      "username": "lecturer1",
+      "role": "editingteacher"
+    },
+    {
+      "course": "WIA2005",
+      "username": "lecturer2",
+      "role": "editingteacher"
+    },
+    {
+      "course": "WIF3001",
+      "username": "student1",
+      "role": "student"
+    },
+    {
+      "course": "WIF3001",
+      "username": "student2",
+      "role": "student"
+    },
+    {
+      "course": "WIF3001",
+      "username": "student3",
+      "role": "student"
+    },
+    {
+      "course": "WIF3004",
+      "username": "student1",
+      "role": "student"
+    },
+    {
+      "course": "WIF3004",
+      "username": "student3",
+      "role": "student"
+    },
+    {
+      "course": "WIF3004",
+      "username": "student4",
+      "role": "student"
+    },
+    {
+      "course": "WIA2005",
+      "username": "student2",
+      "role": "student"
+    },
+    {
+      "course": "WIA2005",
+      "username": "student4",
+      "role": "student"
+    },
+    {
+      "course": "WIA2005",
+      "username": "student5",
+      "role": "student"
+    }
+  ]
+}

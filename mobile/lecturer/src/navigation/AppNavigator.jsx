@@ -21,7 +21,6 @@ import LiveResults from '../screens/LiveResults'
 import ResultsClosed from '../screens/ResultsClosed'
 import Breakdown from '../screens/Breakdown'
 import Analytics from '../screens/Analytics'
-import Environment from '../screens/Environment'
 
 const Stack = createNativeStackNavigator()
 const Tab   = createBottomTabNavigator()
@@ -66,14 +65,6 @@ function AnalyticsStack() {
   )
 }
 
-function EnvStack() {
-  return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="EnvironmentScreen" component={Environment} />
-    </Stack.Navigator>
-  )
-}
-
 // ─── Main tabs ────────────────────────────────────────────────────────────────
 
 const TAB_ICONS = {
@@ -81,7 +72,6 @@ const TAB_ICONS = {
   Attendance:  { active: 'people',           inactive: 'people-outline' },
   Quiz:        { active: 'help-circle',      inactive: 'help-circle-outline' },
   Analytics:   { active: 'bar-chart',        inactive: 'bar-chart-outline' },
-  Environment: { active: 'leaf',             inactive: 'leaf-outline' },
 }
 
 function MainTabs() {
@@ -114,7 +104,6 @@ function MainTabs() {
       <Tab.Screen name="Attendance"  component={AttendanceStack} options={{ title: 'Attendance' }} />
       <Tab.Screen name="Quiz"        component={QuizStack}       options={{ title: 'Quiz' }} />
       <Tab.Screen name="Analytics"   component={AnalyticsStack}  options={{ title: 'Analytics' }} />
-      <Tab.Screen name="Environment" component={EnvStack}        options={{ title: 'Env' }} />
     </Tab.Navigator>
   )
 }

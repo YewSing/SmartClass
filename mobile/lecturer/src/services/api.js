@@ -2,7 +2,7 @@ import * as FileSystem from 'expo-file-system/legacy'
 import * as Sharing from 'expo-sharing'
 import { apiCall, apiCallRaw, getToken, setToken, clearToken, setRefreshToken, clearRefreshToken, BASE } from './client'
 import {
-  QUIZZES, BREAKDOWN_ROWS, SENSORS,
+  QUIZZES, BREAKDOWN_ROWS,
   ANALYTICS_PAR_BARS, ANALYTICS_PAR_LABELS,
 } from '../data/mockData'
 
@@ -192,7 +192,7 @@ export const getAnalytics = async (occurrenceId, dateParams = {}) => {
   return apiCall('GET', `/lecturer/analytics?occurrence_id=${occurrenceId}${qs}`)
 }
 
-// ─── Mocked (Module 3/4 — quiz; Module 5/6 — sensors) ────────────────────────
+// ─── Mocked (Module 3/4 — quiz) ────────────────────────
 
 const delay = (ms) => new Promise(res => setTimeout(res, ms))
 
@@ -201,7 +201,5 @@ export const createQuiz        = async (data) => { await delay(400); return { id
 export const pushQuiz          = async (_id)  => { await delay(300); return { success: true } }
 export const closeQuiz         = async (_id)  => { await delay(300); return { success: true } }
 export const getBreakdown      = async (_id)  => { await delay(300); return BREAKDOWN_ROWS }
-export const getSensors        = async ()     => { await delay(200); return SENSORS }
-export const setActuatorOverride = async ()   => { await delay(300); return { success: true } }
 export const resetConfusion    = async ()     => { await delay(300); return { success: true } }
 export const getAnalyticsPar   = async ()     => ({ bars: ANALYTICS_PAR_BARS, labels: ANALYTICS_PAR_LABELS })

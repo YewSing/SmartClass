@@ -34,3 +34,11 @@ Thumbs.db
 
 # Claude Code local settings (machine-specific)
 **/.claude/settings.local.json
+
+# Local Moodle simulation (contains service token)
+backend/moodle/.env.moodle
+
+# Claude task loop (local state)
+.claude/logs/
+.claude/.stop-blocks
+.claude/.live-pass

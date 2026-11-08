@@ -42,7 +42,6 @@ export const BREAKDOWN_ROWS = [
   { name: 'Yong Yew Sing',         answer: 'D', correct: true  },
   { name: 'Zul Izzat Izzuddin',    answer: '—', correct: null  },
 ]
-export const SENSORS = { temperature: { value: '26.4', unit: '°C', status: 'Normal', warn: false }, humidity: { value: '61', unit: '%', status: 'Normal', warn: false }, co2: { value: '1240', unit: 'ppm', status: 'Elevated', warn: true }, light: { value: '420', unit: 'lux', status: 'Normal', warn: false }, occupancy: { value: '23', total: 30, status: 'Normal', warn: false } }
 export const ANALYTICS_ATT_BARS = [66,78,90,80,96,85,88,100,74,84,88]
 export const ANALYTICS_ATT_LABELS = ['W1S1','W1S2','W2S1','W2S2','W3S1','W3S2','W4S1','W4S2','W5S1','W5S2','Today']
 export const ANALYTICS_PAR_BARS = [66,78,88,72,90,84]

@@ -235,30 +235,6 @@ export default function Dashboard({ navigation }) {
         </>
       )}
 
-      {/* Environment strip */}
-      <View style={[styles.sectionHeader, { paddingTop: 8, paddingBottom: 6 }]}>
-        <Text style={styles.sectionTitle}>Environment</Text>
-      </View>
-      <TouchableOpacity style={styles.envStrip} onPress={() => navigation.navigate('Environment')}>
-        <View style={styles.envStripTop}>
-          <Text style={styles.envStripTitle}>Live Sensors — DK 6</Text>
-          <Ionicons name="chevron-forward" size={14} color={C.textSub} />
-        </View>
-        <View style={styles.envMetrics}>
-          {[
-            { val: '26.4', unit: '°C', lbl: 'Temp' },
-            { val: '1240', unit: 'ppm', lbl: 'CO₂' },
-            { val: '420', unit: 'lux', lbl: 'Light' },
-            { val: '—', unit: 'pax', lbl: 'Occupancy' },
-          ].map(m => (
-            <View key={m.lbl} style={styles.envMetric}>
-              <Text style={styles.envVal}>{m.val}</Text>
-              <Text style={styles.envUnit}>{m.unit}</Text>
-              <Text style={styles.envLbl}>{m.lbl}</Text>
-            </View>
-          ))}
-        </View>
-      </TouchableOpacity>
       <View style={{ height: 20 }} />
     </ScrollView>
   </>)
@@ -498,44 +474,5 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: C.border,
     marginTop: 8,
-  },
-  envStrip: {
-    backgroundColor: C.card,
-    borderRadius: 12,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: C.border,
-  },
-  envStripTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  envStripTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: C.text,
-  },
-  envMetrics: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  envMetric: {
-    alignItems: 'center',
-  },
-  envVal: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: C.text,
-  },
-  envUnit: {
-    fontSize: 10,
-    color: C.textSub,
-  },
-  envLbl: {
-    fontSize: 10,
-    color: C.textHint,
-    marginTop: 2,
   },
 })

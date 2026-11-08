@@ -16,6 +16,9 @@ class Course(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     code: Mapped[str] = mapped_column(String(20), unique=True, index=True, nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Moodle (SPeCTRUM) course id. Courses map to Moodle by code == shortname;
+    # the KB sync fills this in lazily when it is null.
+    moodle_course_id: Mapped[Optional[int]] = mapped_column(nullable=True)
 
     occurrences: Mapped[list["ClassOccurrence"]] = relationship(
         back_populates="course", cascade="all, delete-orphan"

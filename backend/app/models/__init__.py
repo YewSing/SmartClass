@@ -8,3 +8,5 @@ from app.models.session import AttendanceSession  # noqa: F401
 from app.models.attendance import AttendanceRecord  # noqa: F401
 from app.models.audit import AuditLog  # noqa: F401
 from app.models.face_review import FaceReviewEntry  # noqa: F401
+from app.models.knowledge import KbMaterial, KbChunk  # noqa: F401
+from app.models.ai_chat import ChatSession, ChatMessage  # noqa: F401

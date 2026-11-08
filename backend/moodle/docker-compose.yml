@@ -1,0 +1,52 @@
+# Local Moodle simulating UM SPeCTRUM. Separate from ../docker-compose.yml (app DB).
+# Start:  docker compose up -d     (first boot takes ~3-5 min to install Moodle)
+name: smartclass-moodle
+
+services:
+  moodle-db:
+    image: bitnamilegacy/mariadb:11.4
+    restart: unless-stopped
+    environment:
+      ALLOW_EMPTY_PASSWORD: "no"
+      MARIADB_ROOT_PASSWORD: moodle_root_pw
+      MARIADB_USER: bn_moodle
+      MARIADB_PASSWORD: moodle_db_pw
+      MARIADB_DATABASE: bitnami_moodle
+      MARIADB_CHARACTER_SET: utf8mb4
+      MARIADB_COLLATE: utf8mb4_unicode_ci
+    volumes:
+      - moodle_db_data:/bitnami/mariadb
+
+  moodle:
+    image: bitnamilegacy/moodle:4.5
+    restart: unless-stopped
+    depends_on:
+      - moodle-db
+    ports:
+      - "8080:8080"
+    environment:
+      MOODLE_DATABASE_TYPE: mariadb
+      MOODLE_DATABASE_HOST: moodle-db
+      MOODLE_DATABASE_PORT_NUMBER: "3306"
+      MOODLE_DATABASE_USER: bn_moodle
+      MOODLE_DATABASE_PASSWORD: moodle_db_pw
+      MOODLE_DATABASE_NAME: bitnami_moodle
+      MOODLE_USERNAME: admin
+      MOODLE_PASSWORD: Admin123!
+      MOODLE_EMAIL: admin@example.com
+      MOODLE_SITE_NAME: "SPeCTRUM (Simulated)"
+      MOODLE_SKIP_BOOTSTRAP: "no"
+      MOODLE_HOST: localhost:8080
+      PHP_MEMORY_LIMIT: 512M
+    volumes:
+      - moodle_data:/bitnami/moodle
+      - moodle_moodledata:/bitnami/moodledata
+      - ./scripts:/scripts:ro
+      - ./seed_config.json:/seed/seed_config.json:ro
+      # Materials root, read-only. Only the course folders named in seed_config.json are ever read.
+      - "${MATERIALS_ROOT:-C:/Users/user/Documents/UM Documents}:/materials:ro"
+
+volumes:
+  moodle_db_data:
+  moodle_moodledata:
+  moodle_data:

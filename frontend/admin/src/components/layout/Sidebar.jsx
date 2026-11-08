@@ -25,7 +25,6 @@ const NAV = [
   {
     label: 'System',
     items: [
-      { id: 'environment', icon: 'fa-solid fa-temperature-half',  label: 'Environment' },
       { id: 'audit',       icon: 'fa-solid fa-clock-rotate-left', label: 'Audit Log' },
     ],
   },
