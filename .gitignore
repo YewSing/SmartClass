@@ -38,6 +38,13 @@ Thumbs.db
 # Local Moodle simulation (contains service token)
 backend/moodle/.env.moodle
 
+# Local tool installs (Maestro CLI, from scripts/e2e-mobile.sh)
+.tools/
+
+# Playwright output
+**/test-results/
+**/playwright-report/
+
 # Claude task loop (local state)
 .claude/logs/
 .claude/.stop-blocks

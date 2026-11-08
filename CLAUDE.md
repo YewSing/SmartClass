@@ -124,7 +124,8 @@ docs/
 - Backend tests: `cd backend && python -m pytest -q` (markers: `db` needs docker postgres, `live` calls the real LLM, `moodle` needs the local Moodle up)
 - Live LLM tests (Gemini free tier, rate-limited): `cd backend && python -m pytest -m live -q`
 - Lint: `cd backend && ruff check .` · format: `ruff format <file>`
-- Mobile E2E (Android emulator + Maestro): `bash scripts/e2e-mobile.sh <student|lecturer> <flow>` (set up by T03)
+- Mobile E2E (Android emulator + Maestro): `bash scripts/e2e-mobile.sh <student|lecturer> <flow>` runs `mobile/<app>/e2e/<flow>.yaml`; boots AVD `Pixel_4_API_35` headless, starts backend + Expo, stops them on exit. Maestro installs into git-ignored `.tools/` if missing.
+- Lecturer web E2E (Playwright): `cd mobile/lecturer && npm run e2e:web` (tests in `e2e-web/`, starts Expo web on :8082)
 - Admin web build: `cd frontend/admin && npm run build`
 
 ## Task Loop Rules (PLAN.md / PROGRESS.md)
