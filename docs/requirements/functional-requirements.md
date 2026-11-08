@@ -99,8 +99,8 @@ Until M2 exists, these events appear as live updates inside the relevant app scr
 | FR-403 | The backend shall extract a face embedding from each crop and match it against the registered embeddings of students enrolled in the session's course, accepting a match only at or above a configurable similarity threshold. | Must Have | System |
 | FR-404 | The system shall confirm a student only after they are matched consistently across a configurable number of consecutive frames (default 3). | Must Have | System |
 | FR-405 | The system shall submit each confirmed recognition, with timestamp and device ID, to Module 3 to record attendance. | Must Have | System |
-| FR-406 | The system shall give feedback on recognition: the student is told on their phone that attendance was recorded, and the lecturer's live session view shows them as present. | Must Have | Student, Lecturer |
-| FR-407 | The system shall flag faces that are detected but not matched for lecturer review, showing the face crop. The lecturer can assign it to an enrolled student (marking them Present) or dismiss it. | Must Have | Lecturer |
+| FR-406 | The system shall give feedback on recognition: the student is told on their phone that attendance was recorded, and the lecturer's live session view shows them as present or late. | Must Have | Student, Lecturer |
+| FR-407 | The system shall flag faces that are detected but not matched for lecturer review, showing the face crop. The lecturer can assign it to an enrolled student (marking them Present or Late from the capture time) or dismiss it. | Must Have | Lecturer |
 | FR-408 | The system shall let administrators register camera devices, assign each to a room, and regenerate a device's key. Each device's online or offline status (heartbeat) shall be shown. | Should Have | Admin |
 | FR-409 | The system shall support a USB webcam (Logitech) on a laptop as a backup capture device, using the same pipeline. | Should Have | System |
 | FR-410 | The system shall delete unrecognised-face crops once they are resolved, or after a retention period. | Should Have | System |

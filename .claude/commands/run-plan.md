@@ -1,9 +1,9 @@
 ---
-description: Run the PLAN.md task loop in the background (default 30 rounds), then summarise what got done.
-argument-hint: "[rounds, default 30]"
+description: Run the PLAN.md task loop in the background (default 5 rounds), then summarise what got done.
+argument-hint: "[rounds, default 5]"
 ---
 
-Start the SmartClass task loop and report back. Rounds: $ARGUMENTS (use 30 if empty).
+Start the SmartClass task loop and report back. Rounds: $ARGUMENTS (use 5 if empty). Never use more than 5 unless Yew Sing typed a bigger number himself in this request.
 
 1. Pre-flight, and fix only these if needed:
    - Must not be on `main`. If on main, stop and tell the user.
@@ -18,6 +18,7 @@ Start the SmartClass task loop and report back. Rounds: $ARGUMENTS (use 30 if em
    - Fix nothing yourself. Put real problems under `## Next` in PROGRESS.md as `REVIEW: <task> - <problem>` and commit `Checkpoint review START..HEAD`. If a problem means a finished task is wrong, change its box back to `[ ]` with a note, so the next loop redoes it.
    - If the loop stopped at the T04 checkpoint (or another `[HUMAN]` gate) and the review found no high-severity problem, say so clearly: the user only needs to reply "tick T04" for you to tick it, commit and push.
 5. Reply with a short report:
+   - what changed for someone using the app, in plain language, and exactly what to try (or "nothing visible yet")
    - tasks finished (`[x]`), tasks needing a manual check (`[~]`, and exactly what to check), blocked tasks and why
    - any `TEST-CHANGE:` notes or interface/schema changes, which the user should look at
    - why the loop stopped (all rounds done, blocked, failing check, usage limit)
