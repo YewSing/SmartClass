@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Literal, Optional
 from datetime import datetime
 
 from pydantic import BaseModel, EmailStr
@@ -67,7 +67,7 @@ class UserCreateRequest(BaseModel):
 class UserUpdateRequest(BaseModel):
     name: Optional[str] = None
     phone: Optional[str] = None
-    status: Optional[str] = None
+    status: Optional[Literal["active", "inactive"]] = None
     programme: Optional[str] = None
     faculty: Optional[str] = None
     year_sem: Optional[str] = None
