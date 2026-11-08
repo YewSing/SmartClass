@@ -11,6 +11,10 @@ Short log, newest entry at the bottom of "Log". Each entry is at most 5 lines:
 - (T02) Lecturer write/read endpoints (open/close session, overrides, roster, CSV exports) don't check the lecturer teaches that occurrence — NFR-04; fix with T31/T33 and add cross-lecturer tests (`other_lecturer_client` fixture exists).
 - (T02) `POST /lecturer/sessions` as admin (no Lecturer row) sets `lecturer_id=0` → FK error/500; decide whether admins may open sessions.
 - No runnable task (2026-11-09): T01–T03 done; T04 `[HUMAN] Checkpoint` is unticked, so the loop is stopped until Yew Sing reviews T01–T03 and ticks it.
+- REVIEW: T02/NFR-04 - no PLAN.md task fixes lecturer ownership on session open/close, roster, or session and occurrence CSV exports (`routers/sessions.py`, `routers/attendance.py` only check the role). T31 covers overrides only and T33's "Done when" has no 403 case, and the loop doesn't pick up work from this section. Add it to T31/T33's "Done when" or a new task, with `other_lecturer_client` tests.
+- REVIEW: T31 - its required override reason will fail the T02 tests that override without one (`test_char_attendance.py`, `test_char_sessions.py`), and T31's "Done when" doesn't say to update them, unlike T30's. Say so in T31, so the loop doesn't block or treat it as weakening a test.
+- REVIEW: Loop - `run-tasks.sh` counts a "no runnable task" commit as a finished round and carries on, starting a fresh session each round instead of stopping at a `[HUMAN]` gate (round 4 of this run). Stop the loop on that result.
+- REVIEW: Loop - nothing stops two loops running at once. A stopped 30-round run kept going and did T01 alongside the 4-round run; they overwrote each other's files, and `check.sh` in one session can drop `smartclass_test` under another. Add a lock file to `run-tasks.sh`.
 
 ## Log
 
