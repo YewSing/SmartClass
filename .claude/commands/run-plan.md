@@ -3,7 +3,7 @@ description: Run the PLAN.md task loop in the background (default 5 rounds), the
 argument-hint: "[rounds, default 5]"
 ---
 
-Start the SmartClass task loop and report back. Rounds: $ARGUMENTS (use 5 if empty). Never use more than 5 unless Yew Sing typed a bigger number himself in this request.
+Start the SmartClass task loop and report back. Rounds: $ARGUMENTS (use 5 if empty). Never use more than 5 unless Yew Sing typed a bigger number in this request.
 
 1. Pre-flight, and fix only these if needed:
    - Must not be on `main`. If on main, stop and tell the user.

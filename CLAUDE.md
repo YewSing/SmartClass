@@ -128,7 +128,7 @@ docs/
 - Admin web build: `cd frontend/admin && npm run build`
 
 ## Task Loop Rules (PLAN.md / PROGRESS.md)
-Long jobs run as one task per fresh session. Start everything with `/run-plan [rounds]`, 5 tasks per run at most unless Yew Sing asks for more, so he can check the work before more is built (it runs `scripts/run-tasks.sh` in the background, one fresh Opus session per task running `/next-task`, and reports at the end). The reviewer subagent runs on Sonnet.
+Long jobs run as one task per fresh session. Start everything with `/run-plan [rounds]`, 5 tasks per run at most unless Yew Sing asks for more, so the work gets checked before more is built (it runs `scripts/run-tasks.sh` in the background, one fresh Opus session per task running `/next-task`, and reports at the end). The reviewer subagent runs on Sonnet.
 - **One task per session.** Pick the first unchecked task in `PLAN.md` whose dependencies are all `[x]` and which is not tagged `[HUMAN]`. No task below an unticked `[HUMAN] Checkpoint` may start. Never start a second task.
 - A task is **DONE** only when: code written, tests written, `bash scripts/check.sh` passes, its "Done when" line is met, and the reviewer agent found no unresolved real problems.
 - `[UI]` tasks are done only when their Maestro (mobile) or Playwright (lecturer web) flow passes. If the E2E setup is broken, mark the task `[~]` and explain in PROGRESS.md.
