@@ -3,15 +3,15 @@
 The password is sent once to Moodle's `login/token.php` and never stored or logged (NFR-05).
 Everything else is read with the user's own Moodle token, so a user only sees their own data.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import httpx
 
 from app.core.config import settings
 from app.services.kb.moodle_client import MoodleClient, MoodleError
+from app.services.moodle_sync import MoodleCourse, course_from_enrolled
 
 MOODLE_SERVICE = "smartclass"
-TEACHER_ROLES = {"editingteacher", "teacher"}
 
 # token.php errors that mean Moodle itself is misconfigured or closed, not that the
 # credentials are wrong. Everything else (invalidlogin, suspended, ...) is a failed login.
@@ -35,6 +35,7 @@ class MoodleProfile:
     idnumber: str | None
     department: str | None
     teaches: bool
+    courses: list[MoodleCourse] = field(default_factory=list)
 
 
 async def get_user_token(username: str, password: str, base_url: str | None = None) -> str:
@@ -64,14 +65,13 @@ async def read_profile(token: str, base_url: str | None = None) -> MoodleProfile
             user_id = int(info["userid"])
             users = await moodle.call("core_user_get_users_by_field", field="id", **{"values[0]": user_id})
             details = users[0] if users else {}
-            courses = await moodle.call("core_enrol_get_users_courses", userid=user_id)
-            teaches = False
-            for course in courses:
+            my_courses: list[MoodleCourse] = []
+            for course in await moodle.call("core_enrol_get_users_courses", userid=user_id):
                 enrolled = await moodle.call("core_enrol_get_enrolled_users", courseid=course["id"])
-                me = next((u for u in enrolled if u.get("id") == user_id), None)
-                if me and any(r.get("shortname") in TEACHER_ROLES for r in me.get("roles", [])):
-                    teaches = True
-                    break
+                # Only this user's own role counts: the login sync changes no one else (FR-104)
+                me = [u for u in enrolled if u.get("id") == user_id]
+                my_courses.append(course_from_enrolled(course, me))
+            teaches = any(c.teachers for c in my_courses)
     except (httpx.HTTPError, MoodleError, ValueError, KeyError, TypeError) as exc:
         raise MoodleUnavailable(f"profile read failed: {exc.__class__.__name__}") from None
     return MoodleProfile(
@@ -82,6 +82,7 @@ async def read_profile(token: str, base_url: str | None = None) -> MoodleProfile
         idnumber=(details.get("idnumber") or "").strip() or None,
         department=details.get("department") or None,
         teaches=teaches,
+        courses=my_courses,
     )
 
 

@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     MOODLE_URL: str = "http://localhost:8080"
     MOODLE_TOKEN: str = ""
     KB_SYNC_INTERVAL_SECONDS: int = 300       # 0 disables; also disabled when MOODLE_TOKEN is empty
+    MOODLE_SYNC_INTERVAL_SECONDS: int = 3600  # courses + enrolments (FR-104); same rules as above
 
 
 settings = Settings()

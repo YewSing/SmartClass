@@ -43,7 +43,7 @@ These M8 tasks run before everything else after the T04 checkpoint, so the stude
 
 - [x] **T10 [API] Moodle login + account auto-creation (FR-101, FR-102, FR-106).** Depends on: T02, T04.
   Done when: `POST /auth/moodle-login {username, password}` gets a token from Moodle `login/token.php` (service `smartclass`), reads the profile via `core_webservice_get_site_info`, creates or updates the SmartClass user (lecturer if they teach any course in Moodle, else student) and returns the same token shape as `/auth/login`; the password is never stored or logged; wrong credentials → 401 with a generic message; Moodle down → 503. Unit tests mock Moodle with respx (≥6 cases); one `moodle` test logs in `student1` against the local Moodle.
-- [ ] **T11 [API] Course + enrolment sync from Moodle (FR-104).** Depends on: T10.
+- [x] **T11 [API] Course + enrolment sync from Moodle (FR-104).** Depends on: T10.
   Done when: a sync service maps Moodle courses → SmartClass courses/occurrences (record the mapping decision in PROGRESS.md), adds and removes enrolments and lecturer assignments to match Moodle, runs for the user on login, on `POST /admin/moodle/sync`, and on a schedule (interval from config); idempotent (running twice changes nothing). Tests: add, remove, idempotency, Moodle failure leaves data unchanged.
 - [ ] **T12 [API] Admin accounts: deactivate/reactivate, create admin, audit (FR-103, FR-108, FR-118).** Depends on: T02, T04.
   Done when: a deactivated user can't log in (local or Moodle) and can't refresh tokens; an admin can't deactivate themselves; each change writes an audit entry; tests for each rule.

@@ -13,7 +13,7 @@ from app.schemas.auth import (
     LoginRequest, LoginResponse, MoodleLoginRequest, UserOut, RefreshRequest, ChangePasswordRequest,
 )
 from app.core.security import hash_password
-from app.services import moodle_auth
+from app.services import moodle_auth, moodle_sync
 from app.services.audit_service import write_log
 
 logger = logging.getLogger(__name__)
@@ -66,6 +66,7 @@ async def moodle_login(body: MoodleLoginRequest, db: AsyncSession = Depends(get_
     user = await _upsert_moodle_user(db, profile)
     if user is None:
         raise _INVALID_CREDS
+    await moodle_sync.sync_user(db, user, profile.courses)  # FR-104, UC step 5
     await db.commit()
 
     result = await db.execute(

@@ -4,9 +4,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import auth, admin_users, admin_students, admin_courses, classes, sessions, attendance, internal, analytics, audit, face_review, assistant
+from app.routers import auth, admin_users, admin_students, admin_courses, admin_moodle, classes, sessions, attendance, internal, analytics, audit, face_review, assistant
 from app.services.attendance_service import low_attendance_monitor
 from app.services.kb.sync import kb_sync_loop
+from app.services.moodle_sync import moodle_sync_loop
 from app.websocket import router as ws_router
 
 
@@ -30,7 +31,8 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         print(f"WARNING: embedding model not loaded ({exc}) - assistant search will load it on first use.")
 
-    tasks = [asyncio.create_task(low_attendance_monitor()), asyncio.create_task(kb_sync_loop())]
+    tasks = [asyncio.create_task(low_attendance_monitor()), asyncio.create_task(kb_sync_loop()),
+             asyncio.create_task(moodle_sync_loop())]
     try:
         yield
     finally:
@@ -65,6 +67,7 @@ app.include_router(auth.router)
 app.include_router(admin_users.router)
 app.include_router(admin_students.router)
 app.include_router(admin_courses.router)
+app.include_router(admin_moodle.router)
 app.include_router(classes.router)
 app.include_router(sessions.router)
 app.include_router(attendance.router)
