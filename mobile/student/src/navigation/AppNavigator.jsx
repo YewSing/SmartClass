@@ -21,6 +21,7 @@ import Profile from '../screens/Profile'
 import Assistant from '../screens/Assistant'
 import AssistantChat from '../screens/AssistantChat'
 import AssistantSource from '../screens/AssistantSource'
+import AssistantPdf from '../screens/AssistantPdf'
 
 const Stack = createNativeStackNavigator()
 const Tab   = createBottomTabNavigator()
@@ -60,6 +61,7 @@ function AssistantStack() {
       <Stack.Screen name="AssistantScreen" component={Assistant} />
       <Stack.Screen name="AssistantChat"   component={AssistantChat} />
       <Stack.Screen name="AssistantSource" component={AssistantSource} />
+      <Stack.Screen name="AssistantPdf"    component={AssistantPdf} />
     </Stack.Navigator>
   )
 }

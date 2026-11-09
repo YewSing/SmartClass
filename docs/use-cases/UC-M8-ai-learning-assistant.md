@@ -37,7 +37,7 @@
 3. System rewrites follow-up questions into stand-alone queries using the chat history.
 4. System retrieves the most relevant passages from that course's knowledge base only (FR-807).
 5. LLM answers from the passages. Each claim carries a citation (file + page/slide) (FR-805).
-6. App shows the answer. Tapping a citation opens the source at that page (FR-809).
+6. App shows the answer. Tapping a citation shows the cited passage and can open the source: a PDF opens in the app at that page; PowerPoint and Word files open in another app (FR-809).
 
 **Alternative Flows:**
 - *Not covered by the materials:* the answer comes from general knowledge and is labelled "Not from your course materials" (FR-806, NFR-19).

@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, ActivityIndicator,
-  KeyboardAvoidingView, Platform,
+  KeyboardAvoidingView, Keyboard,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
+import MarkdownText from '../components/MarkdownText'
 import Topbar from '../components/Topbar'
 import { useStudent } from '../context/StudentContext'
 import { createChatSession, getChatMessages, sendChatMessage } from '../services/api'
@@ -40,7 +41,7 @@ function Message({ msg, onOpenCitation }) {
           <Text style={styles.generalText}>General knowledge · not from your course materials</Text>
         </View>
       ) : null}
-      <Text style={styles.botText}>{msg.content}</Text>
+      <MarkdownText>{msg.content}</MarkdownText>
       {msg.citations?.length ? <CitationChips citations={msg.citations} onOpen={onOpenCitation} /> : null}
     </View>
   )
@@ -64,6 +65,12 @@ export default function AssistantChat({ route, navigation }) {
       .catch(e => showToast(e.message, 'error'))
       .finally(() => setLoading(false))
   }, [route.params.sessionId, showToast])
+
+  // Keep the latest message on screen when the keyboard takes up the bottom half
+  useEffect(() => {
+    const sub = Keyboard.addListener('keyboardDidShow', () => listRef.current?.scrollToEnd({ animated: true }))
+    return () => sub.remove()
+  }, [])
 
   const send = async () => {
     const question = draft.trim()
@@ -95,35 +102,39 @@ export default function AssistantChat({ route, navigation }) {
   const openCitation = (citation) => navigation.navigate('AssistantSource', { citation, courseCode })
 
   return (
-    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    // Android needs this too: with edge-to-edge the window no longer resizes for the keyboard
+    <KeyboardAvoidingView style={styles.screen} behavior="padding">
       <Topbar title={title || 'New chat'} sub={courseCode} onBack={() => navigation.goBack()} />
-      {loading ? (
-        <ActivityIndicator style={{ marginTop: 40 }} color={C.primary} />
-      ) : (
-        <FlatList
-          ref={listRef}
-          data={messages}
-          keyExtractor={m => String(m.id)}
-          renderItem={({ item }) => <Message msg={item} onOpenCitation={openCitation} />}
-          contentContainerStyle={styles.list}
-          onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
-          ListEmptyComponent={(
-            <View style={styles.empty}>
-              <Ionicons name="sparkles-outline" size={32} color={C.primary} />
-              <Text style={styles.emptyTitle}>Ask about {courseCode}</Text>
-              <Text style={styles.emptyText}>
-                Answers come from your lecturer's materials on SPeCTRUM. Tap a source under an answer to open it.
-              </Text>
-            </View>
-          )}
-          ListFooterComponent={sending ? (
-            <View style={[styles.bubble, styles.botBubble, styles.thinking]}>
-              <ActivityIndicator size="small" color={C.primary} />
-              <Text style={styles.thinkingText}>Thinking…</Text>
-            </View>
-          ) : null}
-        />
-      )}
+      <View style={styles.body}>
+        {loading ? (
+          <ActivityIndicator style={{ marginTop: 40 }} color={C.primary} />
+        ) : (
+          <FlatList
+            ref={listRef}
+            data={messages}
+            keyExtractor={m => String(m.id)}
+            renderItem={({ item }) => <Message msg={item} onOpenCitation={openCitation} />}
+            contentContainerStyle={[styles.list, sending && styles.listWhileSending]}
+            keyboardShouldPersistTaps="handled"
+            onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
+            ListEmptyComponent={(
+              <View style={styles.empty}>
+                <Ionicons name="sparkles-outline" size={32} color={C.primary} />
+                <Text style={styles.emptyTitle}>Ask about {courseCode}</Text>
+                <Text style={styles.emptyText}>
+                  Answers come from your lecturer's materials on SPeCTRUM. Tap a source under an answer to open it.
+                </Text>
+              </View>
+            )}
+          />
+        )}
+        {sending ? (
+          <View style={styles.thinking} testID="assistant-thinking" pointerEvents="none">
+            <ActivityIndicator size="small" color={C.primary} />
+            <Text style={styles.thinkingText}>Drafting answer…</Text>
+          </View>
+        ) : null}
+      </View>
       <View style={styles.inputBar}>
         <TextInput
           testID="assistant-input"
@@ -151,7 +162,9 @@ export default function AssistantChat({ route, navigation }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg },
+  body: { flex: 1 },
   list: { padding: 12, paddingBottom: 20, flexGrow: 1 },
+  listWhileSending: { paddingBottom: 64 },
   bubble: { maxWidth: '88%', borderRadius: 14, padding: 12, marginBottom: 10 },
   userBubble: { alignSelf: 'flex-end', backgroundColor: C.primary, borderBottomRightRadius: 4 },
   userText: { color: '#fff', fontSize: 15, lineHeight: 21 },
@@ -159,7 +172,6 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start', backgroundColor: C.card, borderBottomLeftRadius: 4,
     borderWidth: 1, borderColor: C.border,
   },
-  botText: { color: C.text, fontSize: 15, lineHeight: 22 },
   generalTag: {
     flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start',
     backgroundColor: C.orangeLt, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, marginBottom: 8,
@@ -172,8 +184,14 @@ const styles = StyleSheet.create({
   },
   chipNum: { fontSize: 12, fontWeight: '700', color: C.primary },
   chipText: { flex: 1, fontSize: 12, color: C.blueDk },
-  thinking: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  thinkingText: { fontSize: 14, color: C.textSub },
+  thinking: {
+    position: 'absolute', bottom: 12, alignSelf: 'center',
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: C.card, borderRadius: 20, borderWidth: 1, borderColor: C.border,
+    paddingHorizontal: 16, paddingVertical: 9, elevation: 4,
+    shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 2 },
+  },
+  thinkingText: { fontSize: 14, fontWeight: '600', color: C.text },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 8 },
   emptyTitle: { fontSize: 16, fontWeight: '700', color: C.text },
   emptyText: { fontSize: 13, color: C.textSub, textAlign: 'center', lineHeight: 19 },

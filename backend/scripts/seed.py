@@ -132,6 +132,20 @@ LEC_ROOMS = ["DK 2 FSKTM", "DK 5 FSKTM", "BILIK KULIAH 1 FSKTM", "BILIK KULIAH 2
 TUT_ROOMS = ["MAKMAL MIKRO 1 FSKTM", "MAKMAL LANJUTAN FSKTM", "BILIK KULIAH 3 FSKTM", "BILIK KULIAH 2 FSKTM"]
 
 
+# A course the local Moodle has materials for, so any seed student can try the AI assistant
+MATERIALS_COURSE = "WIA2005"
+
+
+def courses_for_student(i: int, all_codes: list[str]) -> list[str]:
+    """4-6 courses, cycling through the course list evenly, always including MATERIALS_COURSE."""
+    num_courses = 4 + (i % 3)
+    start_idx = (i * 4) % len(all_codes)
+    chosen = [all_codes[(start_idx + j) % len(all_codes)] for j in range(num_courses)]
+    if MATERIALS_COURSE not in chosen:
+        chosen[-1] = MATERIALS_COURSE
+    return chosen
+
+
 def _all_slots():
     return [(d, s, e) for d in DAYS for s, e in SLOTS]
 
@@ -300,9 +314,7 @@ async def seed():
             await db.flush()
 
             # 4–6 courses per student (cycles through the full course list evenly)
-            num_courses = 4 + (i % 3)
-            start_idx = (i * 4) % len(all_codes)
-            chosen = [all_codes[(start_idx + j) % len(all_codes)] for j in range(num_courses)]
+            chosen = courses_for_student(i, all_codes)
 
             enrolled_ids: set[int] = set()
             for code in chosen:

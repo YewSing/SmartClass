@@ -9,6 +9,8 @@ echo "== ruff"
 ruff check .
 echo "== pytest (not live/moodle/e2e)"
 python -m pytest -q -p no:cacheprovider -m "not live and not moodle and not e2e"
+echo "== student app unit tests"
+(cd ../mobile/student && npm test --silent >/dev/null)
 if [ -n "$(git status --porcelain -- ../frontend/admin/src)" ]; then
   echo "== admin build (admin sources changed)"
   (cd ../frontend/admin && npm run build --silent)

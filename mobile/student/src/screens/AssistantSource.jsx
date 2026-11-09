@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator } from 'react-native'
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, Platform } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import Topbar from '../components/Topbar'
 import { useStudent } from '../context/StudentContext'
@@ -11,8 +11,14 @@ export default function AssistantSource({ route, navigation }) {
   const { showToast } = useStudent()
   const [opening, setOpening] = useState(false)
   const where = openAtLabel(citation)
+  // Only PDFs have page locations. They open in the app; slides and Word files open in another app.
+  const inApp = citation.location_type === 'page' && Platform.OS !== 'web'
 
   const open = async () => {
+    if (inApp) {
+      navigation.navigate('AssistantPdf', { citation })
+      return
+    }
     setOpening(true)
     try {
       await openCitedSource(citation)
@@ -49,9 +55,11 @@ export default function AssistantSource({ route, navigation }) {
             </>
           )}
         </TouchableOpacity>
-        <Text style={styles.hint}>
-          Most phone viewers open the file at the start. Go to {where} to see this passage.
-        </Text>
+        {inApp ? null : (
+          <Text style={styles.hint}>
+            This opens in another app, from the start of the file. Go to {where} to see this passage.
+          </Text>
+        )}
       </ScrollView>
     </View>
   )

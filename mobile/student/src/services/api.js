@@ -166,6 +166,9 @@ export const getChatSessions = (courseId) =>
 export const createChatSession = (courseId) =>
   apiCall('POST', '/student/assistant/sessions', { course_id: courseId })
 
+export const renameChatSession = (sessionId, title) =>
+  apiCall('PATCH', `/student/assistant/sessions/${sessionId}`, { title })
+
 export const deleteChatSession = (sessionId) =>
   apiCall('DELETE', `/student/assistant/sessions/${sessionId}`)
 

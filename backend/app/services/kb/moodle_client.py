@@ -117,8 +117,13 @@ class MoodleClient:
         return MoodleFileStream(resp)
 
     async def download(self, file_url: str) -> bytes:
-        resp = await self._http.get(file_url, params={"token": self.token})
-        resp.raise_for_status()
+        # httpx puts the full URL, token included, in its error text, so never pass that on (NFR-08)
+        try:
+            resp = await self._http.get(file_url, params={"token": self.token})
+        except httpx.HTTPError as exc:
+            raise MoodleError(f"download failed: {exc.__class__.__name__}") from None
+        if resp.status_code >= 400:
+            raise MoodleError(f"download failed: HTTP {resp.status_code}")
         if resp.headers.get("content-type", "").startswith("application/json"):
             body = resp.json()
             if isinstance(body, dict) and body.get("error"):

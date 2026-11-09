@@ -100,6 +100,11 @@ wait_for() {             # wait_for <seconds> <description> <command...>
   echo "Timed out after ${secs}s waiting for $what"; return 1
 }
 
+# E2E must never call the real LLM. A backend we didn't start may not have LLM_FAKE=1, so stop now.
+if curl -s --max-time 2 "http://127.0.0.1:$API_PORT/health" >/dev/null; then
+  echo "A backend is already running on :$API_PORT. E2E needs its own with LLM_FAKE=1. Stop it and retry."; exit 1
+fi
+
 # --- emulator ----------------------------------------------------------------
 serial=$(adb devices | awk '/^emulator-[0-9]+\tdevice/ {print $1; exit}')
 if [ -z "$serial" ]; then
@@ -121,16 +126,12 @@ adb shell input keyevent 82 >/dev/null 2>&1 || true     # unlock screen
 
 # --- backend -----------------------------------------------------------------
 # E2E never calls the real LLM: the backend we start answers with canned replies (LLM_FAKE=1).
-if curl -s --max-time 2 "http://127.0.0.1:$API_PORT/health" >/dev/null; then
-  echo "== backend already running on :$API_PORT (not started by this script, so LLM_FAKE may be off)"
-else
-  echo "== starting backend on :$API_PORT (LLM_FAKE=1)"
-  (cd "$root/backend" && docker compose up -d >/dev/null 2>&1) || echo "   (docker compose up failed; continuing)"
-  (cd "$root/backend" && LLM_FAKE=1 exec python -m uvicorn app.main:app --host 0.0.0.0 --port "$API_PORT") \
-    > "$logdir/e2e-backend-$stamp.log" 2>&1 &
-  started_pids+=($!)
-  wait_for 60 "backend /health" curl -sf "http://127.0.0.1:$API_PORT/health" || { tail -20 "$logdir/e2e-backend-$stamp.log"; exit 1; }
-fi
+echo "== starting backend on :$API_PORT (LLM_FAKE=1)"
+(cd "$root/backend" && docker compose up -d >/dev/null 2>&1) || echo "   (docker compose up failed; continuing)"
+(cd "$root/backend" && LLM_FAKE=1 exec python -m uvicorn app.main:app --host 0.0.0.0 --port "$API_PORT") \
+  > "$logdir/e2e-backend-$stamp.log" 2>&1 &
+started_pids+=($!)
+wait_for 60 "backend /health" curl -sf "http://127.0.0.1:$API_PORT/health" || { tail -20 "$logdir/e2e-backend-$stamp.log"; exit 1; }
 
 # --- Expo --------------------------------------------------------------------
 if port_busy "$EXPO_PORT"; then

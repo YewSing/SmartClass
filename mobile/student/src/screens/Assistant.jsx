@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  View, Text, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, Alert, RefreshControl,
+  View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, Alert, RefreshControl, Modal,
 } from 'react-native'
 import { useFocusEffect } from '@react-navigation/native'
 import { Ionicons } from '@expo/vector-icons'
 import Topbar from '../components/Topbar'
 import { useStudent } from '../context/StudentContext'
-import { getAssistantCourses, getChatSessions, deleteChatSession } from '../services/api'
+import { getAssistantCourses, getChatSessions, deleteChatSession, renameChatSession } from '../services/api'
 import { C } from '../theme'
 
 function timeAgo(iso) {
@@ -25,6 +25,8 @@ export default function Assistant({ navigation }) {
   const [sessions, setSessions] = useState([])
   const [loadingSessions, setLoadingSessions] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  const [renaming, setRenaming] = useState(null)   // the chat being renamed
+  const [newTitle, setNewTitle] = useState('')
   const chipRow = useRef(null)
   const chipX = useRef({})
 
@@ -77,6 +79,24 @@ export default function Assistant({ navigation }) {
     sessionId: session?.id ?? null,
     title: session?.title ?? null,
   })
+
+  const chatOptions = (session) => {
+    Alert.alert(session.title || 'Untitled chat', undefined, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: () => confirmDelete(session) },
+      { text: 'Rename', onPress: () => { setNewTitle(session.title ?? ''); setRenaming(session) } },
+    ])
+  }
+
+  const saveRename = async () => {
+    const title = newTitle.trim()
+    if (!title) return
+    try {
+      const updated = await renameChatSession(renaming.id, title)
+      setSessions(list => list.map(s => (s.id === updated.id ? { ...s, title: updated.title } : s)))
+      setRenaming(null)
+    } catch (e) { showToast(e.message, 'error') }
+  }
 
   const confirmDelete = (session) => {
     Alert.alert('Delete chat?', session.title || 'Untitled chat', [
@@ -166,7 +186,7 @@ export default function Assistant({ navigation }) {
                   key={s.id}
                   style={styles.sessionRow}
                   onPress={() => openChat(s)}
-                  onLongPress={() => confirmDelete(s)}
+                  onLongPress={() => chatOptions(s)}
                 >
                   <Ionicons name="chatbubble-ellipses-outline" size={20} color={C.primary} />
                   <View style={styles.sessionText}>
@@ -177,10 +197,37 @@ export default function Assistant({ navigation }) {
                 </TouchableOpacity>
               ))
             )}
-            {sessions.length > 0 ? <Text style={styles.hint}>Long-press a chat to delete it.</Text> : null}
+            {sessions.length > 0 ? <Text style={styles.hint}>Long-press a chat to rename or delete it.</Text> : null}
           </>
         )}
       </ScrollView>
+
+      <Modal visible={!!renaming} transparent animationType="fade" onRequestClose={() => setRenaming(null)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Rename chat</Text>
+            <TextInput
+              testID="rename-input"
+              style={styles.modalInput}
+              value={newTitle}
+              onChangeText={setNewTitle}
+              maxLength={255}
+              autoFocus
+              selectTextOnFocus
+              placeholder="Chat name"
+              placeholderTextColor={C.textHint}
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity onPress={() => setRenaming(null)} style={styles.modalBtn}>
+                <Text style={styles.modalCancel}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={saveRename} disabled={!newTitle.trim()} style={styles.modalBtn} testID="rename-save">
+                <Text style={[styles.modalSave, !newTitle.trim() && { opacity: 0.4 }]}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   )
 }
@@ -223,4 +270,15 @@ const styles = StyleSheet.create({
   hint: { fontSize: 11, color: C.textHint, textAlign: 'center', marginTop: 6 },
   empty: { alignItems: 'center', marginTop: 60, gap: 10 },
   emptyText: { fontSize: 14, color: C.textSub },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: 24 },
+  modalCard: { backgroundColor: C.card, borderRadius: 14, padding: 18 },
+  modalTitle: { fontSize: 16, fontWeight: '700', color: C.text, marginBottom: 12 },
+  modalInput: {
+    fontSize: 15, color: C.text, backgroundColor: C.bg, borderRadius: 10,
+    borderWidth: 1, borderColor: C.border, paddingHorizontal: 12, paddingVertical: 10,
+  },
+  modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 14 },
+  modalBtn: { paddingHorizontal: 12, paddingVertical: 8 },
+  modalCancel: { fontSize: 15, fontWeight: '600', color: C.textSub },
+  modalSave: { fontSize: 15, fontWeight: '700', color: C.primary },
 })
