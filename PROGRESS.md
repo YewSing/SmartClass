@@ -9,7 +9,7 @@ Short log, newest entry at the bottom of "Log". Each entry is at most 5 lines:
 ## Next
 <!-- Follow-up ideas found during tasks that are out of the current task's scope. -->
 - (T00f) `GET /lecturer/analytics` (`routers/analytics.py`, M7, Shino) lets any lecturer read any class's analytics (NFR-04). Not changed because it's her module; the issue and fix are written up for her under Module 7 in `docs/requirements/functional-requirements.md`.
-- T94 (2026-11-09): Yew Sing approved one overnight run of 5 tasks (T05, T10, T11, T12, T13) past T94. T94 is still unticked and stops being a checkpoint only for that run; the checkpoint wording goes back in PLAN.md afterwards. The chat to test is at tag `t94-chat-ready` (T89).
+- T94 (2026-11-09): the approved overnight run past T94 (T05, T10, T11, T12, T13) is finished and the checkpoint wording is back in PLAN.md. The chat to test is at tag `t94-chat-ready` (T89).
 - REVIEW: T81 - NFR-08: a failed Moodle download can return the Moodle token to the caller. `MoodleClient.download` uses `raise_for_status()`, whose message includes the full URL with `?token=`; `sync.py:76` puts that text in `report.failed`, which the sync API returns (`schemas/assistant.py:93`) and `scripts/kb_sync.py` prints. Older code, found in this review. T84's `open_file` already avoids it, so reuse that error handling and add a test that the token is never in `failed`. Fix before merging to main.
 - REVIEW: T84/T89 - FR-809 and UC step 6 say the source opens in the app at the cited page or slide. It actually opens in another app from the start, and the screen tells the student which page to go to (on web it uses `#page=N`). Yew Sing decides: change the FR/UC to match, or build an in-app viewer.
 - REVIEW: T89 - FR-808 (Must Have) lets students rename chats. `PATCH /student/assistant/sessions/{id}` exists, but the app has no rename and no later task covers it.
@@ -17,6 +17,11 @@ Short log, newest entry at the bottom of "Log". Each entry is at most 5 lines:
 - REVIEW: T82 - no `live` tests or `tests/fixtures/llm/` exist yet, so T93's no-LaTeX prompt rule and the renumbered citations have never been checked against real Gemini in a test. Add both to the T82 live suite.
 - LOOP (T10): the reviewer subagent and the Stop hook's check.sh both drop and recreate `smartclass_test`, so if they run at the same time both get random "relation does not exist" / FK / 401 failures (seen 3 times in T10; a clean solo run passed). Fix: a per-process test DB name (e.g. suffix the PID) or a lock in conftest.
 - REVIEW: T89 - `e2e-mobile.sh` only warns if a backend is already running on the port, so the flow could use one without `LLM_FAKE` and call real Gemini; it should stop instead. `assistant.yaml` also needs indexed WIA2005 in the dev DB, which seed data alone doesn't provide, leaves one chat per run, and never taps "Open file".
+- REVIEW: T13 - both apps still offer Change Password, but Moodle accounts have no local password: `PUT /auth/me/password` (`auth.py:196`) always answers "Current password is incorrect". Hide it for Moodle accounts and point to SPeCTRUM.
+- REVIEW: T12 - `PUT /admin/users/{id}/password` (`admin_users.py:286`) also works on Moodle accounts and gives them a local password, so they could use `/auth/login` without Moodle (lecturers through the browser sign-in). FR-103 keeps local sign-in for administrators. Refuse it when `moodle_user_id` is set.
+- REVIEW: T13 - for the merge note: the phone apps now sign in only through Moodle, so seeded accounts (`23004002@siswa...`, `devlecturer`) no longer work on a phone, and login gives 503 unless `backend/moodle` is running. Shino needs the local Moodle up and its accounts (`backend/moodle/README.md`).
+- REVIEW: T11/T29 - a full sync only manages students who have already logged in (`unlinked_users` are only counted). Students who never logged in have no enrolment, so M3 can't mark them Absent. Decide before T29/T30 whether the sync creates these accounts (already raised in the T11 log).
+- REVIEW: T10 - a Moodle idnumber that matches another student's matric number gives a 500 at login (noted in the T10 log, no task covers it).
 
 ## Log
 
@@ -124,3 +129,9 @@ Short log, newest entry at the bottom of "Log". Each entry is at most 5 lines:
 ### T13 — resume note — 2026-11-09
 - The first T13 round hit the Claude session limit at 06:12 before committing. Its unfinished work is in the git stash "T13 partial work (session limit, 2026-11-09)". Start T13 with `git stash pop`, check that work, finish it, and run the Done-when flows. Do not redo it from scratch unless the pop fails.
 - Changed: `scripts/run-tasks.sh` missed the "session limit" message, so the loop stopped instead of waiting. It now matches that message, and its stash leaves PDFs alone.
+
+### T13 — Mobile login uses Moodle credentials (both apps) — 2026-11-09
+- Changed: both `Login.jsx` ask for SPeCTRUM username + password (nothing prefilled) → `POST /auth/moodle-login`; `api.js` maps 401 → "Wrong SPeCTRUM username or password.", 503 → SPeCTRUM unreachable, no response → server unreachable; `client.js` tags errors with `status` and no longer treats a 401 from either login path as an expired session. Each app refuses the other app's role.
+- Decisions: the lecturer app shows "Administrator sign-in" (email + `/auth/login`, lecturer or admin) only on web, so phones have none; the seeded local `devlecturer` signs in that way in the Playwright specs. Finished from the stash after the session limit.
+- Interface: no API/schema change. Tests: Maestro `login.yaml` (student1, lecturer1, incl. 401 and wrong-role) and `student assistant` (now student2 via Moodle) PASS; Playwright `login.spec.js` + updated desktop/smoke (6 passed); check.sh passes; reviewer PASS. The 503 message is not covered by an E2E flow.
+- Next: the 5-task overnight run is done; T94's checkpoint wording is back in PLAN.md, so the loop stops there.

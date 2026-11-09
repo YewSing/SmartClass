@@ -9,7 +9,7 @@ test('login page renders', async ({ page }) => {
 
   await expect(page.getByText('Welcome back')).toBeVisible()
   await expect(page.getByText('Sign in with your university credentials')).toBeVisible()
-  await expect(page.getByPlaceholder('your@um.edu.my')).toBeVisible()
+  await expect(page.getByPlaceholder('Your SPeCTRUM username')).toBeVisible()
   await expect(page.getByText('Sign In', { exact: true })).toBeVisible()
   expect(errors).toEqual([])
 })

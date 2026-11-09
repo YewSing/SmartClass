@@ -58,8 +58,29 @@ function studentAdapter(s, idx) {
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
-export const login = async (email, password) => {
-  const data = await apiCall('POST', '/auth/login', { email, password })
+// Turns a failed sign-in into a message the user can act on
+function signInError(e, wrongCredentials) {
+  if (e.status === 401) return new Error(wrongCredentials)
+  if (e.status === 503) return new Error(e.message || 'SPeCTRUM is not reachable right now. Please try again later.')
+  if (!e.status) return new Error("Can't reach the SmartClass server. Check your connection and try again.")
+  return e
+}
+
+// Lecturers sign in with their SPeCTRUM (Moodle) account (FR-101). With `local`, the
+// browser-only administrator sign-in uses a SmartClass email + password instead.
+export const login = async (identifier, password, { local = false } = {}) => {
+  let data
+  try {
+    data = local
+      ? await apiCall('POST', '/auth/login', { email: identifier.trim(), password })
+      : await apiCall('POST', '/auth/moodle-login', { username: identifier.trim(), password })
+  } catch (e) {
+    throw signInError(e, local ? 'Wrong email or password.' : 'Wrong SPeCTRUM username or password.')
+  }
+  const allowed = local ? ['lecturer', 'admin'] : ['lecturer']
+  if (!allowed.includes(data.user.role)) {
+    throw new Error('This app is for lecturers. Students use the SmartClass Student app.')
+  }
   setToken(data.access_token)
   setRefreshToken(data.refresh_token)
   return {
