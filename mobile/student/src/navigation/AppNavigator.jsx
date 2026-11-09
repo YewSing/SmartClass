@@ -22,6 +22,9 @@ import Assistant from '../screens/Assistant'
 import AssistantChat from '../screens/AssistantChat'
 import AssistantSource from '../screens/AssistantSource'
 import AssistantPdf from '../screens/AssistantPdf'
+import FaceEnrolment from '../screens/FaceEnrolment'
+import FaceConsent from '../screens/FaceConsent'
+import FaceCapture from '../screens/FaceCapture'
 
 const Stack = createNativeStackNavigator()
 const Tab   = createBottomTabNavigator()
@@ -70,6 +73,9 @@ function ProfileStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="ProfileScreen" component={Profile} />
+      <Stack.Screen name="FaceEnrolment" component={FaceEnrolment} />
+      <Stack.Screen name="FaceConsent"   component={FaceConsent} />
+      <Stack.Screen name="FaceCapture"   component={FaceCapture} />
     </Stack.Navigator>
   )
 }
