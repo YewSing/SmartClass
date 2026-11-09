@@ -56,3 +56,6 @@ backend/eval/
 
 # Personal Moodle test accounts (real name + matric number) — never committed
 backend/moodle/seed_config.local.json
+
+# Private documents (proposal, rubrics, FYP reports): names and matric numbers, never committed
+docs/private/

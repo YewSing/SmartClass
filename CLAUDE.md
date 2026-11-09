@@ -1,7 +1,7 @@
 # SmartClass — Claude Code Guide
 
 ## Project Overview
-SmartClass is a classroom management system for UM (Universiti Malaya): Moodle-based login, face recognition attendance (Raspberry Pi at the entrance), attendance management synced to Moodle, and an AI learning assistant over course materials. It has one React web frontend (admin) and two React Native mobile apps (lecturer, student). A local Moodle (`backend/moodle/`) simulates UM SPeCTRUM. Scope is defined by `PROJECT PROPOSAL PAPER.pdf` (8 modules); IoT environment control and desk projection were dropped.
+SmartClass is a classroom management system for UM (Universiti Malaya): Moodle-based login, face recognition attendance (Raspberry Pi at the entrance), attendance management synced to Moodle, and an AI learning assistant over course materials. It has one React web frontend (admin) and two React Native mobile apps (lecturer, student). A local Moodle (`backend/moodle/`) simulates UM SPeCTRUM. Scope is defined by `docs/private/PROJECT PROPOSAL PAPER.pdf` (local only, git-ignored) (8 modules); IoT environment control and desk projection were dropped.
 
 **Web direction (decided 2026-11-09):** lecturers also use the lecturer app in a browser (same Expo code via Expo web). Administrators stay as a small role with a few web-only screens inside that app. `frontend/admin` is retired once PLAN.md T22, T46 and T96 are done; keep it working until then.
 

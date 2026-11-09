@@ -1,7 +1,7 @@
 # Functional Requirements
 
 **Project:** Smart Classroom Management System (SmartClass) — UM FYP
-**Source of scope:** `PROJECT PROPOSAL PAPER.pdf` (revised scope, Nov 2026)
+**Source of scope:** `docs/private/PROJECT PROPOSAL PAPER.pdf` (local only, git-ignored) (revised scope, Nov 2026)
 **Module ownership:** M1, M3, M4, M8 → Yong Yew Sing | M2, M5, M6, M7 → Chow Shino
 **Last revised:** 2026-11-08 (M1, M3, M4, M8 rewritten; M2, M5, M6, M7 are placeholders for their owner)
 
