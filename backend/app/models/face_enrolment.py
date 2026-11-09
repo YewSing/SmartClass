@@ -17,6 +17,7 @@ class FaceEnrolment(Base):
       active          both checks passed; the embedding went to face_embeddings (FR-112)
       rejected        a lecturer/admin rejected it (`reason` says why)
       withdrawn       the student withdrew consent before a decision (FR-116)
+      reset           an admin reset the student's face data before a decision (FR-117)
     """
     __tablename__ = "face_enrolments"
 

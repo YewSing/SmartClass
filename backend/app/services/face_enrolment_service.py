@@ -65,15 +65,21 @@ async def clear_review_data(db: AsyncSession, enrolment: FaceEnrolment) -> int:
     return result.rowcount
 
 
-async def withdraw_pending(db: AsyncSession, student_id: int) -> int:
-    """Consent withdrawn (FR-116): pending submissions lose their photos and embedding."""
+async def close_pending(db: AsyncSession, student_id: int, new_status: str) -> int:
+    """Pending submissions lose their photos and embedding and get `new_status`.
+    Used when consent is withdrawn (FR-116, "withdrawn") and on an admin reset (FR-117, "reset")."""
     pending = (await db.execute(
         select(FaceEnrolment).where(FaceEnrolment.student_id == student_id,
                                     FaceEnrolment.status == "pending_review")
     )).scalars().all()
     for enrolment in pending:
         await clear_review_data(db, enrolment)
-        enrolment.status = "withdrawn"
+        enrolment.status = new_status
         enrolment.decided_at = now_myt()
         enrolment.embedding = None
     return len(pending)
+
+
+async def withdraw_pending(db: AsyncSession, student_id: int) -> int:
+    """Consent withdrawn (FR-116): pending submissions lose their photos and embedding."""
+    return await close_pending(db, student_id, "withdrawn")

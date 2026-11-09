@@ -7,6 +7,7 @@ from app.core.deps import require_role
 from app.models.user import User, Student
 from app.models.face import FaceEmbedding
 from app.models.class_ import ClassOccurrence, Enrollment
+from app.services import face_enrolment_service as enrolment_service
 from app.services import face_service
 from app.services.audit_service import write_log
 from app.services.consent_service import require_active_consent
@@ -71,17 +72,20 @@ async def remove_face_data(
     db: AsyncSession = Depends(get_db),
     actor: User = Depends(_admin_only),
 ):
+    """Reset a student's face data (FR-117): delete the embeddings and close any submission
+    waiting for review, with its photos (NFR-01). The student can then enrol again."""
     stu_result = await db.execute(select(Student).where(Student.user_id == student_user_id))
     student = stu_result.scalar_one_or_none()
     if not student:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found")
 
-    result = await db.execute(select(FaceEmbedding).where(FaceEmbedding.student_id == student.id))
-    if not result.scalar_one_or_none():
+    deleted = await db.execute(delete(FaceEmbedding).where(FaceEmbedding.student_id == student.id))
+    closed = await enrolment_service.close_pending(db, student.id, "reset")
+    if not deleted.rowcount and not closed:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No face data enrolled for this student")
 
-    await db.execute(delete(FaceEmbedding).where(FaceEmbedding.student_id == student.id))
-    await write_log(db, actor.id, "FACE_REMOVE", "student", student_user_id)
+    await write_log(db, actor.id, "FACE_REMOVE", "student", student_user_id,
+                    new_val={"embeddings_deleted": deleted.rowcount, "pending_submissions_closed": closed})
 
 
 @router.post("/{student_user_id}/occurrences/{occurrence_id}", status_code=status.HTTP_204_NO_CONTENT)
