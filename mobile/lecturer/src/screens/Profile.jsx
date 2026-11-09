@@ -75,7 +75,12 @@ export default function Profile({ navigation }) {
               <Text style={styles.noClassText}>No classes assigned</Text>
             </View>
           ) : allClasses.map(o => (
-            <View key={o.id} style={styles.classCard}>
+            <TouchableOpacity
+              key={o.id}
+              style={styles.classCard}
+              testID="profile-class-card"
+              onPress={() => navigation.navigate('ClassDetail', { classId: o.id })}
+            >
               {/* Row 1: code · type badge · students */}
               <View style={styles.classRow1}>
                 <Text style={styles.classCode}>{o.code}</Text>
@@ -90,6 +95,7 @@ export default function Profile({ navigation }) {
                 <Badge variant="gray" style={styles.classBadge} textStyle={styles.classBadgeText}>
                   {o.enrolled_count} students
                 </Badge>
+                <Ionicons name="chevron-forward" size={16} color={C.gray300} />
               </View>
               {/* Row 2: course name */}
               <Text style={styles.className}>{o.name}</Text>
@@ -97,7 +103,7 @@ export default function Profile({ navigation }) {
               <Text style={styles.classTime}>
                 {o.day_of_week} {o.start_time}–{o.end_time}{o.room ? ` · ${o.room}` : ''}
               </Text>
-            </View>
+            </TouchableOpacity>
           ))}
         </View>
 

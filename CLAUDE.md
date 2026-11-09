@@ -85,7 +85,7 @@ Both phone and laptop must be on the same WiFi network.
 
 ### Lecturer (`mobile/lecturer/`)
 - React Native app (Expo SDK 54), runs on physical Android/iOS via Expo Go
-- Screens: Dashboard, AttendanceSessions, AttendanceDetail, QuizList, CreateQuiz, LiveResults, ResultsClosed, Breakdown, Analytics, Profile, Login (quiz screens are UI mock only — Module 6 belongs to Shino)
+- Screens: Dashboard, ClassDetail, AttendanceSessions, AttendanceDetail, QuizList, CreateQuiz, LiveResults, ResultsClosed, Breakdown, Analytics, Profile, Login (quiz screens are UI mock only — Module 6 belongs to Shino)
 - Navigation: React Navigation 6 — bottom tabs + native stack per tab
 - State in `src/context/LecturerContext.jsx`
 - API base URL set via `EXPO_PUBLIC_API_URL` in `.env`

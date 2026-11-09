@@ -52,6 +52,7 @@ Every SmartClass feature runs in SmartClass. Moodle is only the source of data a
 | FR-116 | The system shall let a student withdraw consent, which deletes their face embeddings. | Must Have | Student |
 | FR-117 | The system shall let administrators act as a fallback: perform the lecturer review in FR-113, and reset a student's face data. | Should Have | Admin |
 | FR-118 | The system shall record an audit entry for every face verification decision, consent change, account deactivation and role change. | Should Have | System |
+| FR-119 | The system shall let lecturers open any class they teach and view its details and full list of enrolled students, with each student's matric number and face registration status. | Should Have | Lecturer |
 
 ---
 

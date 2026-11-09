@@ -114,12 +114,18 @@ export const logout = async () => { clearToken(); clearRefreshToken() }
 
 // ─── Classes ──────────────────────────────────────────────────────────────────
 
+// Moodle full names often start with the code ("WIA2005 Algorithm Design"), and screens show both
+function courseName(code, name) {
+  const rest = name.startsWith(code) ? name.slice(code.length).replace(/^[\s:–—-]+/, '') : name
+  return rest || name
+}
+
 export const getClasses = async () => {
   const list = await apiCall('GET', '/classes')
   return list.map(c => ({
     id: c.id,
     code: c.course_code,
-    name: c.course_name,
+    name: courseName(c.course_code, c.course_name),
     day_of_week: c.day_of_week ?? null,
     start_time: c.start_time ?? null,
     end_time: c.end_time ?? null,
@@ -132,7 +138,7 @@ export const getLecturerAllClasses = async () => {
   return list.map(c => ({
     id: c.id,
     code: c.course_code,
-    name: c.course_name,
+    name: courseName(c.course_code, c.course_name),
     type: c.type,
     label: c.label ?? null,
     day_of_week: c.day_of_week,
@@ -140,6 +146,17 @@ export const getLecturerAllClasses = async () => {
     end_time: c.end_time,
     enrolled_count: c.enrolled_count ?? 0,
     room: c.room ?? null,
+  }))
+}
+
+export const getClassStudents = async (classId) => {
+  const list = await apiCall('GET', `/classes/${classId}/students`)
+  return list.map(s => ({
+    id: s.id,
+    name: s.name,
+    matric: s.matric_no,
+    initials: initials(s.name),
+    faceEnrolled: s.face_enrolled,
   }))
 }
 

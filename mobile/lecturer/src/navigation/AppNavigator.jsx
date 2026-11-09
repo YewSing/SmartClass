@@ -18,6 +18,7 @@ const NAV_THEME = { ...DefaultTheme, colors: { ...DefaultTheme.colors, backgroun
 import Login from '../screens/Login'
 import Dashboard from '../screens/Dashboard'
 import Profile from '../screens/Profile'
+import ClassDetail from '../screens/ClassDetail'
 import AttendanceSessions from '../screens/AttendanceSessions'
 import AttendanceDetail from '../screens/AttendanceDetail'
 import QuizList from '../screens/QuizList'
@@ -46,6 +47,7 @@ function HomeStack() {
     <Stack.Navigator screenOptions={useStackOptions()}>
       <Stack.Screen name="Dashboard" component={Dashboard} />
       <Stack.Screen name="Profile"   component={Profile} />
+      <Stack.Screen name="ClassDetail" component={ClassDetail} />
     </Stack.Navigator>
   )
 }
@@ -88,12 +90,26 @@ const TAB_ICONS = {
   Analytics:   { active: 'bar-chart',        inactive: 'bar-chart-outline' },
 }
 
+// Each tab's main page. Pressing a tab goes here, rather than back to the page last left open in it.
+const TAB_ROOTS = {
+  Home:       'Dashboard',
+  Attendance: 'AttendanceSessions',
+  Quiz:       'QuizList',
+  Analytics:  'AnalyticsScreen',
+}
+
 function MainTabs() {
   const { bottom } = useSafeAreaInsets()
   const wide = useWideLayout()
   return (
     <Tab.Navigator
       tabBar={props => wide ? <SideNav {...props} icons={TAB_ICONS} /> : <BottomTabBar {...props} />}
+      screenListeners={({ navigation, route }) => ({
+        tabPress: (e) => {
+          e.preventDefault()
+          navigation.navigate(route.name, { screen: TAB_ROOTS[route.name] })
+        },
+      })}
       sceneContainerStyle={wide ? { marginLeft: SIDE_NAV_WIDTH, backgroundColor: C.bg } : undefined}
       screenOptions={({ route }) => ({
         headerShown: false,
