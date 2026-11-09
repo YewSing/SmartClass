@@ -24,7 +24,8 @@ Short log, newest entry at the bottom of "Log". Each entry is at most 5 lines:
 - (done 2026-11-10: install line added to CLAUDE.md) REVIEW: T15 - `insightface` is only in `face_worker/requirements.txt`, so a backend installed by the `CLAUDE.md` steps answers 503 on enrolment and the `face` tests skip. Put this in the merge note for Shino or document the extra install.
 - (T19) Playwright `class-detail.spec.js` (2 tests) fails since WIA0000 has 11 students (Yew Sing's own account in the Moodle seed): it counts rendered `FlatList` rows, and only 10 render at first. ClassDetail was not changed by T19; the test (or `initialNumToRender`) needs a look.
 - (T19) `Pillow` is used directly by `backend/scripts/e2e_face_review.py` and `tests/card_images.py` but only installed as a dependency of other packages; pin it in `requirements.txt`.
-- REVIEW: T22 - audit labels for `FACE_CONSENT_*`, `FACE_ENROL_*` don't exist yet (`AuditLogView.jsx` has only the older face actions). Include them in the T22 admin area.
+- (done in T22) audit labels for `FACE_CONSENT_*`, `FACE_ENROL_*` are in the new admin audit log screen (`adminHelpers.js`); `frontend/admin` keeps its old list until T96.
+- (T22) The new admin area only creates administrators, but `POST /admin/users` still accepts student/lecturer because `frontend/admin` uses it. Restrict it to `role=admin` in T96.
 
 ## Log
 
@@ -235,3 +236,9 @@ TEST-CHANGE: tests/test_seed_courses.py (test_materials_course_exists_in_the_see
 - Decisions: login responses keep `courses: []` and `face_status: null` (no extra queries at login); the apps should read the profile from `/auth/me`.
 - Interface: `UserOut` gains `courses` + `face_status` (additive). No schema change. Tests: `test_profile_me.py` (5); check.sh 329 passed; reviewer PASS.
 - Next: the student/lecturer Profile screens can show the courses and face status from `/auth/me` (no task covers the UI yet).
+
+### T22 — Admin area inside the lecturer web app — 2026-11-10
+- Changed: admin logins (browser email sign-in) land on `AdminTabs` instead of the lecturer screens: Accounts (search, role/status filters, deactivate/reactivate with inline confirm, reset face data, new administrator, change own password), Face verification (the T19 screen, all pending), Audit log (paged, labels in `services/adminHelpers.js`), SPeCTRUM sync (last result + Sync now). On a phone an admin gets a "browser only" page with Sign out. `GET /admin/users` adds `q` + `status`.
+- Decisions: confirms are inline, not dialogs (toasts hide behind RN `Modal`); only administrators are created here, since Moodle owns students and lecturers; no self-deactivate button (server rule from T12).
+- Interface: `GET /admin/users?q=&status=active|inactive` (q matches name/email/matric/staff no, wildcards literal); `UserDetailOut.moodle_linked` (additive). No schema change.
+- Tests: `test_admin_user_search.py` (7 db), `adminHelpers.test.js` (6); Playwright `admin.spec.js` (3: deactivate/reactivate student6 + audit + sync now, no self-deactivate, lecturer no admin nav + 403 on 3 admin endpoints); `desktop.spec.js` admin password test now starts in the admin area (admins no longer see lecturer Home); web suite 19 passed, 2 `class-detail` failing as before T22 (see Next); check.sh 336 passed; reviewer PASS.

@@ -181,7 +181,11 @@ function SubmissionCard({ sub, onDecided }) {
   )
 }
 
+// Lecturers open this from Home. Administrators get it as a tab of the admin area, where it lists
+// every pending submission, including students no lecturer reviewed (FR-117 fallback).
 export default function FaceVerification({ navigation }) {
+  const { state } = useLecturer()
+  const isAdmin = !!state.lecturer?.isAdmin
   const [subs, setSubs] = useState(null)       // null while the first load runs
   const [error, setError] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
@@ -211,7 +215,11 @@ export default function FaceVerification({ navigation }) {
 
   return (
     <View style={styles.flex}>
-      <Topbar title="Face verification" sub="Enrolments that need your review" onBack={() => navigation.goBack()} />
+      <Topbar
+        title="Face verification"
+        sub={isAdmin ? 'Every enrolment waiting for review' : 'Enrolments that need your review'}
+        onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined}
+      />
       <ScrollView
         style={styles.flex}
         contentContainerStyle={styles.content}
@@ -220,6 +228,7 @@ export default function FaceVerification({ navigation }) {
         <Text style={styles.intro}>
           These students' photos didn't pass the automatic check. Compare the selfies with the card:
           approve if they show the same person and the card is theirs. Photos are deleted once you decide.
+          {isAdmin ? ' Lecturers usually review their own students; this list also covers anyone they haven\'t.' : ''}
         </Text>
         {error && (
           <TouchableOpacity style={styles.errorBox} onPress={load}>

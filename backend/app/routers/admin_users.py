@@ -1,8 +1,8 @@
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
@@ -91,6 +91,7 @@ async def _build_user_detail(user: User, db: AsyncSession) -> UserDetailOut:
         phone=user.phone,
         status=user.status,
         created_at=user.created_at,
+        moodle_linked=user.moodle_user_id is not None,
         face_enrolled=face_enrolled,
         face_enrolled_at=face_enrolled_at,
         student=user.student,
@@ -102,6 +103,8 @@ async def _build_user_detail(user: User, db: AsyncSession) -> UserDetailOut:
 @router.get("", response_model=UserListOut)
 async def list_users(
     role: Optional[str] = Query(None),
+    status_: Optional[Literal["active", "inactive"]] = Query(None, alias="status"),
+    search: Optional[str] = Query(None, alias="q", max_length=100),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
@@ -110,6 +113,17 @@ async def list_users(
     q = select(User).options(selectinload(User.student), selectinload(User.lecturer))
     if role:
         q = q.where(User.role == role)
+    if status_:
+        q = q.where(User.status == status_)
+    if search and search.strip():
+        # Name, email, matric or staff number; % and _ are matched as text
+        term = search.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        pattern = f"%{term}%"
+        q = (q.outerjoin(Student, Student.user_id == User.id)
+              .outerjoin(Lecturer, Lecturer.user_id == User.id)
+              .where(or_(User.name.ilike(pattern, escape="\\"), User.email.ilike(pattern, escape="\\"),
+                         Student.matric_no.ilike(pattern, escape="\\"),
+                         Lecturer.staff_id.ilike(pattern, escape="\\"))))
     q = q.order_by(User.created_at.desc())
 
     total_result = await db.execute(select(func.count()).select_from(q.subquery()))

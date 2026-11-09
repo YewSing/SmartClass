@@ -101,7 +101,8 @@ export const getLecturer = async () => {
     initials: initials(u.name),
     staffId: u.lecturer?.staff_id ?? '',
     faculty: u.lecturer?.dept ?? '',
-    role: 'Lecturer',
+    role: u.role === 'admin' ? 'Administrator' : 'Lecturer',
+    id: u.id,
     isAdmin: u.role === 'admin',
   }
 }
@@ -243,6 +244,37 @@ export const fetchFaceImageUri = async (path, { web = false } = {}) => {
     reader.readAsDataURL(blob)
   })
 }
+
+// ─── Admin area (browser only; the server answers 403 to anyone but an admin) ───
+
+const query = (params) => {
+  const parts = Object.entries(params)
+    .filter(([, v]) => v !== undefined && v !== null && v !== '')
+    .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+  return parts.length ? `?${parts.join('&')}` : ''
+}
+
+// Accounts (FR-103, FR-108): { items, total, page, limit }
+export const adminListUsers = async ({ q, role, status, page = 1, limit = 50 } = {}) =>
+  apiCall('GET', `/admin/users${query({ q: q?.trim(), role, status, page, limit })}`)
+
+export const adminDeactivateUser = async (id) => apiCall('DELETE', `/admin/users/${id}`)
+
+export const adminReactivateUser = async (id) => apiCall('POST', `/admin/users/${id}/reactivate`)
+
+export const adminCreateAdmin = async ({ name, email, password }) =>
+  apiCall('POST', '/admin/users', { name: name.trim(), email: email.trim(), password, role: 'admin' })
+
+// Deletes the student's face data and closes a pending submission (FR-117)
+export const adminResetFaceData = async (userId) => apiCall('DELETE', `/admin/students/${userId}/face-data`)
+
+export const adminAuditLogs = async ({ page = 1, limit = 50 } = {}) =>
+  apiCall('GET', `/admin/audit-logs${query({ page, limit })}`)
+
+// Moodle sync (FR-104): the last full sync (null before the first) and "Sync now"
+export const adminLastSync = async () => apiCall('GET', '/admin/moodle/sync')
+
+export const adminSyncNow = async () => apiCall('POST', '/admin/moodle/sync')
 
 // ─── Mocked (Module 3/4 — quiz) ────────────────────────
 

@@ -67,7 +67,7 @@ These M8 tasks run before everything else after the T04 checkpoint, so the stude
   Done when: a lecturer screen lists pending submissions with side-by-side images and approve/reject (reason required); Maestro flow approves a seeded pending submission.
 - [x] **T20 [API] Profile fields (FR-107).** Depends on: T11.
   Done when: `/auth/me` returns name, matric/staff number, email, faculty, courses, face status (students); test.
-- [ ] **T22 [UI] Admin area inside the lecturer web app (FR-103, FR-108, FR-117).** Depends on: T05, T11, T12, T17.
+- [x] **T22 [UI] Admin area inside the lecturer web app (FR-103, FR-108, FR-117).** Depends on: T05, T11, T12, T17.
   Done when: the browser login offers administrator sign-in with local email + password; admin-role logins land on an admin area, available on web only, with these screens: accounts (view, deactivate/reactivate, create admin), verification fallback + face data reset, audit log, and Moodle sync status with a sync button. Lecturer logins never see these screens and the server still returns 403 to them. Playwright flows: an admin deactivates and reactivates an account; a lecturer sees no admin navigation and gets 403 from an admin endpoint.
 - [ ] **T23 [HUMAN] Checkpoint: M1 and admin screens on real devices.** Yew Sing tries Moodle login, face enrolment and lecturer review on a phone, and the admin area in a browser. A Claude session reviews the work so far.
 
