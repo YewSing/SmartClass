@@ -42,9 +42,9 @@ while [ "$done_rounds" -lt "$N" ]; do
     --disallowedTools "Bash(git push*)" > "$log" 2>&1
 
   if [ "$before" = "$(git rev-parse HEAD)" ]; then
-    if grep -qiE "usage limit|limit reached|rate limit|overloaded" "$log" && [ "$waits" -lt "$LIMIT_MAX_WAITS" ]; then
+    if grep -qiE "usage limit|session limit|limit reached|rate limit|overloaded" "$log" && [ "$waits" -lt "$LIMIT_MAX_WAITS" ]; then
       waits=$((waits + 1))
-      [ -z "$(git status --porcelain --untracked-files=no)" ] || git stash push -u -q -m "loop: partial work before usage limit"
+      [ -z "$(git status --porcelain --untracked-files=no)" ] || git stash push -u -q -m "loop: partial work before usage limit" -- . ':(exclude)*.pdf'
       echo "   Claude usage limit - waiting ${LIMIT_WAIT_MIN} min (wait $waits/$LIMIT_MAX_WAITS), then retrying this round"
       sleep $((LIMIT_WAIT_MIN * 60)); continue
     fi

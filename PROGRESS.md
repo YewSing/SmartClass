@@ -120,3 +120,7 @@ Short log, newest entry at the bottom of "Log". Each entry is at most 5 lines:
 - Decisions: login, Moodle login, refresh and `get_current_user` already rejected inactive accounts, so no auth code changed; "create admin" is the existing `POST /admin/users` with `role=admin` (bcrypt, audited `USER_CREATE`). `frontend/admin` keeps working (DELETE + PUT status).
 - Interface: new endpoint above; `PUT /admin/users/{id}` returns 422 for a status other than active/inactive and 400 for deactivating yourself. No schema change. Tests: `test_admin_accounts.py` (12 `db`); check.sh 173 passing; reviewer PASS.
 - Next: T13.
+
+### T13 — resume note — 2026-11-09
+- The first T13 round hit the Claude session limit at 06:12 before committing. Its unfinished work is in the git stash "T13 partial work (session limit, 2026-11-09)". Start T13 with `git stash pop`, check that work, finish it, and run the Done-when flows. Do not redo it from scratch unless the pop fails.
+- Changed: `scripts/run-tasks.sh` missed the "session limit" message, so the loop stopped instead of waiting. It now matches that message, and its stash leaves PDFs alone.
