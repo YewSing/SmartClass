@@ -1,0 +1,68 @@
+# Login: a lecturer signs in with their SPeCTRUM (Moodle) username + password.
+# Run: bash scripts/e2e-mobile.sh lecturer login
+# Needs the local Moodle up (backend/moodle, lecturer1 / Lecturer123!, student1 / Student123!)
+# and the backend's MOODLE_URL pointing at it.
+appId: host.exp.exponent
+---
+- extendedWaitUntil:
+    visible: "Welcome back|Continue"
+    timeout: 180000
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+- extendedWaitUntil:
+    visible: "Welcome back"
+    timeout: 60000
+
+# SPeCTRUM username; the phone app has no administrator sign-in (admins use the browser)
+- assertVisible: "SPeCTRUM username"
+- assertVisible: "Your SPeCTRUM username"
+- assertNotVisible: "Administrator sign-in"
+
+# Wrong password → the 401 message
+- tapOn:
+    id: "login-username"
+- inputText: "lecturer1"
+- tapOn:
+    id: "login-password"
+- inputText: "not-the-password"
+- hideKeyboard
+- tapOn: "Sign In"
+- extendedWaitUntil:
+    visible: "Wrong SPeCTRUM username or password."
+    timeout: 30000
+
+# A student's SPeCTRUM account is refused by the lecturer app
+- tapOn: "Clear username"
+- tapOn:
+    id: "login-username"
+- inputText: "student1"
+- tapOn:
+    id: "login-password"
+- eraseText: 30
+- inputText: "Student123!"
+- hideKeyboard
+- tapOn: "Sign In"
+- extendedWaitUntil:
+    visible: "This app is for lecturers. Students use the SmartClass Student app."
+    timeout: 60000
+
+# lecturer1 → dashboard
+- tapOn: "Clear username"
+- tapOn:
+    id: "login-username"
+- inputText: "lecturer1"
+- tapOn:
+    id: "login-password"
+- eraseText: 30
+- inputText: "Lecturer123!"
+- hideKeyboard
+- tapOn: "Sign In"
+- extendedWaitUntil:
+    visible: ".*(Open|Close) Session"   # the button text starts with a space after its icon
+    timeout: 60000
+- assertVisible: "AR"
+- assertVisible: "Analytics"
+- assertNotVisible: "Welcome back"

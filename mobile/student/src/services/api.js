@@ -62,8 +62,25 @@ function sessionToAttItem(s, meta = {}) {
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
-export const login = async (email, password) => {
-  const data = await apiCall('POST', '/auth/login', { email, password })
+// Turns a failed sign-in into a message the student can act on
+function signInError(e) {
+  if (e.status === 401) return new Error('Wrong SPeCTRUM username or password.')
+  if (e.status === 503) return new Error(e.message || 'SPeCTRUM is not reachable right now. Please try again later.')
+  if (!e.status) return new Error("Can't reach the SmartClass server. Check your connection and try again.")
+  return e
+}
+
+// Students sign in with their SPeCTRUM (Moodle) account (FR-101)
+export const login = async (username, password) => {
+  let data
+  try {
+    data = await apiCall('POST', '/auth/moodle-login', { username: username.trim(), password })
+  } catch (e) {
+    throw signInError(e)
+  }
+  if (data.user.role !== 'student') {
+    throw new Error('This app is for students. Lecturers use the SmartClass Lecturer app.')
+  }
   setToken(data.access_token)
   setRefreshToken(data.refresh_token)
   return { user: data.user }

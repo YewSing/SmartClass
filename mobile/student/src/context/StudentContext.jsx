@@ -55,10 +55,10 @@ export function StudentProvider({ children }) {
   const showToast  = useCallback((message, variant = 'info') =>
     dispatch({ type: 'SHOW_TOAST', payload: { message, variant } }), [])
 
-  const login = useCallback(async (email, password) => {
+  const login = useCallback(async (username, password) => {
     dispatch({ type: 'SET_LOADING', payload: true })
     try {
-      await api.login(email, password)
+      await api.login(username, password)
       const student = await api.getStudent()
       dispatch({ type: 'SET_STUDENT', payload: student })
       dispatch({ type: 'LOGIN' })

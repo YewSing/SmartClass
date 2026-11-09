@@ -36,11 +36,19 @@ async function expectScreen(page, title) {
   expect(await horizontalOverflow(page)).toEqual([])
 }
 
+// The seeded dev lecturer is a local SmartClass account (no Moodle), so it uses the
+// browser-only email sign-in; Moodle login itself is covered by the Maestro login flows.
+async function signInLocal(page) {
+  await page.getByText('Administrator sign-in', { exact: true }).click()
+  await page.getByPlaceholder('your@um.edu.my').fill('devlecturer@um.edu.my')
+  await page.getByPlaceholder('Enter password').fill('DevTest@1234')
+  await page.getByText('Sign In', { exact: true }).click()
+}
+
 async function login(page) {
   await page.goto('/')
   await expect(page.getByText('Welcome back')).toBeVisible()
-  // Login is prefilled with the seeded dev lecturer (devlecturer@um.edu.my).
-  await page.getByText('Sign In', { exact: true }).click()
+  await signInLocal(page)
   await expect(page.getByTestId('sidenav-Home')).toBeVisible()
 }
 
@@ -55,7 +63,7 @@ test('desktop: login reaches the dashboard with side navigation and no sideways 
   const card = await page.getByText('Welcome back').locator('..').boundingBox()
   expect(card.width).toBeLessThanOrEqual(440)
 
-  await page.getByText('Sign In', { exact: true }).click()
+  await signInLocal(page)
   await expect(page.getByTestId('sidenav-Home')).toBeVisible()
   await expect(visible(page.getByText('Open Session').or(page.getByText('Close Session')))).toBeVisible()
   expect(await horizontalOverflow(page)).toEqual([])
@@ -138,7 +146,7 @@ test('desktop: every screen and dialog opens without a runtime error', async ({ 
 test('phone width keeps the bottom tabs', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/')
-  await page.getByText('Sign In', { exact: true }).click()
+  await signInLocal(page)
   await expect(visible(page.getByText('Open Session').or(page.getByText('Close Session')))).toBeVisible()
   await expect(page.getByTestId('sidenav-Home')).toHaveCount(0)
   await expect(visible(page.getByText('Analytics', { exact: true }))).toBeVisible()   // bottom tab label

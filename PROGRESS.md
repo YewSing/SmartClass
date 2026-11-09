@@ -9,7 +9,7 @@ Short log, newest entry at the bottom of "Log". Each entry is at most 5 lines:
 ## Next
 <!-- Follow-up ideas found during tasks that are out of the current task's scope. -->
 - (T00f) `GET /lecturer/analytics` (`routers/analytics.py`, M7, Shino) lets any lecturer read any class's analytics (NFR-04). Not changed because it's her module; the issue and fix are written up for her under Module 7 in `docs/requirements/functional-requirements.md`.
-- T94 (2026-11-09): Yew Sing approved one overnight run of 5 tasks (T05, T10, T11, T12, T13) past T94. T94 is still unticked and stops being a checkpoint only for that run; the checkpoint wording goes back in PLAN.md afterwards. The chat to test is at tag `t94-chat-ready` (T89).
+- T94 (2026-11-09): the approved overnight run past T94 (T05, T10, T11, T12, T13) is finished and the checkpoint wording is back in PLAN.md. The chat to test is at tag `t94-chat-ready` (T89).
 - REVIEW: T81 - NFR-08: a failed Moodle download can return the Moodle token to the caller. `MoodleClient.download` uses `raise_for_status()`, whose message includes the full URL with `?token=`; `sync.py:76` puts that text in `report.failed`, which the sync API returns (`schemas/assistant.py:93`) and `scripts/kb_sync.py` prints. Older code, found in this review. T84's `open_file` already avoids it, so reuse that error handling and add a test that the token is never in `failed`. Fix before merging to main.
 - REVIEW: T84/T89 - FR-809 and UC step 6 say the source opens in the app at the cited page or slide. It actually opens in another app from the start, and the screen tells the student which page to go to (on web it uses `#page=N`). Yew Sing decides: change the FR/UC to match, or build an in-app viewer.
 - REVIEW: T89 - FR-808 (Must Have) lets students rename chats. `PATCH /student/assistant/sessions/{id}` exists, but the app has no rename and no later task covers it.
@@ -124,3 +124,9 @@ Short log, newest entry at the bottom of "Log". Each entry is at most 5 lines:
 ### T13 — resume note — 2026-11-09
 - The first T13 round hit the Claude session limit at 06:12 before committing. Its unfinished work is in the git stash "T13 partial work (session limit, 2026-11-09)". Start T13 with `git stash pop`, check that work, finish it, and run the Done-when flows. Do not redo it from scratch unless the pop fails.
 - Changed: `scripts/run-tasks.sh` missed the "session limit" message, so the loop stopped instead of waiting. It now matches that message, and its stash leaves PDFs alone.
+
+### T13 — Mobile login uses Moodle credentials (both apps) — 2026-11-09
+- Changed: both `Login.jsx` ask for SPeCTRUM username + password (nothing prefilled) → `POST /auth/moodle-login`; `api.js` maps 401 → "Wrong SPeCTRUM username or password.", 503 → SPeCTRUM unreachable, no response → server unreachable; `client.js` tags errors with `status` and no longer treats a 401 from either login path as an expired session. Each app refuses the other app's role.
+- Decisions: the lecturer app shows "Administrator sign-in" (email + `/auth/login`, lecturer or admin) only on web, so phones have none; the seeded local `devlecturer` signs in that way in the Playwright specs. Finished from the stash after the session limit.
+- Interface: no API/schema change. Tests: Maestro `login.yaml` (student1, lecturer1, incl. 401 and wrong-role) and `student assistant` (now student2 via Moodle) PASS; Playwright `login.spec.js` + updated desktop/smoke (6 passed); check.sh passes; reviewer PASS. The 503 message is not covered by an E2E flow.
+- Next: the 5-task overnight run is done; T94's checkpoint wording is back in PLAN.md, so the loop stops there.

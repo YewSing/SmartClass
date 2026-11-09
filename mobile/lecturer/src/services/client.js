@@ -99,6 +99,9 @@ function _forceLogout() {
   _fireAuthExpired()
 }
 
+// A 401 from a sign-in request means wrong credentials, not an expired session
+const LOGIN_PATHS = ['/auth/login', '/auth/moodle-login']
+
 // ─── API call ─────────────────────────────────────────────────────────────────
 
 export async function apiCall(method, path, body, _isRetry = false) {
@@ -112,7 +115,7 @@ export async function apiCall(method, path, body, _isRetry = false) {
     body: body ? JSON.stringify(body) : undefined,
   })
 
-  if (res.status === 401 && !_isRetry && path !== '/auth/login') {
+  if (res.status === 401 && !_isRetry && !LOGIN_PATHS.includes(path)) {
     const refreshed = await _doRefresh()
     if (refreshed) return apiCall(method, path, body, true)
     _forceLogout()
@@ -121,7 +124,9 @@ export async function apiCall(method, path, body, _isRetry = false) {
 
   if (!res.ok) {
     const e = await res.json().catch(() => ({}))
-    throw new Error(e.detail ?? `HTTP ${res.status}`)
+    const err = new Error(e.detail ?? `HTTP ${res.status}`)
+    err.status = res.status
+    throw err
   }
   return res.status === 204 ? null : res.json()
 }
@@ -136,7 +141,7 @@ export async function apiCallRaw(method, path, _isRetry = false) {
     },
   })
 
-  if (res.status === 401 && !_isRetry && path !== '/auth/login') {
+  if (res.status === 401 && !_isRetry && !LOGIN_PATHS.includes(path)) {
     const refreshed = await _doRefresh()
     if (refreshed) return apiCallRaw(method, path, true)
     _forceLogout()

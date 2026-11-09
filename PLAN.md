@@ -32,7 +32,7 @@ These M8 tasks run before everything else after the T04 checkpoint, so the stude
   Done when: `GET /student/assistant/materials/{id}/file` streams the material (proxied from Moodle, enrolled students only) and citations carry page/slide numbers the app can open; tests.
 - [x] **T89 [UI] Student app: assistant chat with citations.** Depends on: T84, T93, T03.
   Done when: new Assistant tab: course picker, sessions list, chat with citation chips that open the source; general-knowledge label shown; Maestro flow asks a question with the backend's LLM mocked (`LLM_FAKE=1` env flag added for E2E) and sees a citation.
-- [ ] **T94 [HUMAN] Try the AI chat before Week 7 (checkpoint lifted for one overnight run of 5 tasks, 2026-11-09; test at tag `t94-chat-ready`).** Yew Sing asks real questions on a phone and taps citations. A Claude session reviews the work so far, then Yew Sing can say "prepare the merge".
+- [ ] **T94 [HUMAN] Checkpoint: try the AI chat before Week 7 (test at tag `t94-chat-ready`).** Yew Sing asks real questions on a phone and taps citations. A Claude session reviews the work so far, then Yew Sing can say "prepare the merge".
 
 ## 0c. Lecturer web
 
@@ -47,7 +47,7 @@ These M8 tasks run before everything else after the T04 checkpoint, so the stude
   Done when: a sync service maps Moodle courses → SmartClass courses/occurrences (record the mapping decision in PROGRESS.md), adds and removes enrolments and lecturer assignments to match Moodle, runs for the user on login, on `POST /admin/moodle/sync`, and on a schedule (interval from config); idempotent (running twice changes nothing). Tests: add, remove, idempotency, Moodle failure leaves data unchanged.
 - [x] **T12 [API] Admin accounts: deactivate/reactivate, create admin, audit (FR-103, FR-108, FR-118).** Depends on: T02, T04.
   Done when: a deactivated user can't log in (local or Moodle) and can't refresh tokens; an admin can't deactivate themselves; each change writes an audit entry; tests for each rule.
-- [ ] **T13 [UI] Mobile login uses Moodle credentials (both apps).** Depends on: T10, T03.
+- [x] **T13 [UI] Mobile login uses Moodle credentials (both apps).** Depends on: T10, T03.
   Done when: both login screens ask for SPeCTRUM username + password and call `/auth/moodle-login`; error messages for 401 and 503; the phone apps have no administrator sign-in, because admins use the browser only; Maestro flows `login.yaml` log in `student1` / `lecturer1` and reach the home screen.
 - [ ] **T14 [API] PDPA consent + withdrawal (FR-109, FR-116, NFR-03).** Depends on: T02, T04.
   Done when: migration adds a consent record (student, version, accepted_at, withdrawn_at); `POST /student/me/face-consent`, `DELETE /student/me/face-consent` (deletes embeddings at once, audited); enrolment endpoints refuse without active consent; tests.

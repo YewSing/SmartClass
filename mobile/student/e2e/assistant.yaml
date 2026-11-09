@@ -1,8 +1,9 @@
 # Assistant: a student asks a question about a course and opens the cited source.
 # Run: bash scripts/e2e-mobile.sh student assistant
-# Needs the dev database with indexed WIA2005 materials (Moodle sync) and the seeded student
-# 23004002 (enrolled in WIA2005). The script starts the backend with LLM_FAKE=1, so the answer is
-# the canned one citing passage [1] and no real LLM is called.
+# Needs the dev database with indexed WIA2005 materials (Moodle sync) and the local Moodle up:
+# student2 is enrolled in WIA2005 there, and signing in syncs that enrolment (T11). The script
+# starts the backend with LLM_FAKE=1, so the answer is the canned one citing passage [1] and no
+# real LLM is called.
 appId: host.exp.exponent
 ---
 - extendedWaitUntil:
@@ -17,10 +18,13 @@ appId: host.exp.exponent
     visible: "Welcome back"
     timeout: 60000
 
-# Log in as a student enrolled in a course that has materials
-- tapOn: "Clear email"
-- tapOn: "your@siswa.um.edu.my"
-- inputText: "23004002@siswa.um.edu.my"
+# Log in (SPeCTRUM) as a student enrolled in a course that has materials
+- tapOn:
+    id: "login-username"
+- inputText: "student2"
+- tapOn:
+    id: "login-password"
+- inputText: "Student123!"
 - hideKeyboard
 - tapOn: "Sign In"
 
