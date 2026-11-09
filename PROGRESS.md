@@ -179,3 +179,9 @@ TEST-CHANGE: tests/test_seed_courses.py (test_materials_course_exists_in_the_see
 - Interface/schema changes: migration `d4e5f6a7b8c9`; new student endpoints; the two admin enrolment endpoints gain a 409. For the merge note: `frontend/admin` face upload now fails for students who haven't consented in the student app.
 - Tests: new `test_face_consent.py` (12); `test_char_face_review.py` promote test records consent first (behaviour changed on purpose, no assertion weakened). check.sh 216 passed; reviewer PASS.
 - Next: T15.
+
+### T15 — Card verification service — 2026-11-09
+- Changed: new `services/face_verification.py`: `match_faces` (largest card face vs averaged selfies, cosine), `run_ocr`/`read_card` (local RapidOCR; matric via `CARD_MATRIC_REGEX` with O→0/I→1 fixes, name = share of account name words found, spaces ignored), `check_quality` (reasons in message order: too_dark, no_card_found, card_too_small, angled, blurry, glare, no_face_on_card, each with a retake message), `verify_card` for T16. 12 `CARD_*` settings in config.
+- Decisions: quality blocks only when no matric reaches `CARD_OCR_MIN_CONFIDENCE` (0.85); glare = largest blown-out patch after opening, so white print isn't glare; card crop only shrunk before the blur measure; auto-approve needs face + matric + name. Generated cards: genuine face 0.94, worst impostor 0.15 (threshold 0.30). OCR reads a 20%-brightness card, so dark-only photos pass if readable.
+- Interface: new dep `rapidocr-onnxruntime==1.4.4`; new pytest marker `face` (conftest skips it when insightface/rapidocr/buffalo_sc are missing). No API/schema change. Tests: `test_face_verification.py` (28, `tests/card_images.py` generator); check.sh 244 passed; reviewer PASS.
+- Next: T16. Real-photo thresholds are T21's job.

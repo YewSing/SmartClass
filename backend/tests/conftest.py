@@ -44,10 +44,27 @@ STUDENT_EMAIL, STUDENT_PASSWORD = "student.test@siswa.um.edu.my", "Student@1234"
 
 # ── marker-based skips (live / moodle need real config) ──────────────────────
 
+def _face_libs_missing() -> str | None:
+    """Why `face` tests can't run here (insightface/rapidocr are optional backend deps)."""
+    import importlib.util
+
+    for module in ("insightface", "rapidocr_onnxruntime"):
+        if importlib.util.find_spec(module) is None:
+            return f"{module} not installed"
+    model_dir = Path.home() / ".insightface" / "models" / settings.INSIGHTFACE_MODEL
+    if not model_dir.is_dir():
+        return f"InsightFace model {settings.INSIGHTFACE_MODEL} not downloaded"
+    return None
+
+
 def pytest_collection_modifyitems(config, items):
     skip_live = pytest.mark.skip(reason="LLM_API_KEY not set")
     skip_moodle = pytest.mark.skip(reason="MOODLE_TOKEN not set")
+    face_items = [i for i in items if i.get_closest_marker("face")]
+    face_missing = _face_libs_missing() if face_items else None
     for item in items:
+        if face_missing and item in face_items:
+            item.add_marker(pytest.mark.skip(reason=face_missing))
         if "db" in item.keywords:
             item.fixturenames.insert(0, "_test_database")
         if "live" in item.keywords and not settings.LLM_API_KEY:

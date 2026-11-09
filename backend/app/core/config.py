@@ -18,6 +18,19 @@ class Settings(BaseSettings):
     # PDPA face-data notice the student app shows (FR-109). Bump it when the wording changes.
     FACE_CONSENT_VERSION: str = "2026-11-v1"
 
+    # Matric card verification for face self-enrolment (FR-111). Tune on real photos (T21).
+    CARD_MAX_SIDE_PX: int = 1600                # photos are downscaled to this before any check
+    CARD_FACE_MATCH_THRESHOLD: float = 0.30     # cosine, selfies vs the small card photo
+    CARD_MATRIC_REGEX: str = r"\d{8}|[A-Z]{1,3}\d{6,7}"   # UM matric formats, after OCR clean-up
+    CARD_OCR_MIN_CONFIDENCE: float = 0.85       # matric read at least this sure overrides quality warnings
+    CARD_NAME_MIN_MATCH: float = 0.6            # share of the account's name words found on the card
+    CARD_MIN_AREA_FRACTION: float = 0.15        # card must cover this share of the photo
+    CARD_MAX_TILT_DEGREES: float = 15.0
+    CARD_MAX_SKEW_RATIO: float = 0.25           # opposite card edges may differ by this much
+    CARD_BLUR_MIN_VARIANCE: float = 100.0       # Laplacian variance of the card (shrunk to 856 px wide)
+    CARD_GLARE_MAX_FRACTION: float = 0.06       # largest blown-out patch, share of the card area
+    CARD_DARK_MAX_MEAN: float = 60.0            # mean brightness (0-255) at or below this is too dark
+
     DEV_BYPASS_TIME_CHECK: bool = False
 
     # ── Module 8: AI Learning Assistant ─────────────────────────────────────
