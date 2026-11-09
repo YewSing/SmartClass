@@ -9,4 +9,12 @@ export async function saveCsv(csvText, filename) {
   a.click()
   a.remove()
   setTimeout(() => URL.revokeObjectURL(url), 0)
+  return `Downloaded ${filename}`
 }
+
+// The browser decides where downloads go, so there is no save folder to remember.
+export async function getSaveFolderLabel() {
+  return null
+}
+
+export async function forgetSaveFolder() {}

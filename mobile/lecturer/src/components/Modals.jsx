@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { changePassword } from '../services/api'
+import { getSaveFolderLabel, forgetSaveFolder } from '../services/saveCsv'
 import {
   Modal, View, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback,
-  ScrollView, StyleSheet, Dimensions,
+  ScrollView, StyleSheet, Dimensions, Platform,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -252,17 +253,27 @@ function StudentModal({ visible, onClose, data, overrideStudent }) {
 function ExportModal({ visible, onClose, data }) {
   const { exportCsv, closeModal } = useLecturer()
   const [busy, setBusy] = useState(false)
+  const [folder, setFolder] = useState(null)
+
+  useEffect(() => {
+    if (visible) getSaveFolderLabel().then(setFolder)
+  }, [visible])
+
+  const changeFolder = async () => {
+    await forgetSaveFolder()
+    setFolder(null)
+  }
 
   const handleExport = async () => {
     if (busy || !data) return
     setBusy(true)
     try {
       await exportCsv(data)
-      closeModal()
     } catch {
       // showToast already called inside exportCsv
     } finally {
       setBusy(false)
+      closeModal()   // also on failure: toasts show behind an open dialog
     }
   }
 
@@ -285,6 +296,23 @@ function ExportModal({ visible, onClose, data }) {
             {data?.studentCount != null ? `${data.studentCount} students enrolled` : '—'}
           </Text>
         </View>
+        {Platform.OS === 'android' && (
+          <View style={styles.exportSummaryRow}>
+            <Ionicons name="folder-outline" size={16} color={C.primary} />
+            {folder ? (
+              <>
+                <Text style={[styles.exportSummaryText, styles.exportFolderText]}>Saves to {folder}</Text>
+                <TouchableOpacity onPress={changeFolder} accessibilityRole="button" hitSlop={8}>
+                  <Text style={styles.exportFolderChange}>Change</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <Text style={[styles.exportSummaryText, styles.exportFolderText]}>
+                Next, choose where to save. Android doesn't allow Download itself, so create a folder inside it, such as SmartClass.
+              </Text>
+            )}
+          </View>
+        )}
       </View>
       <BtnPrimary
         label={busy ? 'Exporting…' : 'Export CSV'}
@@ -646,6 +674,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  exportFolderText: {
+    flex: 1,
+  },
+  exportFolderChange: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: C.primary,
   },
   exportSummaryText: {
     fontSize: 14,

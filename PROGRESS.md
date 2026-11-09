@@ -22,6 +22,8 @@ Short log, newest entry at the bottom of "Log". Each entry is at most 5 lines:
 - REVIEW: T13 - for the merge note: the phone apps now sign in only through Moodle, so seeded accounts (`23004002@siswa...`, `devlecturer`) no longer work on a phone, and login gives 503 unless `backend/moodle` is running. Shino needs the local Moodle up and its accounts (`backend/moodle/README.md`).
 - REVIEW: T11/T29 - a full sync only manages students who have already logged in (`unlinked_users` are only counted). Students who never logged in have no enrolment, so M3 can't mark them Absent. Decide before T29/T30 whether the sync creates these accounts (already raised in the T11 log).
 - REVIEW: T10 - a Moodle idnumber that matches another student's matric number gives a 500 at login (noted in the T10 log, no task covers it).
+- REVIEW: T11/T13 - Moodle lecturers see no classes on a phone with the seed data. The sync only fills occurrences with no lecturer, and the seed gives every occurrence to a seeded lecturer (WIF3001/WIF3004 included), so `lecturer1` gets an empty app, and seeded lecturers can't sign in on a phone. It blocks phone testing of attendance and export until the data or sync changes; `e2e/export.yaml` was run against a throwaway database copy with occurrence 154 given to `lecturer1`.
+- REVIEW: lecturer app - toasts show behind an open dialog (RN `Modal`). The export dialog now closes first; other dialogs may hide their error toasts the same way.
 
 ## Log
 
@@ -135,3 +137,9 @@ Short log, newest entry at the bottom of "Log". Each entry is at most 5 lines:
 - Decisions: the lecturer app shows "Administrator sign-in" (email + `/auth/login`, lecturer or admin) only on web, so phones have none; the seeded local `devlecturer` signs in that way in the Playwright specs. Finished from the stash after the session limit.
 - Interface: no API/schema change. Tests: Maestro `login.yaml` (student1, lecturer1, incl. 401 and wrong-role) and `student assistant` (now student2 via Moodle) PASS; Playwright `login.spec.js` + updated desktop/smoke (6 passed); check.sh passes; reviewer PASS. The 503 message is not covered by an E2E flow.
 - Next: the 5-task overnight run is done; T94's checkpoint wording is back in PLAN.md, so the loop stops there.
+
+### Fix — Lecturer CSV export saves on Android, confirmed in the browser — 2026-11-09
+- Changed: `saveCsv.js` on Android saves straight into a folder picked once (StorageAccessFramework, remembered in AsyncStorage, asks again if access is lost); iPhone keeps the share sheet. `saveCsv.web.js` was already right (T05). `ExportModal` shows the folder with a Change link, and always closes so the toast is visible. A toast now says where the file went.
+- Decisions: Android refuses the Download root, so the dialog tells the lecturer to create a folder inside it. Expo Go asks for access as "Expo Go"; a real build would show the app's name.
+- Interface: no API/schema change; `exportSessionCsv`/`exportOccurrenceCsv` now return a message. Tests: Maestro `lecturer export` PASS (first save, remembered folder, Change, cancel) on a throwaway DB copy, see Next; Playwright `export.spec.js` + `desktop.spec.js` 4 passed; check.sh passes. iPhone not tested. The reviewer agent was not run.
+- E2E traps: `adb` can hang after `e2e-mobile.sh` (end adb.exe); stopping a background Expo can leave its node child on :8081 serving old code, and the script's Expo then logs "Skipping dev server".
