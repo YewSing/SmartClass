@@ -49,7 +49,7 @@ These M8 tasks run before everything else after the T04 checkpoint, so the stude
   Done when: a deactivated user can't log in (local or Moodle) and can't refresh tokens; an admin can't deactivate themselves; each change writes an audit entry; tests for each rule.
 - [x] **T13 [UI] Mobile login uses Moodle credentials (both apps).** Depends on: T10, T03.
   Done when: both login screens ask for SPeCTRUM username + password and call `/auth/moodle-login`; error messages for 401 and 503; the phone apps have no administrator sign-in, because admins use the browser only; Maestro flows `login.yaml` log in `student1` / `lecturer1` and reach the home screen.
-- [ ] **T14 [API] PDPA consent + withdrawal (FR-109, FR-116, NFR-03).** Depends on: T02, T04.
+- [x] **T14 [API] PDPA consent + withdrawal (FR-109, FR-116, NFR-03).** Depends on: T02, T04.
   Done when: migration adds a consent record (student, version, accepted_at, withdrawn_at); `POST /student/me/face-consent`, `DELETE /student/me/face-consent` (deletes embeddings at once, audited); enrolment endpoints refuse without active consent; tests.
 - [ ] **T15 [API] Card verification service (FR-111).** Depends on: T01, T04.
   Done when: `app/services/face_verification.py` provides (a) a selfie ↔ card face similarity check using InsightFace, and (b) matric number + name extraction from a card image with a **local** OCR library (card images must not leave the server — PDPA; e.g. `rapidocr-onnxruntime`), with thresholds in config. Tests use generated card images (PIL: rendered matric number/name/faculty text + an InsightFace sample face pasted in) for: match, wrong face, wrong matric number, unreadable card.

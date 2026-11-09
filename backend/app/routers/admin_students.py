@@ -9,6 +9,7 @@ from app.models.face import FaceEmbedding
 from app.models.class_ import ClassOccurrence, Enrollment
 from app.services import face_service
 from app.services.audit_service import write_log
+from app.services.consent_service import require_active_consent
 
 router = APIRouter(prefix="/admin/students", tags=["admin-students"])
 
@@ -34,6 +35,7 @@ async def enroll_face(
     student = stu_result.scalar_one_or_none()
     if not student:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found")
+    await require_active_consent(db, student.id)  # NFR-03
 
     face_app = request.app.state.face_app
     if face_app is None:

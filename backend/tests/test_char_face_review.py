@@ -5,6 +5,7 @@ from sqlalchemy import func, select
 from app.core.config import settings
 from app.models.attendance import AttendanceRecord
 from app.models.audit import AuditLog
+from app.models.consent import FaceConsent
 from app.models.face import FaceEmbedding
 from app.models.face_review import FaceReviewEntry
 
@@ -115,6 +116,8 @@ async def test_admin_promote_sets_embedding_and_marks_present(
     [entry] = await _entries(db_session)
     entry_id = entry.id
     student_user_id, student_id = classroom["student_user_ids"][2], classroom["student_ids"][2]
+    db_session.add(FaceConsent(student_id=student_id, version=settings.FACE_CONSENT_VERSION))  # T14: NFR-03
+    await db_session.commit()
 
     resp = await admin_client.post(f"/admin/face-review/{entry_id}/promote",
                                    json={"student_user_id": student_user_id, "mark_present": True})

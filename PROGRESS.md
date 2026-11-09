@@ -172,3 +172,10 @@ TEST-CHANGE: tests/test_seed_courses.py (test_materials_course_exists_in_the_see
 - Decisions (Yew Sing): shorter sync instead of instant updates, because a Moodle plugin can't go on the real SPeCTRUM. "Sync now" stays with T22, in the admin area of the web app.
 - Interface: no API/schema change (uses existing `GET /classes/{id}/students`, already lecturer-scoped). Tests: Playwright `class-detail.spec.js` (3), `tabs.spec.js` (6; 4 failed before the fix), all lecturer web specs 17 passed. Not run on a phone: Maestro needs Yew Sing's backend and Expo stopped, and `adb` saw no device. Reviewer agent not run.
 - Next: Yew Sing tries both on the phone. T94, then prepare the merge.
+
+### T14 — PDPA consent + withdrawal — 2026-11-09
+- Changed: new `face_consents` table + model, `consent_service.py`, `routers/student_face.py` (`GET/POST/DELETE /student/me/face-consent`); `/admin/students/{id}/face-enroll` and `/admin/face-review/{id}/promote` now return 409 without active consent (NFR-03). Config `FACE_CONSENT_VERSION` (default `2026-11-v1`).
+- Decisions: one row per acceptance; withdrawal sets `withdrawn_at` (history kept) and deletes embeddings in the same request; POST must send the current notice version (else 409), re-accepting is a 200 no-op, a newer version closes the old row. Audit actions `FACE_CONSENT_GIVE` / `FACE_CONSENT_WITHDRAW`. Admin "reset face data" needs no consent (it only deletes).
+- Interface/schema changes: migration `d4e5f6a7b8c9`; new student endpoints; the two admin enrolment endpoints gain a 409. For the merge note: `frontend/admin` face upload now fails for students who haven't consented in the student app.
+- Tests: new `test_face_consent.py` (12); `test_char_face_review.py` promote test records consent first (behaviour changed on purpose, no assertion weakened). check.sh 216 passed; reviewer PASS.
+- Next: T15.

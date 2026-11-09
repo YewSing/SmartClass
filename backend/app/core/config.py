@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     INSIGHTFACE_MODEL: str = "buffalo_sc"
     FACE_VOTE_THRESHOLD: int = 3
     FACE_COOLDOWN_SECONDS: int = 30
+    # PDPA face-data notice the student app shows (FR-109). Bump it when the wording changes.
+    FACE_CONSENT_VERSION: str = "2026-11-v1"
 
     DEV_BYPASS_TIME_CHECK: bool = False
 
