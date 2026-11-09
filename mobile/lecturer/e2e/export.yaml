@@ -1,8 +1,6 @@
 # CSV export on Android saves straight into a folder picked once, with no share sheet.
 # Run: bash scripts/e2e-mobile.sh lecturer export
 # Needs the local Moodle up (lecturer1 / Lecturer123!) and the backend's MOODLE_URL pointing at it.
-# lecturer1 must also teach a class in SmartClass: the Moodle sync only fills class occurrences
-# that have no lecturer, and the seed gives every occurrence to a seeded lecturer.
 appId: host.exp.exponent
 ---
 - extendedWaitUntil:

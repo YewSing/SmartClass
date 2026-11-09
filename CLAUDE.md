@@ -14,7 +14,7 @@ SmartClass/
 │   ├── face_worker/    # Standalone face recognition worker process
 │   ├── moodle/         # Local Moodle 4.5 simulating SPeCTRUM (own docker-compose)
 │   ├── tests/          # pytest suite
-│   ├── scripts/        # seed.py — populates demo data; kb_sync.py
+│   ├── scripts/        # seed.py — admin, timetable, always-open test class; reset_to_moodle.py; kb_sync.py
 │   └── docker-compose.yml
 ├── frontend/
 │   └── admin/      # Web dashboard for administrators
@@ -41,7 +41,7 @@ cd backend
 docker compose up -d                              # start postgres+pgvector
 pip install -r requirements.txt
 alembic upgrade head
-python scripts/seed.py                            # demo data
+python scripts/seed.py                            # admin, timetable, always-open test class (safe to re-run)
 uvicorn app.main:app --reload --host 0.0.0.0     # API at localhost:8000, also reachable from phone
 ```
 

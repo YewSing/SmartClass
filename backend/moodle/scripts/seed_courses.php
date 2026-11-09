@@ -96,6 +96,7 @@ foreach ($conf['courses'] as $c) {
     $summary[$short] = ['uploaded' => [], 'existing' => 0, 'skipped' => []];
     if (empty($courses[$short])) continue;
     $course = $courses[$short];
+    if (empty($c['source_folder'])) { echo "no materials for $short\n"; continue; }
     $srcrel = trim($c['source_folder'], '/');
     $folder = $root . '/' . $srcrel;
     // Safety: must be a course subfolder (SEM x/Course), never the SEM folder or root itself

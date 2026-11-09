@@ -59,7 +59,9 @@ alembic upgrade head
 python scripts/seed.py
 ```
 
-`seed.py` creates demo admin, lecturer, and student accounts.
+`seed.py` creates what Moodle can't provide: the admin account, the timetable, and an always-open test class (WIA0000, `devlecturer`). People, courses and enrolments come from the local Moodle (`backend/moodle/README.md`), which must be running, through a sync or a login.
+
+An existing database with the old demo data: back up (`bash scripts/backup-data.sh`), then run `python scripts/reset_to_moodle.py` from `backend/` to preview and `--yes` to apply. It keeps AI materials and face enrolments.
 
 ---
 

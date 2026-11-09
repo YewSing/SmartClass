@@ -47,6 +47,10 @@
       "source_folder": "SEM 4/WIA2005 Algorithmn Design and Analysis",
       "include": [],
       "exclude": []
+    },
+    {
+      "shortname": "WIA0000",
+      "fullname": "WIA0000 Dev Test Class"
     }
   ],
   "users": [
@@ -63,6 +67,13 @@
       "firstname": "Chong",
       "lastname": "Wei Ming",
       "email": "lecturer2@example.com"
+    },
+    {
+      "username": "devlecturer",
+      "password": "DevTest@1234",
+      "firstname": "Dev Test",
+      "lastname": "Lecturer",
+      "email": "devlecturer@um.edu.my"
     },
     {
       "username": "student1",
@@ -115,6 +126,36 @@
       "course": "WIA2005",
       "username": "lecturer2",
       "role": "editingteacher"
+    },
+    {
+      "course": "WIA0000",
+      "username": "devlecturer",
+      "role": "editingteacher"
+    },
+    {
+      "course": "WIA0000",
+      "username": "student1",
+      "role": "student"
+    },
+    {
+      "course": "WIA0000",
+      "username": "student2",
+      "role": "student"
+    },
+    {
+      "course": "WIA0000",
+      "username": "student3",
+      "role": "student"
+    },
+    {
+      "course": "WIA0000",
+      "username": "student4",
+      "role": "student"
+    },
+    {
+      "course": "WIA0000",
+      "username": "student5",
+      "role": "student"
     },
     {
       "course": "WIF3001",

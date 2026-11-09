@@ -2,7 +2,7 @@
 // Run: npm run e2e:web
 // Starts its own backend (:8001, LLM_FAKE=1, dev DB from backend/.env) and Expo web (:8092),
 // on ports the everyday dev servers don't use, so it never tests some other app that
-// happens to be running. Needs docker postgres up and the seed data (devlecturer@um.edu.my).
+// happens to be running. Needs docker postgres up, the seed data (devlecturer@um.edu.my) and the local Moodle.
 const path = require('path')
 const { defineConfig, devices } = require('@playwright/test')
 

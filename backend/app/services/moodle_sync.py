@@ -7,8 +7,11 @@ Mapping (T11):
   is enrolled in every LECTURE occurrence, and in the tutorial when the course has only one;
   with several tutorial groups the admin picks the group.
 - Only Moodle-linked accounts (`users.moodle_user_id`) are managed. Local accounts (seed data,
-  admins) are never enrolled, removed or unassigned by a sync. Moodle users with no SmartClass
-  account yet are counted as `unlinked`; their first login creates the account and syncs them.
+  admins) are never enrolled, removed or unassigned by a sync.
+- A full sync creates the accounts of Moodle users who have never logged in, so class lists are
+  complete and non-attenders can be marked Absent. Anyone it can't create (no username in
+  Moodle's data, or an email or number another account holds) is counted as `unlinked`; their
+  first login handles them as usual.
 - Everything is read from Moodle before the database is touched, so a Moodle failure changes
   nothing. Running a sync twice changes nothing the second time.
 """
@@ -17,14 +20,16 @@ import logging
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.models.class_ import ClassOccurrence, Course, Enrollment
 from app.models.user import Lecturer, Student, User
+from app.services.audit_service import write_log
 from app.services.kb.moodle_client import MoodleClient
 
 log = logging.getLogger(__name__)
@@ -44,10 +49,12 @@ class MoodleCourse:
     fullname: str
     students: set[int] = field(default_factory=set)   # Moodle user ids
     teachers: set[int] = field(default_factory=set)
+    people: dict[int, dict] = field(default_factory=dict)  # Moodle user id -> Moodle's user record
 
 
 @dataclass
 class SyncReport:
+    accounts_created: int = 0
     courses_created: int = 0
     courses_updated: int = 0
     enrolments_added: int = 0
@@ -59,7 +66,7 @@ class SyncReport:
 
     @property
     def changed(self) -> bool:
-        return any((self.courses_created, self.courses_updated, self.enrolments_added,
+        return any((self.accounts_created, self.courses_created, self.courses_updated, self.enrolments_added,
                     self.enrolments_removed, self.lecturers_assigned, self.lecturers_unassigned))
 
 
@@ -72,6 +79,9 @@ def course_from_enrolled(course: dict, enrolled: list[dict]) -> MoodleCourse:
             mc.teachers.add(int(u["id"]))
         elif STUDENT_ROLE in roles:
             mc.students.add(int(u["id"]))
+        else:
+            continue
+        mc.people[int(u["id"])] = u
     return mc
 
 
@@ -101,6 +111,43 @@ async def _linked_profiles(db: AsyncSession, moodle_user_id: int | None) -> tupl
     lecturers = dict((await db.execute(q_lec)).all())
     roles = {m: role for m, role, st in (await db.execute(q_role)).all() if st == "active"}
     return students, lecturers, roles
+
+
+async def _create_missing_accounts(db: AsyncSession, moodle_courses: list[MoodleCourse], report: SyncReport) -> None:
+    """Accounts for Moodle users who have never logged in, with the same details a first login
+    would give them (FR-102). A clash skips that person only, so it can't fail the whole sync."""
+    people = {uid: person for mc in moodle_courses for uid, person in mc.people.items()}
+    teaching = {uid for mc in moodle_courses for uid in mc.teachers}
+    linked = set((await db.execute(select(User.moodle_user_id).where(User.moodle_user_id.is_not(None)))).scalars())
+    emails = set((await db.execute(select(func.lower(User.email)))).scalars())
+
+    for uid in sorted(set(people) - linked):
+        person = people[uid]
+        username = (person.get("username") or "").strip()
+        if not username:
+            continue
+        email = (person.get("email") or f"{username}@moodle.invalid").lower()
+        if email in emails:
+            continue  # a local account holds this email; a login by its owner links them
+        number = (person.get("idnumber") or "").strip() or username
+        department = person.get("department") or None
+        role = "lecturer" if uid in teaching else "student"
+        try:
+            async with db.begin_nested():
+                user = User(email=email, password_hash=None, role=role, status="active", moodle_user_id=uid,
+                            name=person.get("fullname") or username)
+                db.add(user)
+                await db.flush()
+                db.add(Student(user_id=user.id, matric_no=number, faculty=department) if role == "student"
+                       else Lecturer(user_id=user.id, staff_id=number, dept=department))
+                await write_log(db, user.id, "MOODLE_ACCOUNT_CREATE", "user", user.id,
+                                new_val={"email": email, "role": role, "moodle_user_id": uid, "source": "sync"})
+                await db.flush()
+        except IntegrityError:
+            report.skipped.append(f"Moodle user {uid}: email or number already belongs to another account")
+            continue
+        emails.add(email)
+        report.accounts_created += 1
 
 
 async def _resolve_course(db: AsyncSession, mc: MoodleCourse, create: bool, report: SyncReport) -> Course | None:
@@ -179,6 +226,8 @@ async def apply(db: AsyncSession, moodle_courses: list[MoodleCourse], moodle_use
     enrolments/assignments change, and `moodle_courses` is that user's course list.
     Flushes but does not commit."""
     report = SyncReport()
+    if moodle_user_id is None:
+        await _create_missing_accounts(db, moodle_courses, report)
     students, lecturers, roles = await _linked_profiles(db, moodle_user_id)
     if moodle_user_id is None:
         known = set(students) | set(lecturers)

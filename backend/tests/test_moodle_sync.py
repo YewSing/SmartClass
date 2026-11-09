@@ -29,6 +29,7 @@ class FakeMoodle:
     def __init__(self):
         self.courses: dict[int, dict] = {}       # id -> {"shortname", "fullname"}
         self.enrolled: dict[int, dict[int, str]] = {}  # course id -> {moodle user id: role}
+        self.details: dict[int, dict] = {}       # moodle user id -> username, email, idnumber, ...
         self.fail = False
 
     def course(self, cid, shortname, fullname, **members):
@@ -47,7 +48,8 @@ class FakeMoodle:
                 {"id": cid, "format": "topics", **c} for cid, c in self.courses.items()]})
         if fn == "core_enrol_get_enrolled_users":
             members = self.enrolled[int(form["courseid"])]
-            return httpx.Response(200, json=[{"id": uid, "roles": [{"shortname": role}]} for uid, role in members.items()])
+            return httpx.Response(200, json=[{"id": uid, "roles": [{"shortname": role}], **self.details.get(uid, {})}
+                                             for uid, role in members.items()])
         raise AssertionError(f"unexpected wsfunction {fn}")
 
 
@@ -249,6 +251,87 @@ async def test_deactivated_or_wrong_role_accounts_are_not_enrolled(admin_client,
     fake_moodle.course(7, "WIA2005", "Algorithm Design", **{"104": "student", "201": "student"})
     await _sync(admin_client)
     assert await _enrolments(db_session) == set()  # inactive student; 201 is a lecturer account
+
+
+@pytest.mark.db
+async def test_sync_creates_accounts_for_users_who_never_logged_in(admin_client, db_session, school, fake_moodle):
+    fake_moodle.details = {
+        301: {"username": "student9", "fullname": "Nine Student", "email": "Nine@Example.com",
+              "idnumber": "23009999", "department": "FSKTM"},
+        302: {"username": "student8", "fullname": "Eight Student"},   # no email or idnumber in Moodle
+        401: {"username": "lecturer9", "fullname": "Nine Lecturer", "email": "l9@example.com", "idnumber": "ST9"},
+    }
+    fake_moodle.course(7, "WIA2005", "Algorithm Design", **{"301": "student", "302": "student", "401": "editingteacher"})
+
+    report = await _sync(admin_client)
+    assert report["accounts_created"] == 3 and report["unlinked_users"] == 0
+
+    db_session.expire_all()
+    users = {u.moodle_user_id: u for u in (await db_session.execute(select(User))).scalars() if u.moodle_user_id}
+    assert users[301].role == "student" and users[301].email == "nine@example.com"
+    assert users[301].name == "Nine Student" and users[301].password_hash is None  # NFR-05
+    assert users[302].email == "student8@moodle.invalid"
+    student = (await db_session.execute(select(Student).where(Student.user_id == users[301].id))).scalar_one()
+    assert student.matric_no == "23009999" and student.faculty == "FSKTM"
+    other = (await db_session.execute(select(Student).where(Student.user_id == users[302].id))).scalar_one()
+    assert other.matric_no == "student8"
+    lecturer = (await db_session.execute(select(Lecturer).where(Lecturer.user_id == users[401].id))).scalar_one()
+    assert users[401].role == "lecturer" and lecturer.staff_id == "ST9"
+
+    # They are on the class list, and the lecturer has the classes, before anyone logs in
+    s = school
+    student_id, other_id, lecturer_id = student.id, other.id, lecturer.id
+    assert await _enrolments(db_session) == {(student_id, s["algo_lec"]), (student_id, s["algo_tut"]),
+                                             (other_id, s["algo_lec"]), (other_id, s["algo_tut"])}
+    assert await _lecturer_of(db_session, s["algo_lec"]) == lecturer_id
+
+    audit = (await db_session.execute(select(AuditLog).where(AuditLog.action == "MOODLE_ACCOUNT_CREATE"))).scalars().all()
+    assert len(audit) == 3
+
+    again = await _sync(admin_client)
+    assert again["accounts_created"] == 0 and again["enrolments_added"] == 0
+
+
+@pytest.mark.db
+async def test_teaching_anywhere_makes_a_new_account_a_lecturer(admin_client, db_session, school, fake_moodle):
+    fake_moodle.details = {401: {"username": "both", "fullname": "Both Roles", "email": "both@example.com"}}
+    fake_moodle.course(7, "WIA2005", "Algorithm Design", **{"401": "student"})
+    fake_moodle.course(8, "WIA1002", "Data Structure", **{"401": "editingteacher"})
+    await _sync(admin_client)
+    user = (await db_session.execute(select(User).where(User.moodle_user_id == 401))).scalar_one()
+    assert user.role == "lecturer"
+
+
+@pytest.mark.db
+async def test_a_clash_skips_that_person_and_the_sync_carries_on(admin_client, db_session, users, school, fake_moodle):
+    local_email = users["student"].email
+    fake_moodle.details = {
+        301: {"username": "takenemail", "fullname": "A", "email": local_email.upper()},
+        302: {"username": "takennumber", "fullname": "B", "email": "b@example.com", "idnumber": "23000101"},  # s101's
+        303: {"username": "fine", "fullname": "C", "email": "c@example.com", "idnumber": "23000303"},
+    }
+    fake_moodle.course(7, "WIA2005", "Algorithm Design", **{"301": "student", "302": "student", "303": "student"})
+
+    report = await _sync(admin_client)
+    assert report["accounts_created"] == 1 and report["unlinked_users"] == 2
+    assert any("Moodle user 302" in line for line in report["skipped"])
+    assert local_email not in str(report["skipped"])
+
+    db_session.expire_all()
+    # The local account was not taken over; only the third person exists
+    local = await db_session.get(User, users["student"].id)
+    assert local.moodle_user_id is None
+    linked = set((await db_session.execute(select(User.moodle_user_id).where(User.moodle_user_id >= 300))).scalars())
+    assert linked == {303}
+
+
+@pytest.mark.db
+@respx.mock
+async def test_login_sync_creates_nobody_else(client, db_session, school):
+    mock_moodle(user_id=101, username="23000101", email="m101@um.edu.my", idnumber="23000101")
+    before = (await db_session.execute(select(func.count(User.id)))).scalar_one()
+    assert (await _login(client, username="23000101")).status_code == 200
+    assert (await db_session.execute(select(func.count(User.id)))).scalar_one() == before
 
 
 @pytest.mark.db
