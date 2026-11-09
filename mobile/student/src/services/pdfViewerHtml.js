@@ -1,7 +1,7 @@
 // The page shown inside the WebView of the in-app PDF viewer (FR-809).
 // It loads with the API as its base URL, so pdf.js (served by our backend, no third-party script
 // sees the token) and the file are same-origin. Messages go back to the app as JSON:
-// { type: 'page', page, total } | { type: 'auth' } | { type: 'error', message }
+// { type: 'page', page, total } | { type: 'ready' } (the cited page is drawn) | { type: 'auth' } | { type: 'error', message }
 
 // Safe inside a <script>: a value can't close the tag. JSON reads this escape back as a plain <.
 const LT_ESCAPE = String.fromCharCode(92) + 'u003c'
@@ -35,6 +35,7 @@ export function buildPdfViewerHtml({ base, fileUrl, token, page }) {
   var container = document.getElementById('pages');
   var width = document.documentElement.clientWidth;
   var scaleLimit = Math.min(window.devicePixelRatio || 1, 2);
+  var target = 1;
 
   pdfjsLib.getDocument({
     url: config.fileUrl,
@@ -52,13 +53,15 @@ export function buildPdfViewerHtml({ base, fileUrl, token, page }) {
   });
 
   function show(doc, pages) {
-    var boxes = pages.map(function (page) {
+    target = Math.min(Math.max(config.page || 1, 1), doc.numPages);
+    var boxes = pages.map(function (page, i) {
       var size = page.getViewport({ scale: 1 });
       var box = document.createElement('div');
       box.className = 'page';
       box.style.width = width + 'px';
       box.style.height = Math.round(width * size.height / size.width) + 'px';
       box.pdfPage = page;
+      box.pageNumber = i + 1;
       container.appendChild(box);
       return box;
     });
@@ -76,14 +79,14 @@ export function buildPdfViewerHtml({ base, fileUrl, token, page }) {
     }, { rootMargin: '150% 0px' });
     boxes.forEach(function (box) { observer.observe(box); });
 
-    var target = Math.min(Math.max(config.page || 1, 1), doc.numPages);
     boxes[target - 1].scrollIntoView();
 
     var current = 0;
     function report() {
-      var middle = window.scrollY + window.innerHeight / 2;
+      // The page at the top of the screen: slides are short, so several can fit at once
+      var top = window.scrollY + 8;
       var page = 1;
-      boxes.forEach(function (box, i) { if (box.offsetTop <= middle) page = i + 1; });
+      boxes.forEach(function (box, i) { if (box.offsetTop <= top) page = i + 1; });
       if (page !== current) {
         current = page;
         post({ type: 'page', page: page, total: doc.numPages });
@@ -102,7 +105,12 @@ export function buildPdfViewerHtml({ base, fileUrl, token, page }) {
     canvas.height = viewport.height;
     box.appendChild(canvas);
     box.task = box.pdfPage.render({ canvasContext: canvas.getContext('2d'), viewport: viewport });
-    box.task.promise.catch(function () { /* cancelled when scrolled away */ });
+    box.task.promise.then(function () {
+      if (box.pageNumber === target) post({ type: 'ready' });
+    }).catch(function (err) {
+      // Cancelled just means the page was scrolled away; anything else is a real failure
+      if (!err || err.name !== 'RenderingCancelledException') fail('This PDF could not be shown.');
+    });
   }
 })();
 </script>

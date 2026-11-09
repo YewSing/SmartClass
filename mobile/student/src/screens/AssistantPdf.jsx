@@ -15,6 +15,7 @@ export default function AssistantPdf({ route, navigation }) {
   const { showToast } = useStudent()
   const [attempt, setAttempt] = useState(0)
   const [position, setPosition] = useState(null)
+  const [ready, setReady] = useState(false)   // the cited page has been drawn
   const [error, setError] = useState(null)
   const [opening, setOpening] = useState(false)
   const refreshed = useRef(false)
@@ -27,6 +28,7 @@ export default function AssistantPdf({ route, navigation }) {
   const onMessage = async (event) => {
     const message = JSON.parse(event.nativeEvent.data)
     if (message.type === 'page') setPosition(message)
+    else if (message.type === 'ready') setReady(true)
     else if (message.type === 'error') setError(message.message)
     else if (message.type === 'auth') {
       // The token expired: refresh once and load again
@@ -39,7 +41,7 @@ export default function AssistantPdf({ route, navigation }) {
     }
   }
 
-  const retry = () => { setError(null); setPosition(null); setAttempt(n => n + 1) }
+  const retry = () => { setError(null); setPosition(null); setReady(false); setAttempt(n => n + 1) }
 
   const openElsewhere = async () => {
     setOpening(true)
@@ -56,7 +58,7 @@ export default function AssistantPdf({ route, navigation }) {
     <View style={styles.screen}>
       <Topbar
         title={citation.title}
-        sub={position ? `Page ${position.page} of ${position.total}` : 'Opening PDF…'}
+        sub={ready && position ? `Page ${position.page} of ${position.total}` : 'Opening PDF…'}
         onBack={() => navigation.goBack()}
       />
       {error ? (
@@ -81,8 +83,8 @@ export default function AssistantPdf({ route, navigation }) {
             onError={() => setError('The PDF viewer could not load.')}
             setDisplayZoomControls={false}
           />
-          {!position ? (
-            <View style={styles.loading} pointerEvents="none">
+          {!ready ? (
+            <View style={styles.loading}>
               <ActivityIndicator size="large" color={C.primary} />
               <Text style={styles.loadingText}>Opening at page {citation.open_page}…</Text>
             </View>

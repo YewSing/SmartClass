@@ -1,0 +1,93 @@
+# Screenshots for checking how the chat looks with real answers. It has no pass/fail on wording.
+# Uses the real LLM, so it spends free-tier requests. Run it by hand, not in the normal suite:
+#   E2E_LLM_FAKE=0 bash scripts/e2e-mobile.sh student assistant-look
+appId: host.exp.exponent
+---
+- extendedWaitUntil:
+    visible: "Welcome back|Continue"
+    timeout: 180000
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+- extendedWaitUntil:
+    visible: "Welcome back"
+    timeout: 60000
+- tapOn:
+    id: "login-username"
+- inputText: "student2"
+- tapOn:
+    id: "login-password"
+- inputText: "Student123!"
+- hideKeyboard
+- tapOn: "Sign In"
+- extendedWaitUntil:
+    visible: "Assistant"
+    timeout: 60000
+- tapOn: "Assistant"
+- extendedWaitUntil:
+    visible: "New chat"
+    timeout: 30000
+- tapOn: "WIA2005"
+- tapOn: "New chat"
+
+# The input box must sit above the keyboard
+- tapOn:
+    id: "assistant-input"
+- inputText: "Explain the steps of Dijkstra's algorithm as a bullet list, with the key terms in bold."
+- takeScreenshot: look-1-keyboard
+
+# With the keyboard still up, the floating indicator must show while the answer is drafted
+- tapOn:
+    id: "assistant-send"
+- assertVisible: "Drafting answer…"
+- takeScreenshot: look-2-drafting
+
+- extendedWaitUntil:
+    notVisible: "Drafting answer…"
+    timeout: 90000
+- hideKeyboard
+- takeScreenshot: look-3-answer-end
+
+# The source screen and the PDF, which must open at the page the citation names
+- runFlow:
+    when:
+      visible: "\\[1\\]"
+    commands:
+      - tapOn: "\\[1\\]"
+      - extendedWaitUntil:
+          visible: "Cited passage"
+          timeout: 15000
+      - takeScreenshot: look-4-source
+      - runFlow:
+          when:
+            visible: "Open file at page [0-9]+"
+          commands:
+            - tapOn: "Open file at page [0-9]+"
+            - extendedWaitUntil:
+                visible: "Page [0-9]+ of [0-9]+"
+                timeout: 60000
+            - waitForAnimationToEnd:
+                timeout: 5000
+            - takeScreenshot: look-4-pdf
+            - back
+      - back
+
+# A question the materials don't cover must carry the general knowledge label
+- tapOn:
+    id: "assistant-input"
+- inputText: "What is the capital of Japan?"
+- tapOn:
+    id: "assistant-send"
+- extendedWaitUntil:
+    notVisible: "Drafting answer…"
+    timeout: 90000
+- hideKeyboard
+- takeScreenshot: look-5-general-knowledge
+
+- back
+- extendedWaitUntil:
+    visible: "Your chats"
+    timeout: 15000
+- takeScreenshot: look-6-chat-list
