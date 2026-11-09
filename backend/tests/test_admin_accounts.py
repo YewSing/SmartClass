@@ -80,6 +80,49 @@ async def test_reactivated_user_can_log_in_again(admin_client, client, users):
     assert (await _login(client)).status_code == 200
 
 
+# ── Moodle owns the passwords of Moodle accounts (FR-101, FR-103) ─────────────
+
+async def _moodle_student(db_session):
+    user = User(email="ali@siswa.um.edu.my", password_hash=None, role="student", name="Ali",
+                status="active", moodle_user_id=42)
+    db_session.add(user)
+    await db_session.commit()
+    return user
+
+
+async def test_admin_cannot_set_a_local_password_on_a_moodle_account(admin_client, client, db_session, users):
+    user = await _moodle_student(db_session)
+    resp = await admin_client.put(f"/admin/users/{user.id}/password", json={"new_password": "Local@12345"})
+    assert resp.status_code == 400
+    assert "SPeCTRUM" in resp.json()["detail"]
+    # The refused reset left no way in without Moodle
+    assert (await _login(client, user.email, "Local@12345")).status_code == 401
+    assert not await _audit(db_session, "PASSWORD_RESET")
+
+
+async def test_admin_can_still_reset_a_local_account_password(admin_client, client, users):
+    resp = await admin_client.put(f"/admin/users/{users['student'].id}/password", json={"new_password": "Local@12345"})
+    assert resp.status_code == 204, resp.text
+    assert (await _login(client, password="Local@12345")).status_code == 200
+
+
+async def test_moodle_account_cannot_change_its_password_here(client, db_session):
+    from app.core.security import create_access_token
+    user = await _moodle_student(db_session)
+    headers = {"Authorization": f"Bearer {create_access_token(user.id, user.role)}"}
+    resp = await client.put("/auth/me/password", headers=headers,
+                            json={"current_password": "anything", "new_password": "Local@12345"})
+    assert resp.status_code == 400
+    assert "SPeCTRUM" in resp.json()["detail"]
+
+
+async def test_local_admin_can_still_change_their_own_password(admin_client):
+    from tests.conftest import ADMIN_PASSWORD
+    resp = await admin_client.put("/auth/me/password",
+                                  json={"current_password": ADMIN_PASSWORD, "new_password": "NewAdmin@12345"})
+    assert resp.status_code == 204, resp.text
+
+
 # ── an admin can't lock themselves out ────────────────────────────────────────
 
 async def test_admin_cannot_deactivate_themselves(admin_client, db_session, users):

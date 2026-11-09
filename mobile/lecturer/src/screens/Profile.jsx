@@ -104,7 +104,8 @@ export default function Profile({ navigation }) {
         {/* Account actions */}
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Account</Text>
-          {ACTIONS.map(a => (
+          {/* Lecturers' passwords belong to SPeCTRUM; only local admin accounts have one here */}
+          {ACTIONS.filter(a => a.type !== 'change-password' || lecturer?.isAdmin).map(a => (
             <TouchableOpacity
               key={a.type}
               style={[styles.actionRow, a.danger && styles.actionRowDanger]}

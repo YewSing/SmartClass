@@ -29,7 +29,9 @@ function Message({ msg, onOpenCitation }) {
   if (msg.role === 'user') {
     return (
       <View style={[styles.bubble, styles.userBubble]}>
-        <Text style={styles.userText}>{msg.content}</Text>
+        {/* This bubble shrinks to its text. Android's default line breaking can measure it too
+            narrow with some phone fonts, and the last word then wraps out of sight. */}
+        <Text style={styles.userText} textBreakStrategy="simple">{msg.content}</Text>
       </View>
     )
   }

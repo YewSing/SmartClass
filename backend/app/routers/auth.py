@@ -193,6 +193,8 @@ async def change_my_password(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    if current_user.moodle_user_id is not None:  # Moodle owns this password (FR-101)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This account signs in through SPeCTRUM. Change its password there.")
     if not verify_password(body.current_password, current_user.password_hash):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
 

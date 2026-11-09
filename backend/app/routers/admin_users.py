@@ -283,5 +283,8 @@ async def admin_reset_password(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
+    if user.moodle_user_id is not None:  # a local password would bypass Moodle (FR-101, FR-103)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This account signs in through SPeCTRUM. Change its password there.")
+
     user.password_hash = hash_password(body.new_password)
     await write_log(db, actor.id, "PASSWORD_RESET", "user", user_id)

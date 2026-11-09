@@ -90,14 +90,10 @@ test('desktop: every screen and dialog opens without a runtime error', async ({ 
   page.on('pageerror', (e) => errors.push(e.message))
   await login(page)
 
-  // Home → Profile → change password + sign-out dialogs
+  // Home → Profile. A lecturer's password belongs to SPeCTRUM, so there's nothing to change here.
   await visible(page.getByLabel('Profile')).click()
   await expectScreen(page, 'My Profile')
-  await visible(page.getByText('Change Password')).click()
-  await expect(visible(page.getByPlaceholder('Enter current password'))).toBeVisible()
-  const dialog = await visible(page.getByPlaceholder('Enter current password')).boundingBox()
-  expect(dialog.width).toBeLessThan(480)   // centred dialog, not a full-width sheet
-  await visible(page.getByText('Cancel', { exact: true })).click()
+  await expect(page.getByText('Change Password').filter({ visible: true })).toHaveCount(0)
   await visible(page.getByLabel('Back')).click()
 
   // Attendance list → detail (if the dev DB has any session for this lecturer)
@@ -141,6 +137,24 @@ test('desktop: every screen and dialog opens without a runtime error', async ({ 
   await expect(page.getByText('Welcome back')).toBeVisible()
 
   expect(errors).toEqual([])
+})
+
+test('desktop: an administrator can change their password in a centred dialog', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByText('Welcome back')).toBeVisible()
+  await page.getByText('Administrator sign-in', { exact: true }).click()
+  await page.getByPlaceholder('your@um.edu.my').fill('admin@um.edu.my')
+  await page.getByPlaceholder('Enter password').fill('Admin@1234')
+  await page.getByText('Sign In', { exact: true }).click()
+  await expect(page.getByTestId('sidenav-Home')).toBeVisible()
+
+  await visible(page.getByLabel('Profile')).click()
+  await expectScreen(page, 'My Profile')
+  await visible(page.getByText('Change Password')).click()
+  await expect(visible(page.getByPlaceholder('Enter current password'))).toBeVisible()
+  const dialog = await visible(page.getByPlaceholder('Enter current password')).boundingBox()
+  expect(dialog.width).toBeLessThan(480)   // centred dialog, not a full-width sheet
+  await visible(page.getByText('Cancel', { exact: true })).click()
 })
 
 test('phone width keeps the bottom tabs', async ({ page }) => {

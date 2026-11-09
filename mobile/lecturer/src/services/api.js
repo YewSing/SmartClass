@@ -102,6 +102,7 @@ export const getLecturer = async () => {
     staffId: u.lecturer?.staff_id ?? '',
     faculty: u.lecturer?.dept ?? '',
     role: 'Lecturer',
+    isAdmin: u.role === 'admin',
   }
 }
 

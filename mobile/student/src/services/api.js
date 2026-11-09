@@ -99,8 +99,6 @@ export const getStudent = async () => {
   }
 }
 
-export const changePassword = async (current, next) =>
-  apiCall('PUT', '/auth/me/password', { current_password: current, new_password: next })
 
 export const logout = async () => { clearToken(); clearRefreshToken() }
 
