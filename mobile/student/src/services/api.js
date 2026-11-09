@@ -62,8 +62,25 @@ function sessionToAttItem(s, meta = {}) {
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
-export const login = async (email, password) => {
-  const data = await apiCall('POST', '/auth/login', { email, password })
+// Turns a failed sign-in into a message the student can act on
+function signInError(e) {
+  if (e.status === 401) return new Error('Wrong SPeCTRUM username or password.')
+  if (e.status === 503) return new Error(e.message || 'SPeCTRUM is not reachable right now. Please try again later.')
+  if (!e.status) return new Error("Can't reach the SmartClass server. Check your connection and try again.")
+  return e
+}
+
+// Students sign in with their SPeCTRUM (Moodle) account (FR-101)
+export const login = async (username, password) => {
+  let data
+  try {
+    data = await apiCall('POST', '/auth/moodle-login', { username: username.trim(), password })
+  } catch (e) {
+    throw signInError(e)
+  }
+  if (data.user.role !== 'student') {
+    throw new Error('This app is for students. Lecturers use the SmartClass Lecturer app.')
+  }
   setToken(data.access_token)
   setRefreshToken(data.refresh_token)
   return { user: data.user }
@@ -82,8 +99,6 @@ export const getStudent = async () => {
   }
 }
 
-export const changePassword = async (current, next) =>
-  apiCall('PUT', '/auth/me/password', { current_password: current, new_password: next })
 
 export const logout = async () => { clearToken(); clearRefreshToken() }
 
@@ -155,6 +170,28 @@ export const getAttendanceGroups = async () => {
   }
   return Object.values(merged)
 }
+
+// ─── AI Learning Assistant (Module 8) ─────────────────────────────────────────
+
+export const getAssistantCourses = () => apiCall('GET', '/student/assistant/courses')
+
+export const getChatSessions = (courseId) =>
+  apiCall('GET', `/student/assistant/sessions?course_id=${courseId}`)
+
+export const createChatSession = (courseId) =>
+  apiCall('POST', '/student/assistant/sessions', { course_id: courseId })
+
+export const renameChatSession = (sessionId, title) =>
+  apiCall('PATCH', `/student/assistant/sessions/${sessionId}`, { title })
+
+export const deleteChatSession = (sessionId) =>
+  apiCall('DELETE', `/student/assistant/sessions/${sessionId}`)
+
+export const getChatMessages = (sessionId) =>
+  apiCall('GET', `/student/assistant/sessions/${sessionId}/messages`)
+
+export const sendChatMessage = (sessionId, content) =>
+  apiCall('POST', `/student/assistant/sessions/${sessionId}/messages`, { content })
 
 // ─── Mocked (Module 3/4 — participation/quiz) ─────────────────────────────────
 

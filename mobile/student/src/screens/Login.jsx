@@ -12,17 +12,21 @@ import { C } from '../theme'
 export default function Login() {
   const { login, state } = useStudent()
   const insets = useSafeAreaInsets()
-  const [email, setEmail] = useState('23004001@siswa.um.edu.my')
-  const [password, setPassword] = useState('Student@1234')
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
   const [showPw, setShowPw] = useState(false)
   const [localErr, setLocalErr] = useState('')
 
   const handleLogin = async () => {
     setLocalErr('')
+    if (!username.trim() || !password) {
+      setLocalErr('Enter your SPeCTRUM username and password.')
+      return
+    }
     try {
-      await login(email, password)
+      await login(username, password)
     } catch (e) {
-      setLocalErr(e.message || 'Invalid credentials')
+      setLocalErr(e.message || 'Sign-in failed. Please try again.')
     }
   }
 
@@ -64,20 +68,22 @@ export default function Login() {
               </View>
             ) : null}
 
-            <Text style={styles.label}>Matric email</Text>
+            <Text style={styles.label}>SPeCTRUM username</Text>
             <View style={styles.inputWrap}>
-              <Ionicons name="mail-outline" size={18} color={C.textHint} style={styles.inputIcon} />
+              <Ionicons name="person-outline" size={18} color={C.textHint} style={styles.inputIcon} />
               <TextInput
+                testID="login-username"
                 style={styles.input}
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
+                value={username}
+                onChangeText={setUsername}
                 autoCapitalize="none"
-                placeholder="your@siswa.um.edu.my"
+                autoCorrect={false}
+                autoComplete="username"
+                placeholder="Your SPeCTRUM username"
                 placeholderTextColor={C.textHint}
               />
-              {email ? (
-                <TouchableOpacity onPress={() => setEmail('')} style={styles.eyeBtn}>
+              {username ? (
+                <TouchableOpacity onPress={() => setUsername('')} style={styles.eyeBtn} accessibilityLabel="Clear username">
                   <Ionicons name="close-circle" size={18} color={C.textHint} />
                 </TouchableOpacity>
               ) : null}
@@ -87,14 +93,18 @@ export default function Login() {
             <View style={styles.inputWrap}>
               <Ionicons name="lock-closed-outline" size={18} color={C.textHint} style={styles.inputIcon} />
               <TextInput
+                testID="login-password"
                 style={styles.input}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPw}
+                autoCapitalize="none"
+                autoComplete="password"
                 placeholder="Enter password"
                 placeholderTextColor={C.textHint}
+                onSubmitEditing={handleLogin}
               />
-              <TouchableOpacity onPress={() => setShowPw(v => !v)} style={styles.eyeBtn}>
+              <TouchableOpacity onPress={() => setShowPw(v => !v)} style={styles.eyeBtn} accessibilityLabel={showPw ? 'Hide password' : 'Show password'}>
                 <Ionicons name={showPw ? 'eye-outline' : 'eye-off-outline'} size={18} color={C.textHint} />
               </TouchableOpacity>
             </View>

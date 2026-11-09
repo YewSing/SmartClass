@@ -1,7 +1,5 @@
-import { useState } from 'react'
-import { changePassword } from '../services/api'
 import {
-  Modal, View, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback,
+  Modal, View, Text, TouchableOpacity, TouchableWithoutFeedback,
   ScrollView, StyleSheet, Dimensions,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -34,19 +32,6 @@ function ModalTitle({ children }) {
   return <Text style={styles.modalTitle}>{children}</Text>
 }
 
-function Divider() {
-  return <View style={styles.divider} />
-}
-
-function BtnPrimary({ label, onPress, icon, disabled }) {
-  return (
-    <TouchableOpacity style={[styles.btn, styles.btnPrimary, disabled && styles.btnDisabled]} onPress={onPress} disabled={disabled}>
-      {icon && <Ionicons name={icon} size={16} color="#fff" style={{ marginRight: 6 }} />}
-      <Text style={styles.btnPrimaryText}>{label}</Text>
-    </TouchableOpacity>
-  )
-}
-
 function BtnOutline({ label, onPress }) {
   return (
     <TouchableOpacity style={[styles.btn, styles.btnOutline]} onPress={onPress}>
@@ -66,76 +51,6 @@ function BtnDanger({ label, onPress, icon }) {
 
 function BtnRow({ children }) {
   return <View style={styles.btnRow}>{children}</View>
-}
-
-// ─── ChangePasswordModal ───────────────────────────────────────────────────────
-
-function ChangePasswordModal({ visible, onClose }) {
-  const { showToast } = useStudent()
-  const [current, setCurrent] = useState('')
-  const [next, setNext] = useState('')
-  const [confirm, setConfirm] = useState('')
-  const [err, setErr] = useState('')
-  const [loading, setLoading] = useState(false)
-
-  const reset = () => { setCurrent(''); setNext(''); setConfirm(''); setErr('') }
-
-  const handleClose = () => { reset(); onClose() }
-
-  const handleSubmit = async () => {
-    setErr('')
-    if (!current || !next || !confirm) { setErr('All fields are required.'); return }
-    if (next.length < 8) { setErr('New password must be at least 8 characters.'); return }
-    if (next !== confirm) { setErr('New passwords do not match.'); return }
-    setLoading(true)
-    try {
-      await changePassword(current, next)
-      showToast('Password updated successfully.', 'success')
-      handleClose()
-    } catch (e) {
-      setErr(e.message || 'Failed to update password.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <Sheet visible={visible} onClose={handleClose}>
-      <ModalTitle>Change Password</ModalTitle>
-      <Text style={styles.modalSub}>Your new password must be at least 8 characters.</Text>
-      {err ? <Text style={styles.errText}>{err}</Text> : null}
-      <Text style={styles.inputLabel}>Current Password</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Enter current password"
-        placeholderTextColor={C.textHint}
-        secureTextEntry
-        value={current}
-        onChangeText={setCurrent}
-      />
-      <Text style={styles.inputLabel}>New Password</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Enter new password"
-        placeholderTextColor={C.textHint}
-        secureTextEntry
-        value={next}
-        onChangeText={setNext}
-      />
-      <Text style={styles.inputLabel}>Confirm New Password</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Re-enter new password"
-        placeholderTextColor={C.textHint}
-        secureTextEntry
-        value={confirm}
-        onChangeText={setConfirm}
-      />
-      <BtnPrimary label={loading ? 'Updating…' : 'Update Password'} icon="checkmark" onPress={handleSubmit} disabled={loading} />
-      <Divider />
-      <BtnOutline label="Cancel" onPress={handleClose} />
-    </Sheet>
-  )
 }
 
 // ─── SignOutModal ──────────────────────────────────────────────────────────────
@@ -169,7 +84,6 @@ export default function ModalRouter() {
 
   return (
     <>
-      <ChangePasswordModal visible={type === 'change-password'} onClose={closeModal} />
       <SignOutModal visible={type === 'signout'} onClose={closeModal} onConfirm={handleSignOut} />
     </>
   )

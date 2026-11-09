@@ -5,7 +5,8 @@
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
-    "ios": "expo run:ios"
+    "ios": "expo run:ios",
+    "e2e:web": "playwright install chromium && playwright test"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
@@ -30,6 +31,7 @@
     "react-native-web": "^0.21.0"
   },
   "devDependencies": {
-    "@babel/core": "^7.20.0"
+    "@babel/core": "^7.20.0",
+    "@playwright/test": "^1.65.0"
   }
 }

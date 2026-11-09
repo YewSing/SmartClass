@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { Animated, Text, StyleSheet, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLecturer } from '../context/LecturerContext'
+import { useWideLayout } from '../hooks/useWideLayout'
 import { C } from '../theme'
 
 const COLORS = {
@@ -41,12 +42,16 @@ function ToastItem({ toast, onDismiss }) {
 export default function ToastContainer() {
   const { state, dispatch } = useLecturer()
   const insets = useSafeAreaInsets()
+  const wide = useWideLayout()
   const { toasts } = state
 
   const dismiss = (id) => dispatch({ type: 'DISMISS_TOAST', payload: id })
 
   return (
-    <View style={[styles.container, { bottom: insets.bottom + 80 }]} pointerEvents="none">
+    <View
+      style={[styles.container, wide ? styles.containerWide : { bottom: insets.bottom + 80 }]}
+      pointerEvents="none"
+    >
       {toasts.map(t => (
         <ToastItem key={t.id} toast={t} onDismiss={dismiss} />
       ))}
@@ -61,6 +66,13 @@ const styles = StyleSheet.create({
     right: 16,
     alignItems: 'center',
     zIndex: 9999,
+  },
+  // Bottom-right corner, clear of the side navigation.
+  containerWide: {
+    bottom: 24,
+    left: 'auto',
+    right: 24,
+    width: 380,
   },
   toast: {
     paddingHorizontal: 16,

@@ -20,6 +20,7 @@ from app.core.timezone import now_myt
 from app.models.ai_chat import ChatMessage, ChatSession
 from app.models.class_ import Course
 from app.services.kb import llm
+from app.services.kb.answer_format import clean_latex
 from app.services.kb.integrations import get_active_attempt
 from app.services.kb.search import Passage, search_materials
 
@@ -41,7 +42,9 @@ Rules:
    cite nothing.
 3. Never invent citations or cite a passage that does not support the sentence.
 4. Be clear and concise for a university student. Use short paragraphs or bullet points.
-5. If the question has nothing to do with studying, politely steer back to the course."""
+5. If the question has nothing to do with studying, politely steer back to the course.
+6. Students read your answer as plain text on a phone. Never use LaTeX, $ signs or backslash
+   commands. Write formulas in plain text, like (a + b) / c, x^2, sqrt(n), 3 × 4 or 50%."""
 
 _REWRITE_PROMPT = """Rewrite the student's latest question as a standalone search query for their course
 materials, resolving words like "it" or "that" from the conversation. Reply with the query only."""
@@ -60,7 +63,8 @@ def format_passages(passages: list[Passage]) -> str:
 def parse_answer(raw: str, passages: list[Passage]) -> tuple[str, list[dict], str]:
     """Keep only citation numbers that exist, and build citation objects.
 
-    Citations are numbered by first appearance so the app can show [1], [2]... under the answer.
+    Citations are renumbered 1, 2, 3... by first appearance, in the text and in the list, so an
+    answer citing passages [4] and [2] shows [1] and [2] under it.
     """
     text = raw.rstrip()
 
@@ -69,14 +73,16 @@ def parse_answer(raw: str, passages: list[Passage]) -> tuple[str, list[dict], st
         n = int(m.group(1))
         if 1 <= n <= len(passages) and n not in used:
             used.append(n)
-    # Drop citations to passages that don't exist ("[9]" with only 8 passages)
-    text = _CITE_RE.sub(lambda m: m.group(0) if 1 <= int(m.group(1)) <= len(passages) else "", text)
+    new_number = {old: new for new, old in enumerate(used, start=1)}
+    # Renumber, and drop citations to passages that don't exist ("[9]" with only 8 passages)
+    text = _CITE_RE.sub(lambda m: f"[{new_number[int(m.group(1))]}]" if int(m.group(1)) in new_number else "",
+                        text)
 
     citations = []
-    for n in used:
+    for new, n in enumerate(used, start=1):
         p = passages[n - 1]
         citations.append({
-            "n": n, "material_id": p.material_id, "title": p.title, "section": p.section_name,
+            "n": new, "material_id": p.material_id, "title": p.title, "section": p.section_name,
             "location": p.location_label, "location_type": p.location_type,
             "location_start": p.location_start, "location_end": p.location_end,
             "snippet": p.text[:280],
@@ -136,7 +142,7 @@ async def answer_question(db: AsyncSession, session: ChatSession, course: Course
     messages.append({"role": "user", "content": f"Course material passages:\n\n{materials}\n\nQuestion: {question}"})
 
     raw = await llm.chat(messages)  # LLMUnavailable propagates -> 503, nothing is saved
-    content, citations, source = parse_answer(raw, passages)
+    content, citations, source = parse_answer(clean_latex(raw), passages)
 
     reply = ChatMessage(session_id=session.id, role="assistant", content=content,
                              citations=citations, source_type=source)

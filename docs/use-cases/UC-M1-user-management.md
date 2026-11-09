@@ -27,7 +27,7 @@
 **Exception Flows:**
 - *Wrong credentials:* Moodle refuses the token; show "Invalid username or password" (don't say which one was wrong).
 - *Moodle unreachable:* show "SPeCTRUM is unavailable, try again later". Users already logged in keep working via refresh tokens (NFR-20).
-- *Account deactivated by admin:* login is refused even with valid Moodle credentials.
+- *Account deactivated by admin:* login is refused even with valid Moodle credentials, and the user is told the account is deactivated. This message only appears after the password is confirmed.
 
 ---
 

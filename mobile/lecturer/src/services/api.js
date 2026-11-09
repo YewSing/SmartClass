@@ -1,6 +1,5 @@
-import * as FileSystem from 'expo-file-system/legacy'
-import * as Sharing from 'expo-sharing'
 import { apiCall, apiCallRaw, getToken, setToken, clearToken, setRefreshToken, clearRefreshToken, BASE } from './client'
+import { saveCsv } from './saveCsv'
 import {
   QUIZZES, BREAKDOWN_ROWS,
   ANALYTICS_PAR_BARS, ANALYTICS_PAR_LABELS,
@@ -59,8 +58,29 @@ function studentAdapter(s, idx) {
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
-export const login = async (email, password) => {
-  const data = await apiCall('POST', '/auth/login', { email, password })
+// Turns a failed sign-in into a message the user can act on
+function signInError(e, wrongCredentials) {
+  if (e.status === 401) return new Error(wrongCredentials)
+  if (e.status === 503) return new Error(e.message || 'SPeCTRUM is not reachable right now. Please try again later.')
+  if (!e.status) return new Error("Can't reach the SmartClass server. Check your connection and try again.")
+  return e
+}
+
+// Lecturers sign in with their SPeCTRUM (Moodle) account (FR-101). With `local`, the
+// browser-only administrator sign-in uses a SmartClass email + password instead.
+export const login = async (identifier, password, { local = false } = {}) => {
+  let data
+  try {
+    data = local
+      ? await apiCall('POST', '/auth/login', { email: identifier.trim(), password })
+      : await apiCall('POST', '/auth/moodle-login', { username: identifier.trim(), password })
+  } catch (e) {
+    throw signInError(e, local ? 'Wrong email or password.' : 'Wrong SPeCTRUM username or password.')
+  }
+  const allowed = local ? ['lecturer', 'admin'] : ['lecturer']
+  if (!allowed.includes(data.user.role)) {
+    throw new Error('This app is for lecturers. Students use the SmartClass Student app.')
+  }
   setToken(data.access_token)
   setRefreshToken(data.refresh_token)
   return {
@@ -82,6 +102,7 @@ export const getLecturer = async () => {
     staffId: u.lecturer?.staff_id ?? '',
     faculty: u.lecturer?.dept ?? '',
     role: 'Lecturer',
+    isAdmin: u.role === 'admin',
   }
 }
 
@@ -93,12 +114,18 @@ export const logout = async () => { clearToken(); clearRefreshToken() }
 
 // ─── Classes ──────────────────────────────────────────────────────────────────
 
+// Moodle full names often start with the code ("WIA2005 Algorithm Design"), and screens show both
+function courseName(code, name) {
+  const rest = name.startsWith(code) ? name.slice(code.length).replace(/^[\s:–—-]+/, '') : name
+  return rest || name
+}
+
 export const getClasses = async () => {
   const list = await apiCall('GET', '/classes')
   return list.map(c => ({
     id: c.id,
     code: c.course_code,
-    name: c.course_name,
+    name: courseName(c.course_code, c.course_name),
     day_of_week: c.day_of_week ?? null,
     start_time: c.start_time ?? null,
     end_time: c.end_time ?? null,
@@ -111,7 +138,7 @@ export const getLecturerAllClasses = async () => {
   return list.map(c => ({
     id: c.id,
     code: c.course_code,
-    name: c.course_name,
+    name: courseName(c.course_code, c.course_name),
     type: c.type,
     label: c.label ?? null,
     day_of_week: c.day_of_week,
@@ -119,6 +146,17 @@ export const getLecturerAllClasses = async () => {
     end_time: c.end_time,
     enrolled_count: c.enrolled_count ?? 0,
     room: c.room ?? null,
+  }))
+}
+
+export const getClassStudents = async (classId) => {
+  const list = await apiCall('GET', `/classes/${classId}/students`)
+  return list.map(s => ({
+    id: s.id,
+    name: s.name,
+    matric: s.matric_no,
+    initials: initials(s.name),
+    faceEnrolled: s.face_enrolled,
   }))
 }
 
@@ -158,20 +196,10 @@ export const overrideAttendance = async (recordId, newStatus, sessionId, student
   return apiCall('PUT', `/lecturer/sessions/${sessionId}/attendance/override`, { student_id: studentId, status: newStatus })
 }
 
-// Writes CSV text to a temp file in the cache dir and opens the native share sheet.
-async function shareCsv(csvText, filename) {
-  if (!(await Sharing.isAvailableAsync())) {
-    throw new Error('Sharing is not available on this device.')
-  }
-  const uri = FileSystem.cacheDirectory + filename
-  await FileSystem.writeAsStringAsync(uri, csvText, { encoding: 'utf8' })
-  await Sharing.shareAsync(uri, { mimeType: 'text/csv', dialogTitle: 'Save CSV' })
-}
-
 export const exportSessionCsv = async (sessionId, filename) => {
   const res = await apiCallRaw('GET', `/lecturer/sessions/${sessionId}/export?format=csv`)
   const csvText = await res.text()
-  await shareCsv(csvText, filename)
+  return saveCsv(csvText, filename)
 }
 
 export const exportOccurrenceCsv = async (occId, filename, dateParams = {}) => {
@@ -180,7 +208,7 @@ export const exportOccurrenceCsv = async (occId, filename, dateParams = {}) => {
     : ''
   const res = await apiCallRaw('GET', `/lecturer/occurrences/${occId}/attendance/export${qs}`)
   const csvText = await res.text()
-  await shareCsv(csvText, filename)
+  return saveCsv(csvText, filename)
 }
 
 // ─── Analytics ────────────────────────────────────────────────────────────────

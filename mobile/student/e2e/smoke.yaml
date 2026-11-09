@@ -1,0 +1,18 @@
+# Smoke: the student app loads in Expo Go and shows the login screen.
+# Run: bash scripts/e2e-mobile.sh student smoke   (the script opens the app first)
+appId: host.exp.exponent
+---
+- extendedWaitUntil:
+    visible: "Welcome back|Continue"
+    timeout: 180000
+# First Expo Go launch shows a developer-menu intro sheet; close it if it's there.
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+- extendedWaitUntil:
+    visible: "Welcome back"
+    timeout: 60000
+- assertVisible: "Sign in with your student credentials"
+- assertVisible: "Sign In"

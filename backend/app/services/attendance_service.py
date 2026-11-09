@@ -5,14 +5,12 @@ import asyncio
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
-from sqlalchemy.orm import selectinload
 
 from app.core.database import AsyncSessionLocal
 from app.core.timezone import now_myt
 from app.models.attendance import AttendanceRecord
 from app.models.class_ import Enrollment
 from app.models.session import AttendanceSession
-from app.models.user import Student, User
 from app.services.session_service import get_session_counts
 from app.websocket.manager import manager
 

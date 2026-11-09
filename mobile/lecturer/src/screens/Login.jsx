@@ -12,17 +12,31 @@ import { C } from '../theme'
 export default function Login({ navigation }) {
   const { login, state } = useLecturer()
   const insets = useSafeAreaInsets()
-  const [email, setEmail] = useState('devlecturer@um.edu.my')
-  const [password, setPassword] = useState('DevTest@1234')
+  const [identifier, setIdentifier] = useState('')
+  const [password, setPassword] = useState('')
   const [showPw, setShowPw] = useState(false)
   const [localErr, setLocalErr] = useState('')
+  // Administrators sign in with a SmartClass email + password, in the browser only
+  const [adminMode, setAdminMode] = useState(false)
+  const local = Platform.OS === 'web' && adminMode
+
+  const switchMode = () => {
+    setAdminMode(v => !v)
+    setIdentifier('')
+    setPassword('')
+    setLocalErr('')
+  }
 
   const handleLogin = async () => {
     setLocalErr('')
+    if (!identifier.trim() || !password) {
+      setLocalErr(local ? 'Enter your email and password.' : 'Enter your SPeCTRUM username and password.')
+      return
+    }
     try {
-      await login(email, password)
+      await login(identifier, password, { local })
     } catch (e) {
-      setLocalErr(e.message || 'Invalid credentials')
+      setLocalErr(e.message || 'Sign-in failed. Please try again.')
     }
   }
 
@@ -56,7 +70,9 @@ export default function Login({ navigation }) {
           {/* Form */}
           <View style={styles.formCard}>
             <Text style={styles.welcomeTitle}>Welcome back</Text>
-            <Text style={styles.welcomeSub}>Sign in with your university credentials</Text>
+            <Text style={styles.welcomeSub}>
+              {local ? 'Administrator sign-in with your SmartClass account' : 'Sign in with your university credentials'}
+            </Text>
 
             {localErr ? (
               <View style={styles.errorBox}>
@@ -64,20 +80,23 @@ export default function Login({ navigation }) {
               </View>
             ) : null}
 
-            <Text style={styles.label}>Email address</Text>
+            <Text style={styles.label}>{local ? 'Email address' : 'SPeCTRUM username'}</Text>
             <View style={styles.inputWrap}>
-              <Ionicons name="mail-outline" size={18} color={C.textHint} style={styles.inputIcon} />
+              <Ionicons name={local ? 'mail-outline' : 'person-outline'} size={18} color={C.textHint} style={styles.inputIcon} />
               <TextInput
+                testID="login-username"
                 style={styles.input}
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
+                value={identifier}
+                onChangeText={setIdentifier}
+                keyboardType={local ? 'email-address' : 'default'}
                 autoCapitalize="none"
-                placeholder="your@um.edu.my"
+                autoCorrect={false}
+                autoComplete={local ? 'email' : 'username'}
+                placeholder={local ? 'your@um.edu.my' : 'Your SPeCTRUM username'}
                 placeholderTextColor={C.textHint}
               />
-              {email ? (
-                <TouchableOpacity onPress={() => setEmail('')} style={styles.eyeBtn}>
+              {identifier ? (
+                <TouchableOpacity onPress={() => setIdentifier('')} style={styles.eyeBtn} accessibilityLabel="Clear username">
                   <Ionicons name="close-circle" size={18} color={C.textHint} />
                 </TouchableOpacity>
               ) : null}
@@ -87,14 +106,18 @@ export default function Login({ navigation }) {
             <View style={styles.inputWrap}>
               <Ionicons name="lock-closed-outline" size={18} color={C.textHint} style={styles.inputIcon} />
               <TextInput
+                testID="login-password"
                 style={styles.input}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPw}
+                autoCapitalize="none"
+                autoComplete="password"
                 placeholder="Enter password"
                 placeholderTextColor={C.textHint}
+                onSubmitEditing={handleLogin}
               />
-              <TouchableOpacity onPress={() => setShowPw(v => !v)} style={styles.eyeBtn}>
+              <TouchableOpacity onPress={() => setShowPw(v => !v)} style={styles.eyeBtn} accessibilityLabel={showPw ? 'Hide password' : 'Show password'}>
                 <Ionicons name={showPw ? 'eye-outline' : 'eye-off-outline'} size={18} color={C.textHint} />
               </TouchableOpacity>
             </View>
@@ -113,6 +136,14 @@ export default function Login({ navigation }) {
                 </>
               )}
             </TouchableOpacity>
+
+            {Platform.OS === 'web' ? (
+              <TouchableOpacity onPress={switchMode} style={styles.modeLink} accessibilityRole="button">
+                <Text style={styles.modeLinkText}>
+                  {local ? 'Lecturer? Sign in with SPeCTRUM' : 'Administrator sign-in'}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
 
           </View>
         </ScrollView>
@@ -156,6 +187,9 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   formCard: {
+    width: '100%',
+    maxWidth: 440,
+    alignSelf: 'center',
     backgroundColor: C.card,
     borderRadius: 16,
     padding: 22,
@@ -230,5 +264,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#fff',
+  },
+  modeLink: {
+    alignSelf: 'center',
+    padding: 6,
+  },
+  modeLinkText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: C.primary,
   },
 })

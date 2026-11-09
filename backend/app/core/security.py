@@ -15,7 +15,10 @@ def hash_password(plain: str) -> str:
     return _pwd_ctx.hash(plain)
 
 
-def verify_password(plain: str, hashed: str) -> bool:
+def verify_password(plain: str, hashed: str | None) -> bool:
+    # Moodle accounts have no local password, so local login never matches them
+    if not hashed:
+        return False
     return _pwd_ctx.verify(plain, hashed)
 
 

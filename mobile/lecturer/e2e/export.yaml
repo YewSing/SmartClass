@@ -1,0 +1,106 @@
+# CSV export on Android saves straight into a folder picked once, with no share sheet.
+# Run: bash scripts/e2e-mobile.sh lecturer export
+# Needs the local Moodle up (lecturer1 / Lecturer123!) and the backend's MOODLE_URL pointing at it.
+appId: host.exp.exponent
+---
+- extendedWaitUntil:
+    visible: "Welcome back|Continue|.*(Open|Close) Session"
+    timeout: 180000
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+- runFlow:
+    when:
+      visible: "Welcome back"
+    commands:
+      - tapOn:
+          id: "login-username"
+      - inputText: "lecturer1"
+      - tapOn:
+          id: "login-password"
+      - inputText: "Lecturer123!"
+      - hideKeyboard
+      - tapOn: "Sign In"
+- extendedWaitUntil:
+    visible: ".*(Open|Close) Session"
+    timeout: 60000
+
+- tapOn: "Analytics"
+- extendedWaitUntil:
+    visible: "Enrolled"     # the analytics have loaded, so Export does something
+    timeout: 30000
+- tapOn: ".*Export"
+- extendedWaitUntil:
+    visible: "Export Attendance"
+    timeout: 15000
+
+# Start from "no folder remembered", whatever an earlier run left behind
+- runFlow:
+    when:
+      visible: "Change"
+    commands:
+      - tapOn: "Change"
+- assertVisible: "Next, choose where to save.*"
+
+# First export: the Android folder picker. Download itself can't be chosen, so use a folder inside it.
+- tapOn: ".*Export CSV"
+- extendedWaitUntil:
+    visible: "USE THIS FOLDER"
+    timeout: 15000
+- runFlow:
+    when:
+      visible: "SmartClass"
+    commands:
+      - tapOn: "SmartClass"
+- runFlow:
+    when:
+      visible: "Can.t use this folder"
+    commands:
+      - tapOn: "New folder"
+      - inputText: "SmartClass"
+      - tapOn: "OK"
+- tapOn: "USE THIS FOLDER"
+- tapOn: "ALLOW"
+- extendedWaitUntil:
+    visible: "Saved attendance_report_.*\\.csv to Download/SmartClass"
+    timeout: 15000
+
+# Second export: the folder is remembered, so it saves with no picker and no share sheet
+- extendedWaitUntil:
+    notVisible: "Saved attendance_report_.*"
+    timeout: 15000
+- tapOn: ".*Export"
+- extendedWaitUntil:
+    visible: "Saves to Download/SmartClass"
+    timeout: 15000
+- tapOn: ".*Export CSV"
+- extendedWaitUntil:
+    visible: "Saved attendance_report_.*\\.csv to Download/SmartClass"
+    timeout: 15000
+- assertNotVisible: "USE THIS FOLDER"
+
+# Backing out of the picker saves nothing and says so
+- extendedWaitUntil:
+    notVisible: "Saved attendance_report_.*"
+    timeout: 15000
+- tapOn: ".*Export"
+- extendedWaitUntil:
+    visible: "Change"
+    timeout: 15000
+- tapOn: "Change"
+- tapOn: ".*Export CSV"
+- extendedWaitUntil:
+    visible: "USE THIS FOLDER"
+    timeout: 15000
+- back
+- runFlow:
+    when:
+      visible: "USE THIS FOLDER"     # the first Back may only go up one folder
+    commands:
+      - back
+- extendedWaitUntil:
+    visible: "No folder chosen, so the CSV was not saved."
+    timeout: 15000
+- assertNotVisible: "Export Attendance"

@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 
 
 class AssistantCourseOut(BaseModel):
@@ -40,6 +40,19 @@ class Citation(BaseModel):
     location_start: int
     location_end: int
     snippet: str
+
+    # Derived, so citations saved before T84 carry them too
+    @computed_field
+    @property
+    def file_url(self) -> str:
+        """API path that streams the cited file (FR-809)."""
+        return f"/student/assistant/materials/{self.material_id}/file"
+
+    @computed_field
+    @property
+    def open_page(self) -> int:
+        """Page or slide (see location_type) to open the file at."""
+        return self.location_start
 
 
 class MessageOut(BaseModel):

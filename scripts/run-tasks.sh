@@ -5,9 +5,27 @@
 set -uo pipefail
 N=${1:-2}; TURNS=${2:-80}
 MODEL=${SMARTCLASS_MODEL:-opus}
-LIMIT_WAIT_MIN=30      # on a Claude usage limit: wait this long, then retry the same round
+LIMIT_WAIT_MIN=${SMARTCLASS_LIMIT_WAIT_MIN:-30}   # on a Claude usage limit: wait this long, then retry the same round
 LIMIT_MAX_WAITS=12     # ... at most this many times (6 hours)
 root=$(cd "$(dirname "$0")/.." && pwd); cd "$root"
+
+# claude -p has no auto-continue, so this script does the waiting. A limit is the
+# last thing a stopped round prints, so only the last line counts: a round that
+# merely discusses, say, a Gemini rate limit must not sleep for hours. "hit your
+# ... limit" covers the wording changes so far (session, 5-hour) and later ones.
+hit_usage_limit() {
+  grep -v '^[[:space:]]*$' "$1" | tail -n 1 \
+    | grep -qiE "hit your .*limit|usage limit|session limit|limit reached|rate limit|overloaded"
+}
+
+RESUME_NOTE="An earlier round of this task stopped at a Claude usage limit and left its unfinished work uncommitted in this working tree. Before step 2, read git status and git diff. Continue that task from that work instead of starting over, even if PLAN.md already ticks it. If it is finished, run the remaining steps and commit it."
+
+# Only one loop at a time: two runs overwrite each other's files and test database.
+lock=".claude/.loop.lock"
+if [ -f "$lock" ] && kill -0 "$(cat "$lock")" 2>/dev/null; then
+  echo "Another loop is already running (PID $(cat "$lock")). Not starting."; exit 1
+fi
+echo $$ > "$lock"; trap 'rm -f "$lock"' EXIT
 
 branch=$(git branch --show-current)
 [ "$branch" != "main" ] || { echo "Refusing to run on main. Switch to a feature branch."; exit 1; }
@@ -24,7 +42,7 @@ done
 
 mkdir -p .claude/logs
 export SMARTCLASS_LOOP=1
-done_rounds=0; waits=0
+done_rounds=0; waits=0; resume_args=()
 while [ "$done_rounds" -lt "$N" ]; do
   before=$(git rev-parse HEAD)
   export SMARTCLASS_BASE="$before"     # test guard compares against the round's starting commit
@@ -32,18 +50,21 @@ while [ "$done_rounds" -lt "$N" ]; do
   log=".claude/logs/round-$(date +%Y%m%d-%H%M%S).log"
   echo "== Round $((done_rounds + 1))/$N  $(date +%H:%M)  (log: $log)"
   claude -p "/next-task" --model "$MODEL" --permission-mode acceptEdits --max-turns "$TURNS" \
-    --disallowedTools "Bash(git push*)" > "$log" 2>&1
+    --disallowedTools "Bash(git push*)" ${resume_args[@]+"${resume_args[@]}"} > "$log" 2>&1
 
   if [ "$before" = "$(git rev-parse HEAD)" ]; then
-    if grep -qiE "usage limit|limit reached|rate limit|overloaded" "$log" && [ "$waits" -lt "$LIMIT_MAX_WAITS" ]; then
+    if hit_usage_limit "$log" && [ "$waits" -lt "$LIMIT_MAX_WAITS" ]; then
       waits=$((waits + 1))
-      [ -z "$(git status --porcelain --untracked-files=no)" ] || git stash push -u -q -m "loop: partial work before usage limit"
+      # Partial work stays in the tree for the retry; a stash would hide it from the next round.
+      if [ -n "$(git status --porcelain -- . ':(exclude)*.pdf')" ] || [ "${#resume_args[@]}" -gt 0 ]; then
+        resume_args=(--append-system-prompt "$RESUME_NOTE")
+      fi
       echo "   Claude usage limit - waiting ${LIMIT_WAIT_MIN} min (wait $waits/$LIMIT_MAX_WAITS), then retrying this round"
       sleep $((LIMIT_WAIT_MIN * 60)); continue
     fi
     echo "   no commit this round - stopping. Read $log"; break
   fi
-  waits=0; done_rounds=$((done_rounds + 1))
+  waits=0; resume_args=(); done_rounds=$((done_rounds + 1))
   subject=$(git log -1 --format=%s); echo "   committed: $subject"
   if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
     echo "   uncommitted changes left behind - stopping"; break
@@ -52,6 +73,9 @@ while [ "$done_rounds" -lt "$N" ]; do
     echo "   check.sh fails after the round - stopping"; break
   fi
   git push -q origin "$branch" 2>/dev/null || echo "   (push failed; continuing)"
-  case "$subject" in *": blocked"*) echo "   task blocked - stopping. See PROGRESS.md"; break;; esac
+  case "$subject" in
+    *": blocked"*) echo "   task blocked - stopping. See PROGRESS.md"; break;;
+    *"no runnable task"*) echo "   waiting on a checkpoint - stopping"; break;;
+  esac
 done
 echo "Finished $done_rounds round(s). Summary: PROGRESS.md · git log --oneline -$done_rounds"

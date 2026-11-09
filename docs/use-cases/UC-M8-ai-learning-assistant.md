@@ -1,7 +1,7 @@
 # Use Cases: Module 8 — Personalized Learning (AI Learning Assistant)
 
 **Module:** 8 | **Owner:** Yew Sing
-**Requirements:** FR-801–FR-814 (FR-820–FR-824 deferred until Module 6 exists), NFR-08, NFR-09, NFR-14, NFR-15, NFR-18, NFR-19, NFR-21, NFR-28
+**Requirements:** FR-801–FR-816 (FR-820–FR-824 deferred until Module 6 exists), NFR-08, NFR-09, NFR-14, NFR-15, NFR-18, NFR-19, NFR-21, NFR-28
 
 ---
 
@@ -37,7 +37,7 @@
 3. System rewrites follow-up questions into stand-alone queries using the chat history.
 4. System retrieves the most relevant passages from that course's knowledge base only (FR-807).
 5. LLM answers from the passages. Each claim carries a citation (file + page/slide) (FR-805).
-6. App shows the answer. Tapping a citation opens the source at that page (FR-809).
+6. App shows the answer. Tapping a citation shows the cited passage and can open the source: a PDF opens in the app at that page; PowerPoint and Word files open in another app (FR-809).
 
 **Alternative Flows:**
 - *Not covered by the materials:* the answer comes from general knowledge and is labelled "Not from your course materials" (FR-806, NFR-19).
@@ -87,6 +87,28 @@
 1. Lecturer opens "What students ask" for the course.
 2. System shows the most-asked topics and most-cited materials over a chosen period. Only topics asked by at least 3 distinct students appear, with no names or chat text (FR-813, NFR-09).
 3. Lecturer can open the cited material sections to decide what to revisit in class.
+
+---
+
+## UC-810: Lecturer asks their own materials
+
+- **Actor:** Lecturer
+- **Main Flow:**
+1. Lecturer opens "Ask my materials" for a course they teach.
+2. Lecturer asks a question and gets the same cited answer a student would (FR-815).
+3. Lecturer can spot a wrong answer or a gap, then fix or add materials in SPeCTRUM.
+
+---
+
+## UC-811: Read the "before next class" summary
+
+- **Actor:** Lecturer
+- **Main Flow:**
+1. Lecturer opens "Before next class" for a course.
+2. System shows a short summary of what to revisit, with material sections, and what the materials don't cover (FR-816).
+
+**Alternative Flows:**
+- *Too few questions so far:* system says there aren't enough questions yet.
 
 ---
 

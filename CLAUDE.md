@@ -14,7 +14,7 @@ SmartClass/
 │   ├── face_worker/    # Standalone face recognition worker process
 │   ├── moodle/         # Local Moodle 4.5 simulating SPeCTRUM (own docker-compose)
 │   ├── tests/          # pytest suite
-│   ├── scripts/        # seed.py — populates demo data; kb_sync.py
+│   ├── scripts/        # seed.py — admin, timetable, always-open test class; reset_to_moodle.py; kb_sync.py
 │   └── docker-compose.yml
 ├── frontend/
 │   └── admin/      # Web dashboard for administrators
@@ -41,7 +41,7 @@ cd backend
 docker compose up -d                              # start postgres+pgvector
 pip install -r requirements.txt
 alembic upgrade head
-python scripts/seed.py                            # demo data
+python scripts/seed.py                            # admin, timetable, always-open test class (safe to re-run)
 uvicorn app.main:app --reload --host 0.0.0.0     # API at localhost:8000, also reachable from phone
 ```
 
@@ -85,7 +85,7 @@ Both phone and laptop must be on the same WiFi network.
 
 ### Lecturer (`mobile/lecturer/`)
 - React Native app (Expo SDK 54), runs on physical Android/iOS via Expo Go
-- Screens: Dashboard, AttendanceSessions, AttendanceDetail, QuizList, CreateQuiz, LiveResults, ResultsClosed, Breakdown, Analytics, Profile, Login (quiz screens are UI mock only — Module 6 belongs to Shino)
+- Screens: Dashboard, ClassDetail, AttendanceSessions, AttendanceDetail, QuizList, CreateQuiz, LiveResults, ResultsClosed, Breakdown, Analytics, Profile, Login (quiz screens are UI mock only — Module 6 belongs to Shino)
 - Navigation: React Navigation 6 — bottom tabs + native stack per tab
 - State in `src/context/LecturerContext.jsx`
 - API base URL set via `EXPO_PUBLIC_API_URL` in `.env`
@@ -104,6 +104,7 @@ docs/
 ├── requirements/
 │   ├── functional-requirements.md      # FR-1xx (M1), FR-3xx (M3), FR-4xx (M4), FR-8xx (M8); M2/5/6/7 placeholders
 │   └── non-functional-requirements.md  # NFR-01–NFR-30 (M1/3/4/8 + system-wide)
+├── product-walkthrough.md              # plain-language picture of the finished plan; Yew Sing's expectations
 ├── use-cases/
 │   ├── UC-M1-user-management.md
 │   ├── UC-M3-M4-attendance-face-recognition.md
@@ -123,12 +124,13 @@ docs/
 - Backend tests: `cd backend && python -m pytest -q` (markers: `db` needs docker postgres, `live` calls the real LLM, `moodle` needs the local Moodle up)
 - Live LLM tests (Gemini free tier, rate-limited): `cd backend && python -m pytest -m live -q`
 - Lint: `cd backend && ruff check .` · format: `ruff format <file>`
-- Mobile E2E (Android emulator + Maestro): `bash scripts/e2e-mobile.sh <student|lecturer> <flow>` (set up by T03)
+- Mobile E2E (Android emulator + Maestro): `bash scripts/e2e-mobile.sh <student|lecturer> <flow>` runs `mobile/<app>/e2e/<flow>.yaml`; boots AVD `Pixel_4_API_35` headless, starts backend + Expo, stops them on exit. Maestro installs into git-ignored `.tools/` if missing.
+- Lecturer web E2E (Playwright): `cd mobile/lecturer && npm run e2e:web` (tests in `e2e-web/`; starts its own backend on :8001 with `LLM_FAKE=1` and Expo web on :8092; needs docker postgres + seed data)
 - Admin web build: `cd frontend/admin && npm run build`
 
 ## Task Loop Rules (PLAN.md / PROGRESS.md)
-Long jobs run as one task per fresh session. Start everything with `/run-plan [rounds]` (it runs `scripts/run-tasks.sh` in the background, one fresh Opus session per task running `/next-task`, and reports at the end). The reviewer subagent runs on Sonnet.
-- **One task per session.** Pick the first unchecked task in `PLAN.md` whose dependencies are all `[x]` and which is not tagged `[HUMAN]`. Never start a second task.
+Long jobs run as one task per fresh session. Start everything with `/run-plan [rounds]`, 5 tasks per run at most unless Yew Sing asks for more, so the work gets checked before more is built (it runs `scripts/run-tasks.sh` in the background, one fresh Opus session per task running `/next-task`, and reports at the end). The reviewer subagent runs on Sonnet.
+- **One task per session.** Pick the first unchecked task in `PLAN.md` whose dependencies are all `[x]` and which is not tagged `[HUMAN]`. No task below an unticked `[HUMAN] Checkpoint` may start. Never start a second task.
 - A task is **DONE** only when: code written, tests written, `bash scripts/check.sh` passes, its "Done when" line is met, and the reviewer agent found no unresolved real problems.
 - `[UI]` tasks are done only when their Maestro (mobile) or Playwright (lecturer web) flow passes. If the E2E setup is broken, mark the task `[~]` and explain in PROGRESS.md.
 - **Never delete, skip or weaken a test to make it pass.** If a test looks wrong, leave it failing and write why in PROGRESS.md under "Blocked".
@@ -142,7 +144,7 @@ Long jobs run as one task per fresh session. Start everything with `/run-plan [r
 - Stay inside the task's scope; note follow-up ideas in PROGRESS.md under "Next" instead of doing them.
 
 ## Merging to main
-Shino builds on `main`, so only finished, checked work goes there.
+Shino builds on `main` or her own branches, so only finished, checked work goes there.
 1. Yew Sing says "prepare the merge" or runs `/prepare-merge`, or Claude suggests it at a milestone.
 2. Claude runs the checks in `.claude/commands/prepare-merge.md`, fixes problems on the work branch, and resolves conflicts there if `main` has changed.
 3. Claude gives Yew Sing the GitHub link and a note for Shino. Yew Sing clicks Merge.

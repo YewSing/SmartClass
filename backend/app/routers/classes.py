@@ -7,10 +7,9 @@ from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.deps import get_current_user, require_role
+from app.core.deps import ensure_teaches_occurrence, get_current_user, require_role
 from app.models.user import User, Student, Lecturer
 from app.models.class_ import ClassOccurrence, Enrollment
-from app.models.face import FaceEmbedding
 from app.schemas.class_ import OccurrenceOut, OccurrenceStudentOut
 
 _DAY_MAP = {0: "Mon", 1: "Tue", 2: "Wed", 3: "Thu", 4: "Fri", 5: "Sat", 6: "Sun"}
@@ -95,11 +94,13 @@ async def list_classes(
 async def list_class_students(
     class_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role("lecturer", "admin")),
 ):
     occ_result = await db.execute(select(ClassOccurrence).where(ClassOccurrence.id == class_id))
     if not occ_result.scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Class not found")
+    if current_user.role == "lecturer":
+        await ensure_teaches_occurrence(db, current_user, class_id)
 
     result = await db.execute(
         select(Student)

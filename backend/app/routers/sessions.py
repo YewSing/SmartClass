@@ -4,7 +4,7 @@ from sqlalchemy import select, and_
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
-from app.core.deps import require_role
+from app.core.deps import ensure_teaches_occurrence, require_role
 from app.models.user import User, Lecturer
 from app.models.class_ import ClassOccurrence
 from app.models.camera import Camera
@@ -15,7 +15,8 @@ from app.websocket.manager import manager
 
 router = APIRouter(prefix="/lecturer/sessions", tags=["sessions"])
 
-_lecturer_or_admin = require_role("lecturer", "admin")
+_lecturer_or_admin = require_role("lecturer", "admin")  # listing only; running a session is lecturer-only
+_lecturer = require_role("lecturer")
 
 
 def _occ_display_name(occ: ClassOccurrence) -> str:
@@ -74,7 +75,7 @@ async def list_sessions(
 async def open_session(
     body: OpenSessionRequest,
     db: AsyncSession = Depends(get_db),
-    actor: User = Depends(_lecturer_or_admin),
+    actor: User = Depends(_lecturer),
 ):
     occ_result = await db.execute(
         select(ClassOccurrence)
@@ -85,10 +86,7 @@ async def open_session(
     if not occ:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Occurrence not found")
 
-    lec_result = await db.execute(select(Lecturer).where(Lecturer.user_id == actor.id))
-    lec = lec_result.scalar_one_or_none()
-    if not lec and actor.role == "lecturer":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Lecturer profile not found")
+    lec = await ensure_teaches_occurrence(db, actor, occ.id)
 
     existing = await db.execute(
         select(AttendanceSession).where(
@@ -114,7 +112,7 @@ async def open_session(
 
     session = AttendanceSession(
         occurrence_id=body.occurrence_id,
-        lecturer_id=lec.id if lec else 0,
+        lecturer_id=lec.id,
         camera_id=camera_id,
         status="open",
     )
@@ -134,7 +132,7 @@ async def open_session(
 async def close_session(
     session_id: int,
     db: AsyncSession = Depends(get_db),
-    actor: User = Depends(_lecturer_or_admin),
+    actor: User = Depends(_lecturer),
 ):
     result = await db.execute(
         select(AttendanceSession)
@@ -144,6 +142,7 @@ async def close_session(
     session = result.scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+    await ensure_teaches_occurrence(db, actor, session.occurrence_id)
     if session.status == "closed":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Session already closed")
 

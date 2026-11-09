@@ -16,7 +16,6 @@ from app.models.attendance import AttendanceRecord
 from app.models.camera import Camera
 from app.models.class_ import Enrollment
 from app.models.user import Student
-from app.models.face import FaceEmbedding
 from app.schemas.session import FaceMatchRequest, FaceMatchResponse
 from app.services.attendance_service import mark_present, broadcast_attendance_update
 

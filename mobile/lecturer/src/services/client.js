@@ -9,35 +9,44 @@ let _refreshToken = null
 
 // ─── Storage init (call once on app startup) ──────────────────────────────────
 
+// AsyncStorage is backed by localStorage on web. If the browser blocks storage
+// (private window, blocked site data) the app still starts; tokens just live in memory.
 export async function initStorage() {
-  _token = await AsyncStorage.getItem('token')
-  _refreshToken = await AsyncStorage.getItem('refresh_token')
+  try {
+    _token = await AsyncStorage.getItem('token')
+    _refreshToken = await AsyncStorage.getItem('refresh_token')
+  } catch {
+    _token = null
+    _refreshToken = null
+  }
 }
 
 // ─── Token accessors ──────────────────────────────────────────────────────────
+
+const ignore = () => {}
 
 export function getToken() { return _token }
 
 export function setToken(t) {
   _token = t
-  AsyncStorage.setItem('token', t)
+  AsyncStorage.setItem('token', t).catch(ignore)
 }
 
 export function clearToken() {
   _token = null
-  AsyncStorage.removeItem('token')
+  AsyncStorage.removeItem('token').catch(ignore)
 }
 
 export function getRefreshToken() { return _refreshToken }
 
 export function setRefreshToken(t) {
   _refreshToken = t
-  AsyncStorage.setItem('refresh_token', t)
+  AsyncStorage.setItem('refresh_token', t).catch(ignore)
 }
 
 export function clearRefreshToken() {
   _refreshToken = null
-  AsyncStorage.removeItem('refresh_token')
+  AsyncStorage.removeItem('refresh_token').catch(ignore)
 }
 
 // ─── Auth expiry listeners (replaces window.dispatchEvent) ───────────────────
@@ -90,6 +99,9 @@ function _forceLogout() {
   _fireAuthExpired()
 }
 
+// A 401 from a sign-in request means wrong credentials, not an expired session
+const LOGIN_PATHS = ['/auth/login', '/auth/moodle-login']
+
 // ─── API call ─────────────────────────────────────────────────────────────────
 
 export async function apiCall(method, path, body, _isRetry = false) {
@@ -103,7 +115,7 @@ export async function apiCall(method, path, body, _isRetry = false) {
     body: body ? JSON.stringify(body) : undefined,
   })
 
-  if (res.status === 401 && !_isRetry && path !== '/auth/login') {
+  if (res.status === 401 && !_isRetry && !LOGIN_PATHS.includes(path)) {
     const refreshed = await _doRefresh()
     if (refreshed) return apiCall(method, path, body, true)
     _forceLogout()
@@ -112,7 +124,9 @@ export async function apiCall(method, path, body, _isRetry = false) {
 
   if (!res.ok) {
     const e = await res.json().catch(() => ({}))
-    throw new Error(e.detail ?? `HTTP ${res.status}`)
+    const err = new Error(e.detail ?? `HTTP ${res.status}`)
+    err.status = res.status
+    throw err
   }
   return res.status === 204 ? null : res.json()
 }
@@ -127,7 +141,7 @@ export async function apiCallRaw(method, path, _isRetry = false) {
     },
   })
 
-  if (res.status === 401 && !_isRetry && path !== '/auth/login') {
+  if (res.status === 401 && !_isRetry && !LOGIN_PATHS.includes(path)) {
     const refreshed = await _doRefresh()
     if (refreshed) return apiCallRaw(method, path, true)
     _forceLogout()

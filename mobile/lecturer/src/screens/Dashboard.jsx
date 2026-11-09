@@ -87,6 +87,9 @@ export default function Dashboard({ navigation }) {
       ? `${nextClass.code} — ${nextClass.name}`
       : 'No classes this week'
 
+  const headerClassId = firstClass?.id ?? nextClass?.id
+  const openClass = (classId) => navigation.navigate('ClassDetail', { classId })
+
   const headerMeta = firstClass
     ? [
         firstClass.day_of_week,
@@ -114,7 +117,7 @@ export default function Dashboard({ navigation }) {
           </View>
           <Text style={styles.brandName}>SmartClass</Text>
         </View>
-        <TouchableOpacity style={styles.profileBtn} onPress={() => navigation.navigate('Profile')}>
+        <TouchableOpacity style={styles.profileBtn} accessibilityLabel="Profile" onPress={() => navigation.navigate('Profile')}>
           <Text style={styles.profileInitials}>{lecturer?.initials ?? 'ME'}</Text>
         </TouchableOpacity>
       </View>
@@ -122,10 +125,18 @@ export default function Dashboard({ navigation }) {
       {/* Dash header card */}
       <View style={styles.dashHeader}>
         <View style={styles.dashHeaderTop}>
-          <View style={styles.flex}>
-            <Text style={styles.className}>{headerTitle}</Text>
-            {headerMeta ? <Text style={styles.classMeta}>{headerMeta}</Text> : null}
-          </View>
+          <TouchableOpacity
+            style={styles.tappableClass}
+            testID="home-class-card"
+            disabled={!headerClassId}
+            onPress={() => openClass(headerClassId)}
+          >
+            <View style={styles.tappableText}>
+              <Text style={styles.className}>{headerTitle}</Text>
+              {headerMeta ? <Text style={styles.classMeta}>{headerMeta}</Text> : null}
+            </View>
+            {headerClassId ? <Ionicons name="chevron-forward" size={16} color={C.gray300} /> : null}
+          </TouchableOpacity>
           <Badge variant={badgeVariant} dot>{badgeText}</Badge>
         </View>
         <View style={styles.dashHeaderBot}>
@@ -170,12 +181,20 @@ export default function Dashboard({ navigation }) {
                   <Text style={styles.cardExtraLabel}>Upcoming</Text>
                 </View>
                 {nextClasses.map((c, i) => (
-                  <View key={c.id} style={[styles.nextClassRow, i > 0 && styles.nextClassRowBorder]}>
-                    <Text style={styles.cardExtraTitle}>{c.code} — {c.name}</Text>
-                    <Text style={styles.cardExtraMeta}>
-                      {nextLabel(c)}{c.room ? ` · ${c.room}` : ''}
-                    </Text>
-                  </View>
+                  <TouchableOpacity
+                    key={c.id}
+                    style={[styles.nextClassRow, i > 0 && styles.nextClassRowBorder]}
+                    testID="home-upcoming-class"
+                    onPress={() => openClass(c.id)}
+                  >
+                    <View style={styles.tappableText}>
+                      <Text style={styles.cardExtraTitle}>{c.code} — {c.name}</Text>
+                      <Text style={styles.cardExtraMeta}>
+                        {nextLabel(c)}{c.room ? ` · ${c.room}` : ''}
+                      </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color={C.gray300} />
+                  </TouchableOpacity>
                 ))}
               </View>
             ) : (
@@ -467,7 +486,19 @@ const styles = StyleSheet.create({
     color: C.textSub,
   },
   nextClassRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingTop: 8,
+    gap: 8,
+  },
+  tappableClass: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  tappableText: {
+    flex: 1,
     gap: 2,
   },
   nextClassRowBorder: {

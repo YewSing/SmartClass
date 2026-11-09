@@ -10,7 +10,7 @@ export default function Topbar({ title, sub, onBack, right }) {
     <View style={[styles.container, { paddingTop: insets.top + 8 }]}>
       <View style={styles.inner}>
         {onBack ? (
-          <TouchableOpacity onPress={onBack} style={styles.backBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <TouchableOpacity onPress={onBack} accessibilityLabel="Back" style={styles.backBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Ionicons name="arrow-back" size={22} color={C.text} />
           </TouchableOpacity>
         ) : (

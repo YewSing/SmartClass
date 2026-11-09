@@ -1,18 +1,24 @@
-import { NavigationContainer } from '@react-navigation/native'
+import { NavigationContainer, DefaultTheme } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
+import { createBottomTabNavigator, BottomTabBar } from '@react-navigation/bottom-tabs'
 import { Ionicons } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLecturer } from '../context/LecturerContext'
 import { navigationRef } from './navigationRef'
 import ToastContainer from '../components/Toast'
 import ModalRouter from '../components/Modals'
+import SideNav from '../components/SideNav'
+import { useWideLayout, SIDE_NAV_WIDTH, CONTENT_MAX_WIDTH } from '../hooks/useWideLayout'
 import { C } from '../theme'
+
+// App background behind screens (visible either side of the content column on wide screens).
+const NAV_THEME = { ...DefaultTheme, colors: { ...DefaultTheme.colors, background: C.bg } }
 
 // ─── Screens ──────────────────────────────────────────────────────────────────
 import Login from '../screens/Login'
 import Dashboard from '../screens/Dashboard'
 import Profile from '../screens/Profile'
+import ClassDetail from '../screens/ClassDetail'
 import AttendanceSessions from '../screens/AttendanceSessions'
 import AttendanceDetail from '../screens/AttendanceDetail'
 import QuizList from '../screens/QuizList'
@@ -27,18 +33,28 @@ const Tab   = createBottomTabNavigator()
 
 // ─── Stacks ───────────────────────────────────────────────────────────────────
 
+// On wide screens each tab's content sits in a centred column instead of
+// stretching across the whole window.
+function useStackOptions() {
+  const wide = useWideLayout()
+  return wide
+    ? { headerShown: false, contentStyle: { width: '100%', maxWidth: CONTENT_MAX_WIDTH, alignSelf: 'center' } }
+    : { headerShown: false }
+}
+
 function HomeStack() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator screenOptions={useStackOptions()}>
       <Stack.Screen name="Dashboard" component={Dashboard} />
       <Stack.Screen name="Profile"   component={Profile} />
+      <Stack.Screen name="ClassDetail" component={ClassDetail} />
     </Stack.Navigator>
   )
 }
 
 function AttendanceStack() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator screenOptions={useStackOptions()}>
       <Stack.Screen name="AttendanceSessions" component={AttendanceSessions} />
       <Stack.Screen name="AttendanceDetail"   component={AttendanceDetail} />
     </Stack.Navigator>
@@ -47,8 +63,8 @@ function AttendanceStack() {
 
 function QuizStack() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="QuizList"      component={QuizList} />
+    <Stack.Navigator screenOptions={useStackOptions()}>
+      <Stack.Screen name="QuizList"     component={QuizList} />
       <Stack.Screen name="CreateQuiz"    component={CreateQuiz} />
       <Stack.Screen name="LiveResults"   component={LiveResults} />
       <Stack.Screen name="ResultsClosed" component={ResultsClosed} />
@@ -59,7 +75,7 @@ function QuizStack() {
 
 function AnalyticsStack() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator screenOptions={useStackOptions()}>
       <Stack.Screen name="AnalyticsScreen" component={Analytics} />
     </Stack.Navigator>
   )
@@ -74,10 +90,27 @@ const TAB_ICONS = {
   Analytics:   { active: 'bar-chart',        inactive: 'bar-chart-outline' },
 }
 
+// Each tab's main page. Pressing a tab goes here, rather than back to the page last left open in it.
+const TAB_ROOTS = {
+  Home:       'Dashboard',
+  Attendance: 'AttendanceSessions',
+  Quiz:       'QuizList',
+  Analytics:  'AnalyticsScreen',
+}
+
 function MainTabs() {
   const { bottom } = useSafeAreaInsets()
+  const wide = useWideLayout()
   return (
     <Tab.Navigator
+      tabBar={props => wide ? <SideNav {...props} icons={TAB_ICONS} /> : <BottomTabBar {...props} />}
+      screenListeners={({ navigation, route }) => ({
+        tabPress: (e) => {
+          e.preventDefault()
+          navigation.navigate(route.name, { screen: TAB_ROOTS[route.name] })
+        },
+      })}
+      sceneContainerStyle={wide ? { marginLeft: SIDE_NAV_WIDTH, backgroundColor: C.bg } : undefined}
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarActiveTintColor: C.primary,
@@ -124,7 +157,7 @@ export default function AppNavigator() {
   const { state } = useLecturer()
 
   return (
-    <NavigationContainer ref={navigationRef}>
+    <NavigationContainer ref={navigationRef} theme={NAV_THEME}>
       {state.isLoggedIn ? <MainTabs /> : <LoginStack />}
       <ToastContainer />
       <ModalRouter />

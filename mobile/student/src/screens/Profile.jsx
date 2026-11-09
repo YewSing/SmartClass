@@ -26,7 +26,6 @@ export default function Profile() {
   const initials = student?.initials ?? '??'
 
   const confirmSignOut = () => openModal('signout')
-  const handleChangePassword = () => openModal('change-password')
 
   return (
     <View style={styles.flex}>
@@ -95,13 +94,6 @@ export default function Profile() {
         {/* Account actions */}
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Account</Text>
-          <TouchableOpacity style={styles.actionRow} onPress={handleChangePassword}>
-            <View style={[styles.fieldIcon, { backgroundColor: C.yellowLt }]}>
-              <Ionicons name="lock-closed-outline" size={16} color={C.yellowDk} />
-            </View>
-            <Text style={styles.actionLabel}>Change Password</Text>
-            <Ionicons name="chevron-forward" size={16} color={C.gray300} />
-          </TouchableOpacity>
           <TouchableOpacity style={[styles.actionRow, { borderBottomWidth: 0 }]} onPress={confirmSignOut}>
             <View style={[styles.fieldIcon, { backgroundColor: C.redLt }]}>
               <Ionicons name="log-out-outline" size={16} color={C.red} />

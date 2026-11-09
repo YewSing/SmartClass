@@ -1,6 +1,6 @@
 from typing import Optional
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field, model_validator
 
 from app.schemas.user import StudentProfileOut, LecturerProfileOut
 
@@ -8,6 +8,11 @@ from app.schemas.user import StudentProfileOut, LecturerProfileOut
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+
+
+class MoodleLoginRequest(BaseModel):
+    username: str = Field(min_length=1, max_length=100)
+    password: str = Field(min_length=1, max_length=256)
 
 
 class UserOut(BaseModel):
@@ -21,6 +26,16 @@ class UserOut(BaseModel):
     lecturer: Optional[LecturerProfileOut] = None
 
     model_config = {"from_attributes": True}
+
+    @model_validator(mode="after")
+    def _only_the_current_roles_profile(self):
+        # After a Moodle role change the old profile row is kept (enrolments and attendance
+        # point at it), but only the profile matching the current role is shown.
+        if self.role != "student":
+            self.student = None
+        if self.role != "lecturer":
+            self.lecturer = None
+        return self
 
 
 class LoginResponse(BaseModel):

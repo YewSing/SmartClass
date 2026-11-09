@@ -5,7 +5,7 @@ description: Do exactly one PLAN.md task end-to-end (plan, build, test, review, 
 You are running one round of the SmartClass task loop. Follow `CLAUDE.md` → "Task Loop Rules" strictly.
 
 1. Read `CLAUDE.md`, `PLAN.md`, `PROGRESS.md` (Blocked + last 3 log entries).
-2. Pick the task: the first `[ ]` task, top to bottom, whose `Depends on` are all `[x]`/`[~]`, and which is not `[HUMAN]` and not listed under Blocked. If none, write "No runnable task" under `## Next` in PROGRESS.md and stop.
+2. Pick the task: the first `[ ]` task, top to bottom, whose `Depends on` are all `[x]`/`[~]`, and which is not `[HUMAN]` and not listed under Blocked. No task below an unticked `[HUMAN] Checkpoint` may be picked. If none, write "No runnable task" under `## Next` in PROGRESS.md and stop.
 3. Read the FRs/NFRs/UCs the task cites and the code it touches. Write a short plan (5–10 bullets) for this task only, in your reply.
 4. Implement it. Write the tests named in its "Done when" (test first where practical).
 5. Run `bash scripts/check.sh` and any task-specific test (`-m db`, `-m moodle`, `-m live`, E2E flow) named in "Done when". Fix until all pass. Never weaken a test to pass.

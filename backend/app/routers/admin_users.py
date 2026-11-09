@@ -207,14 +207,15 @@ async def update_user(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    old = {"name": user.name, "phone": user.phone, "status": user.status}
+    if body.status is not None:
+        await _set_status(db, actor, user, body.status)
+
+    old = {"name": user.name, "phone": user.phone}
 
     if body.name is not None:
         user.name = body.name
     if body.phone is not None:
         user.phone = body.phone
-    if body.status is not None:
-        user.status = body.status
 
     if user.student:
         if body.programme is not None:
@@ -227,8 +228,29 @@ async def update_user(
         if body.dept is not None:
             user.lecturer.dept = body.dept
 
-    await write_log(db, actor.id, "USER_UPDATE", "user", user_id, old_val=old, new_val=body.model_dump(exclude_none=True))
+    changes = body.model_dump(exclude_none=True, exclude={"status"})
+    if changes:
+        await write_log(db, actor.id, "USER_UPDATE", "user", user_id, old_val=old, new_val=changes)
     return await _build_user_detail(user, db)
+
+
+async def _set_status(db: AsyncSession, actor: User, user: User, new_status: str) -> None:
+    """The one place an account's status changes, so every route keeps the self rule and the audit (FR-108, FR-118)."""
+    if user.status == new_status:
+        return
+    if user.id == actor.id and new_status != "active":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot deactivate your own account")
+    action = "USER_REACTIVATE" if new_status == "active" else "USER_DEACTIVATE"
+    await write_log(db, actor.id, action, "user", user.id,
+                    old_val={"status": user.status}, new_val={"status": new_status})
+    user.status = new_status
+
+
+async def _get_user_or_404(db: AsyncSession, user_id: int) -> User:
+    user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    return user
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -237,15 +259,16 @@ async def deactivate_user(
     db: AsyncSession = Depends(get_db),
     actor: User = Depends(_admin_only),
 ):
-    result = await db.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    if user.id == actor.id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot deactivate your own account")
+    await _set_status(db, actor, await _get_user_or_404(db, user_id), "inactive")
 
-    user.status = "inactive"
-    await write_log(db, actor.id, "USER_DEACTIVATE", "user", user_id, old_val={"status": "active"}, new_val={"status": "inactive"})
+
+@router.post("/{user_id}/reactivate", status_code=status.HTTP_204_NO_CONTENT)
+async def reactivate_user(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    actor: User = Depends(_admin_only),
+):
+    await _set_status(db, actor, await _get_user_or_404(db, user_id), "active")
 
 
 @router.put("/{user_id}/password", status_code=status.HTTP_204_NO_CONTENT)
@@ -259,6 +282,9 @@ async def admin_reset_password(
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    if user.moodle_user_id is not None:  # a local password would bypass Moodle (FR-101, FR-103)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This account signs in through SPeCTRUM. Change its password there.")
 
     user.password_hash = hash_password(body.new_password)
     await write_log(db, actor.id, "PASSWORD_RESET", "user", user_id)
