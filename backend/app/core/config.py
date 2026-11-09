@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     CARD_BLUR_MIN_VARIANCE: float = 100.0       # Laplacian variance of the card (shrunk to 856 px wide)
     CARD_GLARE_MAX_FRACTION: float = 0.06       # largest blown-out patch, share of the card area
     CARD_DARK_MAX_MEAN: float = 60.0            # mean brightness (0-255) at or below this is too dark
+    # UM card text, matched on the OCR letters joined without spaces (OCR often drops them)
+    CARD_UM_TEXT_REGEX: str = r"UNIVERSITIMALAYA|UNIVERSITYOFMALAYA"
+    FACE_SELFIE_CONSISTENCY_THRESHOLD: float = 0.45   # cosine every pair of selfies must reach
 
     # Face self-enrolment uploads (FR-110)
     FACE_ENROL_MAX_IMAGE_BYTES: int = 10 * 1024 * 1024   # per photo

@@ -79,12 +79,13 @@ def card_photo(
     brightness: float = 1.0,
     scale: float = 1.0,
     angle: float = 0,
+    header: str = "UNIVERSITI MALAYA",   # another issuer's name makes a non-UM card
 ) -> bytes:
     """A phone photo of a UM-style matric card on a grey table."""
     card = Image.new("RGB", (CARD_W, CARD_H), (40, 70, 140))
     d = ImageDraw.Draw(card)
     d.rectangle([0, 0, CARD_W, 90], fill=(20, 40, 100))
-    d.text((40, 25), "UNIVERSITI MALAYA", fill=TEXT, font=_font(36))
+    d.text((40, 25), header, fill=TEXT, font=_font(36))
     d.text((300, 200), name, fill=TEXT, font=_font(34))
     d.text((300, 270), matric, fill=TEXT, font=_font(34))
     d.text((300, 340), "FACULTY OF COMPUTER SCIENCE", fill=TEXT, font=_font(22))

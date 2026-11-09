@@ -34,14 +34,17 @@ def _files(n_selfies: int = 3, card: bytes | None = None):
     return files
 
 
-def _result(*, face=True, matric=True, name=True, quality=(), blocking=False, selfie_emb=EMB):
+def _result(*, face=True, matric=True, name=True, quality=(), blocking=False, selfie_emb=EMB,
+            selfie_faces=3, selfie_count=3, consistency=0.9, um_card=True):
     return fv.CardVerification(
         quality=fv.QualityResult(reasons=list(quality), blocking=blocking, scores={"glare_fraction": 0.2}),
         face=fv.FaceMatch(passed=face, score=0.8 if face else 0.1, card_face_found=True,
-                          selfie_embedding=selfie_emb),
+                          selfie_embedding=selfie_emb,
+                          selfie_faces=selfie_faces if selfie_emb is not None else 0,
+                          selfie_count=selfie_count, selfie_consistency=consistency),
         card=fv.CardRead(matric="S0000001" if matric else "S0009999", matric_confidence=0.97,
                          matric_match=matric, name_score=1.0 if name else 0.0, name_match=name,
-                         lines=["TEST STUDENT", "S0000001"]),
+                         lines=["TEST STUDENT", "S0000001"], um_card=um_card),
     )
 
 
@@ -152,7 +155,8 @@ async def test_a_failed_check_goes_to_review_with_images_kept(student_client, si
 
 async def test_no_face_on_card_still_goes_to_review_with_selfie_embedding(student_client, sid, verify, db_session):
     r = _result()
-    r.face = fv.FaceMatch(passed=False, score=None, reason="no_face_on_card", selfie_embedding=EMB)
+    r.face = fv.FaceMatch(passed=False, score=None, reason="no_face_on_card", selfie_embedding=EMB,
+                          selfie_faces=3, selfie_count=3, selfie_consistency=0.9)
     verify.result = r
     assert (await student_client.post(URL, files=_files())).json()["status"] == "pending_review"
     [enrolment] = await _enrolments(db_session, sid)

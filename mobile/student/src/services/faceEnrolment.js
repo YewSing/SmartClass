@@ -33,6 +33,16 @@ export function canStartEnrolment(status) {
   return status === 'not_enrolled' || status === 'rejected'
 }
 
+// The PDPA card text: it must never say nothing is stored while face data is enrolled
+export function consentSummary(consent, status, acceptedOn) {
+  if (consent?.active) return `You accepted the face-data notice on ${acceptedOn}.`
+  // Should not happen since T18b's migration; said plainly if it ever does
+  if (status === 'active' || status === 'pending_review') {
+    return 'Face data is stored for you but no consent is recorded. Ask an administrator to delete it.'
+  }
+  return 'You have not given consent. Nothing about your face is stored.'
+}
+
 // The notice must be accepted again when there is no consent or the notice has changed
 export function consentNeeded(consent) {
   if (!consent || !consent.active) return true
@@ -74,6 +84,15 @@ export function retakeFromError(err) {
     blockedAttempts: d.blocked_attempts ?? 0,
     canSubmitAnyway: retake === 'card' && !!d.can_submit_anyway,
   }
+}
+
+// Phone photos are shrunk before preview and upload to save memory (the T18 crash) and data.
+// Returns the expo-image-manipulator action, or null when the photo is already small enough.
+export const PHOTO_MAX_SIDE = 1280
+
+export function shrinkAction(width, height, maxSide = PHOTO_MAX_SIDE) {
+  if (!width || !height || Math.max(width, height) <= maxSide) return null
+  return width >= height ? { resize: { width: maxSide } } : { resize: { height: maxSide } }
 }
 
 // The multipart fields of POST /student/me/face-enrolment, as [name, value] pairs.

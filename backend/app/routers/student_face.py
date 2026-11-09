@@ -19,9 +19,11 @@ from app.schemas.face_enrolment import FaceEnrolmentOut
 from app.services import face_enrolment_service as enrolment_service
 from app.services import face_verification
 from app.services.audit_service import write_log
-from app.services.consent_service import active_consent, require_active_consent
+from app.services.consent_service import active_consent, require_current_consent
 
 router = APIRouter(prefix="/student/me", tags=["student-face"])
+
+MIN_SELFIE_FACES = 3  # FR-110: fewer selfies with a face than this is a retake
 
 _student_only = require_role("student")
 
@@ -136,11 +138,28 @@ def _check_reasons(v: face_verification.CardVerification) -> list[str]:
     reasons = []
     if not v.face.passed:
         reasons.append(v.face.reason or "face_mismatch")
+    if v.face.selfie_faces < v.face.selfie_count:
+        reasons.append("selfie_without_face")
+    elif not v.face.selfies_consistent:
+        reasons.append("selfies_inconsistent")
     if not v.card.matric_match:
         reasons.append("matric_unreadable" if v.card.matric is None else "matric_mismatch")
     if not v.card.name_match:
         reasons.append("name_mismatch")
+    if not v.card.um_card:
+        reasons.append("not_um_card")
     return reasons + [r for r in v.quality.reasons if r not in reasons]
+
+
+# Magic bytes of the formats a phone camera produces; anything else is served as plain bytes.
+_IMAGE_SIGNATURES = [(b"\xff\xd8\xff", "image/jpeg"), (b"\x89PNG\r\n\x1a\n", "image/png")]
+
+
+def _image_content_type(data: bytes) -> str:
+    """The stored photo's type comes from its bytes, never from what the client claimed."""
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    return next((t for sig, t in _IMAGE_SIGNATURES if data.startswith(sig)), "application/octet-stream")
 
 
 @router.post("/face-enrolment", response_model=FaceEnrolmentOut, status_code=status.HTTP_201_CREATED)
@@ -161,7 +180,7 @@ async def submit_face_enrolment(
     may send `submit_anyway=true`, which goes to review instead of being refused again.
     """
     student = await _student(db, user)
-    await require_active_consent(db, student.id)  # NFR-03
+    await require_current_consent(db, student.id)  # NFR-03, and to the notice as it reads now
     if await enrolment_service.has_embeddings(db, student.id):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Your face is already enrolled.")
     last = await enrolment_service.latest_submission(db, student.id)
@@ -183,7 +202,7 @@ async def submit_face_enrolment(
     if verification is None:
         return _retake(["not_an_image"], enrolment_service.NOT_AN_IMAGE_MESSAGE)
     selfie_emb = verification.face.selfie_embedding
-    if selfie_emb is None:
+    if selfie_emb is None or verification.face.selfie_faces < MIN_SELFIE_FACES:
         return _retake(["no_face_in_selfies"], enrolment_service.NO_SELFIE_FACE_MESSAGE)
 
     blocked = await enrolment_service.blocked_attempts(db, student.id)
@@ -221,11 +240,11 @@ async def submit_face_enrolment(
         enrolment.embedding = selfie_emb.tolist()
         db.add(enrolment)
         await db.flush()
-        uploads = [("selfie", i, s, b) for i, (s, b) in enumerate(zip(selfies, selfie_bytes))]
-        uploads.append(("card", 0, card, card_bytes))
-        for kind, position, upload, data in uploads:
+        uploads = [("selfie", i, b) for i, b in enumerate(selfie_bytes)]
+        uploads.append(("card", 0, card_bytes))
+        for kind, position, data in uploads:
             db.add(FaceEnrolmentImage(enrolment_id=enrolment.id, kind=kind, position=position,
-                                      content_type=upload.content_type or "image/jpeg", data=data))
+                                      content_type=_image_content_type(data), data=data))
         await write_log(db, user.id, "FACE_ENROL_SUBMIT", "student", user.id,
                         new_val={"enrolment_id": enrolment.id, "reasons": enrolment.check_reasons})
     await db.flush()

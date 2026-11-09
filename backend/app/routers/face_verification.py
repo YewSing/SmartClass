@@ -109,7 +109,7 @@ async def get_image(
     if image is None or image.enrolment_id != enrolment_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Photo not found")
     return Response(content=image.data, media_type=image.content_type,
-                    headers={"Cache-Control": "no-store"})
+                    headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
 
 
 async def _decide(db: AsyncSession, enrolment: FaceEnrolment, new_status: str, reason: str | None) -> int:

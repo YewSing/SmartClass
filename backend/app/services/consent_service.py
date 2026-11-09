@@ -3,6 +3,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.models.consent import FaceConsent
 
 
@@ -23,5 +24,16 @@ async def require_active_consent(db: AsyncSession, student_id: int) -> FaceConse
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="The student has not given consent for face data",
+        )
+    return consent
+
+
+async def require_current_consent(db: AsyncSession, student_id: int) -> FaceConsent:
+    """Self-enrolment needs consent to the notice as it reads now (FACE_CONSENT_VERSION)."""
+    consent = await require_active_consent(db, student_id)
+    if consent.version != settings.FACE_CONSENT_VERSION:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="The face-data consent notice has changed. Please read it and accept again.",
         )
     return consent

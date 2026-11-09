@@ -8,7 +8,7 @@ import Topbar from '../components/Topbar'
 import Badge from '../components/Badge'
 import { useStudent } from '../context/StudentContext'
 import { getFaceConsent, getFaceEnrolment, withdrawFaceConsent } from '../services/api'
-import { statusInfo, canStartEnrolment, consentNeeded } from '../services/faceEnrolment'
+import { statusInfo, canStartEnrolment, consentNeeded, consentSummary } from '../services/faceEnrolment'
 import { C } from '../theme'
 
 const fmtDate = (iso) => iso
@@ -107,11 +107,7 @@ export default function FaceEnrolment({ navigation }) {
 
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Your face data (PDPA)</Text>
-            <Text style={styles.body}>
-              {consent?.active
-                ? `You accepted the face-data notice on ${fmtDate(consent.accepted_at)}.`
-                : 'You have not given consent. Nothing about your face is stored.'}
-            </Text>
+            <Text style={styles.body}>{consentSummary(consent, status, fmtDate(consent?.accepted_at))}</Text>
             {consent?.active ? (
               <TouchableOpacity style={styles.dangerBtn} onPress={confirmWithdraw} disabled={withdrawing}>
                 {withdrawing ? <ActivityIndicator color={C.red} size="small" /> : (

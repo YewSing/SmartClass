@@ -59,9 +59,11 @@ async def enrolment_status(db: AsyncSession, student_id: int) -> FaceEnrolmentOu
 
 
 async def clear_review_data(db: AsyncSession, enrolment: FaceEnrolment) -> int:
-    """Delete a submission's photos and card text once it is decided (NFR-01). Returns photos deleted."""
+    """Delete a submission's photos and card text once it is decided (NFR-01). Returns photos deleted.
+    The matric number read from the card goes too: on a mismatched card it is someone else's."""
     result = await db.execute(delete(FaceEnrolmentImage).where(FaceEnrolmentImage.enrolment_id == enrolment.id))
     enrolment.ocr_lines = None
+    enrolment.ocr_matric = None
     return result.rowcount
 
 

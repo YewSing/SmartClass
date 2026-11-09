@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   statusInfo, canStartEnrolment, consentNeeded, retakeFromError, enrolmentParts,
-  SELFIE_STEPS, TOTAL_STEPS,
+  consentSummary, shrinkAction, PHOTO_MAX_SIDE, SELFIE_STEPS, TOTAL_STEPS,
 } from './faceEnrolment.js'
 
 const err422 = (detail) => Object.assign(new Error('x'), { status: 422, detail })
@@ -71,6 +71,29 @@ test('other errors are not retakes', () => {
   assert.equal(retakeFromError(Object.assign(new Error('x'), { status: 409, detail: 'Already enrolled' })), null)
   assert.equal(retakeFromError(new Error('network')), null)
   assert.equal(retakeFromError(undefined), null)
+})
+
+test('the PDPA text never says nothing is stored while face data exists', () => {
+  const none = 'You have not given consent. Nothing about your face is stored.'
+  assert.equal(consentSummary(null, 'not_enrolled'), none)
+  assert.equal(consentSummary({ active: false }, 'rejected'), none)
+  for (const status of ['active', 'pending_review']) {
+    const text = consentSummary({ active: false }, status)
+    assert.doesNotMatch(text, /Nothing about your face is stored/)
+    assert.match(text, /no consent is recorded/)
+  }
+  assert.equal(consentSummary({ active: true }, 'active', '9 Nov 2026'),
+    'You accepted the face-data notice on 9 Nov 2026.')
+})
+
+test('photos are shrunk to 1280 px on the long side, small ones left alone', () => {
+  assert.equal(PHOTO_MAX_SIDE, 1280)
+  assert.deepEqual(shrinkAction(4000, 3000), { resize: { width: 1280 } })
+  assert.deepEqual(shrinkAction(3000, 4000), { resize: { height: 1280 } })
+  assert.deepEqual(shrinkAction(2000, 2000), { resize: { width: 1280 } })
+  assert.equal(shrinkAction(1280, 960), null)
+  assert.equal(shrinkAction(640, 480), null)
+  assert.equal(shrinkAction(undefined, undefined), null) // size unknown: keep the photo as it is
 })
 
 test('multipart parts carry the selfies, the card and submit anyway', () => {

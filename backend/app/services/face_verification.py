@@ -56,6 +56,7 @@ class CardRead:
     name_score: float               # share of the account's name words found on the card
     name_match: bool
     lines: list[str] = field(default_factory=list)
+    um_card: bool = True            # UM card text (CARD_UM_TEXT_REGEX) was read on the card
 
 
 @dataclass
@@ -65,6 +66,16 @@ class FaceMatch:
     reason: str | None = None       # no_face_on_card / no_face_in_selfies
     card_face_found: bool = False
     selfie_embedding: np.ndarray | None = None   # averaged selfie faces, what enrolment stores
+    selfie_faces: int = 0           # selfies in which a face was found
+    selfie_count: int = 0           # selfies checked
+    selfie_consistency: float | None = None      # lowest cosine between any two selfies
+
+    @property
+    def selfies_consistent(self) -> bool:
+        """Every selfie has a face and they all look like the same person."""
+        return (self.selfie_faces == self.selfie_count
+                and self.selfie_consistency is not None
+                and self.selfie_consistency >= settings.FACE_SELFIE_CONSISTENCY_THRESHOLD)
 
 
 @dataclass
@@ -87,8 +98,8 @@ class CardVerification:
     @property
     def passed(self) -> bool:
         """Both FR-111 checks pass, so the submission can be auto-approved (FR-112)."""
-        return (not self.quality.blocking and self.face.passed
-                and self.card.matric_match and self.card.name_match)
+        return (not self.quality.blocking and self.face.passed and self.face.selfies_consistent
+                and self.card.matric_match and self.card.name_match and self.card.um_card)
 
 
 # ── images ───────────────────────────────────────────────────────────────────
@@ -118,19 +129,26 @@ def _largest_face_embedding(face_app: "FaceAnalysis", img: np.ndarray) -> np.nda
 
 
 def match_faces(face_app: "FaceAnalysis", selfies: list[np.ndarray], card: np.ndarray) -> FaceMatch:
-    """Cosine similarity between the card face and the averaged selfie faces."""
+    """Cosine similarity between the card face and the averaged selfie faces, plus how alike the
+    selfies are to each other, so a set mixing two people is never auto-approved."""
     from app.services.face_service import average_embeddings
 
     selfie_embs = [e for e in (_largest_face_embedding(face_app, s) for s in selfies) if e is not None]
     selfie_emb = average_embeddings(selfie_embs) if selfie_embs else None
+    pairs = [float(np.dot(a, b)) for i, a in enumerate(selfie_embs) for b in selfie_embs[i + 1:]]
+    selfie_info = {
+        "selfie_embedding": selfie_emb, "selfie_faces": len(selfie_embs), "selfie_count": len(selfies),
+        "selfie_consistency": round(min(pairs), 4) if pairs else None,
+    }
     card_emb = _largest_face_embedding(face_app, card)
     if card_emb is None:
-        return FaceMatch(passed=False, score=None, reason="no_face_on_card", selfie_embedding=selfie_emb)
+        return FaceMatch(passed=False, score=None, reason="no_face_on_card", **selfie_info)
     if selfie_emb is None:
-        return FaceMatch(passed=False, score=None, reason="no_face_in_selfies", card_face_found=True)
+        return FaceMatch(passed=False, score=None, reason="no_face_in_selfies", card_face_found=True,
+                         **selfie_info)
     score = float(np.dot(selfie_emb, card_emb))
     return FaceMatch(passed=score >= settings.CARD_FACE_MATCH_THRESHOLD, score=round(score, 4),
-                     card_face_found=True, selfie_embedding=selfie_emb)
+                     card_face_found=True, **selfie_info)
 
 
 # ── (b) OCR: matric number + name ────────────────────────────────────────────
@@ -194,6 +212,7 @@ def read_card(lines: list[OcrLine], account_matric: str | None, account_name: st
         name_score=round(name_score, 4),
         name_match=name_score >= settings.CARD_NAME_MIN_MATCH,
         lines=[line.text for line in lines],
+        um_card=re.search(settings.CARD_UM_TEXT_REGEX, card_letters) is not None,
     )
 
 
@@ -310,6 +329,7 @@ def verify_card(
         )
     selfie_imgs = [img for img in (decode_image(s) for s in selfies) if img is not None]
     face = match_faces(face_app, selfie_imgs, card_img)
+    face.selfie_count = len(selfies)  # a selfie that can't be decoded counts as one without a face
     lines = run_ocr(card_img)
     return CardVerification(
         quality=check_quality(card_img, lines, face.card_face_found),
