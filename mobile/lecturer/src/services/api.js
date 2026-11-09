@@ -220,6 +220,30 @@ export const getAnalytics = async (occurrenceId, dateParams = {}) => {
   return apiCall('GET', `/lecturer/analytics?occurrence_id=${occurrenceId}${qs}`)
 }
 
+// ─── Face verification queue (FR-113) ────────────────────────────────────────
+
+// Submissions waiting for review, oldest first; only students of the lecturer's courses
+export const getPendingFaceSubmissions = async () => apiCall('GET', '/face-verification/pending')
+
+export const approveFaceSubmission = async (id) => apiCall('POST', `/face-verification/${id}/approve`)
+
+export const rejectFaceSubmission = async (id, reason) =>
+  apiCall('POST', `/face-verification/${id}/reject`, { reason: reason.trim() })
+
+// A review photo needs the token. An <img> can't send it, and Android's Image drops `headers`
+// (new architecture), so the photo is fetched here: a blob URL on web (the caller revokes it),
+// a data URI on phones.
+export const fetchFaceImageUri = async (path, { web = false } = {}) => {
+  const blob = await (await apiCallRaw('GET', path)).blob()
+  if (web) return URL.createObjectURL(blob)
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result)
+    reader.onerror = () => reject(new Error("Couldn't read the photo"))
+    reader.readAsDataURL(blob)
+  })
+}
+
 // ─── Mocked (Module 3/4 — quiz) ────────────────────────
 
 const delay = (ms) => new Promise(res => setTimeout(res, ms))

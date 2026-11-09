@@ -1,0 +1,103 @@
+# Face verification queue (T19, FR-113): Home banner → the queue → a pending submission with its
+# selfies next to the card → reject needs a reason → approve → the queue is empty.
+# Run: bash scripts/e2e-mobile.sh lecturer face-verification
+# face-verification.setup.sh seeds a pending submission by student8 (placeholder photos) and removes
+# it again afterwards. Needs the local Moodle up (lecturer1 / Lecturer123!) and student8 synced.
+appId: host.exp.exponent
+---
+- extendedWaitUntil:
+    visible: "Welcome back|Continue|.*(Open|Close) Session"
+    timeout: 180000
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+- runFlow:
+    when:
+      visible: "Welcome back"
+    commands:
+      - tapOn:
+          id: "login-username"
+      - inputText: "lecturer1"
+      - tapOn:
+          id: "login-password"
+      - inputText: "Lecturer123!"
+      - hideKeyboard
+      - tapOn: "Sign In"
+
+# The Home banner counts the submissions waiting for this lecturer
+- extendedWaitUntil:
+    visible:
+      id: "home-face-review"
+    timeout: 60000
+- assertVisible: "1 face enrolment waiting for review"   # only the seeded one: the dev DB has no other
+- tapOn:
+    id: "home-face-review"
+
+# The submission: account details, what the checks found, and the photos side by side
+- extendedWaitUntil:
+    visible: "Face verification"
+    timeout: 15000
+- extendedWaitUntil:
+    visible: "Priya Devi Raman"
+    timeout: 30000
+- assertVisible: "23004908 · .*WIF300.*"
+# The photos really loaded (the labels sit on the images only, not on the loading/failed boxes)
+- extendedWaitUntil:
+    visible: "Selfie 1"
+    timeout: 20000
+- assertVisible: "Selfie 3"
+- assertVisible: "Matric card"
+- assertNotVisible: "Couldn't load photo"
+- takeScreenshot: face-verification-queue
+- tapOn: "Selfie 1"
+- extendedWaitUntil:
+    visible:
+      id: "face-zoom-photo"
+    timeout: 15000
+- tapOn: "Tap anywhere to close"
+- assertNotVisible:
+    id: "face-zoom-photo"
+
+- assertVisible: "Card matric"
+- assertVisible: "23009999"
+- scrollUntilVisible:
+    element: "Approve"
+    direction: DOWN
+- assertVisible: "Matric number on the card is different"
+- assertVisible: "Glare on the card"
+
+# Rejecting needs a reason; cancel instead
+- tapOn: "Reject"
+- scrollUntilVisible:
+    element: "Confirm reject"
+    direction: DOWN
+- tapOn: "Confirm reject"
+- scrollUntilVisible:
+    element: "Give a reason. The student sees it and can try again."
+    direction: DOWN
+- tapOn: "Cancel"
+- assertNotVisible: "Confirm reject"
+
+# Approve, with the confirm step
+- scrollUntilVisible:
+    element: "Approve"
+    direction: DOWN
+- tapOn: "Approve"
+- scrollUntilVisible:
+    element: "Confirm approve"
+    direction: DOWN
+- assertVisible: "Approve\\? The student's face data is stored.*"
+- tapOn: "Confirm approve"
+- extendedWaitUntil:
+    visible: "No submissions waiting for review"
+    timeout: 30000
+- takeScreenshot: face-verification-empty
+
+# Back home, the banner is gone
+- tapOn: "Back"
+- extendedWaitUntil:
+    notVisible:
+      id: "home-face-review"
+    timeout: 15000

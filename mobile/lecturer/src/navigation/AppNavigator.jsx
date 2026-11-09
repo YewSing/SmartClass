@@ -27,6 +27,7 @@ import LiveResults from '../screens/LiveResults'
 import ResultsClosed from '../screens/ResultsClosed'
 import Breakdown from '../screens/Breakdown'
 import Analytics from '../screens/Analytics'
+import FaceVerification from '../screens/FaceVerification'
 
 const Stack = createNativeStackNavigator()
 const Tab   = createBottomTabNavigator()
@@ -48,6 +49,7 @@ function HomeStack() {
       <Stack.Screen name="Dashboard" component={Dashboard} />
       <Stack.Screen name="Profile"   component={Profile} />
       <Stack.Screen name="ClassDetail" component={ClassDetail} />
+      <Stack.Screen name="FaceVerification" component={FaceVerification} />
     </Stack.Navigator>
   )
 }

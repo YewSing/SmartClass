@@ -16,6 +16,7 @@ const INFO_FIELDS = (lecturer) => [
 ]
 
 const ACTIONS = [
+  { icon: 'id-card-outline',     bg: C.orangeLt, color: C.orangeDk, label: 'Face verification', screen: 'FaceVerification', danger: false },
   { icon: 'lock-closed-outline', bg: C.yellowLt, color: C.yellowDk, label: 'Change Password', type: 'change-password', danger: false },
   { icon: 'log-out-outline',     bg: C.redLt,    color: C.red,       label: 'Sign Out',        type: 'signout',         danger: true  },
 ]
@@ -113,9 +114,9 @@ export default function Profile({ navigation }) {
           {/* Lecturers' passwords belong to SPeCTRUM; only local admin accounts have one here */}
           {ACTIONS.filter(a => a.type !== 'change-password' || lecturer?.isAdmin).map(a => (
             <TouchableOpacity
-              key={a.type}
+              key={a.type ?? a.screen}
               style={[styles.actionRow, a.danger && styles.actionRowDanger]}
-              onPress={() => openModal(a.type)}
+              onPress={() => (a.screen ? navigation.navigate(a.screen) : openModal(a.type))}
             >
               <View style={[styles.fieldIcon, { backgroundColor: a.bg }]}>
                 <Ionicons name={a.icon} size={16} color={a.color} />
