@@ -64,6 +64,7 @@ class FaceMatch:
     score: float | None             # cosine similarity, None when a face is missing
     reason: str | None = None       # no_face_on_card / no_face_in_selfies
     card_face_found: bool = False
+    selfie_embedding: np.ndarray | None = None   # averaged selfie faces, what enrolment stores
 
 
 @dataclass
@@ -120,15 +121,16 @@ def match_faces(face_app: "FaceAnalysis", selfies: list[np.ndarray], card: np.nd
     """Cosine similarity between the card face and the averaged selfie faces."""
     from app.services.face_service import average_embeddings
 
+    selfie_embs = [e for e in (_largest_face_embedding(face_app, s) for s in selfies) if e is not None]
+    selfie_emb = average_embeddings(selfie_embs) if selfie_embs else None
     card_emb = _largest_face_embedding(face_app, card)
     if card_emb is None:
-        return FaceMatch(passed=False, score=None, reason="no_face_on_card")
-    selfie_embs = [e for e in (_largest_face_embedding(face_app, s) for s in selfies) if e is not None]
-    if not selfie_embs:
+        return FaceMatch(passed=False, score=None, reason="no_face_on_card", selfie_embedding=selfie_emb)
+    if selfie_emb is None:
         return FaceMatch(passed=False, score=None, reason="no_face_in_selfies", card_face_found=True)
-    score = float(np.dot(average_embeddings(selfie_embs), card_emb))
+    score = float(np.dot(selfie_emb, card_emb))
     return FaceMatch(passed=score >= settings.CARD_FACE_MATCH_THRESHOLD, score=round(score, 4),
-                     card_face_found=True)
+                     card_face_found=True, selfie_embedding=selfie_emb)
 
 
 # ── (b) OCR: matric number + name ────────────────────────────────────────────

@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     CARD_GLARE_MAX_FRACTION: float = 0.06       # largest blown-out patch, share of the card area
     CARD_DARK_MAX_MEAN: float = 60.0            # mean brightness (0-255) at or below this is too dark
 
+    # Face self-enrolment uploads (FR-110)
+    FACE_ENROL_MAX_IMAGE_BYTES: int = 10 * 1024 * 1024   # per photo
+    FACE_ENROL_BLOCKS_BEFORE_SUBMIT_ANYWAY: int = 2      # blocked card photos before "submit anyway"
+
     DEV_BYPASS_TIME_CHECK: bool = False
 
     # ── Module 8: AI Learning Assistant ─────────────────────────────────────
