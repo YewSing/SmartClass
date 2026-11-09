@@ -229,3 +229,9 @@ TEST-CHANGE: tests/test_seed_courses.py (test_materials_course_exists_in_the_see
 - Decisions: nothing written to an image cache (photos held in memory, NFR-01); 409/404 on a decision removes the card and reloads. E2E data: `backend/scripts/e2e_face_review.py seed|clean --student <email>` (placeholder PNGs, current consent, dummy embedding); `e2e-mobile.sh` runs an optional `e2e/<flow>.setup.sh` (setup before Maestro, teardown on exit).
 - Interface/schema: none (uses T17 endpoints). Tests: `faceReview.test.js` (6), `test_e2e_face_review_seed.py` (2, db); check.sh 324 passed; Maestro `lecturer face-verification` PASS (lecturer1 approves student8); Playwright `face-verification.spec.js` PASS (devlecturer rejects student7, photos decode in the browser); reviewer PASS.
 - Next: T20. Two older Playwright class-detail tests fail on the 11-student WIA0000 (see Next).
+
+### T20 — Profile fields (FR-107) — 2026-11-10
+- Changed: `GET /auth/me` adds `courses` ({id, code, name}, distinct, by code: students' enrolled courses, lecturers' taught courses, admins none) and `face_status` (students only, from `face_enrolment_service.enrolment_status`). Name, email, matric/staff no and faculty/dept were already in `UserOut`.
+- Decisions: login responses keep `courses: []` and `face_status: null` (no extra queries at login); the apps should read the profile from `/auth/me`.
+- Interface: `UserOut` gains `courses` + `face_status` (additive). No schema change. Tests: `test_profile_me.py` (5); check.sh 329 passed; reviewer PASS.
+- Next: the student/lecturer Profile screens can show the courses and face status from `/auth/me` (no task covers the UI yet).

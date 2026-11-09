@@ -8,12 +8,14 @@ from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.core.security import verify_password, create_access_token, create_refresh_token, decode_token
 from app.core.deps import get_current_user
+from app.models.class_ import ClassOccurrence, Course, Enrollment
 from app.models.user import Lecturer, Student, User
 from app.schemas.auth import (
-    LoginRequest, LoginResponse, MoodleLoginRequest, UserOut, RefreshRequest, ChangePasswordRequest,
+    LoginRequest, LoginResponse, MoodleLoginRequest, ProfileCourseOut, UserOut, RefreshRequest,
+    ChangePasswordRequest,
 )
 from app.core.security import hash_password
-from app.services import moodle_auth, moodle_sync
+from app.services import face_enrolment_service, moodle_auth, moodle_sync
 from app.services.audit_service import write_log
 
 logger = logging.getLogger(__name__)
@@ -188,13 +190,24 @@ async def me(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """The signed-in user's profile (FR-107, UC-107)."""
     result = await db.execute(
         select(User)
         .options(selectinload(User.student), selectinload(User.lecturer))
         .where(User.id == current_user.id)
     )
     user = result.scalar_one()
-    return UserOut.model_validate(user)
+    out = UserOut.model_validate(user)
+    courses = select(Course).join(ClassOccurrence).order_by(Course.code).distinct()
+    if user.role == "student" and user.student is not None:
+        courses = courses.join(Enrollment).where(Enrollment.student_id == user.student.id)
+        out.face_status = (await face_enrolment_service.enrolment_status(db, user.student.id)).status
+    elif user.role == "lecturer" and user.lecturer is not None:
+        courses = courses.where(ClassOccurrence.lecturer_id == user.lecturer.id)
+    else:
+        return out
+    out.courses = [ProfileCourseOut.model_validate(c) for c in (await db.execute(courses)).scalars()]
+    return out
 
 
 @router.put("/me/password", status_code=status.HTTP_204_NO_CONTENT)

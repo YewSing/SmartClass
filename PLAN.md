@@ -65,7 +65,7 @@ These M8 tasks run before everything else after the T04 checkpoint, so the stude
 - [ ] **T21 [HUMAN] Calibrate card checks on real photos.** Depends on: T16. Yew Sing takes ~10 photos of his own matric card (clean, glare, blur, angled, dim) into a local, git-ignored folder `backend/eval/cards/` and runs `python scripts/eval_card_quality.py` (written in T16), which prints the quality scores + OCR result per photo. Adjust the thresholds in `.env` until good photos pass and bad ones get the right message.
 - [x] **T19 [UI] Lecturer app: face verification queue.** Depends on: T17, T03.
   Done when: a lecturer screen lists pending submissions with side-by-side images and approve/reject (reason required); Maestro flow approves a seeded pending submission.
-- [ ] **T20 [API] Profile fields (FR-107).** Depends on: T11.
+- [x] **T20 [API] Profile fields (FR-107).** Depends on: T11.
   Done when: `/auth/me` returns name, matric/staff number, email, faculty, courses, face status (students); test.
 - [ ] **T22 [UI] Admin area inside the lecturer web app (FR-103, FR-108, FR-117).** Depends on: T05, T11, T12, T17.
   Done when: the browser login offers administrator sign-in with local email + password; admin-role logins land on an admin area, available on web only, with these screens: accounts (view, deactivate/reactivate, create admin), verification fallback + face data reset, audit log, and Moodle sync status with a sync button. Lecturer logins never see these screens and the server still returns 403 to them. Playwright flows: an admin deactivates and reactivates an account; a lecturer sees no admin navigation and gets 403 from an admin endpoint.

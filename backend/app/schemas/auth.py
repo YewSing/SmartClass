@@ -15,6 +15,14 @@ class MoodleLoginRequest(BaseModel):
     password: str = Field(min_length=1, max_length=256)
 
 
+class ProfileCourseOut(BaseModel):
+    id: int
+    code: str
+    name: str
+
+    model_config = {"from_attributes": True}
+
+
 class UserOut(BaseModel):
     id: int
     email: str
@@ -24,6 +32,10 @@ class UserOut(BaseModel):
     status: str
     student: Optional[StudentProfileOut] = None
     lecturer: Optional[LecturerProfileOut] = None
+    # Filled by GET /auth/me only (FR-107): enrolled or taught courses, and the student's
+    # face enrolment status (FR-115). Login responses leave them empty.
+    courses: list[ProfileCourseOut] = []
+    face_status: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
