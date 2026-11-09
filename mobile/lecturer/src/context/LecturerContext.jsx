@@ -193,8 +193,10 @@ export function LecturerProvider({ children }) {
 
   const exportCsv = useCallback(async ({ scope, id, filename, dateParams = {} }) => {
     try {
-      if (scope === 'session') await api.exportSessionCsv(id, filename)
-      else await api.exportOccurrenceCsv(id, filename, dateParams)
+      const message = scope === 'session'
+        ? await api.exportSessionCsv(id, filename)
+        : await api.exportOccurrenceCsv(id, filename, dateParams)
+      if (message) showToast(message, 'success')
     } catch (e) {
       showToast(e.message ?? 'Export failed', 'error')
       throw e

@@ -181,7 +181,7 @@ export const overrideAttendance = async (recordId, newStatus, sessionId, student
 export const exportSessionCsv = async (sessionId, filename) => {
   const res = await apiCallRaw('GET', `/lecturer/sessions/${sessionId}/export?format=csv`)
   const csvText = await res.text()
-  await saveCsv(csvText, filename)
+  return saveCsv(csvText, filename)
 }
 
 export const exportOccurrenceCsv = async (occId, filename, dateParams = {}) => {
@@ -190,7 +190,7 @@ export const exportOccurrenceCsv = async (occId, filename, dateParams = {}) => {
     : ''
   const res = await apiCallRaw('GET', `/lecturer/occurrences/${occId}/attendance/export${qs}`)
   const csvText = await res.text()
-  await saveCsv(csvText, filename)
+  return saveCsv(csvText, filename)
 }
 
 // ─── Analytics ────────────────────────────────────────────────────────────────
