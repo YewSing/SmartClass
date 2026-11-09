@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, ActivityIndicator,
-  KeyboardAvoidingView, Keyboard,
+  KeyboardAvoidingView, Keyboard, useWindowDimensions,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import MarkdownText from '../components/MarkdownText'
 import Topbar from '../components/Topbar'
 import { useStudent } from '../context/StudentContext'
 import { createChatSession, getChatMessages, sendChatMessage } from '../services/api'
+import { bubbleTextWidth } from '../services/bubbleWidth'
 import { openAtLabel } from '../services/openSource'
 import { C } from '../theme'
 
@@ -25,16 +26,23 @@ function CitationChips({ citations, onOpen }) {
   )
 }
 
+function UserMessage({ text }) {
+  const { width: windowWidth } = useWindowDimensions()
+  const [measured, setMeasured] = useState(null)
+  return (
+    <View style={[styles.bubble, styles.userBubble]}>
+      <Text
+        style={[styles.userText, measured !== null && { width: bubbleTextWidth(measured, windowWidth) }]}
+        onLayout={e => { if (measured === null) setMeasured(e.nativeEvent.layout.width) }}
+      >
+        {text}
+      </Text>
+    </View>
+  )
+}
+
 function Message({ msg, onOpenCitation }) {
-  if (msg.role === 'user') {
-    return (
-      <View style={[styles.bubble, styles.userBubble]}>
-        {/* This bubble shrinks to its text. Android's default line breaking can measure it too
-            narrow with some phone fonts, and the last word then wraps out of sight. */}
-        <Text style={styles.userText} textBreakStrategy="simple">{msg.content}</Text>
-      </View>
-    )
-  }
+  if (msg.role === 'user') return <UserMessage text={msg.content} />
   return (
     <View style={[styles.bubble, styles.botBubble]}>
       {msg.source_type === 'general' ? (

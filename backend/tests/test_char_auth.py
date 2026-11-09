@@ -34,7 +34,12 @@ async def test_inactive_user_cannot_login(client, db_session):
                         role="student", name="Gone", status="inactive"))
     await db_session.commit()
     resp = await _login(client, email="gone@um.edu.my", password="Gone@1234")
+    assert resp.status_code == 403
+    assert "deactivated" in resp.json()["detail"]
+    # Only someone with the right password learns the account's status
+    resp = await _login(client, email="gone@um.edu.my", password="not-the-password")
     assert resp.status_code == 401
+    assert "deactivated" not in resp.json()["detail"]
 
 
 async def test_refresh_gives_new_working_access_token(client, users):

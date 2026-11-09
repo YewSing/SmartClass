@@ -43,7 +43,7 @@ async def test_deactivated_user_cannot_log_in_refresh_or_use_old_token(admin_cli
     resp = await admin_client.delete(f"/admin/users/{users['student'].id}")
     assert resp.status_code == 204, resp.text
 
-    assert (await _login(client)).status_code == 401
+    assert (await _login(client)).status_code == 403
     assert (await client.post("/auth/refresh", json={"refresh_token": tokens["refresh_token"]})).status_code == 401
     assert (await client.get("/auth/me", headers=headers)).status_code == 401
 
@@ -64,8 +64,8 @@ async def test_deactivated_moodle_user_cannot_sign_in_through_moodle(admin_clien
 
     assert (await admin_client.delete(f"/admin/users/{user.id}")).status_code == 204
     resp = await client.post("/auth/moodle-login", json=login)
-    assert resp.status_code == 401
-    assert resp.json()["detail"] == "Invalid credentials"  # same generic message as wrong password
+    assert resp.status_code == 403
+    assert "deactivated" in resp.json()["detail"]  # Moodle has already confirmed the password
     assert await _status(db_session, user.id) == "inactive"  # Moodle login doesn't reactivate it
 
     assert (await admin_client.post(f"/admin/users/{user.id}/reactivate")).status_code == 204
@@ -74,7 +74,7 @@ async def test_deactivated_moodle_user_cannot_sign_in_through_moodle(admin_clien
 
 async def test_reactivated_user_can_log_in_again(admin_client, client, users):
     await admin_client.delete(f"/admin/users/{users['student'].id}")
-    assert (await _login(client)).status_code == 401
+    assert (await _login(client)).status_code == 403
     resp = await admin_client.post(f"/admin/users/{users['student'].id}/reactivate")
     assert resp.status_code == 204, resp.text
     assert (await _login(client)).status_code == 200

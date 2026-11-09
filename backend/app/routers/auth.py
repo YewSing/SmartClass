@@ -24,6 +24,11 @@ _INVALID_CREDS = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED,
     detail="Invalid credentials",
 )
+# Only sent once the password is confirmed, so it can't be used to look up who has an account
+_DEACTIVATED = HTTPException(
+    status_code=status.HTTP_403_FORBIDDEN,
+    detail="Your SmartClass account has been deactivated. Please contact your administrator.",
+)
 
 
 @router.post("/login", response_model=LoginResponse)
@@ -40,7 +45,7 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
         raise _INVALID_CREDS
 
     if user.status != "active":
-        raise _INVALID_CREDS
+        raise _DEACTIVATED
 
     return LoginResponse(
         access_token=create_access_token(user.id, user.role),
@@ -105,8 +110,10 @@ async def _upsert_moodle_user(db: AsyncSession, profile: moodle_auth.MoodleProfi
         if taken:
             email = user.email  # keep the old address rather than clash with another account
 
-    if user is not None and (user.role == "admin" or user.status != "active"):
-        return None  # administrators sign in locally only (FR-103); deactivated accounts stay out
+    if user is not None and user.role == "admin":
+        return None  # administrators sign in locally only (FR-103)
+    if user is not None and user.status != "active":
+        raise _DEACTIVATED  # Moodle has already confirmed the password
     created = user is None
     if created:
         user = User(email=email, password_hash=None, role="student", name=profile.fullname, status="active")

@@ -262,7 +262,8 @@ async def test_deactivated_account_cannot_sign_in_through_moodle(client, db_sess
     await db_session.commit()
     mock_moodle(email="gone@siswa.um.edu.my")
     resp = await _login(client)
-    assert resp.status_code == 401
+    assert resp.status_code == 403
+    assert "deactivated" in resp.json()["detail"]
     row = (await db_session.execute(select(User).where(User.moodle_user_id == 42))).scalar_one()
     await db_session.refresh(row)
     assert row.status == "inactive" and row.name == "Gone"
