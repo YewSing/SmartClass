@@ -302,6 +302,65 @@ async def test_teaching_anywhere_makes_a_new_account_a_lecturer(admin_client, db
     assert user.role == "lecturer"
 
 
+def _fields(programme, year_sem):
+    return [{"shortname": "programme", "value": programme}, {"shortname": "yearsem", "value": year_sem}]
+
+
+@pytest.mark.db
+async def test_sync_fills_profile_fields_for_new_and_linked_accounts(admin_client, db_session, school, fake_moodle):
+    linked_id = (await _moodle_user(db_session, 310, "student", "student10")).id  # logged in before Moodle had an idnumber
+    await db_session.commit()
+    fake_moodle.details = {
+        310: {"username": "student10", "fullname": "Ten", "email": "m310@um.edu.my", "idnumber": "23004910",
+              "department": "Faculty of Computer Science and Information Technology",
+              "customfields": _fields("Bachelor of Computer Science (Data Science)", "Year 2, Semester 1 (2026/2027)")},
+        311: {"username": "student11", "fullname": "Eleven", "email": "e@example.com", "idnumber": "23004911",
+              "customfields": _fields("Bachelor of Computer Science (Artificial Intelligence)", "")},
+        410: {"username": "lecturer10", "fullname": "Lec", "email": "l10@example.com", "idnumber": "UM-S0010",
+              "department": "Department of Software Engineering"},
+    }
+    fake_moodle.course(7, "WIA2005", "Algorithm Design", **{"310": "student", "311": "student", "410": "editingteacher"})
+
+    report = await _sync(admin_client)
+    assert report["accounts_created"] == 2 and report["profiles_updated"] == 1
+
+    db_session.expire_all()
+    s10 = await db_session.get(Student, linked_id)
+    assert s10.matric_no == "23004910"
+    assert s10.faculty == "Faculty of Computer Science and Information Technology"
+    assert s10.programme == "Bachelor of Computer Science (Data Science)"
+    assert s10.year_sem == "Year 2, Semester 1 (2026/2027)"
+    u11 = (await db_session.execute(select(User).where(User.moodle_user_id == 311))).scalar_one()
+    s11 = (await db_session.execute(select(Student).where(Student.user_id == u11.id))).scalar_one()
+    assert s11.programme == "Bachelor of Computer Science (Artificial Intelligence)" and s11.year_sem is None
+    u410 = (await db_session.execute(select(User).where(User.moodle_user_id == 410))).scalar_one()
+    lec = (await db_session.execute(select(Lecturer).where(Lecturer.user_id == u410.id))).scalar_one()
+    assert lec.staff_id == "UM-S0010" and lec.dept == "Department of Software Engineering"
+
+    again = await _sync(admin_client)
+    assert again["profiles_updated"] == 0 and again["accounts_created"] == 0
+
+
+@pytest.mark.db
+async def test_profile_refresh_skips_a_number_another_account_holds(admin_client, db_session, school, fake_moodle):
+    await _moodle_user(db_session, 320, "student", "23004920")
+    mine_id = (await _moodle_user(db_session, 321, "student", "student21")).id
+    await db_session.commit()
+    fake_moodle.details = {
+        320: {"username": "a", "fullname": "A", "email": "m320@um.edu.my", "idnumber": "23004920"},
+        321: {"username": "b", "fullname": "B", "email": "m321@um.edu.my", "idnumber": "23004920",  # clash
+              "customfields": _fields("Bachelor of Computer Science (Information Systems)", "")},
+    }
+    fake_moodle.course(7, "WIA2005", "Algorithm Design", **{"320": "student", "321": "student"})
+
+    report = await _sync(admin_client)
+    assert any("Moodle user 321" in line for line in report["skipped"])
+    db_session.expire_all()
+    kept = await db_session.get(Student, mine_id)
+    assert kept.matric_no == "student21" and kept.programme is None  # whole update skipped, nothing half-done
+    assert report["enrolments_added"] == 4  # the rest of the sync carried on
+
+
 @pytest.mark.db
 async def test_a_clash_skips_that_person_and_the_sync_carries_on(admin_client, db_session, users, school, fake_moodle):
     local_email = users["student"].email

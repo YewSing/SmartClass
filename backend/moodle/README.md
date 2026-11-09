@@ -26,9 +26,18 @@ Reset only this stack: `docker compose down -v` (removes the three `smartclass-m
 | Admin | admin | Admin123! |
 | Lecturer | lecturer1 (WIF3001, WIF3004), lecturer2 (WIA2005) | Lecturer123! |
 | Test lecturer | devlecturer (WIA0000, always open; the same password also works in the browser's local sign-in) | DevTest@1234 |
-| Student | student1..student5 (all also in WIA0000) | Student123! |
+| Student | student1..student8 (all also in WIA0000), matric 23004901..23004908 | Student123! |
 
 Enrolments: see `seed_config.json`. Moodle UI: http://localhost:8080
+
+Profile data comes from Moodle (FR-107): `idnumber` = matric/staff number, `department` = faculty
+(students) or department (lecturers), and the custom profile fields `programme` and `yearsem`
+(category "Student record"). Re-running `seed.sh` updates them on existing users; SmartClass picks
+them up on the next login or full sync.
+
+**Personal test accounts** (e.g. your own name + real matric number, to test face enrolment with
+your real matric card) go in `seed_config.local.json` next to `seed_config.json`, same
+`users`/`enrolments` shape. It is git-ignored and never committed; `seed.sh` adds it when present.
 
 ## Token / API
 

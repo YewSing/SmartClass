@@ -53,3 +53,6 @@ backend/eval/
 .claude/.stop-blocks
 .claude/.live-pass
 .claude/.loop.lock
+
+# Personal Moodle test accounts (real name + matric number) — never committed
+backend/moodle/seed_config.local.json

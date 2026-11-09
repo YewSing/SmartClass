@@ -12,6 +12,10 @@ Mapping (T11):
   complete and non-attenders can be marked Absent. Anyone it can't create (no username in
   Moodle's data, or an email or number another account holds) is counted as `unlinked`; their
   first login handles them as usual.
+- Profile fields are Moodle's (FR-107, read-only in SmartClass): matric/staff number = `idnumber`,
+  faculty (students) / department (lecturers) = `department`, and the custom profile fields
+  `programme` and `yearsem` (students). A full sync refreshes them on linked accounts; an empty
+  Moodle value keeps what SmartClass has.
 - Everything is read from Moodle before the database is touched, so a Moodle failure changes
   nothing. Running a sync twice changes nothing the second time.
 """
@@ -61,13 +65,63 @@ class SyncReport:
     enrolments_removed: int = 0
     lecturers_assigned: int = 0
     lecturers_unassigned: int = 0
+    profiles_updated: int = 0
     unlinked_users: int = 0
     skipped: list[str] = field(default_factory=list)
 
     @property
     def changed(self) -> bool:
         return any((self.accounts_created, self.courses_created, self.courses_updated, self.enrolments_added,
-                    self.enrolments_removed, self.lecturers_assigned, self.lecturers_unassigned))
+                    self.enrolments_removed, self.lecturers_assigned, self.lecturers_unassigned,
+                    self.profiles_updated))
+
+
+PROGRAMME_FIELD = "programme"
+YEAR_SEM_FIELD = "yearsem"
+
+
+def _text(value) -> str | None:
+    text = str(value or "").strip()
+    return text or None
+
+
+def custom_field(person: dict, shortname: str) -> str | None:
+    """A Moodle custom profile field's value (`customfields` in the web-service user record)."""
+    for f in person.get("customfields") or []:
+        if f.get("shortname") == shortname:
+            return _text(f.get("value"))
+    return None
+
+
+def profile_fields(person: dict) -> dict[str, str | None]:
+    """The Moodle-owned profile fields of one Moodle user record."""
+    return {
+        "number": _text(person.get("idnumber")),
+        "department": _text(person.get("department")),
+        "programme": custom_field(person, PROGRAMME_FIELD),
+        "year_sem": custom_field(person, YEAR_SEM_FIELD),
+    }
+
+
+def update_student_profile(student: Student, fields: dict[str, str | None]) -> bool:
+    """Copy Moodle's values onto a student; an empty Moodle value keeps the current one."""
+    wanted = {"matric_no": fields["number"], "faculty": fields["department"],
+              "programme": fields["programme"], "year_sem": fields["year_sem"]}
+    changed = False
+    for attr, value in wanted.items():
+        if value and getattr(student, attr) != value:
+            setattr(student, attr, value)
+            changed = True
+    return changed
+
+
+def update_lecturer_profile(lecturer: Lecturer, fields: dict[str, str | None]) -> bool:
+    changed = False
+    for attr, value in {"staff_id": fields["number"], "dept": fields["department"]}.items():
+        if value and getattr(lecturer, attr) != value:
+            setattr(lecturer, attr, value)
+            changed = True
+    return changed
 
 
 def course_from_enrolled(course: dict, enrolled: list[dict]) -> MoodleCourse:
@@ -129,8 +183,9 @@ async def _create_missing_accounts(db: AsyncSession, moodle_courses: list[Moodle
         email = (person.get("email") or f"{username}@moodle.invalid").lower()
         if email in emails:
             continue  # a local account holds this email; a login by its owner links them
-        number = (person.get("idnumber") or "").strip() or username
-        department = person.get("department") or None
+        fields = profile_fields(person)
+        number = fields["number"] or username
+        department = fields["department"]
         role = "lecturer" if uid in teaching else "student"
         try:
             async with db.begin_nested():
@@ -138,7 +193,8 @@ async def _create_missing_accounts(db: AsyncSession, moodle_courses: list[Moodle
                             name=person.get("fullname") or username)
                 db.add(user)
                 await db.flush()
-                db.add(Student(user_id=user.id, matric_no=number, faculty=department) if role == "student"
+                db.add(Student(user_id=user.id, matric_no=number, faculty=department,
+                               programme=fields["programme"], year_sem=fields["year_sem"]) if role == "student"
                        else Lecturer(user_id=user.id, staff_id=number, dept=department))
                 await write_log(db, user.id, "MOODLE_ACCOUNT_CREATE", "user", user.id,
                                 new_val={"email": email, "role": role, "moodle_user_id": uid, "source": "sync"})
@@ -148,6 +204,32 @@ async def _create_missing_accounts(db: AsyncSession, moodle_courses: list[Moodle
             continue
         emails.add(email)
         report.accounts_created += 1
+
+
+async def _refresh_profiles(db: AsyncSession, moodle_courses: list[MoodleCourse], report: SyncReport) -> None:
+    """Moodle's profile fields onto linked accounts (FR-107). A number another account holds
+    skips that person only."""
+    people = {uid: person for mc in moodle_courses for uid, person in mc.people.items()}
+    if not people:
+        return
+    users = (await db.execute(select(User).where(User.moodle_user_id.in_(people)))).scalars().all()
+    for user in users:
+        fields = profile_fields(people[user.moodle_user_id])
+        profile = (await db.execute(select(Student).where(Student.user_id == user.id))).scalar_one_or_none()
+        update = update_student_profile
+        if profile is None:
+            profile = (await db.execute(select(Lecturer).where(Lecturer.user_id == user.id))).scalar_one_or_none()
+            update = update_lecturer_profile
+        if profile is None:
+            continue
+        try:
+            async with db.begin_nested():
+                if update(profile, fields):
+                    await db.flush()
+                    report.profiles_updated += 1
+        except IntegrityError:
+            await db.refresh(profile)
+            report.skipped.append(f"Moodle user {user.moodle_user_id}: number already belongs to another account")
 
 
 async def _resolve_course(db: AsyncSession, mc: MoodleCourse, create: bool, report: SyncReport) -> Course | None:
@@ -228,6 +310,7 @@ async def apply(db: AsyncSession, moodle_courses: list[MoodleCourse], moodle_use
     report = SyncReport()
     if moodle_user_id is None:
         await _create_missing_accounts(db, moodle_courses, report)
+        await _refresh_profiles(db, moodle_courses, report)
     students, lecturers, roles = await _linked_profiles(db, moodle_user_id)
     if moodle_user_id is None:
         known = set(students) | set(lecturers)

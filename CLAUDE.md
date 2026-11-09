@@ -40,6 +40,7 @@ The web frontend is independent with its own `package.json`, `node_modules`, and
 cd backend
 docker compose up -d                              # start postgres+pgvector
 pip install -r requirements.txt
+pip install -r face_worker/requirements.txt       # insightface: without it face enrolment answers 503
 alembic upgrade head
 python scripts/seed.py                            # admin, timetable, always-open test class (safe to re-run)
 uvicorn app.main:app --reload --host 0.0.0.0     # API at localhost:8000, also reachable from phone
@@ -116,6 +117,7 @@ docs/
 - Modules 1, 3, 4, 8 → Yew Sing (User Mgmt, Attendance Mgmt, Face Recognition, AI Learning Assistant)
 - Modules 2, 5, 6, 7 → Shino (Dashboard & Notifications, Classroom Interaction, AI Quiz, Learning Analytics)
 - Where Yew Sing's modules need Shino's, build only the interface/stub described in the FR doc.
+- Requests between the two are written in `docs/requests-for-shino.md` (read it after pulling `main`; reply in its Status line).
 
 **Diagrams still to be created:** System Architecture, Module Diagram, Class Diagram, ERD, Activity Diagrams, Navigation Diagram, Wireframes.
 

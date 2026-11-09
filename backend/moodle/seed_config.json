@@ -59,56 +59,131 @@
       "password": "Lecturer123!",
       "firstname": "Aminah",
       "lastname": "Rahman",
-      "email": "lecturer1@example.com"
+      "email": "lecturer1@example.com",
+      "idnumber": "UM-S10241",
+      "department": "Department of Software Engineering"
     },
     {
       "username": "lecturer2",
       "password": "Lecturer123!",
       "firstname": "Chong",
       "lastname": "Wei Ming",
-      "email": "lecturer2@example.com"
+      "email": "lecturer2@example.com",
+      "idnumber": "UM-S10377",
+      "department": "Department of Artificial Intelligence"
     },
     {
       "username": "devlecturer",
       "password": "DevTest@1234",
       "firstname": "Dev Test",
       "lastname": "Lecturer",
-      "email": "devlecturer@um.edu.my"
+      "email": "devlecturer@um.edu.my",
+      "idnumber": "UM-S19999",
+      "department": "Department of Software Engineering"
     },
     {
       "username": "student1",
       "password": "Student123!",
       "firstname": "Ali",
       "lastname": "Hassan",
-      "email": "student1@example.com"
+      "email": "student1@example.com",
+      "idnumber": "23004901",
+      "department": "Faculty of Computer Science and Information Technology",
+      "profile": {
+        "programme": "Bachelor of Computer Science (Software Engineering)",
+        "yearsem": "Year 3, Semester 1 (2026/2027)"
+      }
     },
     {
       "username": "student2",
       "password": "Student123!",
       "firstname": "Siti",
       "lastname": "Nurhaliza",
-      "email": "student2@example.com"
+      "email": "student2@example.com",
+      "idnumber": "23004902",
+      "department": "Faculty of Computer Science and Information Technology",
+      "profile": {
+        "programme": "Bachelor of Computer Science (Artificial Intelligence)",
+        "yearsem": "Year 2, Semester 1 (2026/2027)"
+      }
     },
     {
       "username": "student3",
       "password": "Student123!",
       "firstname": "Kumar",
       "lastname": "Raj",
-      "email": "student3@example.com"
+      "email": "student3@example.com",
+      "idnumber": "23004903",
+      "department": "Faculty of Computer Science and Information Technology",
+      "profile": {
+        "programme": "Bachelor of Computer Science (Software Engineering)",
+        "yearsem": "Year 3, Semester 1 (2026/2027)"
+      }
     },
     {
       "username": "student4",
       "password": "Student123!",
       "firstname": "Mei Ling",
       "lastname": "Tan",
-      "email": "student4@example.com"
+      "email": "student4@example.com",
+      "idnumber": "23004904",
+      "department": "Faculty of Computer Science and Information Technology",
+      "profile": {
+        "programme": "Bachelor of Computer Science (Data Science)",
+        "yearsem": "Year 2, Semester 1 (2026/2027)"
+      }
     },
     {
       "username": "student5",
       "password": "Student123!",
       "firstname": "Daniel",
       "lastname": "Lee",
-      "email": "student5@example.com"
+      "email": "student5@example.com",
+      "idnumber": "23004905",
+      "department": "Faculty of Computer Science and Information Technology",
+      "profile": {
+        "programme": "Bachelor of Computer Science (Information Systems)",
+        "yearsem": "Year 3, Semester 1 (2026/2027)"
+      }
+    },
+    {
+      "username": "student6",
+      "password": "Student123!",
+      "firstname": "Nur Aisyah",
+      "lastname": "Ismail",
+      "email": "student6@example.com",
+      "idnumber": "23004906",
+      "department": "Faculty of Computer Science and Information Technology",
+      "profile": {
+        "programme": "Bachelor of Computer Science (Computer System and Network)",
+        "yearsem": "Year 4, Semester 1 (2026/2027)"
+      }
+    },
+    {
+      "username": "student7",
+      "password": "Student123!",
+      "firstname": "Jason",
+      "lastname": "Wong Kah Hoe",
+      "email": "student7@example.com",
+      "idnumber": "23004907",
+      "department": "Faculty of Computer Science and Information Technology",
+      "profile": {
+        "programme": "Bachelor of Computer Science (Multimedia Computing)",
+        "yearsem": "Year 3, Semester 1 (2026/2027)"
+      }
+    },
+    {
+      "username": "student8",
+      "password": "Student123!",
+      "firstname": "Priya",
+      "lastname": "Devi Raman",
+      "email": "student8@example.com",
+      "idnumber": "23004908",
+      "department": "Faculty of Computer Science and Information Technology",
+      "profile": {
+        "programme": "Bachelor of Computer Science (Software Engineering)",
+        "yearsem": "Year 4, Semester 1 (2026/2027)"
+      }
     }
   ],
   "enrolments": [
@@ -201,6 +276,56 @@
       "course": "WIA2005",
       "username": "student5",
       "role": "student"
+    },
+    {
+      "course": "WIA0000",
+      "username": "student6",
+      "role": "student"
+    },
+    {
+      "course": "WIA0000",
+      "username": "student7",
+      "role": "student"
+    },
+    {
+      "course": "WIA0000",
+      "username": "student8",
+      "role": "student"
+    },
+    {
+      "course": "WIF3001",
+      "username": "student6",
+      "role": "student"
+    },
+    {
+      "course": "WIF3001",
+      "username": "student8",
+      "role": "student"
+    },
+    {
+      "course": "WIF3004",
+      "username": "student7",
+      "role": "student"
+    },
+    {
+      "course": "WIF3004",
+      "username": "student8",
+      "role": "student"
+    },
+    {
+      "course": "WIA2005",
+      "username": "student6",
+      "role": "student"
+    }
+  ],
+  "profile_fields": [
+    {
+      "shortname": "programme",
+      "name": "Programme"
+    },
+    {
+      "shortname": "yearsem",
+      "name": "Year / Semester"
     }
   ]
 }

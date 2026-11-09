@@ -141,10 +141,13 @@ async def _upsert_moodle_user(db: AsyncSession, profile: moodle_auth.MoodleProfi
     if role == "student":
         if student is None:
             db.add(Student(user_id=user.id, matric_no=profile.idnumber or profile.username,
-                           faculty=profile.department))
+                           faculty=profile.department, programme=profile.fields.get("programme"),
+                           year_sem=profile.fields.get("year_sem")))
         else:
             student.matric_no = profile.idnumber or student.matric_no
             student.faculty = profile.department or student.faculty
+            student.programme = profile.fields.get("programme") or student.programme
+            student.year_sem = profile.fields.get("year_sem") or student.year_sem
     else:
         if lecturer is None:
             db.add(Lecturer(user_id=user.id, staff_id=profile.idnumber or profile.username,
