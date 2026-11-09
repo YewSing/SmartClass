@@ -26,6 +26,7 @@ Short log, newest entry at the bottom of "Log". Each entry is at most 5 lines:
 - (T19) `Pillow` is used directly by `backend/scripts/e2e_face_review.py` and `tests/card_images.py` but only installed as a dependency of other packages; pin it in `requirements.txt`.
 - (done in T22) audit labels for `FACE_CONSENT_*`, `FACE_ENROL_*` are in the new admin audit log screen (`adminHelpers.js`); `frontend/admin` keeps its old list until T96.
 - (T22) The new admin area only creates administrators, but `POST /admin/users` still accepts student/lecturer because `frontend/admin` uses it. Restrict it to `role=admin` in T96.
+- REVIEW: T19/T22 - the lecturer web E2E suite is red (2 `class-detail.spec.js` tests) since the Moodle seed gave WIA0000 11 students (4263306). Two `[UI]` tasks were ticked with the suite partly failing; fix the test or the list (`initialNumToRender`) before the next `[UI]` task so a real regression isn't hidden. Checkpoint review 4263306..f996310: no other cross-task problems (check.sh 336 + 229 db passed).
 - No runnable task (2026-11-10): T21 is `[HUMAN]` (card calibration) and T23 `[HUMAN] Checkpoint` (M1 + admin screens on real devices) is unticked, which gates every task below it. Yew Sing ticks T23 to resume the loop (next would be T29).
 
 ## Log
