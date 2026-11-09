@@ -156,3 +156,8 @@ TEST-CHANGE: tests/test_seed_courses.py (test_materials_course_exists_in_the_see
 - Decisions (Yew Sing): Moodle owns accounts and passwords. Bubble cause: saved prompts are complete, so it's display only; the shrink-to-fit bubble is probably measured too narrow with the phone's system font. Not reproduced here (no phone connected).
 - Interface: the two password endpoints return 400 for Moodle accounts. Tests: 4 new in `test_admin_accounts.py`; `desktop.spec.js` checks a lecturer has no Change Password, and the centred-dialog check moved to a new admin test; Playwright 6 passed. Maestro not run because Yew Sing's backend and Expo were running. Reviewer agent not run.
 - Next: Yew Sing confirms the bubble on the phone. T94 stays unticked.
+
+### Fix — loop waits through every usage-limit message and keeps partial work — 2026-11-09
+- Changed: `scripts/run-tasks.sh` missed "You've hit your 5-hour limit" (newer CLI wording), so it would have quit at the limit again. It now matches any "hit your ... limit", on the log's last line only, so a round that merely mentions a Gemini rate limit doesn't sleep for hours. Partial work stays in the tree instead of a stash, and the retry is told to continue it with `--append-system-prompt`.
+- Decisions: `claude -p` has no auto-continue, so this script is the loop's only protection whichever app starts it. New optional env `SMARTCLASS_LIMIT_WAIT_MIN` (default 30), used by the tests.
+- Tests: new `test_run_tasks_script.py` runs the real script in a throwaway repo with fake `claude` and `docker`; the 5-hour case failed before the fix. check.sh passes (204). Not yet exercised against a real limit. Reviewer agent not run.
