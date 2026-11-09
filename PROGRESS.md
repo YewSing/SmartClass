@@ -17,6 +17,11 @@ Short log, newest entry at the bottom of "Log". Each entry is at most 5 lines:
 - REVIEW: T82 - no `live` tests or `tests/fixtures/llm/` exist yet, so T93's no-LaTeX prompt rule and the renumbered citations have never been checked against real Gemini in a test. Add both to the T82 live suite.
 - LOOP (T10): the reviewer subagent and the Stop hook's check.sh both drop and recreate `smartclass_test`, so if they run at the same time both get random "relation does not exist" / FK / 401 failures (seen 3 times in T10; a clean solo run passed). Fix: a per-process test DB name (e.g. suffix the PID) or a lock in conftest.
 - REVIEW: T89 - `e2e-mobile.sh` only warns if a backend is already running on the port, so the flow could use one without `LLM_FAKE` and call real Gemini; it should stop instead. `assistant.yaml` also needs indexed WIA2005 in the dev DB, which seed data alone doesn't provide, leaves one chat per run, and never taps "Open file".
+- REVIEW: T13 - both apps still offer Change Password, but Moodle accounts have no local password: `PUT /auth/me/password` (`auth.py:196`) always answers "Current password is incorrect". Hide it for Moodle accounts and point to SPeCTRUM.
+- REVIEW: T12 - `PUT /admin/users/{id}/password` (`admin_users.py:286`) also works on Moodle accounts and gives them a local password, so they could use `/auth/login` without Moodle (lecturers through the browser sign-in). FR-103 keeps local sign-in for administrators. Refuse it when `moodle_user_id` is set.
+- REVIEW: T13 - for the merge note: the phone apps now sign in only through Moodle, so seeded accounts (`23004002@siswa...`, `devlecturer`) no longer work on a phone, and login gives 503 unless `backend/moodle` is running. Shino needs the local Moodle up and its accounts (`backend/moodle/README.md`).
+- REVIEW: T11/T29 - a full sync only manages students who have already logged in (`unlinked_users` are only counted). Students who never logged in have no enrolment, so M3 can't mark them Absent. Decide before T29/T30 whether the sync creates these accounts (already raised in the T11 log).
+- REVIEW: T10 - a Moodle idnumber that matches another student's matric number gives a 500 at login (noted in the T10 log, no task covers it).
 
 ## Log
 
