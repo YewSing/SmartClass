@@ -1,8 +1,7 @@
 # Use Cases: Module 8 — Personalized Learning (AI Learning Assistant)
 
 **Module:** 8 | **Owner:** Yew Sing
-**Requirements:** FR-801–FR-814 (FR-820–FR-824 deferred until Module 6 exists), NFR-08, NFR-09, NFR-14, NFR-15, NFR-18, NFR-19, NFR-21, NFR-28
-
+**Requirements:** FR-801–FR-814 (FR-820–FR-824 deferred until Module 6 exists), NFR-05, NFR-06, NFR-14, NFR-18, NFR-23
 ---
 
 ## UC-801: Sync course materials into the knowledge base
@@ -40,11 +39,11 @@
 6. App shows the answer. Tapping a citation opens the source at that page (FR-809).
 
 **Alternative Flows:**
-- *Not covered by the materials:* the answer comes from general knowledge and is labelled "Not from your course materials" (FR-806, NFR-19).
+- *Not covered by the materials:* the answer comes from general knowledge and is labelled "Not from your course materials" (FR-806).
 - *Student has an active graded quiz in this course:* refuse (FR-820, deferred until M6).
 
 **Exception Flows:**
-- *LLM error or timeout:* show "The assistant is unavailable, try again"; the question is not lost (NFR-21).
+- *LLM error or timeout:* show "The assistant is unavailable, try again"; the question is not lost (NFR-14).
 - *Course has no indexed materials:* say so, and still allow general-knowledge answers, labelled.
 
 ---
@@ -52,7 +51,7 @@
 ## UC-803: Manage chat sessions
 
 - **Actor:** Student
-- **Main Flow:** Student lists, renames or deletes their chat sessions for a course (FR-808). Only the student can see them (NFR-09).
+- **Main Flow:** Student lists, renames or deletes their chat sessions for a course (FR-808). Only the student can see them (NFR-06).
 
 ---
 
@@ -85,7 +84,7 @@
 - **Preconditions:** Lecturer teaches the course.
 - **Main Flow:**
 1. Lecturer opens "What students ask" for the course.
-2. System shows the most-asked topics and most-cited materials over a chosen period. Only topics asked by at least 3 distinct students appear, with no names or chat text (FR-813, NFR-09).
+2. System shows the most-asked topics and most-cited materials over a chosen period. Only topics asked by at least 3 distinct students appear, with no names or chat text (FR-813, NFR-06).
 3. Lecturer can open the cited material sections to decide what to revisit in class.
 
 ---

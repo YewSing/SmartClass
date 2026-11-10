@@ -1,8 +1,7 @@
 # Use Cases: Module 1 — User Management
 
 **Module:** 1 (User Management) | **Owner:** Yew Sing
-**Requirements:** FR-101–FR-118, NFR-01, NFR-03–NFR-06
-
+**Requirements:** FR-101–FR-118, NFR-01, NFR-02, NFR-04, NFR-05, NFR-08, NFR-14
 ---
 
 ## UC-101: Log in with SPeCTRUM (Moodle) credentials
@@ -14,7 +13,7 @@
 
 **Main Flow:**
 1. User enters username and password in the mobile or web app.
-2. Backend requests a Moodle web-service token with these credentials (FR-101). The password is not stored or logged (NFR-05).
+2. Backend requests a Moodle web-service token with these credentials (FR-101). The password is not stored or logged (NFR-04).
 3. Backend gets the Moodle user's profile and course list with that token.
 4. If no SmartClass account exists, the system creates one (FR-102). The role is lecturer if the user teaches any course, otherwise student.
 5. System syncs the user's courses and enrolments (FR-104).
@@ -26,7 +25,7 @@
 
 **Exception Flows:**
 - *Wrong credentials:* Moodle refuses the token; show "Invalid username or password" (don't say which one was wrong).
-- *Moodle unreachable:* show "SPeCTRUM is unavailable, try again later". Users already logged in keep working via refresh tokens (NFR-20).
+- Moodle unreachable: show "SPeCTRUM is unavailable, try again later". Users already logged in keep working via refresh tokens (NFR-14).
 - *Account deactivated by admin:* login is refused even with valid Moodle credentials.
 
 ---
@@ -122,7 +121,7 @@
 
 **Main Flow:**
 1. Student chooses "Withdraw consent" in Profile and confirms (FR-116); or the admin chooses "Reset face data" (FR-117).
-2. System deletes the student's embeddings at once (NFR-03).
+2. System deletes the student's embeddings at once (NFR-02).
 3. System writes an audit entry and tells the student that attendance will need manual marking.
 
 ---

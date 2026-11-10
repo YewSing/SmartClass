@@ -63,7 +63,7 @@ Spec: `docs/requirements/*.md`, `docs/use-cases/UC-M*.md`. Rules: `CLAUDE.md` �
   Done when: CSV for a session and for a course over `from`/`to` (students × sessions + rate); tests check headers and rows.
 - [ ] **T34 [INFRA] Moodle Attendance plugin in the simulated SPeCTRUM.** Depends on: T01, T04.
   Done when: `backend/moodle/scripts/setup.sh` installs `mod_attendance` (version matching Moodle 4.5) idempotently, adds its web-service functions (`mod_attendance_add_session`, `mod_attendance_get_sessions`, `mod_attendance_update_user_status`, …) to the `smartclass` service, and `seed.sh` adds an Attendance activity to each seeded course; a `moodle` test calls `mod_attendance_get_sessions` successfully.
-- [ ] **T35 [API] Sync closed sessions to Moodle Attendance (FR-311, NFR-20, NFR-22).** Depends on: T34, T30.
+- [ ] **T35 [API] Sync closed sessions to Moodle Attendance (FR-311, NFR-34, NFR-36).** Depends on: T34, T30.
   Done when: closing a session queues a sync that finds or creates the matching Moodle attendance session and sets each student's status (Present/Absent mapped to the plugin's status ids); the sync status (`pending | synced | failed`) is stored on the session; failures retry with backoff; idempotent; unit tests with respx + one `moodle` test end-to-end.
 - [ ] **T36 [API] Re-sync after override + retry endpoint (FR-312).** Depends on: T35, T31.
   Done when: an override on a synced session sets it back to `pending` and re-syncs; `POST /lecturer/sessions/{id}/moodle-sync` retries now; sync status in the session API; tests.
@@ -76,21 +76,21 @@ Spec: `docs/requirements/*.md`, `docs/use-cases/UC-M*.md`. Rules: `CLAUDE.md` �
 
 ## 3. Module 4 — Face Recognition Verification
 
-- [ ] **T40 [API] Camera device registry + per-device keys + heartbeat (FR-408, NFR-07, NFR-23).** Depends on: T02, T04.
+- [ ] **T40 [API] Camera device registry + per-device keys + heartbeat (FR-408, NFR-07, NFR-37).** Depends on: T02, T04.
   Done when: admins can register a device (name, room) and get its key once (stored hashed), regenerate a key (old one revoked); device endpoints authenticate with `X-Device-Key` instead of the shared internal key; `POST /device/heartbeat`; online = heartbeat within 60 s; tests.
-- [ ] **T41 [API] Server-side recognition from face crops (FR-402–FR-405, NFR-10, NFR-22).** Depends on: T40, T30.
+- [ ] **T41 [API] Server-side recognition from face crops (FR-402–FR-405, NFR-14, NFR-36).** Depends on: T40, T30.
   Done when: `POST /device/faces` (multipart crop(s)) embeds on the server, matches only students enrolled in the open session's course above the threshold, keeps per-device consecutive-match votes (default 3) and records Present through the attendance service; non-enrolled matches are logged, not recorded; tests with InsightFace sample images (match, below threshold, not enrolled, vote counting, duplicate).
 - [ ] **T42 [API] Device client for Pi and webcam (FR-401, FR-409, FR-411).** Depends on: T41.
   Done when: `device_client/` (replaces `face_worker/`'s role) polls for an open session for its room, detects faces locally (light model suitable for a Pi), POSTs crops with its key, sends heartbeats, optionally buffers while offline; runs on the laptop with a USB webcam via `python -m device_client --camera 0`; unit tests for the detection → crop → post logic with a fake camera.
 - [ ] **T43 [API] Unrecognised faces → lecturer review (FR-407, FR-410, NFR-02).** Depends on: T41.
   Done when: unmatched crops are stored per session; the session's lecturer lists them, assigns one to an enrolled, not-yet-present student (Present, source `face_review`, audited) or dismisses; crops are deleted on resolution, with a retention job after 7 days; admin keeps access as a fallback; tests.
-- [ ] **T44 [API] Recognition feedback events (FR-406, NFR-12).** Depends on: T41.
+- [ ] **T44 [API] Recognition feedback events (FR-406, NFR-16).** Depends on: T41.
   Done when: on Present, a websocket event goes to the lecturer's session channel and to the student's channel, and `app/services/notify.py` exposes `emit(event, user_ids, payload)` as the M2 hook (logs only for now, documented in `docs/interfaces.md`); tests.
 - [ ] **T45 [UI] Lecturer unrecognised-faces screen + student "attendance recorded" banner.** Depends on: T43, T44, T03.
   Done when: Maestro flows: lecturer assigns a seeded unrecognised face; the student app shows the banner after a simulated recognition.
 - [ ] **T46 [UI] Admin area: device management page.** Depends on: T40, T22.
   Done when: page lists devices with online status, registers a device and shows the key once, regenerates a key; Playwright test.
-- [ ] **T47 [HUMAN] Run the device client on the Raspberry Pi** with the Pi camera at the door; measure NFR-11 (fps) and NFR-10; record results in PROGRESS.md.
+- [ ] **T47 [HUMAN] Run the device client on the Raspberry Pi** with the Pi camera at the door; measure NFR-15 (fps) and NFR-14; record results in PROGRESS.md.
 
 ## 4. Module 8 — AI Learning Assistant
 
@@ -100,14 +100,14 @@ Spec: `docs/requirements/*.md`, `docs/use-cases/UC-M*.md`. Rules: `CLAUDE.md` �
   Done when: the system prompt forbids LaTeX and asks for plain-text formulas; a backend cleanup step runs on every answer before it is saved and converts any remaining LaTeX (`$$…$$`, `\frac{a}{b}`, `\text{}`, `\times`, `\%`) to readable text; citations are renumbered 1, 2, 3… by first appearance in both the answer text and the citation list; unit tests cover each conversion and the renumbering, including an answer citing [1], [2], [4].
 - [ ] **T81 [API] Scheduled material sync + lecturer materials status (FR-803, FR-804).** Depends on: T80.
   Done when: sync runs on a configurable schedule for all courses; only the course's lecturer (or admin) can trigger a sync or list status; tests.
-- [ ] **T82 [INFRA] Live Gemini test suite + record/replay + Q&A evaluation harness (NFR-18, NFR-19, NFR-21).** Depends on: T80.
+- [ ] **T82 [INFRA] Live Gemini test suite + record/replay + Q&A evaluation harness (NFR-28, NFR-29, NFR-35).** Depends on: T80.
   Done when:
   - **Synthetic test course:** `backend/tests/fixtures/course/` holds 3 short teaching documents written for testing (e.g. software-testing notes; no real course material), indexed into the test DB by a fixture. Live tests use only this, so they are stable and copyright-free.
   - **LLM adapter hardening (production code):** client-side rate limiter (`LLM_RPM`, default 10), retry with backoff on 429/5xx (max 3), and a distinct `LLMQuotaExhausted` error for daily-quota exhaustion.
   - **Live suite** `backend/tests/live/` (`@pytest.mark.live`, about 30–40 calls per run). It checks *structure and grounding*, never exact wording: ≥8 in-syllabus questions (answer parses; ≥1 citation; every citation points to a passage that was actually retrieved; cited passage contains the key term); ≥4 off-syllabus questions (labelled general knowledge, no fake citations); 2 follow-up conversations (the stand-alone query keeps the topic); prompt-injection text inside a document doesn't change the answer format; an empty-course question → general-knowledge answer. Each case may retry once for nondeterminism; a case failing twice fails the suite.
   - **Record/replay:** `pytest -m live --record-llm` saves the real responses to `backend/tests/fixtures/llm/*.json`. Normal (non-live) tests replay them, so the parsing/citation code is tested every round against *real* Gemini output at zero cost. Hand-written mocks stay only for error cases Gemini rarely produces (malformed output, timeout, 429).
   - **Automatic trigger:** `scripts/check.sh` runs `pytest -m live` itself when the round changed `app/services/kb/` or any prompt file (diff vs `SMARTCLASS_BASE`). It runs **at most once per code state**: a hash of `app/services/kb/` + prompts is stored in `.claude/.live-pass` (git-ignored) after a pass, and check.sh skips the live suite when the hash is unchanged. Otherwise the Stop hook and the loop script calling check.sh several times per round would burn the daily quota. If Gemini's daily quota is exhausted, the live tests skip with reason `LLM_QUOTA` and check.sh prints `LIVE TESTS PENDING (quota)`; the task is then marked `[~]` with "re-run live tests" instead of blocking the loop.
-  - **Eval harness:** `backend/eval/qa_set.jsonl` (draft ~20 in-syllabus + 5 off-syllabus questions over the seeded courses, `draft: true`) and `scripts/eval_assistant.py`, which runs them throttled and reports citation-support, off-syllabus labelling, latency (NFR-14) and an LLM-judged correctness score, for the report.
+  - **Eval harness:** `backend/eval/qa_set.jsonl` (draft ~20 in-syllabus + 5 off-syllabus questions over the seeded courses, `draft: true`) and `scripts/eval_assistant.py`, which runs them throttled and reports citation-support, off-syllabus labelling, latency (NFR-18) and an LLM-judged correctness score, for the report.
 - [ ] **T83 [HUMAN] Review and finalise the Q&A evaluation set** (correct answers, remove `draft`).
 - [ ] **T84 [API] Open cited source (FR-809).** Depends on: T80.
   Done when: `GET /student/assistant/materials/{id}/file` streams the material (proxied from Moodle, enrolled students only) and citations carry page/slide numbers the app can open; tests.

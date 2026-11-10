@@ -3,23 +3,24 @@
 **Project:** Smart Classroom Management System (SmartClass) — UM FYP
 **Source of scope:** `PROJECT PROPOSAL PAPER.pdf` (revised scope, Nov 2026)
 **Module ownership:** M1, M3, M4, M8 → Yong Yew Sing | M2, M5, M6, M7 → Chow Shino
-**Last revised:** 2026-11-08 (M1, M3, M4, M8 rewritten; M2, M5, M6, M7 are placeholders for their owner)
+**Last revised:** 2026-11-09
 
 IDs are numbered per module: `FR-1xx` = Module 1, `FR-3xx` = Module 3, and so on.
-Priorities use MoSCoW. **Deferred** = in scope of the proposal but blocked on another module; not built until that module exists.
+Priorities use MoSCoW (Must Have, Should Have, Could Have). Requirements marked **Deferred** are within the proposal scope but depend on another module and shall not be built until that module exists.
+Actors are Student, Lecturer, Admin and System.
 
 ---
 
 ## Context: SPeCTRUM (Moodle) integration
 
-UM's LMS, SPeCTRUM, runs on Moodle. Real SPeCTRUM signs users in with Microsoft 365 SSO and gets enrolments from MAYA. SmartClass can't get web-service access to the real SPeCTRUM, so it uses a **local Moodle 4.5 instance that simulates SPeCTRUM** (`backend/moodle/`). Moodle is the source of truth for:
+UM's LMS, SPeCTRUM, runs on Moodle. Real SPeCTRUM signs users in with Microsoft 365 SSO and gets enrolments from MAYA. SmartClass cannot obtain web-service access to the real SPeCTRUM, so it uses a **local Moodle 4.5 instance that simulates SPeCTRUM** (`backend/moodle/`). Moodle is the source of truth for:
 
 - user accounts (students and lecturers) and their credentials,
 - courses, enrolments and lecturer assignments,
 - course materials uploaded by lecturers,
 - the official attendance record (Moodle Attendance plugin, `mod_attendance`).
 
-Every SmartClass feature runs in SmartClass. Moodle is only the source of data and the place finalised attendance is copied to.
+All SmartClass features run in SmartClass. Moodle serves only as the source of data and the destination for finalised attendance.
 
 ---
 
@@ -55,17 +56,37 @@ Every SmartClass feature runs in SmartClass. Moodle is only the source of data a
 
 ---
 
-## Module 2 — Dashboard and Notifications (Owner: Shino) — *placeholder*
+## Module 2 — Dashboard and Notifications (Owner: Shino)
 
-Purpose (from proposal): role-based dashboards plus push, email and in-app notifications with priority levels (urgent, important, general).
-**FRs to be written by the module owner.**
+### 2A. Dashboards
 
-Interfaces Modules 1, 3, 4 and 8 expect from M2 (a notification event the other modules can raise):
+| ID | Description | Priority | Actor |
+|----|-------------|----------|-------|
+| FR-201 | The system shall provide a student dashboard that displays the student's attendance status, upcoming deadlines, latest announcements, notifications and ongoing classroom activities. | Must Have | Student |
+| FR-202 | The system shall provide a lecturer dashboard that displays an overview of class attendance, student participation, assessment activities and notifications. | Must Have | Lecturer |
+| FR-203 | The system shall display on each dashboard only the data permitted for the user's role and enrolled or taught courses. | Must Have | System |
+| FR-204 | The system shall display urgent and important notifications at the top of the dashboard, above general notifications. | Must Have | System |
+
+### 2B. Notifications
+
+| ID | Description | Priority | Actor |
+|----|-------------|----------|-------|
+| FR-205 | The system shall assign each notification one of three priority levels: urgent, important or general. | Must Have | System |
+| FR-206 | The system shall list all notifications received by a user in an in-app notification feed, ordered by priority and then by time received. | Must Have | Student, Lecturer |
+| FR-207 | The system shall send a push notification or email for each urgent and important notification within a configurable time (default 60 seconds) of the triggering event. General notifications shall appear in the notification feed only. | Must Have | System |
+| FR-208 | The system shall deliver push notifications on Android devices. On iOS devices, the system shall deliver notifications in-app and by email. | Must Have | System |
+| FR-209 | The system shall notify a student when their attendance has been recorded (event `attendance.recorded`, FR-406). | Must Have | System |
+| FR-210 | The system shall notify a lecturer when a student is identified as at-risk by Module 7 (FR-709), and shall assign the notification important priority. | Must Have | System |
+| FR-211 | The system shall assign important priority to, and notify students of, upcoming quiz deadlines and newly published quizzes. | Must Have | System |
+| FR-212 | The system shall notify a student of the face enrolment result (event `face_enrolment.result`, FR-114), and shall notify lecturers of pending face enrolment reviews and unrecognised faces (events `face_enrolment.pending_review` and `face.unrecognised`, FR-113 and FR-407). | Should Have | System |
+
+
+Interfaces Modules 1, 3, 4 and 8 expect from M2:
 - `attendance.recorded` → student ("Attendance recorded for WIF3001") — FR-406
 - `face_enrolment.result` → student (approved or rejected) — FR-114
 - `face_enrolment.pending_review`, `face.unrecognised` → lecturer — FR-113, FR-407
 
-Until M2 exists, these events appear as live updates inside the relevant app screens.
+Until M2 is built, these events appear as live updates inside the relevant app screens.
 
 ---
 
@@ -108,33 +129,87 @@ Until M2 exists, these events appear as live updates inside the relevant app scr
 
 ---
 
-## Module 5 — Classroom Interaction (Owner: Shino) — *placeholder*
+## Module 5 — Classroom Interaction (Owner: Shino)
 
-Purpose (from proposal): non-graded live questions (optionally anonymous), polls, voting, Q&A, reactions and an "I Don't Understand" button.
-**FRs to be written by the module owner.**
+All interactions in this module are non-graded. Graded assessments are handled by Module 6.
+
+| ID | Description | Priority | Actor |
+|----|-------------|----------|-------|
+| FR-501 | The system shall allow a lecturer to open and close an interaction session for a scheduled class of a course they teach. Students enrolled in the course shall be able to participate only while the session is open. | Must Have | Lecturer |
+| FR-502 | The system shall allow a student to submit a question during an open interaction session, with an option to submit it anonymously. The system shall not display the identity of an anonymous student to the lecturer or other students. | Must Have | Student |
+| FR-503 | The system shall display submitted questions to the lecturer in real time and shall allow the lecturer to mark each question as answered. | Must Have | Lecturer |
+| FR-504 | The system shall allow a lecturer to create a live poll with a question and two or more answer options, and to open and close voting. | Must Have | Lecturer |
+| FR-505 | The system shall allow each enrolled student to vote once per poll while it is open, and shall display the poll results to the lecturer in real time. | Must Have | Student |
+| FR-506 | The system shall allow a lecturer to post a live question to the class and shall display students' responses to the lecturer in real time. | Should Have | Lecturer |
+| FR-507 | The system shall allow a student to send a reaction (from a predefined set) during an open session, and shall display the reaction counts to the lecturer in real time. | Should Have | Student |
+| FR-508 | The system shall provide an "I Don't Understand" button that a student can select during an open session, and shall display the number of students who selected it to the lecturer in real time. | Must Have | Student |
+| FR-509 | The system shall record every question, poll vote, response, reaction and "I Don't Understand" signal with the session, student and timestamp, for use by Module 7. The system shall retain the student's identity for anonymous questions for counting purposes only. | Must Have | System |
 
 ---
 
-## Module 6 — AI-Powered Quiz and Assessment (Owner: Shino) — *placeholder*
+## Module 6 — AI-Powered Quiz and Assessment (Owner: Shino)
 
-Purpose (from proposal): AI-generated draft MCQ and short-answer questions from course materials; lecturer review and publish; timed student quizzes; auto-grading; results shared with M7 and M8.
-**FRs to be written by the module owner.**
+Interface used from M8: retrieval over the course knowledge base (FR-814), so Module 6 does not parse materials itself.
+Interfaces M8 needs from M6 (deferred FR-820 to FR-824): quiz results per student per question, tagged with topic or source material, and whether the student has an active graded attempt.
 
-Interface offered by M8: retrieval over the course knowledge base (FR-814), so M6 doesn't need to parse materials itself.
-Interfaces M8 needs from M6 (deferred FRs FR-820–FR-824): quiz results per student per question, tagged with topic or source material, and whether the student has an active graded attempt.
+### 6A. Question generation and publishing
+
+| ID | Description | Priority | Actor |
+|----|-------------|----------|-------|
+| FR-601 | The system shall allow a lecturer to select one or more materials of a course they teach and specify the question type (multiple-choice or short-answer) and the number of questions to generate. | Must Have | Lecturer |
+| FR-602 | The system shall generate draft questions from the selected materials using an LLM. Each multiple-choice question shall include answer options and the correct answer, and each short-answer question shall include a suggested answer. | Must Have | System |
+| FR-603 | The system shall tag each generated question with its source material and topic. | Must Have | System |
+| FR-604 | The system shall allow a lecturer to review, edit, approve or delete each generated question. The system shall allow only approved questions to be published. | Must Have | Lecturer |
+| FR-605 | The system shall allow a lecturer to publish a quiz from approved questions with a time limit and an open and close date and time. | Must Have | Lecturer |
+
+### 6B. Taking quizzes and grading
+
+| ID | Description | Priority | Actor |
+|----|-------------|----------|-------|
+| FR-606 | The system shall allow a student to view the published quizzes of courses they are enrolled in, on mobile devices and computers. | Must Have | Student |
+| FR-607 | The system shall allow a student to make one attempt per quiz within the time limit, and shall automatically submit the attempt when the time limit expires. | Must Have | Student |
+| FR-608 | The system shall automatically grade multiple-choice questions upon submission. | Must Have | System |
+| FR-609 | The system shall allow a lecturer to review and score short-answer responses. | Must Have | Lecturer |
+| FR-610 | The system shall provide an AI-suggested score for each short-answer response, which the lecturer can accept or change. | Could Have | System |
+| FR-611 | The system shall allow a student to view their quiz score and per-question results after grading is complete. | Must Have | Student |
+
+### 6C. Results and integration
+
+| ID | Description | Priority | Actor |
+|----|-------------|----------|-------|
+| FR-612 | The system shall allow a lecturer to view quiz results, including each student's score and the class average. | Must Have | Lecturer |
+| FR-613 | The system shall identify and display to the lecturer the questions answered incorrectly by more than a configurable percentage of students (default 50%). | Should Have | System |
+| FR-614 | The system shall share quiz results per student per question, with the question's topic and source material, with Module 7 and Module 8. | Must Have | System |
 
 ---
 
-## Module 7 — Learning Analytics and Early Warning (Owner: Shino) — *placeholder*
+## Module 7 — Learning Analytics and Early Warning (Owner: Shino)
 
-Purpose (from proposal): engagement indicators (attendance, participation, confusion, quiz trends), lecturer dashboards and rule-based at-risk alerts.
-**FRs to be written by the module owner.** Attendance data comes from FR-313.
+### 7A. Engagement indicators and dashboards
+
+| ID | Description | Priority | Actor |
+|----|-------------|----------|-------|
+| FR-701 | The system shall collect attendance data from Module 3 (FR-313), participation data from Module 5 (FR-509) and quiz results from Module 6 (FR-614). | Must Have | System |
+| FR-702 | The system shall calculate the following indicators for each student per course: attendance rate, absence frequency, classroom participation frequency, number of questions submitted, number of "I Don't Understand" signals, and quiz scores with their trend across quizzes. | Must Have | System |
+| FR-703 | The system shall display to the lecturer the indicators of each individual student in the lecturer's courses. | Must Have | Lecturer |
+| FR-704 | The system shall display to the lecturer the class-level engagement trend across sessions. | Must Have | Lecturer |
+| FR-705 | The system shall display to the lecturer the class assessment performance by topic and by session. | Should Have | Lecturer |
+| FR-706 | The system shall display to a student their own attendance status, engagement summary and academic performance indicators. A student shall not be able to view other students' indicators. | Must Have | Student |
+
+### 7B. Early warning
+
+| ID | Description | Priority | Actor |
+|----|-------------|----------|-------|
+| FR-707 | The system shall flag a student as at-risk when any of the following conditions is met: (a) the attendance rate falls below a configurable minimum percentage; (b) the student is absent for a configurable number of consecutive sessions; (c) quiz scores decline across a configurable number of consecutive quizzes; (d) classroom participation decreases by more than a configurable percentage compared with the previous period. | Must Have | System |
+| FR-708 | The system shall evaluate the early warning conditions in FR-707 after each attendance session closes and after each quiz is graded. | Must Have | System |
+| FR-709 | When a student is flagged, the system shall generate an alert stating the student, the course and the condition met, and shall send it to the lecturer through Module 2 (FR-210). | Must Have | System |
+| FR-710 | The system shall display to the lecturer a list of at-risk students in their courses, with the condition that triggered each flag. | Should Have | Lecturer |
 
 ---
 
 ## Module 8 — Personalized Learning: AI Learning Assistant (Owner: Yew Sing)
 
-Module 8 turns each course's lecturer materials into a course knowledge base. Students learn from it through a cited AI assistant (similar to NotebookLM). Recommendations based on quiz results depend on Module 6 and are **deferred** (FR-820–FR-824).
+Module 8 turns each course's lecturer materials into a course knowledge base. Students learn from it through a cited AI assistant (similar to NotebookLM). Recommendations based on quiz results depend on Module 6 and are **deferred** (FR-820 to FR-824).
 
 ### 8A. Course knowledge base
 
@@ -183,5 +258,6 @@ Module 8 turns each course's lecturer materials into a course knowledge base. St
 - **Face privacy:** selfies and card photos are used only for verification and are then deleted. Only embeddings are kept (NFR-01, NFR-02). Lecturers never approve a face from memory: FR-113 always shows the card next to the selfie.
 - **Attendance statuses:** only Present and Absent (FR-304). Moodle's Attendance plugin has more statuses; SmartClass maps to its Present and Absent statuses only.
 - **No liveness detection** (proposal §4.9). The camera is at the entrance under the lecturer's supervision.
+- **Notifications:** push notifications are supported on Android only. iOS users receive notifications in-app and by email, because iOS push requires a paid Apple Developer Program membership (proposal §4.9; FR-208).
 - **Assistant language:** English only. An LLM API is required (provider set in configuration). Answers prefer course materials (FR-805) over general knowledge (FR-806).
-- **Thresholds** (face similarity, consecutive frames, card-match similarity, aggregate minimum group size, retention periods) are configuration values, not hard-coded.
+- **Thresholds** (face similarity, consecutive frames, card-match similarity, aggregate minimum group size, retention periods, notification delivery time, frequently-missed-question percentage, and early warning rule values in FR-707) are configuration values, not hard-coded.

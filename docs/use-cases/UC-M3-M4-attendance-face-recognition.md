@@ -1,7 +1,7 @@
 # Use Cases: Modules 3 & 4 — Attendance Management and Facial Recognition Verification
 
 **Modules:** 3 (Attendance Management), 4 (Facial Recognition Attendance Verification) | **Owner:** Yew Sing
-**Requirements:** FR-301–FR-314, FR-401–FR-411, NFR-02, NFR-06, NFR-07, NFR-10–NFR-13, NFR-16, NFR-20, NFR-22–NFR-25
+**Requirements:** FR-301–FR-314, FR-401–FR-411, NFR-03, NFR-07, NFR-09, NFR-11, NFR-12, NFR-15, NFR-16, NFR-21
 
 ---
 
@@ -12,13 +12,13 @@
 - **Postconditions:** Session is open; the room's camera device starts capturing (UC-401).
 
 **Main Flow:**
-1. Lecturer taps the scheduled class on the dashboard, then "Start attendance" (≤ 3 taps, NFR-25).
+1. Lecturer taps the scheduled class on the dashboard, then "Start attendance" (≤ 3 taps, NFR-09).
 2. System opens the session (FR-301) and links it to the room's camera device.
 3. System shows the live session view (UC-303).
 
 **Exception Flows:**
 - *Session already open for this class:* show the existing session.
-- *Room's device offline:* open anyway, warn the lecturer, suggest the backup webcam (FR-409, NFR-23).
+- *Room's device offline:* open anyway, warn the lecturer, suggest the backup webcam (FR-409).
 
 ---
 
@@ -37,7 +37,7 @@
 5. The system submits the recognition to Module 3 (FR-405 → UC-402).
 
 **Alternative Flows:**
-- *Already Present:* ignored (NFR-22).
+- *Already Present:* ignored (NFR-11).
 - *Match is a student not enrolled in this course:* not marked; logged.
 - *Below threshold for several frames:* UC-404.
 
@@ -54,7 +54,7 @@
 - **Postconditions:** Present record with timestamp and device ID; student and lecturer informed.
 
 **Main Flow:**
-1. System writes Present for the student and session, unless one already exists (FR-302, NFR-22).
+1. System writes Present for the student and session, unless one already exists (FR-302, NFR-11).
 2. Lecturer's live view updates without refresh (FR-306).
 3. Student is told on their phone "Attendance recorded for <course>" (FR-406). This is delivered through Module 2's notification event; until M2 exists, it shows as a live update in the student app.
 
@@ -76,7 +76,7 @@
 
 - **Actor:** Lecturer
 - **Preconditions:** A face was detected but not matched during a session (FR-407).
-- **Postconditions:** Face assigned to a student (marked Present) or dismissed; crop deleted (FR-410, NFR-02).
+- **Postconditions:** Face assigned to a student (marked Present) or dismissed; crop deleted (FR-410).
 
 **Main Flow:**
 1. Lecturer opens Unrecognised Faces from the live view.
@@ -111,7 +111,7 @@
 **Main Flow:**
 1. Lecturer selects a student in a session and switches Present ↔ Absent.
 2. System requires a reason (FR-305).
-3. System saves the change and audits actor, old status, new status, reason and time (NFR-06).
+3. System saves the change and audits actor, old status, new status, reason and time.
 4. If the session was already synced, system queues a re-sync (FR-312).
 
 ---
@@ -128,7 +128,7 @@
 3. System marks the session "synced" with a timestamp (FR-312).
 
 **Exception Flows:**
-- *Moodle unreachable or error:* mark "failed", retry with backoff (NFR-20); lecturer sees the status and can "Retry now".
+- *Moodle unreachable or error:* mark "failed", retry with backoff (NFR-12); lecturer sees the status and can "Retry now".
 - *Student unknown to Moodle:* skip them and report them in the sync result.
 
 ---
