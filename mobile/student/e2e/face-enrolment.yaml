@@ -110,6 +110,7 @@ appId: host.exp.exponent
     visible: "Step 4 of 4"
     timeout: 20000
 - assertVisible: "Photo of your matric card"
+- assertVisible: "Hold the card upright \\(portrait\\).*"
 - assertVisible:
     id: "card-guide"
 - takeScreenshot: face-card-step

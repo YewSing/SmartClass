@@ -37,7 +37,10 @@ URL = "/student/me/face-enrolment"
     (["UNIVERSITY OF", "MALAYA"], True),                # English name split over two lines
     (["Universiti Malaya"], True),
     (["RAPID KL", "TOUCH N GO", "TAN YEW SING", "23004976"], False),
-    (["UNIVERSITI TEKNOLOGI MALAYSIA"], False),
+    # T23a: any one UM word counts, so UNIVERSITI alone does; another university's card is
+    # still stopped by the matric check (test_another_universitys_card_is_not_auto_approved).
+    (["UNIVERSITI TEKNOLOGI MALAYSIA"], True),
+    (["MALAYSIA AIRLINES"], False),                     # MALAYSIA is 2 edits from MALAYA
     ([], False),
 ])
 def test_um_card_text(lines, um):
@@ -45,10 +48,56 @@ def test_um_card_text(lines, um):
     assert card.um_card is um
 
 
-def test_um_card_pattern_comes_from_config(monkeypatch):
+def test_um_card_words_come_from_config(monkeypatch):
+    monkeypatch.setattr(settings, "CARD_UM_KEYWORDS", "TESTUNI")
+    assert fv.read_card([OcrLine("TESTUNI", 0.9)], None, None).um_card
+    assert not fv.read_card([OcrLine("UNIVERSITI MALAYA", 0.9)], None, None).um_card
+
+
+def test_um_card_extra_pattern_comes_from_config(monkeypatch):
+    monkeypatch.setattr(settings, "CARD_UM_KEYWORDS", "")
+    assert not fv.read_card([OcrLine("TEST UNI", 0.9)], None, None).um_card
     monkeypatch.setattr(settings, "CARD_UM_TEXT_REGEX", "TESTUNI")
     assert fv.read_card([OcrLine("TEST UNI", 0.9)], None, None).um_card
-    assert not fv.read_card([OcrLine("UNIVERSITI MALAYA", 0.9)], None, None).um_card
+
+
+# Real OCR of the MySiswa card (T21 photos): words split over lines, in either order, misread.
+@pytest.mark.parametrize("lines", [
+    ["UNIVERSITI", "MALAYA"],
+    ["MALAYA", "UNIVERSITI"],
+    ["UNTVERSIT", "YONG YEW SING"],      # misread, and MALAYA not read at all
+    ["RHB", "MySISWA", "YONE VEW SNe"],  # read neither, but read MySISWA
+    ["MIyEISWA"],
+    ["MiySISWA"],
+    ["UNIVERSITY OF", "MALAYA"],
+])
+def test_um_card_text_survives_real_ocr_splits_and_misreads(lines):
+    assert fv.read_card([OcrLine(t, 0.9) for t in lines], None, None).um_card
+
+
+@pytest.mark.parametrize("lines", [
+    ["MYRAPID", "TOUCH N GO", "TAN YEW SING"],
+    ["MYDEBIT", "VISA"],
+    ["MALAYSIA"],
+    ["UNIVERSAL STUDIOS"],
+])
+def test_um_card_text_rejects_look_alikes(lines):
+    assert not fv.read_card([OcrLine(t, 0.9) for t in lines], None, None).um_card
+
+
+def test_another_universitys_card_is_not_auto_approved():
+    lines = [OcrLine("UNIVERSITI TEKNOLOGI MALAYSIA", 0.95), OcrLine("TAN YEW SING", 0.95),
+             OcrLine("22001234", 0.98)]
+    card = fv.read_card(lines, "23004976", "Tan Yew Sing")
+    assert card.um_card and card.name_match
+    assert card.matric == "22001234" and not card.matric_match
+
+
+def test_a_transport_card_without_a_matric_number_is_not_auto_approved():
+    # A myrapid card with the student's name and photo has no matric number to match.
+    lines = [OcrLine("myrapid", 0.97), OcrLine("TOUCH N GO", 0.95), OcrLine("TAN YEW SING", 0.96)]
+    card = fv.read_card(lines, "23004976", "Tan Yew Sing")
+    assert card.matric is None and not card.matric_match and not card.um_card
 
 
 def test_a_non_um_card_is_not_auto_approved():

@@ -80,8 +80,40 @@ def card_photo(
     scale: float = 1.0,
     angle: float = 0,
     header: str = "UNIVERSITI MALAYA",   # another issuer's name makes a non-UM card
+    portrait: bool = False,     # the real MySiswa card: portrait, light blue, dark print
+    table: tuple[int, int, int] = (110, 110, 105),
+    turn: int = 0,              # the whole photo turned clockwise by this many degrees (0/90/180/270)
+    brand: str = "MySISWA",     # portrait card only: the scheme name under the university's
 ) -> bytes:
-    """A phone photo of a UM-style matric card on a grey table."""
+    """A phone photo of a UM-style matric card on a table."""
+    card = (_portrait_card(person, name, matric, header, brand) if portrait
+            else _landscape_card(person, name, matric, header))
+    if glare:
+        layer = Image.new("L", card.size, 0)
+        box = [520, 330, 856, 540] if glare == "corner" else [260, 170, 760, 330]
+        ImageDraw.Draw(layer).ellipse(box, fill=255)
+        layer = layer.filter(ImageFilter.GaussianBlur(6))
+        card = Image.composite(Image.new("RGB", card.size, (255, 255, 255)), card, layer)
+
+    w, h = card.size
+    if scale != 1.0:
+        card = card.resize((round(w * scale), round(h * scale)))
+    if angle:
+        card = card.convert("RGBA").rotate(angle, expand=True, resample=Image.Resampling.BICUBIC)
+    photo_size = (PHOTO_H, PHOTO_W) if portrait else (PHOTO_W, PHOTO_H)   # phone held like the card
+    photo = Image.new("RGB", photo_size, table)
+    photo.paste(card, ((photo.width - card.width) // 2, (photo.height - card.height) // 2),
+                card if card.mode == "RGBA" else None)
+    if blur:
+        photo = photo.filter(ImageFilter.GaussianBlur(blur))
+    if brightness != 1.0:
+        photo = ImageEnhance.Brightness(photo).enhance(brightness)
+    if turn:
+        photo = photo.rotate(-turn, expand=True)   # PIL turns anticlockwise
+    return _png(photo)
+
+
+def _landscape_card(person, name, matric, header) -> Image.Image:
     card = Image.new("RGB", (CARD_W, CARD_H), (40, 70, 140))
     d = ImageDraw.Draw(card)
     d.rectangle([0, 0, CARD_W, 90], fill=(20, 40, 100))
@@ -92,22 +124,22 @@ def card_photo(
     d.text((300, 380), "AND INFORMATION TECHNOLOGY", fill=TEXT, font=_font(22))
     if person is not None:
         card.paste(person.resize((220, 280)), (40, 140))
-    if glare:
-        layer = Image.new("L", card.size, 0)
-        box = [520, 330, 856, 540] if glare == "corner" else [260, 170, 760, 330]
-        ImageDraw.Draw(layer).ellipse(box, fill=255)
-        layer = layer.filter(ImageFilter.GaussianBlur(6))
-        card = Image.composite(Image.new("RGB", card.size, (255, 255, 255)), card, layer)
+    return card
 
-    if scale != 1.0:
-        card = card.resize((round(CARD_W * scale), round(CARD_H * scale)))
-    if angle:
-        card = card.convert("RGBA").rotate(angle, expand=True, resample=Image.Resampling.BICUBIC)
-    photo = Image.new("RGB", (PHOTO_W, PHOTO_H), (110, 110, 105))
-    photo.paste(card, ((PHOTO_W - card.width) // 2, (PHOTO_H - card.height) // 2),
-                card if card.mode == "RGBA" else None)
-    if blur:
-        photo = photo.filter(ImageFilter.GaussianBlur(blur))
-    if brightness != 1.0:
-        photo = ImageEnhance.Brightness(photo).enhance(brightness)
-    return _png(photo)
+
+def _portrait_card(person, name, matric, header, brand) -> Image.Image:
+    """Like the MySiswa card: 54 x 86 mm, light blue, photo top left, dark print."""
+    ink = (20, 30, 50)
+    card = Image.new("RGB", (CARD_H, CARD_W), (140, 205, 235))
+    d = ImageDraw.Draw(card)
+    words = header.split()
+    d.text((290, 170), " ".join(words[:1]), fill=ink, font=_font(30))
+    d.text((290, 210), " ".join(words[1:]), fill=ink, font=_font(30))
+    d.text((290, 300), brand, fill=ink, font=_font(34))
+    d.text((30, 420), name, fill=ink, font=_font(28))
+    d.text((30, 470), "FACULTY OF COMPUTER SCIENCE", fill=ink, font=_font(20))
+    d.text((30, 500), "AND INFORMATION TECHNOLOGY", fill=ink, font=_font(20))
+    d.text((200, 800), matric, fill=ink, font=_font(28))
+    if person is not None:
+        card.paste(person.resize((240, 300)), (25, 100))
+    return card

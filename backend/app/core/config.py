@@ -27,11 +27,14 @@ class Settings(BaseSettings):
     CARD_MIN_AREA_FRACTION: float = 0.15        # card must cover this share of the photo
     CARD_MAX_TILT_DEGREES: float = 15.0
     CARD_MAX_SKEW_RATIO: float = 0.25           # opposite card edges may differ by this much
-    CARD_BLUR_MIN_VARIANCE: float = 100.0       # Laplacian variance of the card (shrunk to 856 px wide)
+    CARD_BLUR_MIN_VARIANCE: float = 40.0        # Laplacian variance of the card (long side shrunk to 856 px)
     CARD_GLARE_MAX_FRACTION: float = 0.06       # largest blown-out patch, share of the card area
     CARD_DARK_MAX_MEAN: float = 60.0            # mean brightness (0-255) at or below this is too dark
-    # UM card text, matched on the OCR letters joined without spaces (OCR often drops them)
-    CARD_UM_TEXT_REGEX: str = r"UNIVERSITIMALAYA|UNIVERSITYOFMALAYA"
+    CARD_MIN_SATURATION: int = 40               # colour finder: card pixels are at least this saturated
+    # UM card text: any of these words, in any order, allowing small OCR misreads (T23a)
+    CARD_UM_KEYWORDS: str = "UNIVERSITI,MALAYA,MYSISWA"
+    # Optional extra pattern, matched on the OCR letters joined without spaces; empty = off
+    CARD_UM_TEXT_REGEX: str = ""
     FACE_SELFIE_CONSISTENCY_THRESHOLD: float = 0.45   # cosine every pair of selfies must reach
 
     # Face self-enrolment uploads (FR-110)

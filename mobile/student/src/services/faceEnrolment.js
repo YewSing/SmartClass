@@ -59,7 +59,9 @@ export const SELFIE_STEPS = [
 export const CARD_STEP = {
   key: 'card',
   title: 'Photo of your matric card',
-  hint: 'Fit the card inside the frame, front side up. Avoid glare from lights.',
+  hint: 'Hold the card upright (portrait) and fit it inside the frame, front side up. Avoid glare from lights.',
+  // The MySiswa matric card is portrait: 54 mm wide, 86 mm tall (ID-1 turned upright)
+  guideRatio: 54 / 86,
 }
 
 export const TOTAL_STEPS = SELFIE_STEPS.length + 1

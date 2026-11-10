@@ -1,4 +1,4 @@
-import { Platform, View, Text, TouchableOpacity, StyleSheet } from 'react-native'
+import { Platform, View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native'
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { createBottomTabNavigator, BottomTabBar } from '@react-navigation/bottom-tabs'
@@ -250,6 +250,14 @@ function LoginStack() {
 export default function AppNavigator() {
   const { state } = useLecturer()
   const isAdmin = !!state.lecturer?.isAdmin
+
+  if (state.restoring) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg }}>
+        <ActivityIndicator size="large" color={C.primary} accessibilityLabel="Signing you in" />
+      </View>
+    )
+  }
 
   let main = <LoginStack />
   if (state.isLoggedIn) {

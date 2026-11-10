@@ -58,10 +58,20 @@ export function auditDetail(entry) {
   return after || before
 }
 
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+// Checks the administrator sign-in form before it is sent, so a non-email gets a plain
+// message instead of the server's raw 422. Returns a message or null.
+export function adminSignInError({ email = '', password = '' }) {
+  if (!email.trim() || !password) return 'Enter your email and password.'
+  if (!EMAIL.test(email.trim())) return 'Enter your email address.'
+  return null
+}
+
 // Checks the "Create administrator" form before it is sent (FR-108). Returns a message or null.
 export function newAdminError({ name = '', email = '', password = '', confirm = '' }) {
   if (!name.trim() || !email.trim() || !password || !confirm) return 'Fill in every field.'
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return 'Enter a valid email address.'
+  if (!EMAIL.test(email.trim())) return 'Enter a valid email address.'
   if (password.length < 8) return 'The password must be at least 8 characters.'
   if (password !== confirm) return "The passwords don't match."
   return null

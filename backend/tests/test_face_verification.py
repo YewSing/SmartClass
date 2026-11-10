@@ -195,6 +195,77 @@ def test_not_an_image_is_blocked(face_app, imgs):
     assert r.quality.reasons == ["no_card_found"] and r.quality.blocking and not r.passed
 
 
+# ── T23a: the real MySiswa card is portrait, light blue, and may be photographed turned ──
+
+WHITE_TABLE = (236, 236, 232)
+
+
+@pytest.mark.face
+def test_portrait_light_blue_card_on_a_white_table_is_found_and_auto_approves(face_app, imgs):
+    r = _verify(face_app, imgs, portrait=True, table=WHITE_TABLE)
+    assert "no_card_found" not in r.quality.reasons and "card_too_small" not in r.quality.reasons
+    assert r.quality.scores["card_area_fraction"] >= 0.3   # the whole card, not an inner box
+    assert r.card.um_card and r.card.matric_match and r.face.passed
+    assert r.rotation == 0 and r.passed, r.quality.reasons
+
+
+@pytest.mark.face
+def test_card_found_by_colour_ignores_a_skin_coloured_hand(face_app, imgs):
+    """A hand holding the card is saturated too; only the card's own colour is outlined."""
+    import cv2
+
+    card_images, people, _ = imgs
+    img = fv.decode_image(card_images.card_photo(people[0], portrait=True, table=WHITE_TABLE))
+    h, w = img.shape[:2]
+    palm = np.zeros((h, w), np.uint8)
+    cv2.ellipse(palm, (w // 2, h - 150), (w // 2, 330), 0, 0, 360, 255, -1)
+    behind_card = (palm > 0) & (np.abs(img.astype(int) - WHITE_TABLE[::-1]).sum(axis=2) < 30)
+    img[behind_card] = (110, 150, 215)   # skin (BGR), only where the table showed
+    assert behind_card.sum() > 0.1 * h * w
+    area, _contour, rect = fv._find_card(img)
+    assert 0.3 <= area / (h * w) <= 0.45
+    long_side, short_side = max(rect[1]), min(rect[1])
+    assert 1.45 <= long_side / short_side <= 1.75   # ID-1 card ratio, not card + hand
+
+
+@pytest.mark.face
+@pytest.mark.parametrize("turn", [90, 180, 270])
+def test_turned_card_is_rotated_back_before_face_and_ocr(face_app, imgs, turn):
+    r = _verify(face_app, imgs, portrait=True, table=WHITE_TABLE, turn=turn)
+    assert "no_face_on_card" not in r.quality.reasons
+    assert r.card.um_card and r.card.matric_match and r.face.passed
+    assert (r.rotation + turn) % 360 == 0
+    assert r.quality.scores["rotation_degrees"] == r.rotation
+    assert r.passed
+
+
+@pytest.mark.face
+def test_upright_card_is_not_turned_and_ocr_runs_once(face_app, imgs, monkeypatch):
+    calls = []
+    real = fv.run_ocr
+    monkeypatch.setattr(fv, "run_ocr", lambda img: calls.append(1) or real(img))
+    r = _verify(face_app, imgs, portrait=True, table=WHITE_TABLE)
+    assert r.rotation == 0 and len(calls) == 1
+
+
+@pytest.mark.face
+def test_split_um_text_on_a_real_card_counts(face_app, imgs):
+    # MALAYA printed above UNIVERSITI, no MySISWA: still a UM card.
+    r = _verify(face_app, imgs, portrait=True, table=WHITE_TABLE, header="MALAYA UNIVERSITI", brand="")
+    assert r.card.um_card and r.passed
+
+
+@pytest.mark.face
+def test_transport_like_card_without_a_matric_number_is_never_auto_approved(face_app, imgs):
+    r = _verify(face_app, imgs, portrait=True, table=WHITE_TABLE, header="myrapid CARD",
+                brand="TOUCH N GO", matric="")
+    assert r.face.passed                        # same face, so only the card text stops it
+    assert not r.card.um_card
+    assert r.card.matric is None and not r.card.matric_match
+    assert not r.passed
+    assert "matric_unreadable" in r.review_reasons()
+
+
 @pytest.mark.face
 def test_face_threshold_comes_from_config(face_app, imgs, monkeypatch):
     monkeypatch.setattr(settings, "CARD_FACE_MATCH_THRESHOLD", 0.999)

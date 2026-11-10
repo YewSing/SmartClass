@@ -1,11 +1,13 @@
 import { createContext, useContext, useReducer, useCallback, useEffect, useRef } from 'react'
 import * as api from '../services/api'
-import { getToken, onAuthExpired, BASE } from '../services/client'
+import { getToken, getRefreshToken, onAuthExpired, BASE } from '../services/client'
+import { restoreSession } from '../services/session'
 
 const LecturerContext = createContext(null)
 
 const initialState = {
   isLoggedIn: false,
+  restoring: false,   // checking a stored session at start-up (shows a spinner, not Login)
   lecturer: null,
   classes: [],
   allClasses: [],
@@ -23,9 +25,11 @@ const initialState = {
 function reducer(state, action) {
   switch (action.type) {
     case 'LOGIN':
-      return { ...state, isLoggedIn: true, loading: false, error: null }
+      return { ...state, isLoggedIn: true, restoring: false, loading: false, error: null }
     case 'LOGOUT':
       return { ...initialState }
+    case 'RESTORE_DONE':
+      return { ...state, restoring: false }
     case 'SET_LECTURER':
       return { ...state, lecturer: action.payload }
     case 'SET_CLASSES':
@@ -96,8 +100,28 @@ function reducer(state, action) {
 }
 
 export function LecturerProvider({ children }) {
-  const [state, dispatch] = useReducer(reducer, initialState)
+  // initStorage() has run (App.js), so a stored session is known before the first render
+  const [state, dispatch] = useReducer(reducer, initialState,
+    s => ({ ...s, restoring: !!(getToken() || getRefreshToken()) }))
   const wsRef = useRef(null)
+
+  // Stay signed in across reloads and restarts: load /auth/me with the stored token
+  // (client.js refreshes it on a 401) instead of always showing Login.
+  useEffect(() => {
+    let cancelled = false
+    restoreSession({ hasStoredSession: !!(getToken() || getRefreshToken()), fetchMe: api.getLecturer })
+      .then(({ user, signOut }) => {
+        if (cancelled) return
+        if (user) {
+          dispatch({ type: 'SET_LECTURER', payload: user })
+          dispatch({ type: 'LOGIN' })
+          return
+        }
+        if (signOut) api.logout()
+        dispatch({ type: 'RESTORE_DONE' })
+      })
+    return () => { cancelled = true }
+  }, [])
 
   const openModal  = useCallback((type, data) => dispatch({ type: 'OPEN_MODAL', payload: { type, data } }), [])
   const closeModal = useCallback(() => dispatch({ type: 'CLOSE_MODAL' }), [])

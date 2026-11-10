@@ -36,7 +36,7 @@ QUALITY_MESSAGES: dict[str, str] = {
     "no_face_on_card": "We couldn't see the photo on your card. Make sure the whole card is visible and retake.",
 }
 
-_NORM_WIDTH = 856  # wider card crops are shrunk to this (ID-1 card at ~10 px/mm) before measuring
+_NORM_WIDTH = 856  # card crops with a longer side are shrunk to this (ID-1 at ~10 px/mm) before measuring
 # Characters OCR commonly confuses with digits inside a number.
 _TO_DIGIT = str.maketrans({"O": "0", "D": "0", "Q": "0", "I": "1", "L": "1", "|": "1",
                            "Z": "2", "S": "5", "B": "8", "G": "6"})
@@ -56,7 +56,7 @@ class CardRead:
     name_score: float               # share of the account's name words found on the card
     name_match: bool
     lines: list[str] = field(default_factory=list)
-    um_card: bool = True            # UM card text (CARD_UM_TEXT_REGEX) was read on the card
+    um_card: bool = True            # UM card text (CARD_UM_KEYWORDS) was read on the card
 
 
 @dataclass
@@ -95,11 +95,30 @@ class CardVerification:
     face: FaceMatch
     card: CardRead
 
+    rotation: int = 0               # degrees the card photo was turned (clockwise) before the checks
+
     @property
     def passed(self) -> bool:
         """Both FR-111 checks pass, so the submission can be auto-approved (FR-112)."""
         return (not self.quality.blocking and self.face.passed and self.face.selfies_consistent
                 and self.card.matric_match and self.card.name_match and self.card.um_card)
+
+    def review_reasons(self) -> list[str]:
+        """Why a submission wasn't auto-approved, for the lecturer's review (FR-113)."""
+        reasons = []
+        if not self.face.passed:
+            reasons.append(self.face.reason or "face_mismatch")
+        if self.face.selfie_faces < self.face.selfie_count:
+            reasons.append("selfie_without_face")
+        elif not self.face.selfies_consistent:
+            reasons.append("selfies_inconsistent")
+        if not self.card.matric_match:
+            reasons.append("matric_unreadable" if self.card.matric is None else "matric_mismatch")
+        if not self.card.name_match:
+            reasons.append("name_mismatch")
+        if not self.card.um_card:
+            reasons.append("not_um_card")
+        return reasons + [r for r in self.quality.reasons if r not in reasons]
 
 
 # ── images ───────────────────────────────────────────────────────────────────
@@ -120,12 +139,28 @@ def decode_image(image_bytes: bytes) -> np.ndarray | None:
 
 # ── (a) face on the card vs selfies ──────────────────────────────────────────
 
-def _largest_face_embedding(face_app: "FaceAnalysis", img: np.ndarray) -> np.ndarray | None:
+def _largest_face(face_app: "FaceAnalysis", img: np.ndarray):
     faces = [f for f in face_app.get(img) if f.normed_embedding is not None]
     if not faces:
         return None
-    biggest = max(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
-    return biggest.normed_embedding
+    return max(faces, key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]))
+
+
+def _largest_face_embedding(face_app: "FaceAnalysis", img: np.ndarray) -> np.ndarray | None:
+    face = _largest_face(face_app, img)
+    return face.normed_embedding if face is not None else None
+
+
+def _is_upright(face) -> bool:
+    """The eyes are above the mouth: the line from between the eyes to the middle of the mouth
+    points down within 45 degrees. The detector also finds sideways and upside-down faces, but
+    their embeddings don't match the selfies."""
+    kps = getattr(face, "kps", None)
+    if kps is None:
+        return True
+    eyes, mouth = (kps[0] + kps[1]) / 2, (kps[3] + kps[4]) / 2
+    dx, dy = mouth - eyes
+    return dy > abs(dx)
 
 
 def match_faces(face_app: "FaceAnalysis", selfies: list[np.ndarray], card: np.ndarray) -> FaceMatch:
@@ -190,6 +225,31 @@ def _letters(text: str) -> str:
     return re.sub(r"[^A-Z]", "", text.upper())
 
 
+def _edit_distance(a: str, b: str) -> int:
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            cur.append(min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca != cb)))
+        prev = cur
+    return prev[-1]
+
+
+def _has_um_text(lines: list[OcrLine]) -> bool:
+    """Any UM card word (CARD_UM_KEYWORDS) on any line, in any order. OCR splits and misreads
+    them ("UNTVERSIT", "MIyEISWA"), so a word within 1 edit (2 for 7+ letters) counts, as does
+    a keyword inside a run-together line ("UNIVERSITIMALAYA")."""
+    keywords = [k for k in (_letters(k) for k in settings.CARD_UM_KEYWORDS.split(",")) if k]
+    words = [w for line in lines for w in re.findall(r"[A-Z]+", line.text.upper())]
+    for k in keywords:
+        allowed = 2 if len(k) >= 7 else 1
+        if any(k in w or (abs(len(w) - len(k)) <= allowed and _edit_distance(w, k) <= allowed)
+               for w in words):
+            return True
+    extra = settings.CARD_UM_TEXT_REGEX
+    return bool(extra) and re.search(extra, "".join(_letters(line.text) for line in lines)) is not None
+
+
 def read_card(lines: list[OcrLine], account_matric: str | None, account_name: str | None) -> CardRead:
     expected = (account_matric or "").upper().replace(" ", "")
     best: tuple[str, float] | None = None
@@ -212,28 +272,76 @@ def read_card(lines: list[OcrLine], account_matric: str | None, account_name: st
         name_score=round(name_score, 4),
         name_match=name_score >= settings.CARD_NAME_MIN_MATCH,
         lines=[line.text for line in lines],
-        um_card=re.search(settings.CARD_UM_TEXT_REGEX, card_letters) is not None,
+        um_card=_has_um_text(lines),
     )
 
 
 # ── (c) photo quality ────────────────────────────────────────────────────────
 
-def _find_card(gray: np.ndarray):
-    """The largest roughly rectangular outline in the photo, or None."""
+def _find_card(img: np.ndarray):
+    """The card's outline, in either orientation, or None. A printed card is more colourful than
+    the white or grey table under it, so look for the largest card-shaped area of one colour
+    first (one hue at a time, so a hand holding the card isn't merged with it); edge outlines
+    are the fallback (they missed the light-blue MySiswa card on a white table and picked small
+    rectangles inside it)."""
     import cv2
 
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    hue = hsv[..., 0].astype(np.int16)
+    sat = cv2.GaussianBlur(hsv[..., 1], (5, 5), 0)
+    otsu, _ = cv2.threshold(sat, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+    coloured = (sat >= max(otsu, settings.CARD_MIN_SATURATION)) & (hsv[..., 2] >= 50)
+    k = max(5, round(min(coloured.shape) * 0.02)) | 1   # fills the card's text, photo and fingers
+    best = None
+    for peak in _hue_peaks(hue[coloured]):
+        dist = np.abs(hue - peak)
+        mask = (coloured & (np.minimum(dist, 180 - dist) <= 15)).astype(np.uint8)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((k, k), np.uint8))
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((k, k), np.uint8))
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        found = _largest_card_shape(contours, mask.size, min_fill=0.7, hull=True)
+        if found is not None and (best is None or found[0] > best[0]):
+            best = found
+    if best is not None:
+        return best
+
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     edges = cv2.Canny(cv2.GaussianBlur(gray, (5, 5), 0), 30, 90)
     edges = cv2.dilate(edges, np.ones((5, 5), np.uint8), iterations=2)
     contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    img_area = gray.shape[0] * gray.shape[1]
+    return _largest_card_shape(contours, gray.size)
+
+
+def _hue_peaks(hues: np.ndarray) -> list[int]:
+    """Main colours (OpenCV hue 0-179, circular) among the saturated pixels, each at least 5%."""
+    if hues.size == 0:
+        return []
+    hist = np.bincount(hues.ravel(), minlength=180).astype(float)
+    smooth = np.convolve(np.concatenate([hist[-10:], hist, hist[:10]]), np.ones(11), "same")[10:-10]
+    peaks = []
+    for h in range(180):
+        window = smooth[np.arange(h - 12, h + 13) % 180]
+        if smooth[h] > 0.05 * hues.size and smooth[h] == window.max() and all(
+                min(abs(h - p), 180 - abs(h - p)) > 12 for p in peaks):
+            peaks.append(h)
+    return peaks
+
+
+def _largest_card_shape(contours, img_area: int, min_fill: float = 0.8, hull: bool = False):
+    """The largest outline that fills most of its bounding rectangle, as (area, contour, rect).
+    With `hull`, the outline's convex hull is used, so fingers over the edge don't count."""
+    import cv2
+
     best = None
     for c in contours:
+        if hull:
+            c = cv2.convexHull(c)
         area = cv2.contourArea(c)
         if area < 0.02 * img_area:
             continue
         rect = cv2.minAreaRect(c)
         rect_area = rect[1][0] * rect[1][1]
-        if rect_area <= 0 or area / rect_area < 0.8:     # not card-shaped
+        if rect_area <= 0 or area / rect_area < min_fill:     # not card-shaped
             continue
         if best is None or area > best[0]:
             best = (area, c, rect)
@@ -263,7 +371,7 @@ def check_quality(img: np.ndarray, lines: list[OcrLine], card_face_found: bool) 
     reasons: set[str] = set()
     scores: dict[str, float] = {}
 
-    found = _find_card(gray)
+    found = _find_card(img)
     region = (0, 0, gray.shape[1], gray.shape[0])
     if found is None:
         reasons.add("no_card_found")
@@ -279,8 +387,9 @@ def check_quality(img: np.ndarray, lines: list[OcrLine], card_face_found: bool) 
 
     x, y, w, h = region
     card_gray, card_hsv = gray[y:y + h, x:x + w], hsv[y:y + h, x:x + w]
-    if w > _NORM_WIDTH:  # only shrink: enlarging a small card would make it look blurry
-        size = (_NORM_WIDTH, max(1, round(h * _NORM_WIDTH / w)))
+    if max(w, h) > _NORM_WIDTH:  # only shrink: enlarging a small card would make it look blurry
+        scale = _NORM_WIDTH / max(w, h)   # long side, so a portrait card is measured like a landscape one
+        size = (max(1, round(w * scale)), max(1, round(h * scale)))
         card_gray = cv2.resize(card_gray, size, interpolation=cv2.INTER_AREA)
         card_hsv = cv2.resize(card_hsv, size, interpolation=cv2.INTER_AREA)
 
@@ -328,11 +437,41 @@ def verify_card(
             card=read_card([], account_matric, account_name),
         )
     selfie_imgs = [img for img in (decode_image(s) for s in selfies) if img is not None]
-    face = match_faces(face_app, selfie_imgs, card_img)
+    rotation, card_img, face, lines = _best_rotation(face_app, selfie_imgs, card_img)
     face.selfie_count = len(selfies)  # a selfie that can't be decoded counts as one without a face
-    lines = run_ocr(card_img)
+    quality = check_quality(card_img, lines, face.card_face_found)
+    quality.scores["rotation_degrees"] = rotation
     return CardVerification(
-        quality=check_quality(card_img, lines, face.card_face_found),
+        quality=quality,
         face=face,
         card=read_card(lines, account_matric, account_name),
+        rotation=rotation,
     )
+
+
+_TURNS = {0: None, 90: "ROTATE_90_CLOCKWISE", 180: "ROTATE_180", 270: "ROTATE_90_COUNTERCLOCKWISE"}
+
+
+def _best_rotation(face_app: "FaceAnalysis", selfies: list[np.ndarray], card: np.ndarray):
+    """Turn the card photo 0/90/180/270 degrees and keep the turn where the card's face is upright,
+    so an upside-down or sideways card isn't reported as faceless or not UM. Without an upright
+    face (no photo on the card), the turn where OCR reads best. Stops at the first upright face,
+    so an upright card is only read once."""
+    import cv2
+
+    best = None
+    for degrees, turn in _TURNS.items():
+        img = card if turn is None else cv2.rotate(card, getattr(cv2, turn))
+        face = _largest_face(face_app, img)
+        upright = face is not None and _is_upright(face)
+        lines = run_ocr(img)
+        read = read_card(lines, None, None)
+        ocr_ok = read.matric is not None and read.matric_confidence >= settings.CARD_OCR_MIN_CONFIDENCE
+        mean_conf = sum(line.confidence for line in lines) / len(lines) if lines else 0.0
+        key = (upright, ocr_ok, read.um_card, face is not None, read.matric_confidence, mean_conf)
+        if best is None or key > best[0]:
+            best = (key, degrees, img, lines)
+        if upright:
+            break
+    _, degrees, img, lines = best
+    return degrees, img, match_faces(face_app, selfies, img), lines

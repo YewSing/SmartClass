@@ -3,6 +3,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet, ActivityIndicator,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
+import { useFocusEffect } from '@react-navigation/native'
 import { useLecturer } from '../context/LecturerContext'
 import Topbar from '../components/Topbar'
 import * as api from '../services/api'
@@ -217,6 +218,16 @@ export default function AdminAccounts() {
     const t = setTimeout(load, 250)
     return () => clearTimeout(t)
   }, [load])
+
+  // Coming back to this tab (e.g. after approving a face in Face verification) shows fresh
+  // statuses. The first focus is covered by the search effect above.
+  const loadRef = useRef(load)
+  loadRef.current = load
+  const focusedBefore = useRef(false)
+  useFocusEffect(useCallback(() => {
+    if (focusedBefore.current) loadRef.current()
+    focusedBefore.current = true
+  }, []))
 
   const loadMore = async () => {
     setLoadingMore(true)

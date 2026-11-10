@@ -59,8 +59,10 @@ function studentAdapter(s, idx) {
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 // Turns a failed sign-in into a message the user can act on
-function signInError(e, wrongCredentials) {
+function signInError(e, wrongCredentials, local) {
   if (e.status === 401) return new Error(wrongCredentials)
+  // The server's check of the email field; never show its raw 422 body
+  if (e.status === 422 && local) return new Error('Enter your email address.')
   if (e.status === 503) return new Error(e.message || 'SPeCTRUM is not reachable right now. Please try again later.')
   if (!e.status) return new Error("Can't reach the SmartClass server. Check your connection and try again.")
   return e
@@ -75,7 +77,7 @@ export const login = async (identifier, password, { local = false } = {}) => {
       ? await apiCall('POST', '/auth/login', { email: identifier.trim(), password })
       : await apiCall('POST', '/auth/moodle-login', { username: identifier.trim(), password })
   } catch (e) {
-    throw signInError(e, local ? 'Wrong email or password.' : 'Wrong SPeCTRUM username or password.')
+    throw signInError(e, local ? 'Wrong email or password.' : 'Wrong SPeCTRUM username or password.', local)
   }
   const allowed = local ? ['lecturer', 'admin'] : ['lecturer']
   if (!allowed.includes(data.user.role)) {
@@ -102,6 +104,7 @@ export const getLecturer = async () => {
     staffId: u.lecturer?.staff_id ?? '',
     faculty: u.lecturer?.dept ?? '',
     role: u.role === 'admin' ? 'Administrator' : 'Lecturer',
+    roleKey: u.role,
     id: u.id,
     isAdmin: u.role === 'admin',
   }

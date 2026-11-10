@@ -12,7 +12,6 @@ import { SELFIE_STEPS, CARD_STEP, TOTAL_STEPS, retakeFromError } from '../servic
 import { deletePhotos, shrinkPhoto } from '../services/facePhotos'
 import { C } from '../theme'
 
-const CARD_RATIO = 85.6 / 54 // ID-1 card (matric card) width / height
 const CARD_STEP_INDEX = SELFIE_STEPS.length
 const SLOW_CAMERA_MS = 8000   // offer a restart when the camera hasn't opened by then
 
@@ -228,8 +227,8 @@ function CaptureStep({ step, onPhoto, onError }) {
     }
   }
 
-  const guideW = width * (isCard ? 0.86 : 0.62)
-  const guideH = isCard ? guideW / CARD_RATIO : guideW * 1.3
+  const guideW = width * (isCard ? 0.58 : 0.62)
+  const guideH = isCard ? guideW / CARD_STEP.guideRatio : guideW * 1.3
   const canShoot = ready && !busy && !mountError
 
   return (
@@ -368,7 +367,7 @@ const styles = StyleSheet.create({
   },
   thumbRow: { flexDirection: 'row', gap: 8 },
   selfieThumb: { flex: 1, aspectRatio: 3 / 4, borderRadius: 8, backgroundColor: C.gray100 },
-  cardThumb: { width: '100%', aspectRatio: 4 / 3, borderRadius: 8, backgroundColor: C.gray100 },
+  cardThumb: { width: '60%', alignSelf: 'center', aspectRatio: 3 / 4, borderRadius: 8, backgroundColor: C.gray100 },
   link: { color: C.primary, fontSize: 14, fontWeight: '600' },
   note: { fontSize: 13, color: C.textSub, lineHeight: 19 },
   primaryBtn: {

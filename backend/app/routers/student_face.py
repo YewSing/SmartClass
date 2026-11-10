@@ -135,20 +135,7 @@ def _verify(face_app, selfies: list[bytes], card: bytes, matric: str, name: str)
 
 def _check_reasons(v: face_verification.CardVerification) -> list[str]:
     """Why a submission wasn't auto-approved, for the lecturer's review (FR-113)."""
-    reasons = []
-    if not v.face.passed:
-        reasons.append(v.face.reason or "face_mismatch")
-    if v.face.selfie_faces < v.face.selfie_count:
-        reasons.append("selfie_without_face")
-    elif not v.face.selfies_consistent:
-        reasons.append("selfies_inconsistent")
-    if not v.card.matric_match:
-        reasons.append("matric_unreadable" if v.card.matric is None else "matric_mismatch")
-    if not v.card.name_match:
-        reasons.append("name_mismatch")
-    if not v.card.um_card:
-        reasons.append("not_um_card")
-    return reasons + [r for r in v.quality.reasons if r not in reasons]
+    return v.review_reasons()
 
 
 # Magic bytes of the formats a phone camera produces; anything else is served as plain bytes.

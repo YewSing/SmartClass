@@ -1,6 +1,14 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { auditAction, auditDetail, newAdminError, accountSubtitle, syncRows } from './adminHelpers.js'
+import { auditAction, auditDetail, newAdminError, adminSignInError, accountSubtitle, syncRows } from './adminHelpers.js'
+
+test('administrator sign-in asks for an email address instead of sending a non-email', () => {
+  assert.equal(adminSignInError({ email: '', password: 'x' }), 'Enter your email and password.')
+  assert.equal(adminSignInError({ email: 'a@b.co', password: '' }), 'Enter your email and password.')
+  assert.equal(adminSignInError({ email: 'admin', password: 'x' }), 'Enter your email address.')
+  assert.equal(adminSignInError({ email: 'devlecturer', password: 'x' }), 'Enter your email address.')
+  assert.equal(adminSignInError({ email: ' admin@smartclass.local ', password: 'x' }), null)
+})
 
 test('every face enrolment and consent action has a label', () => {
   for (const a of ['FACE_CONSENT_GIVE', 'FACE_CONSENT_WITHDRAW', 'FACE_ENROL_AUTO_APPROVE',

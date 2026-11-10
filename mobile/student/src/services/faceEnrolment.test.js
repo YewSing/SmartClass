@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   statusInfo, canStartEnrolment, consentNeeded, retakeFromError, enrolmentParts,
-  consentSummary, shrinkAction, PHOTO_MAX_SIDE, SELFIE_STEPS, TOTAL_STEPS,
+  consentSummary, shrinkAction, PHOTO_MAX_SIDE, SELFIE_STEPS, TOTAL_STEPS, CARD_STEP,
 } from './faceEnrolment.js'
 
 const err422 = (detail) => Object.assign(new Error('x'), { status: 422, detail })
@@ -31,6 +31,12 @@ test('consent is needed when missing, withdrawn or for an older notice', () => {
 test('three guided selfies then the card', () => {
   assert.deepEqual(SELFIE_STEPS.map(s => s.key), ['front', 'left', 'right'])
   assert.equal(TOTAL_STEPS, 4)
+})
+
+test('the card outline is portrait like the MySiswa card (54:86) and the hint says so', () => {
+  assert.equal(CARD_STEP.guideRatio, 54 / 86)
+  assert.ok(CARD_STEP.guideRatio < 1)
+  assert.match(CARD_STEP.hint, /upright \(portrait\)/)
 })
 
 test('a card quality 422 asks to retake the card with the server message', () => {
