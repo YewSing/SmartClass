@@ -61,6 +61,14 @@ python scripts/seed.py
 
 `seed.py` creates what Moodle can't provide: the admin account, the timetable, and an always-open test class (WIA0000, `devlecturer`). People, courses and enrolments come from the local Moodle (`backend/moodle/README.md`), which must be running, through a sync or a login.
 
+**Test accounts (local dev only):**
+
+| Role | Where to sign in | Sign in with | Password |
+|---|---|---|---|
+| Administrator | Lecturer app in a browser (http://localhost:8082) → "Administrator sign-in" | `admin@um.edu.my` | `Admin@1234` |
+| Test lecturer | Lecturer app (phone or browser), SPeCTRUM sign-in | `devlecturer` | `DevTest@1234` |
+| Students / other lecturers | Student or lecturer app, SPeCTRUM sign-in | see the table in `backend/moodle/README.md` | same table |
+
 An existing database with the old demo data: back up (`bash scripts/backup-data.sh`), then run `python scripts/reset_to_moodle.py` from `backend/` to preview and `--yes` to apply. It keeps AI materials and face enrolments.
 
 ---

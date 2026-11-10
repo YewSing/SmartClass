@@ -1,0 +1,30 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "lecturer-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "mobile/lecturer", "start", "--", "--port", "8082"],
+      "port": 8082
+    },
+    {
+      "name": "student-expo",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "mobile/student", "start", "--", "--port", "8081"],
+      "port": 8081
+    },
+    {
+      "name": "backend",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd backend && python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000"],
+      "port": 8000,
+      "url": "http://localhost:8000"
+    },
+    {
+      "name": "admin-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "frontend/admin", "run", "dev", "--", "--port", "5173"],
+      "port": 5173
+    }
+  ]
+}
