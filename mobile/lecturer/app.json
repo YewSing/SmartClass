@@ -5,9 +5,22 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "splash": { "backgroundColor": "#1B6EF3" },
-    "android": { "adaptiveIcon": { "backgroundColor": "#1B6EF3" }, "package": "my.um.smartclass.lecturer" },
-    "ios": { "supportsTablet": false, "bundleIdentifier": "my.um.smartclass.lecturer" },
-    "plugins": []
+    "splash": {
+      "backgroundColor": "#1B6EF3"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#1B6EF3"
+      },
+      "package": "my.um.smartclass.lecturer"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "my.um.smartclass.lecturer"
+    },
+    "plugins": [
+      "expo-sharing",
+      "expo-status-bar"
+    ]
   }
 }
