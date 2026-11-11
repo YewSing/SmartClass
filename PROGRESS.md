@@ -316,3 +316,9 @@ TEST-CHANGE: tests/test_seed_courses.py (test_materials_course_exists_in_the_see
 - Interface: `PUT /attendance/{record_id}/override` and `PUT /lecturer/sessions/{id}/attendance/override` accept `reason` as optional (was required). No schema change, no migration. The lecturer app's Mark Present/Absent (no reason) works again.
 - Tests: `test_attendance_override_reason.py` - 8 new cases (both endpoints save and audit with missing/null/empty/whitespace reason); override-related set 53 passed.
 - TEST-CHANGE: test_attendance_override_reason::test_record_override_requires_reason and ::test_session_override_requires_reason - renamed to `..._rejects_too_long_reason` and now cover only the 501-char case; the missing/empty/whitespace cases moved to the new `..._without_reason_is_saved_and_audited` tests, because the requirement changed (FR-305 reason optional, Yew Sing 2026-11-12).
+
+### Loop: faster rounds + Opus coach — 2026-11-12
+- Tests: db tests spent ~1.5 s each in setup hashing ~6 test passwords at bcrypt cost 12; `conftest.py` now sets cost 4 for tests only (app unchanged). check.sh pytest 9:38 → 2:53 (460 passed).
+- `run-tasks.sh` (hybrid): skips the post-commit check.sh when the committed code equals the code its pre-review check.sh passed on (`code_tree`, ignores PLAN.md/PROGRESS.md/.claude). Stuck or still-failing builds get an Opus **coach** (read-only diagnosis → `scripts/opencode/coach-fix.md` → OpenCode applies it), at most 2 rounds, before the Opus takeover (Yew Sing 2026-11-11: loop must not stop). Coach notes in `<round log>.coach`.
+- `/plan-task`: **Run** lists only targeted tests (no check.sh / full db suite, the loop runs check.sh); routes a task to `OPUS:` when it needs 2+ of migration on existing tables, background job/concurrency, time/timezone rules, >3 existing endpoints. `build.md`: async SQLAlchemy / clock / migration traps; don't run check.sh.
+- `backup-data.sh` keeps the newest 2 backups (was 3) and drops empty ones.

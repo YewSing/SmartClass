@@ -32,8 +32,14 @@ os.environ["DATABASE_URL"] = TEST_DATABASE_URL  # for the alembic subprocess
 import httpx  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 
+from app.core import security  # noqa: E402
 from app.core.database import AsyncSessionLocal, engine  # noqa: E402
 from app.core.security import create_access_token, hash_password  # noqa: E402
+
+# The user fixtures hash ~6 passwords per db test; at bcrypt's default cost (12) that was
+# ~1.5 s of setup per test, most of the suite's run time. Cost 4 is still real bcrypt
+# (hash, verify and wrong-password checks behave the same); the app itself keeps the default.
+security._pwd_ctx.update(bcrypt__rounds=4)
 from app.main import app  # noqa: E402
 from app.models.user import Lecturer, Student, User  # noqa: E402
 

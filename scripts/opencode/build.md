@@ -7,6 +7,13 @@ Hard rules (break one and the round is thrown away):
 - Never run `git push`, `git commit`, `git stash`, `git reset`, `git checkout`, `git restore` or change branches.
 - Only change files the plan names (plus new test files it names). Never touch Shino's modules (M2, M5, M6, M7).
 - Windows machine: run commands with bash (Git Bash). pytest and E2E runs take minutes: let them finish.
+- Do not run `bash scripts/check.sh` or the whole test suite (~9 min each); run only the plan's **Run** commands. The loop runs `check.sh` after you stop.
+
+Traps that cost earlier builders hours in this codebase:
+- SQLAlchemy is async. Never touch a relationship that was not loaded in the query: load it with `selectinload(...)`/`joinedload(...)`. After `db.expire_all()`, `db.refresh()` or a commit in another session, read attributes only after a fresh `await db.execute(select(...))`; a lazy load raises `MissingGreenlet`.
+- Times are naive Malaysia time (`app.core.timezone.now_myt()`). In tests, control time by monkeypatching the module's clock function (for example `session_schedule.clock`, `attendance_service.now_myt`), never `datetime` itself.
+- Migrations: add a new file in `backend/alembic/versions` whose `down_revision` is the current head (`cd backend && python -m alembic heads`); never edit an existing migration.
+- If the same test fails the same way twice, re-read the plan's **Traps** and the error's first app-code frame before changing code again.
 
 Steps:
 1. Read `CLAUDE.md` ("Task Loop Rules"), then the plan file in full.
