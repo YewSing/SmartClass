@@ -2,10 +2,12 @@
 Writes attendance records and broadcasts WebSocket events.
 """
 import asyncio
+from datetime import datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
+from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.core.timezone import now_myt
 from app.models.attendance import AttendanceRecord
@@ -17,14 +19,26 @@ from app.websocket.manager import manager
 _alerted_sessions: set[int] = set()
 
 
+def status_for_recognition(session: AttendanceSession, detected_at: datetime) -> str:
+    """FR-302: Present, or Late when the first recognition is more than
+    ATTENDANCE_LATE_AFTER_MINUTES after the session's effective start."""
+    start = session.starts_at or session.opened_at
+    if start is None:
+        return "present"
+    late_after = start + timedelta(minutes=settings.ATTENDANCE_LATE_AFTER_MINUTES)
+    return "late" if detected_at > late_after else "present"
+
+
 async def mark_present(
     session_id: int,
     student_id: int,
     db: AsyncSession,
+    now: datetime | None = None,
 ) -> tuple[AttendanceRecord, bool]:
     """
-    Insert a 'present' record for the student.
-    Returns (record, was_new) — was_new=False means the student was already present.
+    Insert a 'present' or 'late' record for the student (FR-302).
+    Returns (record, was_new) — was_new=False means the student was already recorded.
+    Only the first recognition counts: an existing record is never changed.
     """
     existing = await db.execute(
         select(AttendanceRecord).where(
@@ -37,11 +51,14 @@ async def mark_present(
     if record:
         return record, False
 
+    now = now or now_myt()
+    session = await db.get(AttendanceSession, session_id)
+    status = status_for_recognition(session, now) if session else "present"
     record = AttendanceRecord(
         session_id=session_id,
         student_id=student_id,
-        status="present",
-        detected_at=now_myt(),
+        status=status,
+        detected_at=now,
     )
     db.add(record)
     await db.flush()
@@ -100,7 +117,8 @@ async def broadcast_attendance_update(
             "record_id": record.id,
         },
     })
-    await check_low_attendance_alert(session_id, counts["present"], db)
+    # The alert payload key "present" now means attended (Present + Late).
+    await check_low_attendance_alert(session_id, counts["present"] + counts["late"], db)
 
 
 async def sweep_low_attendance_alerts(db: AsyncSession) -> None:
@@ -115,7 +133,8 @@ async def sweep_low_attendance_alerts(db: AsyncSession) -> None:
         if session.id in _alerted_sessions:
             continue
         counts = await get_session_counts(session.id, db)
-        await check_low_attendance_alert(session.id, counts["present"], db)
+        # The alert payload key "present" now means attended (Present + Late).
+        await check_low_attendance_alert(session.id, counts["present"] + counts["late"], db)
 
 
 async def low_attendance_monitor(interval_seconds: int = 30) -> None:

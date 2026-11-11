@@ -276,3 +276,11 @@ TEST-CHANGE: tests/test_seed_courses.py (test_materials_course_exists_in_the_see
 - Tests: `test_session_schedule.py` (31 db, controlled clock); check.sh 400 passed; reviewer PASS. Audit lookups in `test_char_attendance.py` (2) and `test_char_face_review.py` (1) now filter by the action under test, since Start now writes its own `SESSION_START_NOW` row; assertions unchanged.
 - Next: a `scheduled` row missed entirely (server down) becomes `needs_confirmation` with `opened_at` NULL, so `GET /lecturer/sessions` hides it and the lecturer can't find it to confirm (T38 should list it); un-cancel a class; T35 syncs only `closed` and queues on `confirm(held=true)`.
 
+
+### T30 — Four attendance statuses — 2026-11-11
+- Changed: `models/attendance.py` constants + CHECK; `attendance_service.status_for_recognition` + `mark_present(now=)` writes present/late; `get_session_counts` grouped (present/late/excused/absent/unid); both overrides accept the four statuses (400 otherwise); occurrence CSV letters P/L/E/A; face-match dry-run `already_present` true for late; low-attendance alerts count present + late.
+- Decisions: Late is strictly more than `ATTENDANCE_LATE_AFTER_MINUTES` after the effective start (`starts_at`, falling back to `opened_at`); exactly 15:00 is Present; only the first recognition counts (existing records never changed); Excused is left out of the export rate denominator (decision T00d).
+- Interface/schema: migration `b8c9d0e1f2a3` maps every unknown status (`unidentified` included) to `absent` then adds CHECK `ck_attendance_records_status`; `SessionOut`, the WS `counts` dict and close responses gain `late` + `excused` (additive); absent = enrolled − present − late − excused. Config: `ATTENDANCE_LATE_AFTER_MINUTES` (default 15).
+- Tests: new `test_attendance_statuses.py` (15 db, incl. real migration test); targeted set 84 passed; check.sh 415 passed; reviewer PASS.
+- TEST-CHANGE: `test_override_rejects_other_statuses` - "late" is a valid status since T30 (FR-304); it now sends "unidentified", still 400.
+- Next: lecturer app (`LecturerContext.jsx`, `AttendanceDetail.jsx`) and student `api.js` still count/map `unidentified` and don't show Late/Excused → T38/T39; Shino's `analytics.py` counts only `present` as attended and still mentions `unidentified` (T37 / requests-for-shino).

@@ -12,11 +12,12 @@ from sqlalchemy.orm import selectinload
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.session import AttendanceSession
-from app.models.attendance import AttendanceRecord
+from app.models.attendance import AttendanceRecord, ATTENDED_STATUSES
 from app.models.camera import Camera
 from app.models.class_ import Enrollment
 from app.models.user import Student
 from app.schemas.session import FaceMatchRequest, FaceMatchResponse
+from app.services import session_schedule
 from app.services.attendance_service import mark_present, broadcast_attendance_update
 
 router = APIRouter(prefix="/internal", tags=["internal"])
@@ -139,11 +140,13 @@ async def face_match(
             student_id=candidate_student_id,
             student_name=student.user.name,
             similarity=similarity,
-            already_present=bool(already and already.status == "present"),
+            already_present=bool(already and already.status in ATTENDED_STATUSES),
         )
 
     # Commit the match — write attendance record
-    record, was_new = await mark_present(body.session_id, candidate_student_id, db)
+    record, was_new = await mark_present(
+        body.session_id, candidate_student_id, db, now=session_schedule.clock()
+    )
 
     if was_new:
         await broadcast_attendance_update(

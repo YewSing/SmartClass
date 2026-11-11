@@ -14,7 +14,7 @@ from app.core.deps import ensure_teaches_occurrence, require_role
 from app.models.user import User, Student
 from app.models.class_ import Enrollment, ClassOccurrence
 from app.models.session import AttendanceSession
-from app.models.attendance import AttendanceRecord
+from app.models.attendance import AttendanceRecord, ATTENDANCE_STATUSES, ATTENDED_STATUSES
 from app.schemas.session import AttendanceStudentOut, OverrideRequest, SessionOverrideRequest
 from app.services.audit_service import write_log
 from app.services.session_service import get_session_counts
@@ -23,6 +23,8 @@ from app.websocket.manager import manager
 router = APIRouter(tags=["attendance"])
 
 _lecturer = require_role("lecturer")
+
+_LETTER = {"present": "P", "late": "L", "excused": "E", "absent": "A"}
 
 
 async def _get_taught_session(db: AsyncSession, actor: User, session_id: int) -> AttendanceSession:
@@ -85,8 +87,9 @@ async def override_attendance(
     db: AsyncSession = Depends(get_db),
     actor: User = Depends(_lecturer),
 ):
-    if body.status not in ("present", "absent"):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Status must be 'present' or 'absent'")
+    if body.status not in ATTENDANCE_STATUSES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Status must be one of: present, late, excused, absent")
 
     result = await db.execute(
         select(AttendanceRecord)
@@ -142,9 +145,10 @@ async def override_session_attendance(
     db: AsyncSession = Depends(get_db),
     actor: User = Depends(_lecturer),
 ):
-    """Create-or-update an attendance record for a student who has no existing record (not_recorded → present/absent)."""
-    if body.status not in ("present", "absent"):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Status must be 'present' or 'absent'")
+    """Create-or-update an attendance record for a student who has no existing record (not_recorded → any of the four statuses)."""
+    if body.status not in ATTENDANCE_STATUSES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Status must be one of: present, late, excused, absent")
     await _get_taught_session(db, actor, session_id)
 
     student_result = await db.execute(
@@ -312,19 +316,18 @@ async def export_occurrence(
 
     for stu in students:
         row = [stu.matric_no, stu.user.name]
-        present = 0
+        attended = 0
+        excused = 0
         for sess in sessions:
             att = records_by_session[sess.id].get(stu.id, "absent")
-            if att == "present":
-                row.append("P")
-                present += 1
-            elif att == "unidentified":
-                row.append("U")
-            else:
-                row.append("A")
-        total = len(sessions)
-        rate = round((present / total) * 100, 1) if total > 0 else 0.0
-        row += [f"{present}/{total}", f"{rate}%"]
+            row.append(_LETTER.get(att, "A"))
+            if att in ATTENDED_STATUSES:
+                attended += 1
+            if att == "excused":
+                excused += 1
+        counted = len(sessions) - excused  # Excused is left out of the rate (decision T00d)
+        rate = round(attended / counted * 100, 1) if counted > 0 else 0.0
+        row += [f"{attended}/{counted}", f"{rate}%"]
         writer.writerow(row)
 
     year = sessions[0].opened_at.year if sessions else now_myt().year

@@ -21,6 +21,8 @@ class SessionOut(BaseModel):
     source: str = "manual"              # schedule | manual
     present: int = 0
     absent: int = 0
+    late: int = 0
+    excused: int = 0
     unid: int = 0
 
     model_config = {"from_attributes": True}
@@ -44,7 +46,7 @@ class AttendanceStudentOut(BaseModel):
     student_id: int
     matric_no: str
     name: str
-    status: str  # present | absent | unidentified | not_recorded
+    status: str  # present | late | excused | absent | not_recorded
     detected_at: Optional[datetime] = None
     overridden: bool = False
 
@@ -52,12 +54,12 @@ class AttendanceStudentOut(BaseModel):
 
 
 class OverrideRequest(BaseModel):
-    status: str  # present | absent
+    status: str  # present | late | excused | absent
 
 
 class SessionOverrideRequest(BaseModel):
     student_id: int
-    status: str  # present | absent
+    status: str  # present | late | excused | absent
 
 
 class FaceMatchRequest(BaseModel):

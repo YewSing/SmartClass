@@ -55,19 +55,22 @@ async def get_session_counts(session_id: int, db: AsyncSession) -> dict:
         )
         enrolled = enrolled_result.scalar_one()
 
-    present_result = await db.execute(
-        select(func.count()).select_from(AttendanceRecord).where(
-            AttendanceRecord.session_id == session_id,
-            AttendanceRecord.status == "present",
-        )
+    rows = await db.execute(
+        select(AttendanceRecord.status, func.count())
+        .where(AttendanceRecord.session_id == session_id)
+        .group_by(AttendanceRecord.status)
     )
-    present = present_result.scalar_one()
+    by_status = dict(rows.all())
+    present, late, excused = (by_status.get(s, 0) for s in ("present", "late", "excused"))
 
     unid_result = await db.execute(
         select(func.count()).select_from(FaceReviewEntry).where(FaceReviewEntry.session_id == session_id)
     )
     return {
         "present": present,
-        "absent": max(0, enrolled - present),
+        "late": late,
+        "excused": excused,
+        # Enrolled students not counted as present/late/excused (including not yet recorded).
+        "absent": max(0, enrolled - present - late - excused),
         "unid": unid_result.scalar_one(),
     }

@@ -77,7 +77,7 @@ async def test_override_record_updates_status_and_writes_audit(
 async def test_override_rejects_other_statuses(lecturer_client, classroom, db_session):
     session_id = await _open_session(lecturer_client, classroom)
     record_id = await _add_record(db_session, session_id, classroom["student_ids"][0], "absent")
-    resp = await lecturer_client.put(f"/attendance/{record_id}/override", json={"status": "late"})
+    resp = await lecturer_client.put(f"/attendance/{record_id}/override", json={"status": "unidentified"})
     assert resp.status_code == 400
     assert (await lecturer_client.put("/attendance/999999/override", json={"status": "present"})).status_code == 404
 
