@@ -54,7 +54,19 @@ if [ "$BUILDER" = "opencode" ]; then
 fi
 
 oc() {  # one OpenCode turn; SMARTCLASS_NO_PUSH makes the pre-push hook refuse
-  SMARTCLASS_NO_PUSH=1 opencode run --standalone --auto -m "$OC_MODEL" "$@"
+  local out rc try
+  for try in 1 2 3; do
+    out=$(mktemp)
+    SMARTCLASS_NO_PUSH=1 opencode run --standalone --auto -m "$OC_MODEL" "$@" > "$out" 2>&1; rc=$?
+    cat "$out"
+    # A provider/network drop ends the turn early; continue the same session instead of giving up.
+    if grep -qiE "Error: *(Transport|.*timeout|.*ECONNRESET|.*overloaded|.*rate limit)" <(tail -n 5 "$out") && [ "$try" -lt 3 ]; then
+      rm -f "$out"; echo "   (OpenCode connection error; retrying in 60 s)" >&2; sleep 60
+      set -- -c "The connection dropped. Continue exactly where you stopped, with the same instructions."
+      continue
+    fi
+    rm -f "$out"; return $rc
+  done
 }
 
 opus_build() {  # $1 log, $2 optional extra instruction
@@ -95,7 +107,7 @@ PY
   for r in 1 2; do
     if grep -q "TASK: STUCK" <(tail -n 5 "$log"); then break; fi
     bash scripts/check.sh > "$log.check" 2>&1; check_rc=$?
-    claude --agent reviewer -p "Task $task. Its plan: $plan (read it). PLAN.md entry:
+    claude --agent reviewer -p "Task $task. Its plan: $plan (read it). Ticking the task in PLAN.md and writing its PROGRESS.md Log entry happen AFTER your review, so their absence is not a finding. PLAN.md entry:
 $(grep -A1 -F "**$task " PLAN.md | head -n 2)
 
 bash scripts/check.sh exited $check_rc. Its last lines:

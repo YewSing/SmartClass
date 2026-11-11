@@ -13,6 +13,7 @@ pydantic[email]
 httpx==0.28.1
 pytest==8.3.4
 pytest-asyncio==0.24.0
+pytest-timeout==2.3.1
 numpy==1.26.4
 
 # Face self-enrolment: local OCR of the matric card (FR-111; card images stay on the server).

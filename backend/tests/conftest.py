@@ -88,9 +88,65 @@ async def _recreate_database() -> None:
         await conn.close()
 
 
+class _TestDatabaseLock:
+    """One pytest run at a time per test database. A second run (another terminal, or a loop
+    builder's leftover run) would DROP ... WITH (FORCE) and truncate it under the first one:
+    users vanish mid-test (401s) and a TRUNCATE can wait on a stale transaction for ever."""
+
+    def __init__(self, name: str):
+        import tempfile
+
+        self.path = Path(tempfile.gettempdir()) / f"smartclass-pytest-{name}.lock"
+        self.file = None
+
+    def acquire(self) -> None:
+        import time
+
+        self.file = open(self.path, "a+b")
+        warned = False
+        while True:
+            try:
+                if sys.platform == "win32":
+                    import msvcrt
+                    self.file.seek(0)
+                    msvcrt.locking(self.file.fileno(), msvcrt.LK_NBLCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(self.file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                return
+            except OSError:
+                if not warned:
+                    print(f"\nAnother pytest run is using {_test_url.database}; waiting for it to finish...",
+                          file=sys.stderr)
+                    warned = True
+                time.sleep(2)
+
+    def release(self) -> None:
+        if self.file is None:
+            return
+        try:
+            if sys.platform == "win32":
+                import msvcrt
+                self.file.seek(0)
+                msvcrt.locking(self.file.fileno(), msvcrt.LK_UNLCK, 1)
+        except OSError:
+            pass
+        self.file.close()  # closing also drops an flock
+        self.file = None
+
+
 @pytest.fixture(scope="session")
 def _test_database():
     """Create + migrate smartclass_test once per session (only when a db test runs)."""
+    lock = _TestDatabaseLock(_test_url.database)
+    lock.acquire()
+    try:
+        yield _prepare_test_database()
+    finally:
+        lock.release()
+
+
+def _prepare_test_database() -> str:
     try:
         asyncio.run(_recreate_database())
     except OSError as exc:
