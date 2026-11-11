@@ -257,3 +257,8 @@ TEST-CHANGE: tests/test_seed_courses.py (test_materials_course_exists_in_the_see
 - Changed: first hybrid round (plan Opus `.claude/plans/T23b.md`, build OpenCode deepseek-v4.1-flash, review Sonnet). The WIP T23a commit already held session restore (`services/session.js`), Accounts refresh on focus and the non-email sign-in message; DeepSeek added a no-status session test and `initialNumToRender={60}` on ClassDetail, which fixes the 2 long-failing `class-detail.spec.js` tests (11 students in WIA0000).
 - Interface/schema: none. Tests: lecturer `npm test` 19 passed; Playwright `npm run e2e:web` 25/25 (reviewer ran it); check.sh 362 passed. Reviewer: code PASS (its only findings were the tick and this entry).
 - Loop fixes found on this round: a crashed OpenCode left a pytest run going that clobbered the next one (test DB now has a per-run lock + 600 s test timeout); OpenCode retries on connection errors; the reviewer no longer flags the not-yet-written tick/log.
+
+### T23 retest — 2026-11-12 (Yew Sing, phone + browser)
+- T23a manual check done: `eval_card_quality.py` on the 13 real card photos: 11 AUTO-APPROVE (2 needed a 90/270 turn), the 2 very blurry ones BLOCKED (blur 8.9, 11.5); before T23a, 8 were `no_card_found` and 3 `card_too_small` (misdetections). Phone: proper card auto-approved; myrapid transport card went to review (matric unreadable, face 3%). T23a ticked `[x]`.
+- T23b passed in the browser (stays signed in after refresh, Accounts refresh, sign-in message). New gap → T23c: Accounts shows "No face data" while a submission is pending review.
+
