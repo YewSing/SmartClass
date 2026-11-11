@@ -336,3 +336,10 @@ TEST-CHANGE: tests/test_seed_courses.py (test_materials_course_exists_in_the_see
 - Schema (migration `c9d0e1f2a3b4`): `attendance_sessions` + `moodle_sync_status` (CHECK pending|synced|failed|conflict, indexed), `moodle_session_id`, `moodle_sync_attempts`, `moodle_sync_next_at`, `moodle_synced_at`, `moodle_sync_error`; `attendance_records` + `moodle_status_sent` (CHECK four statuses). No API change.
 - Tests: new `test_attendance_moodle_sync.py` (15 db with respx + 1 `moodle` end-to-end into local WIA0000, cleans up its Moodle session); check.sh 475 passed; `-m moodle` 12 passed; reviewer PASS.
 - Next: T36 (re-sync after override, conflict check, retry endpoint, sync status in the session API).
+
+### T81 — Scheduled material sync + lecturer materials status — 2026-11-12
+- Changed: `services/kb/sync.py` `sync_all` now re-fetches each course per iteration and logs a captured `code`, fixing a real bug found while testing: a failed course's `rollback()` expired every loaded `Course`, so the log line and the next course hit SQLAlchemy `MissingGreenlet` under async. The schedule (`kb_sync_loop` + `KB_SYNC_INTERVAL_SECONDS`), the manual trigger (`POST /kb/courses/{id}/sync`) and the status list (`GET /kb/courses/{id}/materials`) already existed from T80; T81 formalises and tests the scheduled path and access control.
+- Decisions: no new endpoints or schema — "only the course's lecturer (or admin)" is already enforced by `_course_for_staff` in the router.
+- Interface/schema changes: none.
+- Tests: new `tests/test_kb_sync_schedule.py` (5 `db` tests: sync_all over every Moodle-linked course, skip non-Moodle courses, isolate a failing course, loop disabled without a token and at zero interval); check.sh 480 passed.
+- Next: T82.

@@ -99,16 +99,20 @@ async def sync_all() -> list[SyncReport]:
     """Sync every course that exists in Moodle (courses without a Moodle match are skipped)."""
     reports = []
     async with AsyncSessionLocal() as db, MoodleClient() as client:
-        courses = (await db.execute(select(Course).order_by(Course.code))).scalars().all()
-        for course in courses:
+        course_ids = (await db.execute(select(Course.id).order_by(Course.code))).scalars().all()
+        for course_id in course_ids:
+            # Re-fetch each course fresh: a failed course's rollback below expires every loaded
+            # object, so holding onto Course instances across iterations breaks the next one.
+            course = (await db.execute(select(Course).where(Course.id == course_id))).scalar_one()
+            code = course.code  # plain value, safe to log after the rollback
             try:
-                if course.moodle_course_id is None and await client.get_course_id(course.code) is None:
+                if course.moodle_course_id is None and await client.get_course_id(code) is None:
                     continue
                 reports.append(await sync_course(db, course, client))
                 await db.commit()
             except Exception as exc:
                 await db.rollback()
-                log.warning("KB sync failed for %s: %s", course.code, exc)
+                log.warning("KB sync failed for %s: %s", code, exc)
     return reports
 
 
