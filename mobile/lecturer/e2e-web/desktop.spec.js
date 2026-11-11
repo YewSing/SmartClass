@@ -146,11 +146,11 @@ test('desktop: an administrator can change their password in a centred dialog', 
   await page.getByPlaceholder('your@um.edu.my').fill('admin@um.edu.my')
   await page.getByPlaceholder('Enter password').fill('Admin@1234')
   await page.getByText('Sign In', { exact: true }).click()
-  await expect(page.getByTestId('sidenav-Home')).toBeVisible()
+  // Administrators land on the admin area (T22), which has the change-password button
+  await expect(page.getByTestId('sidenav-Accounts')).toBeVisible()
+  expect(await horizontalOverflow(page)).toEqual([])
 
-  await visible(page.getByLabel('Profile')).click()
-  await expectScreen(page, 'My Profile')
-  await visible(page.getByText('Change Password')).click()
+  await visible(page.getByLabel('Change my password')).click()
   await expect(visible(page.getByPlaceholder('Enter current password'))).toBeVisible()
   const dialog = await visible(page.getByPlaceholder('Enter current password')).boundingBox()
   expect(dialog.width).toBeLessThan(480)   // centred dialog, not a full-width sheet

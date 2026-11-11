@@ -41,6 +41,7 @@ class UserDetailOut(BaseModel):
     phone: Optional[str] = None
     status: str
     created_at: datetime
+    moodle_linked: bool = False   # signs in through SPeCTRUM; its name and password belong to Moodle
     face_enrolled: bool = False
     face_enrolled_at: Optional[datetime] = None
     student: Optional[StudentProfileOut] = None

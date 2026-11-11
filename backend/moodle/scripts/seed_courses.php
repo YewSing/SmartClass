@@ -38,19 +38,73 @@ function matches_any(string $rel, array $globs): ?string {
     return null;
 }
 
-// ---- Users
+// ---- Local, git-ignored extra users/enrolments (e.g. a developer's own account with a real
+// matric number). scripts/seed.sh copies backend/moodle/seed_config.local.json here if it exists.
+$localpath = '/tmp/seed_config.local.json';
+if (is_readable($localpath)) {
+    $local = json_decode(file_get_contents($localpath), true);
+    if (!$local) { fwrite(STDERR, "Bad JSON in seed_config.local.json\n"); exit(1); }
+    $conf['users'] = array_merge($conf['users'], $local['users'] ?? []);
+    $conf['enrolments'] = array_merge($conf['enrolments'], $local['enrolments'] ?? []);
+    echo "local seed: " . count($local['users'] ?? []) . " user(s)\n";
+}
+
+// ---- Custom profile fields (SmartClass reads them as programme / year_sem, FR-107)
+require_once($CFG->dirroot . '/user/profile/lib.php');
+$fieldids = [];
+if (!empty($conf['profile_fields']) && !$dry) {
+    $cat = $DB->get_record('user_info_category', ['name' => 'Student record']);
+    if (!$cat) {
+        $cat = (object)['name' => 'Student record', 'sortorder' => $DB->count_records('user_info_category') + 1];
+        $cat->id = $DB->insert_record('user_info_category', $cat);
+    }
+    foreach ($conf['profile_fields'] as $i => $f) {
+        $ex = $DB->get_record('user_info_field', ['shortname' => $f['shortname']]);
+        if (!$ex) {
+            echo "create profile field: {$f['shortname']}\n";
+            $ex = (object)[
+                'shortname' => $f['shortname'], 'name' => $f['name'], 'datatype' => 'text',
+                'description' => '', 'descriptionformat' => FORMAT_HTML, 'categoryid' => $cat->id,
+                'sortorder' => $i + 1, 'required' => 0, 'locked' => 1, 'visible' => PROFILE_VISIBLE_ALL,
+                'forceunique' => 0, 'signup' => 0, 'defaultdata' => '', 'defaultdataformat' => FORMAT_HTML,
+                'param1' => 30, 'param2' => 255, 'param3' => 0,
+            ];
+            $ex->id = $DB->insert_record('user_info_field', $ex);
+        }
+        $fieldids[$f['shortname']] = $ex->id;
+    }
+}
+
+// ---- Users. Existing users get their idnumber, department and profile fields updated.
 $ids = [];
 foreach ($conf['users'] as $u) {
     $ex = $DB->get_record('user', ['username' => $u['username'], 'mnethostid' => $CFG->mnet_localhost_id]);
-    if ($ex) { $ids[$u['username']] = $ex->id; echo "user exists: {$u['username']}\n"; continue; }
-    echo "create user: {$u['username']}\n";
-    if ($dry) continue;
-    $o = new stdClass();
-    $o->username = $u['username']; $o->firstname = $u['firstname']; $o->lastname = $u['lastname'];
-    $o->email = $u['email']; $o->auth = 'manual'; $o->confirmed = 1; $o->mnethostid = $CFG->mnet_localhost_id;
-    $o->password = hash_internal_user_password($u['password']);
-    $o->lang = 'en'; $o->city = 'Kuala Lumpur'; $o->country = 'MY';
-    $ids[$u['username']] = user_create_user($o, false, false);
+    if ($ex) {
+        $ids[$u['username']] = $ex->id;
+        $upd = new stdClass(); $upd->id = $ex->id; $changed = false;
+        foreach (['idnumber', 'department'] as $k) {
+            if (isset($u[$k]) && $ex->$k !== $u[$k]) { $upd->$k = $u[$k]; $changed = true; }
+        }
+        if ($changed && !$dry) user_update_user($upd, false, false);
+        echo ($changed ? "user updated" : "user exists") . ": {$u['username']}\n";
+    } else {
+        echo "create user: {$u['username']}\n";
+        if ($dry) continue;
+        $o = new stdClass();
+        $o->username = $u['username']; $o->firstname = $u['firstname']; $o->lastname = $u['lastname'];
+        $o->email = $u['email']; $o->auth = 'manual'; $o->confirmed = 1; $o->mnethostid = $CFG->mnet_localhost_id;
+        $o->password = hash_internal_user_password($u['password']);
+        $o->lang = 'en'; $o->city = 'Kuala Lumpur'; $o->country = 'MY';
+        $o->idnumber = $u['idnumber'] ?? ''; $o->department = $u['department'] ?? '';
+        $ids[$u['username']] = user_create_user($o, false, false);
+    }
+    if (!$dry && !empty($u['profile'])) {
+        $p = new stdClass(); $p->id = $ids[$u['username']];
+        foreach ($u['profile'] as $short => $value) {
+            if (isset($fieldids[$short])) { $p->{'profile_field_' . $short} = $value; }
+        }
+        profile_save_data($p);
+    }
 }
 
 // ---- Courses

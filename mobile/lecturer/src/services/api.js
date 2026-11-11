@@ -59,8 +59,10 @@ function studentAdapter(s, idx) {
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 // Turns a failed sign-in into a message the user can act on
-function signInError(e, wrongCredentials) {
+function signInError(e, wrongCredentials, local) {
   if (e.status === 401) return new Error(wrongCredentials)
+  // The server's check of the email field; never show its raw 422 body
+  if (e.status === 422 && local) return new Error('Enter your email address.')
   if (e.status === 503) return new Error(e.message || 'SPeCTRUM is not reachable right now. Please try again later.')
   if (!e.status) return new Error("Can't reach the SmartClass server. Check your connection and try again.")
   return e
@@ -75,7 +77,7 @@ export const login = async (identifier, password, { local = false } = {}) => {
       ? await apiCall('POST', '/auth/login', { email: identifier.trim(), password })
       : await apiCall('POST', '/auth/moodle-login', { username: identifier.trim(), password })
   } catch (e) {
-    throw signInError(e, local ? 'Wrong email or password.' : 'Wrong SPeCTRUM username or password.')
+    throw signInError(e, local ? 'Wrong email or password.' : 'Wrong SPeCTRUM username or password.', local)
   }
   const allowed = local ? ['lecturer', 'admin'] : ['lecturer']
   if (!allowed.includes(data.user.role)) {
@@ -101,7 +103,9 @@ export const getLecturer = async () => {
     initials: initials(u.name),
     staffId: u.lecturer?.staff_id ?? '',
     faculty: u.lecturer?.dept ?? '',
-    role: 'Lecturer',
+    role: u.role === 'admin' ? 'Administrator' : 'Lecturer',
+    roleKey: u.role,
+    id: u.id,
     isAdmin: u.role === 'admin',
   }
 }
@@ -219,6 +223,61 @@ export const getAnalytics = async (occurrenceId, dateParams = {}) => {
     : ''
   return apiCall('GET', `/lecturer/analytics?occurrence_id=${occurrenceId}${qs}`)
 }
+
+// ─── Face verification queue (FR-113) ────────────────────────────────────────
+
+// Submissions waiting for review, oldest first; only students of the lecturer's courses
+export const getPendingFaceSubmissions = async () => apiCall('GET', '/face-verification/pending')
+
+export const approveFaceSubmission = async (id) => apiCall('POST', `/face-verification/${id}/approve`)
+
+export const rejectFaceSubmission = async (id, reason) =>
+  apiCall('POST', `/face-verification/${id}/reject`, { reason: reason.trim() })
+
+// A review photo needs the token. An <img> can't send it, and Android's Image drops `headers`
+// (new architecture), so the photo is fetched here: a blob URL on web (the caller revokes it),
+// a data URI on phones.
+export const fetchFaceImageUri = async (path, { web = false } = {}) => {
+  const blob = await (await apiCallRaw('GET', path)).blob()
+  if (web) return URL.createObjectURL(blob)
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result)
+    reader.onerror = () => reject(new Error("Couldn't read the photo"))
+    reader.readAsDataURL(blob)
+  })
+}
+
+// ─── Admin area (browser only; the server answers 403 to anyone but an admin) ───
+
+const query = (params) => {
+  const parts = Object.entries(params)
+    .filter(([, v]) => v !== undefined && v !== null && v !== '')
+    .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+  return parts.length ? `?${parts.join('&')}` : ''
+}
+
+// Accounts (FR-103, FR-108): { items, total, page, limit }
+export const adminListUsers = async ({ q, role, status, page = 1, limit = 50 } = {}) =>
+  apiCall('GET', `/admin/users${query({ q: q?.trim(), role, status, page, limit })}`)
+
+export const adminDeactivateUser = async (id) => apiCall('DELETE', `/admin/users/${id}`)
+
+export const adminReactivateUser = async (id) => apiCall('POST', `/admin/users/${id}/reactivate`)
+
+export const adminCreateAdmin = async ({ name, email, password }) =>
+  apiCall('POST', '/admin/users', { name: name.trim(), email: email.trim(), password, role: 'admin' })
+
+// Deletes the student's face data and closes a pending submission (FR-117)
+export const adminResetFaceData = async (userId) => apiCall('DELETE', `/admin/students/${userId}/face-data`)
+
+export const adminAuditLogs = async ({ page = 1, limit = 50 } = {}) =>
+  apiCall('GET', `/admin/audit-logs${query({ page, limit })}`)
+
+// Moodle sync (FR-104): the last full sync (null before the first) and "Sync now"
+export const adminLastSync = async () => apiCall('GET', '/admin/moodle/sync')
+
+export const adminSyncNow = async () => apiCall('POST', '/admin/moodle/sync')
 
 // ─── Mocked (Module 3/4 — quiz) ────────────────────────
 

@@ -13,7 +13,12 @@ pydantic[email]
 httpx==0.28.1
 pytest==8.3.4
 pytest-asyncio==0.24.0
+pytest-timeout==2.3.1
 numpy==1.26.4
+
+# Face self-enrolment: local OCR of the matric card (FR-111; card images stay on the server).
+# InsightFace itself is installed from face_worker/requirements.txt.
+rapidocr-onnxruntime==1.4.4
 
 # Module 8 knowledge base + AI assistant
 fastembed==0.9.1
@@ -21,3 +26,5 @@ pymupdf==1.28.2
 python-pptx==1.0.2
 python-docx==1.2.0
 openai==3.46.0
+opencv-python==4.10.0.84   # imported by app/services/face_verification.py
+pillow==12.2.0             # test card images, scripts/e2e_face_review.py

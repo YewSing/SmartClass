@@ -71,6 +71,9 @@ fi
 
 # --- cleanup -----------------------------------------------------------------
 started_pids=()          # bash PIDs of processes we started (uvicorn, Expo)
+# A flow may bring test data: e2e/<flow>.setup.sh is run with `setup` before Maestro and `teardown` on exit.
+flow_setup="$app_dir/e2e/$FLOW.setup.sh"
+flow_setup_ran=""
 booted_emulator=""       # serial of the emulator if we booted it
 kill_tree() {            # Windows needs taskkill /T to stop node/python child processes
   local pid=$1 winpid
@@ -84,6 +87,7 @@ cleanup() {
   local code=$?
   trap - EXIT INT TERM
   echo "== cleanup"
+  [ -n "$flow_setup_ran" ] && { bash "$flow_setup" teardown || echo "   (flow teardown failed)"; }
   for pid in "${started_pids[@]}"; do kill_tree "$pid"; done
   if [ -n "$booted_emulator" ]; then
     adb -s "$booted_emulator" emu kill >/dev/null 2>&1 || true
@@ -157,6 +161,12 @@ echo "== opening $APP in Expo Go"
 adb reverse "tcp:$EXPO_PORT" "tcp:$EXPO_PORT" >/dev/null 2>&1 || true
 adb shell am force-stop "$EXPO_GO" >/dev/null 2>&1 || true
 adb shell am start -a android.intent.action.VIEW -d "exp://127.0.0.1:$EXPO_PORT" "$EXPO_GO" >/dev/null
+
+if [ -f "$flow_setup" ]; then
+  echo "== flow setup $(basename "$flow_setup")"
+  flow_setup_ran=1
+  bash "$flow_setup" setup || { echo "Flow setup failed"; exit 1; }
+fi
 
 echo "== maestro test $flow_file"
 run_maestro test "$(to_win "$flow_file")" --debug-output "$(to_win "$logdir/maestro-$APP-$FLOW-$stamp")"

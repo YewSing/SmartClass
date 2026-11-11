@@ -38,6 +38,9 @@ Thumbs.db
 # Local Moodle simulation (contains service token)
 backend/moodle/.env.moodle
 
+# Real matric card photos for threshold calibration (T21) — never committed (PDPA)
+backend/eval/
+
 # Local tool installs (Maestro CLI, from scripts/e2e-mobile.sh)
 .tools/
 
@@ -50,3 +53,9 @@ backend/moodle/.env.moodle
 .claude/.stop-blocks
 .claude/.live-pass
 .claude/.loop.lock
+
+# Personal Moodle test accounts (real name + matric number) — never committed
+backend/moodle/seed_config.local.json
+
+# Private documents (proposal, rubrics, FYP reports): names and matric numbers, never committed
+docs/private/

@@ -7,6 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient'
 import { Ionicons } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLecturer } from '../context/LecturerContext'
+import { adminSignInError } from '../services/adminHelpers'
 import { C } from '../theme'
 
 export default function Login({ navigation }) {
@@ -29,8 +30,11 @@ export default function Login({ navigation }) {
 
   const handleLogin = async () => {
     setLocalErr('')
-    if (!identifier.trim() || !password) {
-      setLocalErr(local ? 'Enter your email and password.' : 'Enter your SPeCTRUM username and password.')
+    const problem = local
+      ? adminSignInError({ email: identifier, password })
+      : (!identifier.trim() || !password) && 'Enter your SPeCTRUM username and password.'
+    if (problem) {
+      setLocalErr(problem)
       return
     }
     try {

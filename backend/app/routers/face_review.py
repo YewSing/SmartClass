@@ -18,6 +18,7 @@ from app.models.face import FaceEmbedding
 from app.models.user import User, Student
 from app.models.attendance import AttendanceRecord
 from app.services.audit_service import write_log
+from app.services.consent_service import require_active_consent
 from app.services.session_service import get_session_counts
 from app.websocket.manager import manager
 
@@ -243,6 +244,7 @@ async def promote_review_entry(
     student = stu_result.scalar_one_or_none()
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
+    await require_active_consent(db, student.id)  # NFR-03: no embedding without consent
 
     # Upsert face embedding (replaces existing data for re-enrollment)
     existing_emb = await db.execute(

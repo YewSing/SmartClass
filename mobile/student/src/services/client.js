@@ -113,10 +113,37 @@ export async function apiCall(method, path, body, _isRetry = false) {
     throw new Error('Session expired. Please log in again.')
   }
 
+  return _result(res)
+}
+
+// Multipart upload (photos). `makeForm` builds a fresh FormData, so a retry after a refresh can resend it.
+export async function apiUpload(method, path, makeForm, _isRetry = false) {
+  const token = getToken()
+  const res = await fetch(`${BASE}${path}`, {
+    method,
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: makeForm(),
+  })
+
+  if (res.status === 401 && !_isRetry) {
+    const refreshed = await _doRefresh()
+    if (refreshed) return apiUpload(method, path, makeForm, true)
+    _forceLogout()
+    throw new Error('Session expired. Please log in again.')
+  }
+
+  return _result(res)
+}
+
+// A non-2xx response becomes an Error with `status` and the raw `detail` (which may be an object)
+async function _result(res) {
   if (!res.ok) {
     const e = await res.json().catch(() => ({}))
-    const err = new Error(e.detail ?? `HTTP ${res.status}`)
+    const d = e.detail
+    const msg = typeof d === 'string' ? d : (d?.message ?? `HTTP ${res.status}`)
+    const err = new Error(msg)
     err.status = res.status
+    err.detail = d
     throw err
   }
   return res.status === 204 ? null : res.json()

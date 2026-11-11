@@ -24,7 +24,7 @@ def _url(path: str) -> str:
 
 
 def mock_moodle(*, user_id=42, username="23004001", fullname="Ali Hassan", email="ali@siswa.um.edu.my",
-                idnumber="", department="FSKTM", roles=("student",), token_body=None):
+                idnumber="", department="FSKTM", roles=("student",), token_body=None, customfields=()):
     """Mock token.php + the four web-service calls for one Moodle user enrolled in one course."""
     respx.post(_url("/login/token.php")).mock(
         return_value=httpx.Response(200, json=token_body or {"token": "user-token", "privatetoken": None}))
@@ -37,7 +37,8 @@ def mock_moodle(*, user_id=42, username="23004001", fullname="Ali Hassan", email
             return httpx.Response(200, json={"userid": user_id, "username": username, "fullname": fullname})
         if fn == "core_user_get_users_by_field":
             return httpx.Response(200, json=[{"id": user_id, "username": username, "fullname": fullname,
-                                              "email": email, "idnumber": idnumber, "department": department}])
+                                              "email": email, "idnumber": idnumber, "department": department,
+                                              "customfields": list(customfields)}])
         if fn == "core_enrol_get_users_courses":
             return httpx.Response(200, json=[{"id": 7, "shortname": "WIF3001"}])
         if fn == "core_enrol_get_enrolled_users":
@@ -125,6 +126,34 @@ async def test_existing_account_with_same_email_is_linked_not_duplicated(client,
     assert user["id"] == users["student"].id
     assert user["student"]["matric_no"] == "S0000001"  # no Moodle idnumber: the real matric is kept
     assert (await db_session.execute(select(func.count(Student.id)))).scalar_one() == 1
+
+
+PROFILE_FIELDS = [{"shortname": "programme", "value": "Bachelor of Computer Science (Software Engineering)"},
+                  {"shortname": "yearsem", "value": "Year 3, Semester 1 (2026/2027)"}]
+
+
+@pytest.mark.db
+@respx.mock
+async def test_login_copies_programme_and_year_from_moodle_profile_fields(client):
+    mock_moodle(idnumber="23004001", department="Faculty of Computer Science and Information Technology",
+                customfields=PROFILE_FIELDS)
+    resp = await _login(client)
+    assert resp.status_code == 200, resp.text
+    student = resp.json()["user"]["student"]
+    assert student["programme"] == "Bachelor of Computer Science (Software Engineering)"
+    assert student["year_sem"] == "Year 3, Semester 1 (2026/2027)"
+    assert student["faculty"] == "Faculty of Computer Science and Information Technology"
+
+    # A later login with the fields changed in Moodle updates them; empty ones keep the old value
+    respx.reset()
+    mock_moodle(idnumber="23004001", department="", customfields=[
+        {"shortname": "programme", "value": ""},
+        {"shortname": "yearsem", "value": "Year 3, Semester 2 (2026/2027)"},
+    ])
+    student = (await _login(client)).json()["user"]["student"]
+    assert student["programme"] == "Bachelor of Computer Science (Software Engineering)"
+    assert student["year_sem"] == "Year 3, Semester 2 (2026/2027)"
+    assert student["faculty"] == "Faculty of Computer Science and Information Technology"
 
 
 @pytest.mark.db

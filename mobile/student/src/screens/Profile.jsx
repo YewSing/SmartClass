@@ -16,7 +16,7 @@ const ACCOUNT_FIELDS = (s) => [
   { icon: 'layers-outline',   bg: C.orangeLt, color: C.orange,    label: 'Year / Semester', value: s?.yearSem },
 ]
 
-export default function Profile() {
+export default function Profile({ navigation }) {
   const { state, loadClasses, openModal } = useStudent()
   const { student, classes } = state
   const insets = useSafeAreaInsets()
@@ -94,6 +94,13 @@ export default function Profile() {
         {/* Account actions */}
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Account</Text>
+          <TouchableOpacity style={styles.actionRow} onPress={() => navigation.navigate('FaceEnrolment')}>
+            <View style={[styles.fieldIcon, { backgroundColor: C.blueLt }]}>
+              <Ionicons name="scan-outline" size={16} color={C.primary} />
+            </View>
+            <Text style={styles.actionLabel}>Face enrolment</Text>
+            <Ionicons name="chevron-forward" size={16} color={C.textHint} />
+          </TouchableOpacity>
           <TouchableOpacity style={[styles.actionRow, { borderBottomWidth: 0 }]} onPress={confirmSignOut}>
             <View style={[styles.fieldIcon, { backgroundColor: C.redLt }]}>
               <Ionicons name="log-out-outline" size={16} color={C.red} />

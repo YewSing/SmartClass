@@ -1,0 +1,145 @@
+# Face enrolment (T18): Profile → Face enrolment status → PDPA consent → guided camera steps
+# (selfie oval, card outline) → submit → retake message → withdraw consent.
+# Run: bash scripts/e2e-mobile.sh student face-enrolment
+# Needs the local Moodle up (student4 signs in through it). The emulator's virtual cameras show a
+# test scene with no face in it, so the server answers 422 "retake your selfies"; real auto-approve
+# and review paths are covered by the backend tests (T16/T17) and by hand on a phone.
+appId: host.exp.exponent
+---
+- extendedWaitUntil:
+    visible: "Welcome back|Continue"
+    timeout: 180000
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+- extendedWaitUntil:
+    visible: "Welcome back"
+    timeout: 60000
+
+- tapOn:
+    id: "login-username"
+- inputText: "student4"
+- tapOn:
+    id: "login-password"
+- inputText: "Student123!"
+- hideKeyboard
+- tapOn: "Sign In"
+
+- extendedWaitUntil:
+    visible: "Profile"
+    timeout: 60000
+- tapOn: "Profile"
+- scrollUntilVisible:
+    element: "Face enrolment"
+    direction: DOWN
+- tapOn: "Face enrolment"
+- extendedWaitUntil:
+    visible: "Your face data \\(PDPA\\)"
+    timeout: 30000
+
+# Start from a clean state: an earlier run may have left consent (and face data) behind
+- runFlow:
+    when:
+      visible: "Withdraw consent"
+    commands:
+      - tapOn: "Withdraw consent"
+      - tapOn: "Withdraw"
+      - extendedWaitUntil:
+          visible: "You have not given consent.*"
+          timeout: 15000
+
+# Status screen (FR-115)
+- assertVisible: "Not enrolled"
+- assertVisible: "You have not given consent.*"
+- takeScreenshot: face-status-not-enrolled
+- tapOn: "Start enrolment"
+
+# PDPA consent notice (FR-109)
+- extendedWaitUntil:
+    visible: "Face data consent"
+    timeout: 10000
+- assertVisible: "What we collect"
+- takeScreenshot: face-consent
+- scrollUntilVisible:
+    element: "I agree"
+    direction: DOWN
+- tapOn: "I agree"
+
+# Android asks for the camera the first time
+- runFlow:
+    when:
+      visible: "While using the app"
+    commands:
+      - tapOn: "While using the app"
+- runFlow:
+    when:
+      visible: "Allow camera"
+    commands:
+      - tapOn: "Allow camera"
+      - runFlow:
+          when:
+            visible: "While using the app"
+          commands:
+            - tapOn: "While using the app"
+
+# Guided selfies (FR-110): three angles with the oval guide
+- extendedWaitUntil:
+    visible: "Step 1 of 4"
+    timeout: 20000
+- assertVisible: "Look straight at the camera"
+- assertVisible:
+    id: "selfie-guide"
+- takeScreenshot: face-selfie-step
+- tapOn:
+    id: "capture-button"
+- extendedWaitUntil:
+    visible: "Turn your head slightly left"
+    timeout: 20000
+- tapOn:
+    id: "capture-button"
+- extendedWaitUntil:
+    visible: "Turn your head slightly right"
+    timeout: 20000
+- tapOn:
+    id: "capture-button"
+
+# Card photo with the card-outline guide
+- extendedWaitUntil:
+    visible: "Step 4 of 4"
+    timeout: 20000
+- assertVisible: "Photo of your matric card"
+- assertVisible: "Hold the card upright \\(portrait\\).*"
+- assertVisible:
+    id: "card-guide"
+- takeScreenshot: face-card-step
+- tapOn:
+    id: "capture-button"
+
+# Review, then submit: no face in the emulator scene → specific retake message
+- extendedWaitUntil:
+    visible: "Submit"
+    timeout: 20000
+- assertVisible: "Retake card photo"
+- tapOn: "Submit"
+- extendedWaitUntil:
+    visible: "Please retake your selfies"
+    timeout: 90000
+- assertVisible: "We couldn't see your face.*"
+- assertVisible: "Retake"
+- assertNotVisible: "Submit anyway"
+- takeScreenshot: face-retake
+
+# Back to the status screen; consent was given, so withdraw it to leave no state behind (FR-116)
+- back
+- extendedWaitUntil:
+    visible: "Withdraw consent"
+    timeout: 15000
+- assertVisible: "Not enrolled"
+- assertVisible: "You accepted the face-data notice.*"
+- tapOn: "Withdraw consent"
+- tapOn: "Withdraw"
+- extendedWaitUntil:
+    visible: "You have not given consent.*"
+    timeout: 15000

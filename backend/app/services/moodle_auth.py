@@ -9,7 +9,7 @@ import httpx
 
 from app.core.config import settings
 from app.services.kb.moodle_client import MoodleClient, MoodleError
-from app.services.moodle_sync import MoodleCourse, course_from_enrolled
+from app.services.moodle_sync import MoodleCourse, course_from_enrolled, profile_fields
 
 MOODLE_SERVICE = "smartclass"
 
@@ -35,6 +35,7 @@ class MoodleProfile:
     idnumber: str | None
     department: str | None
     teaches: bool
+    fields: dict = field(default_factory=dict)   # moodle_sync.profile_fields() of the user record
     courses: list[MoodleCourse] = field(default_factory=list)
 
 
@@ -82,6 +83,7 @@ async def read_profile(token: str, base_url: str | None = None) -> MoodleProfile
         idnumber=(details.get("idnumber") or "").strip() or None,
         department=details.get("department") or None,
         teaches=teaches,
+        fields=profile_fields(details),
         courses=my_courses,
     )
 

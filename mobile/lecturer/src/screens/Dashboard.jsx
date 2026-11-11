@@ -4,8 +4,11 @@ import {
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
+import { useFocusEffect } from '@react-navigation/native'
 import { useLecturer } from '../context/LecturerContext'
 import Badge from '../components/Badge'
+import * as api from '../services/api'
+import { pendingLabel } from '../services/faceReview'
 import { C } from '../theme'
 
 const DAY_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -51,12 +54,19 @@ export default function Dashboard({ navigation }) {
     loadAllClasses()
   }, [])
 
+  // Face enrolments waiting for this lecturer (FR-113); a failed count just hides the banner
+  const [pendingFaces, setPendingFaces] = useState(0)
+  const loadPendingFaces = useCallback(async () => {
+    try { setPendingFaces((await api.getPendingFaceSubmissions()).length) } catch { setPendingFaces(0) }
+  }, [])
+  useFocusEffect(useCallback(() => { loadPendingFaces() }, [loadPendingFaces]))
+
   const [refreshing, setRefreshing] = useState(false)
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
-    await Promise.all([loadClasses(), loadSessions(), loadAllClasses()])
+    await Promise.all([loadClasses(), loadSessions(), loadAllClasses(), loadPendingFaces()])
     setRefreshing(false)
-  }, [loadClasses, loadSessions, loadAllClasses])
+  }, [loadClasses, loadSessions, loadAllClasses, loadPendingFaces])
 
   const activeSession = sessions.find(s => s.open)
   const sessionOpen   = Boolean(activeSession)
@@ -207,6 +217,18 @@ export default function Dashboard({ navigation }) {
         )}
       </View>
 
+      {pendingFaces > 0 && (
+        <TouchableOpacity
+          style={styles.faceBanner}
+          testID="home-face-review"
+          onPress={() => navigation.navigate('FaceVerification')}
+        >
+          <Ionicons name="id-card-outline" size={18} color={C.orangeDk} />
+          <Text style={styles.faceBannerText}>{pendingLabel(pendingFaces)}</Text>
+          <Ionicons name="chevron-forward" size={16} color={C.orangeDk} />
+        </TouchableOpacity>
+      )}
+
       {sessionOpen && (
         <>
           {/* Attendance */}
@@ -265,6 +287,24 @@ const styles = StyleSheet.create({
     backgroundColor: C.bg,
     paddingHorizontal: 16,
     paddingBottom: 20,
+  },
+  faceBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: C.orangeLt,
+    borderWidth: 1,
+    borderColor: C.orange,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginTop: 12,
+  },
+  faceBannerText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: C.orangeDk,
   },
   appHeader: {
     flexDirection: 'row',

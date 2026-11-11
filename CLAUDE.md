@@ -1,7 +1,7 @@
 # SmartClass — Claude Code Guide
 
 ## Project Overview
-SmartClass is a classroom management system for UM (Universiti Malaya): Moodle-based login, face recognition attendance (Raspberry Pi at the entrance), attendance management synced to Moodle, and an AI learning assistant over course materials. It has one React web frontend (admin) and two React Native mobile apps (lecturer, student). A local Moodle (`backend/moodle/`) simulates UM SPeCTRUM. Scope is defined by `PROJECT PROPOSAL PAPER.pdf` (8 modules); IoT environment control and desk projection were dropped.
+SmartClass is a classroom management system for UM (Universiti Malaya): Moodle-based login, face recognition attendance (Raspberry Pi at the entrance), attendance management synced to Moodle, and an AI learning assistant over course materials. It has one React web frontend (admin) and two React Native mobile apps (lecturer, student). A local Moodle (`backend/moodle/`) simulates UM SPeCTRUM. Scope is defined by `docs/private/PROJECT PROPOSAL PAPER.pdf` (local only, git-ignored) (8 modules); IoT environment control and desk projection were dropped.
 
 **Web direction (decided 2026-11-09):** lecturers also use the lecturer app in a browser (same Expo code via Expo web). Administrators stay as a small role with a few web-only screens inside that app. `frontend/admin` is retired once PLAN.md T22, T46 and T96 are done; keep it working until then.
 
@@ -40,6 +40,7 @@ The web frontend is independent with its own `package.json`, `node_modules`, and
 cd backend
 docker compose up -d                              # start postgres+pgvector
 pip install -r requirements.txt
+pip install -r face_worker/requirements.txt       # insightface: without it face enrolment answers 503
 alembic upgrade head
 python scripts/seed.py                            # admin, timetable, always-open test class (safe to re-run)
 uvicorn app.main:app --reload --host 0.0.0.0     # API at localhost:8000, also reachable from phone
@@ -116,6 +117,7 @@ docs/
 - Modules 1, 3, 4, 8 → Yew Sing (User Mgmt, Attendance Mgmt, Face Recognition, AI Learning Assistant)
 - Modules 2, 5, 6, 7 → Shino (Dashboard & Notifications, Classroom Interaction, AI Quiz, Learning Analytics)
 - Where Yew Sing's modules need Shino's, build only the interface/stub described in the FR doc.
+- Requests between the two are written in `docs/requests-for-shino.md` (read it after pulling `main`; reply in its Status line).
 
 **Diagrams still to be created:** System Architecture, Module Diagram, Class Diagram, ERD, Activity Diagrams, Navigation Diagram, Wireframes.
 
@@ -130,6 +132,7 @@ docs/
 
 ## Task Loop Rules (PLAN.md / PROGRESS.md)
 Long jobs run as one task per fresh session. Start everything with `/run-plan [rounds]`, 5 tasks per run at most unless Yew Sing asks for more, so the work gets checked before more is built (it runs `scripts/run-tasks.sh` in the background, one fresh Opus session per task running `/next-task`, and reports at the end). The reviewer subagent runs on Sonnet.
+- **Hybrid loop** (`SMARTCLASS_BUILDER=opencode bash scripts/run-tasks.sh <rounds> [turns]`): Opus plans each task with `/plan-task` into `.claude/plans/<task>.md`, OpenCode (`SMARTCLASS_OC_MODEL`, default `opencode-go/deepseek-v4.1-flash`) builds it, the Sonnet `reviewer` checks it (2 fix rounds), OpenCode commits. `[OPUS]` tasks, a stuck builder or a failed review fall back to Opus `/next-task`. Prompts: `scripts/opencode/`.
 - **One task per session.** Pick the first unchecked task in `PLAN.md` whose dependencies are all `[x]` and which is not tagged `[HUMAN]`. No task below an unticked `[HUMAN] Checkpoint` may start. Never start a second task.
 - A task is **DONE** only when: code written, tests written, `bash scripts/check.sh` passes, its "Done when" line is met, and the reviewer agent found no unresolved real problems.
 - `[UI]` tasks are done only when their Maestro (mobile) or Playwright (lecturer web) flow passes. If the E2E setup is broken, mark the task `[~]` and explain in PROGRESS.md.

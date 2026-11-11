@@ -1,4 +1,5 @@
-import { apiCall, setToken, clearToken, setRefreshToken, clearRefreshToken } from './client'
+import { apiCall, apiUpload, setToken, clearToken, setRefreshToken, clearRefreshToken } from './client'
+import { enrolmentParts } from './faceEnrolment'
 import { PART_SUMMARY, PARTICIPATION_GROUPS, SESSION_PERFS } from '../data/mockData'
 import { C } from '../theme'
 
@@ -193,7 +194,26 @@ export const getChatMessages = (sessionId) =>
 export const sendChatMessage = (sessionId, content) =>
   apiCall('POST', `/student/assistant/sessions/${sessionId}/messages`, { content })
 
-// ─── Mocked (Module 3/4 — participation/quiz) ─────────────────────────────────
+// ─── Face enrolment (FR-109, FR-110, FR-115, FR-116) ──────────────────────────
+
+export const getFaceConsent = () => apiCall('GET', '/student/me/face-consent')
+
+export const giveFaceConsent = (version) =>
+  apiCall('POST', '/student/me/face-consent', { version })
+
+export const withdrawFaceConsent = () => apiCall('DELETE', '/student/me/face-consent')
+
+export const getFaceEnrolment = () => apiCall('GET', '/student/me/face-enrolment')
+
+// selfies: [{ uri }], card: { uri }. A 422 carries `detail` = { reasons, message, can_submit_anyway, ... }
+export const submitFaceEnrolment = (selfies, card, submitAnyway = false) =>
+  apiUpload('POST', '/student/me/face-enrolment', () => {
+    const form = new FormData()
+    for (const [name, value] of enrolmentParts(selfies, card, submitAnyway)) form.append(name, value)
+    return form
+  })
+
+// ─── Mocked (Module 3/4 — participation/quiz)─────────────────────────────────
 
 const delay = (ms) => new Promise(res => setTimeout(res, ms))
 
