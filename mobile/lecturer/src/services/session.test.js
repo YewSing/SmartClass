@@ -35,3 +35,11 @@ test('a network failure shows Login but keeps the tokens for next time', async (
   const r = await restoreSession({ hasStoredSession: true, fetchMe: failWith(undefined) })
   assert.deepEqual(r, { user: null, signOut: false })
 })
+
+test('an error without a status (refresh failed, client already signed out) does not sign out again', async () => {
+  const r = await restoreSession({
+    hasStoredSession: true,
+    fetchMe: async () => { throw new Error('Session expired. Please log in again.') },
+  })
+  assert.deepEqual(r, { user: null, signOut: false })
+})

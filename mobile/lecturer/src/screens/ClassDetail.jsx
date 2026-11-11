@@ -135,6 +135,7 @@ export default function ClassDetail({ route, navigation }) {
       ) : (
         <FlatList
           data={shown}
+          initialNumToRender={60}   // render a whole class at once (WIA0000 has 11), so the count matches the rows
           keyExtractor={s => String(s.id)}
           renderItem={({ item }) => <StudentRow student={item} />}
           ListHeaderComponent={header}
