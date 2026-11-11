@@ -22,6 +22,10 @@ test('unknown audit actions get a tidied label', () => {
   assert.deepEqual(auditAction('SOME_NEW_THING'), { label: 'Some new thing', tone: 'neutral' })
 })
 
+test('class schedule and session actions have a label', () => {
+  assert.deepEqual(auditAction('SESSION_CANCELLED'), { label: 'Cancelled class', tone: 'warn' })
+})
+
 test('audit detail shows old → new and skips empty values', () => {
   assert.equal(auditDetail({ old_val: '{"status": "active"}', new_val: '{"status": "inactive"}' }),
     'Status: active → Status: inactive')

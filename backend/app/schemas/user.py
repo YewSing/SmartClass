@@ -10,9 +10,9 @@ class OccurrenceEnrollmentOut(BaseModel):
     course_name: str
     type: str
     label: Optional[str] = None
-    day_of_week: str
-    start_time: str
-    end_time: str
+    day_of_week: Optional[str] = None
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
 
     model_config = {"from_attributes": True}
 

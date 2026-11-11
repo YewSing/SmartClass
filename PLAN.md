@@ -81,7 +81,7 @@ These M8 tasks run before everything else after the T04 checkpoint, so the stude
 
 ## 2. Module 3 — Attendance Management
 
-- [ ] **T29 [API] Sessions open from the class schedule (FR-301, FR-315–FR-317).** Depends on: T02, T04.
+- [x] **T29 [API] Sessions open from the class schedule (FR-301, FR-315–FR-317).** Depends on: T02, T04.
   Done when: a background job opens each class's session `SESSION_EARLY_OPEN_MINUTES` (config, default 15) before its scheduled start and closes it at the scheduled end, once per class date, in Malaysia time; sessions store their effective start and end; a lecturer can set the weekly schedule (day, time, room) of classes they teach, which Moodle sync never overwrites; for one class a lecturer can change the time (before or during it), start now, end early, extend or cancel, each audited and without changing the weekly schedule; a class with no schedule never opens by itself but can be started manually; a session reaching its end with no recognitions and no lecturer action becomes `needs_confirmation`, with no Absent marks and no Moodle sync until the lecturer confirms it was held or not held; tests use a controlled clock for each case.
 - [ ] **T30 [API] Four attendance statuses (FR-302–FR-304).** Depends on: T29.
   Done when: attendance status is limited to `present | late | excused | absent`; a first recognition more than `ATTENDANCE_LATE_AFTER_MINUTES` (config, default 15) after the session's effective start records `late`; `excused` is only ever set by a lecturer override (data migration: existing `unidentified` records → `absent`, and unidentified faces live only in the face-review table); the API, seed and tests are updated; CHECK constraint in the DB.

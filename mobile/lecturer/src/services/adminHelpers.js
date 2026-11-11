@@ -25,6 +25,14 @@ const AUDIT_ACTIONS = {
   FACE_REVIEW_DISMISS:    { label: 'Dismissed face alert',     tone: 'neutral' },
   FACE_PROMOTE:           { label: 'Resolved face alert',      tone: 'info' },
   ATTENDANCE_OVERRIDE:    { label: 'Overrode attendance',      tone: 'warn' },
+  CLASS_SCHEDULE_SET:     { label: 'Set class schedule',       tone: 'info' },
+  SESSION_START_NOW:      { label: 'Started class now',        tone: 'info' },
+  SESSION_TIME_CHANGED:   { label: 'Changed class time',       tone: 'info' },
+  SESSION_EXTENDED:       { label: 'Extended class',           tone: 'info' },
+  SESSION_ENDED:          { label: 'Ended class',              tone: 'info' },
+  SESSION_CANCELLED:      { label: 'Cancelled class',          tone: 'warn' },
+  SESSION_CONFIRMED_HELD: { label: 'Confirmed class was held', tone: 'good' },
+  SESSION_CONFIRMED_NOT_HELD: { label: 'Confirmed class was not held', tone: 'warn' },
 }
 
 const tidy = (code) => {

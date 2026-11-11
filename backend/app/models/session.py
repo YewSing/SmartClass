@@ -1,7 +1,7 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional, TYPE_CHECKING
 
-from sqlalchemy import String, ForeignKey, func
+from sqlalchemy import CheckConstraint, Date, ForeignKey, Index, String, func, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -15,6 +15,13 @@ if TYPE_CHECKING:
 
 class AttendanceSession(Base):
     __tablename__ = "attendance_sessions"
+    __table_args__ = (
+        CheckConstraint("status IN ('scheduled','open','closed','needs_confirmation','cancelled')",
+                        name="ck_attendance_sessions_status"),
+        CheckConstraint("source IN ('schedule','manual')", name="ck_attendance_sessions_source"),
+        Index("uq_attendance_sessions_schedule_date", "occurrence_id", "class_date", unique=True,
+              postgresql_where=text("source = 'schedule'")),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     occurrence_id: Mapped[int] = mapped_column(
@@ -22,9 +29,15 @@ class AttendanceSession(Base):
     )
     lecturer_id: Mapped[int] = mapped_column(ForeignKey("lecturers.id"), nullable=False, index=True)
     camera_id: Mapped[Optional[int]] = mapped_column(ForeignKey("cameras.id"), nullable=True, index=True)
-    opened_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
+    opened_at: Mapped[Optional[datetime]] = mapped_column(nullable=True, server_default=func.now())
     closed_at: Mapped[Optional[datetime]] = mapped_column()
+    # scheduled | open | closed | needs_confirmation | cancelled
     status: Mapped[str] = mapped_column(String(20), nullable=False, server_default="open")
+    class_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True, index=True)  # MYT date of the class
+    starts_at: Mapped[Optional[datetime]] = mapped_column()   # effective start (Late clock in T30 uses this)
+    ends_at: Mapped[Optional[datetime]] = mapped_column()     # effective end; the job closes the session here
+    source: Mapped[str] = mapped_column(String(20), nullable=False, server_default="manual")  # schedule | manual
+    lecturer_action_at: Mapped[Optional[datetime]] = mapped_column()  # last in-class lecturer action (FR-317)
 
     occurrence: Mapped[Optional["ClassOccurrence"]] = relationship(back_populates="sessions")
     lecturer: Mapped["Lecturer"] = relationship(back_populates="sessions")

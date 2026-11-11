@@ -1,7 +1,9 @@
-from typing import Optional
+from typing import Literal, Optional
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_validator
+
+_HHMM = r"^([01]\d|2[0-3]):[0-5]\d$"
 
 
 class CourseOut(BaseModel):
@@ -28,9 +30,9 @@ class OccurrenceOut(BaseModel):
     course_code: str
     course_name: str
     type: str           # LECTURE | TUTORIAL
-    day_of_week: str
-    start_time: str
-    end_time: str
+    day_of_week: Optional[str] = None
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
     room: Optional[str] = None
     lecturer_id: Optional[int] = None
     lecturer_name: Optional[str] = None
@@ -38,6 +40,37 @@ class OccurrenceOut(BaseModel):
     enrolled_count: int = 0
 
     model_config = {"from_attributes": True}
+
+
+class WeeklyScheduleRequest(BaseModel):
+    """The weekly timetable slot of a class. All three time fields together, or none to clear it."""
+
+    day_of_week: Optional[Literal["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]] = None
+    start_time: Optional[str] = Field(None, pattern=_HHMM)
+    end_time: Optional[str] = Field(None, pattern=_HHMM)
+    room: Optional[str] = Field(None, max_length=255)
+
+    @model_validator(mode="after")
+    def _check(self) -> "WeeklyScheduleRequest":
+        given = [self.day_of_week, self.start_time, self.end_time]
+        if any(v is not None for v in given) and not all(v is not None for v in given):
+            raise ValueError("Give day, start and end together, or none to clear the schedule")
+        if self.start_time and self.end_time and self.end_time <= self.start_time:
+            raise ValueError("The end time must be after the start time")
+        return self
+
+
+class ClassTimeRequest(BaseModel):
+    """New times for one class date (FR-315)."""
+
+    start_time: str = Field(pattern=_HHMM)
+    end_time: str = Field(pattern=_HHMM)
+
+    @model_validator(mode="after")
+    def _check(self) -> "ClassTimeRequest":
+        if self.end_time <= self.start_time:
+            raise ValueError("The end time must be after the start time")
+        return self
 
 
 class OccurrenceStudentOut(BaseModel):

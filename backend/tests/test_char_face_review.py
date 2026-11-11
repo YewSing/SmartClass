@@ -133,7 +133,7 @@ async def test_admin_promote_sets_embedding_and_marks_present(
     ))).scalar_one()
     assert rec.status == "present"
     assert rec.override_by == users["admin"].id
-    log = (await db_session.execute(select(AuditLog))).scalar_one()
+    log = (await db_session.execute(select(AuditLog).where(AuditLog.action == "FACE_PROMOTE"))).scalar_one()
     assert log.action == "FACE_PROMOTE"
 
     # Promoting again (entry gone) is 404.

@@ -5,6 +5,8 @@ Closing a session auto-marks all enrolled students who have no attendance record
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
+from datetime import datetime
+
 from app.core.timezone import now_myt
 from app.models.session import AttendanceSession
 from app.models.attendance import AttendanceRecord
@@ -12,12 +14,12 @@ from app.models.class_ import Enrollment
 from app.models.face_review import FaceReviewEntry
 
 
-async def close_session(session_id: int, db: AsyncSession) -> AttendanceSession:
+async def close_session(session_id: int, db: AsyncSession, now: datetime | None = None) -> AttendanceSession:
     result = await db.execute(select(AttendanceSession).where(AttendanceSession.id == session_id))
     session = result.scalar_one()
 
     session.status = "closed"
-    session.closed_at = now_myt()
+    session.closed_at = now or now_myt()
 
     # Find all enrolled students for this occurrence
     enrolled = await db.execute(

@@ -63,6 +63,11 @@ class Settings(BaseSettings):
     KB_CHUNK_MAX_TOKENS: int = 500
     KB_CHUNK_OVERLAP_TOKENS: int = 50
 
+    # Class sessions from the timetable (FR-301, FR-315–FR-317)
+    SESSION_EARLY_OPEN_MINUTES: int = 15          # FR-301: sessions open this long before the scheduled start
+    SESSION_SCHEDULER_INTERVAL_SECONDS: int = 60  # 0 disables the schedule job (the E2E backends turn it off)
+    SESSION_DEFAULT_MINUTES: int = 120            # length of a "start now" class that has no schedule
+
     # Moodle (UM SPeCTRUM simulation) – source of courses and materials
     MOODLE_URL: str = "http://localhost:8080"
     MOODLE_TOKEN: str = ""

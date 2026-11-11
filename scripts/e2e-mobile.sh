@@ -133,7 +133,7 @@ adb shell input keyevent 82 >/dev/null 2>&1 || true     # unlock screen
 # look at real answers turns this off with E2E_LLM_FAKE=0 (see mobile/student/e2e/assistant-look.yaml).
 echo "== starting backend on :$API_PORT (LLM_FAKE=${E2E_LLM_FAKE:-1})"
 (cd "$root/backend" && docker compose up -d >/dev/null 2>&1) || echo "   (docker compose up failed; continuing)"
-(cd "$root/backend" && LLM_FAKE="${E2E_LLM_FAKE:-1}" exec python -m uvicorn app.main:app --host 0.0.0.0 --port "$API_PORT") \
+(cd "$root/backend" && LLM_FAKE="${E2E_LLM_FAKE:-1}" SESSION_SCHEDULER_INTERVAL_SECONDS=0 exec python -m uvicorn app.main:app --host 0.0.0.0 --port "$API_PORT") \
   > "$logdir/e2e-backend-$stamp.log" 2>&1 &
 started_pids+=($!)
 wait_for 60 "backend /health" curl -sf "http://127.0.0.1:$API_PORT/health" || { tail -20 "$logdir/e2e-backend-$stamp.log"; exit 1; }

@@ -66,7 +66,8 @@ async def list_classes(
             current_time = now.strftime("%H:%M")
             occurrences = [
                 o for o in occurrences
-                if o.day_of_week == today
+                if o.has_schedule
+                and o.day_of_week == today
                 and o.start_time <= current_time <= o.end_time
             ]
 

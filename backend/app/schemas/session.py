@@ -1,7 +1,7 @@
 from typing import Optional
-from datetime import datetime
+from datetime import date, datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class SessionOut(BaseModel):
@@ -12,9 +12,13 @@ class SessionOut(BaseModel):
     class_code: str
     class_name: str
     lecturer_id: int
-    opened_at: datetime
+    opened_at: Optional[datetime] = None
     closed_at: Optional[datetime] = None
-    status: str
+    status: str                         # scheduled | open | closed | needs_confirmation | cancelled
+    class_date: Optional[date] = None
+    starts_at: Optional[datetime] = None
+    ends_at: Optional[datetime] = None
+    source: str = "manual"              # schedule | manual
     present: int = 0
     absent: int = 0
     unid: int = 0
@@ -24,6 +28,15 @@ class SessionOut(BaseModel):
 
 class OpenSessionRequest(BaseModel):
     occurrence_id: int
+    duration_minutes: Optional[int] = Field(None, ge=1, le=600)
+
+
+class ExtendRequest(BaseModel):
+    minutes: int = Field(ge=1, le=240)
+
+
+class ConfirmRequest(BaseModel):
+    held: bool
 
 
 class AttendanceStudentOut(BaseModel):

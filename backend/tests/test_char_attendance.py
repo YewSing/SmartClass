@@ -66,7 +66,7 @@ async def test_override_record_updates_status_and_writes_audit(
     assert rec.override_by == users["lecturer"].id
     assert rec.override_at is not None
 
-    log = (await db_session.execute(select(AuditLog))).scalar_one()
+    log = (await db_session.execute(select(AuditLog).where(AuditLog.action == "ATTENDANCE_OVERRIDE"))).scalar_one()
     assert log.action == "ATTENDANCE_OVERRIDE"
     assert log.actor_id == users["lecturer"].id
     assert (log.target_type, log.target_id) == ("attendance_record", str(record_id))
@@ -106,7 +106,7 @@ async def test_session_override_creates_missing_record(lecturer_client, classroo
     ))).scalar_one()
     assert rec.status == "present"
 
-    log = (await db_session.execute(select(AuditLog))).scalar_one()
+    log = (await db_session.execute(select(AuditLog).where(AuditLog.action == "ATTENDANCE_OVERRIDE"))).scalar_one()
     assert json.loads(log.old_val) == {"status": "not_recorded"}
 
     resp = await lecturer_client.put(
