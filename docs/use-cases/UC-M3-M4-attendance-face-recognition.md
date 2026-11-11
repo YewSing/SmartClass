@@ -122,8 +122,8 @@
 
 **Main Flow:**
 1. Lecturer selects a student in a session and changes their status to Present, Late, Excused or Absent.
-2. System requires a reason (FR-305).
-3. System saves the change and audits actor, old status, new status, reason and time (NFR-06).
+2. Lecturer may add a reason (optional, FR-305).
+3. System saves the change and audits actor, old status, new status, reason (if given) and time (NFR-06).
 4. If the session was already synced, system queues a re-sync (FR-312).
 
 ---

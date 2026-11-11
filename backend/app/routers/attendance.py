@@ -88,7 +88,7 @@ async def override_attendance(
     db: AsyncSession = Depends(get_db),
     actor: User = Depends(_lecturer),
 ):
-    """Override one record's status. A reason is required (FR-305) and is audited."""
+    """Override one record's status. An optional reason (FR-305) is audited."""
     if body.status not in ATTENDANCE_STATUSES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail="Status must be one of: present, late, excused, absent")
@@ -149,7 +149,7 @@ async def override_session_attendance(
 ):
     """Create-or-update an attendance record for a student who has no existing record (not_recorded → any of the four statuses).
 
-    A reason is required (FR-305) and is audited.
+    An optional reason (FR-305) is audited.
     """
     if body.status not in ATTENDANCE_STATUSES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,

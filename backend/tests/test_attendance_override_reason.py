@@ -1,4 +1,4 @@
-"""FR-305 / NFR-06: every attendance override needs a reason and is fully audited."""
+"""FR-305 / NFR-06: an attendance override may carry a reason (optional) and is fully audited."""
 import json
 
 import pytest
@@ -12,10 +12,14 @@ pytestmark = pytest.mark.db
 OVERRIDE = "ATTENDANCE_OVERRIDE"
 
 BAD_REASON_BODIES = [
+    {"status": "present", "reason": "x" * 501},   # too long
+]
+
+NO_REASON_BODIES = [
     {"status": "present"},                        # missing
+    {"status": "present", "reason": None},        # null
     {"status": "present", "reason": ""},          # empty
     {"status": "present", "reason": "   "},       # whitespace-only
-    {"status": "present", "reason": "x" * 501},   # too long
 ]
 
 
@@ -46,7 +50,7 @@ async def _override_log_count(db) -> int:
 
 
 @pytest.mark.parametrize("body", BAD_REASON_BODIES)
-async def test_record_override_requires_reason(lecturer_client, classroom, db_session, body):
+async def test_record_override_rejects_too_long_reason(lecturer_client, classroom, db_session, body):
     session_id = await _open_session(lecturer_client, classroom)
     record_id = await _add_record(db_session, session_id, classroom["student_ids"][0], "absent")
 
@@ -61,7 +65,7 @@ async def test_record_override_requires_reason(lecturer_client, classroom, db_se
 
 
 @pytest.mark.parametrize("body", BAD_REASON_BODIES)
-async def test_session_override_requires_reason(lecturer_client, classroom, db_session, body):
+async def test_session_override_rejects_too_long_reason(lecturer_client, classroom, db_session, body):
     session_id = await _open_session(lecturer_client, classroom)
     student_id = classroom["student_ids"][2]
 
@@ -80,6 +84,50 @@ async def test_session_override_requires_reason(lecturer_client, classroom, db_s
     )
     assert record_count == 0
     assert await _override_log_count(db_session) == 0
+
+
+@pytest.mark.parametrize("body", NO_REASON_BODIES)
+async def test_record_override_without_reason_is_saved_and_audited(
+    lecturer_client, users, classroom, db_session, body
+):
+    session_id = await _open_session(lecturer_client, classroom)
+    record_id = await _add_record(db_session, session_id, classroom["student_ids"][0], "absent")
+
+    resp = await lecturer_client.put(f"/attendance/{record_id}/override", json=body)
+    assert resp.status_code == 200, resp.text
+
+    db_session.expire_all()
+    rec = await db_session.get(AttendanceRecord, record_id)
+    assert rec.status == "present"
+    logs = await _override_logs(db_session)
+    assert len(logs) == 1
+    assert logs[0].actor_id == users["lecturer"].id
+    assert json.loads(logs[0].old_val) == {"status": "absent"}
+    assert json.loads(logs[0].new_val) == {"status": "present", "reason": None}
+
+
+@pytest.mark.parametrize("body", NO_REASON_BODIES)
+async def test_session_override_without_reason_is_saved_and_audited(
+    lecturer_client, classroom, db_session, body
+):
+    session_id = await _open_session(lecturer_client, classroom)
+    student_id = classroom["student_ids"][2]
+
+    resp = await lecturer_client.put(
+        f"/lecturer/sessions/{session_id}/attendance/override",
+        json={"student_id": student_id, **body},
+    )
+    assert resp.status_code == 200, resp.text
+
+    db_session.expire_all()
+    rec = await db_session.scalar(select(AttendanceRecord).where(
+        AttendanceRecord.session_id == session_id,
+        AttendanceRecord.student_id == student_id,
+    ))
+    assert rec is not None and rec.status == "present"
+    logs = await _override_logs(db_session)
+    assert len(logs) == 1
+    assert json.loads(logs[0].new_val) == {"status": "present", "reason": None}
 
 
 async def test_record_override_audits_actor_old_new_reason_time(
