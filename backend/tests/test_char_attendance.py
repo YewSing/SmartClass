@@ -54,7 +54,9 @@ async def test_override_record_updates_status_and_writes_audit(
     session_id = await _open_session(lecturer_client, classroom)
     record_id = await _add_record(db_session, session_id, classroom["student_ids"][0], "absent")
 
-    resp = await lecturer_client.put(f"/attendance/{record_id}/override", json={"status": "present"})
+    resp = await lecturer_client.put(
+        f"/attendance/{record_id}/override", json={"status": "present", "reason": "Seen in class"}
+    )
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["status"] == "present"
@@ -71,21 +73,27 @@ async def test_override_record_updates_status_and_writes_audit(
     assert log.actor_id == users["lecturer"].id
     assert (log.target_type, log.target_id) == ("attendance_record", str(record_id))
     assert json.loads(log.old_val) == {"status": "absent"}
-    assert json.loads(log.new_val) == {"status": "present"}
+    assert json.loads(log.new_val) == {"status": "present", "reason": "Seen in class"}
 
 
 async def test_override_rejects_other_statuses(lecturer_client, classroom, db_session):
     session_id = await _open_session(lecturer_client, classroom)
     record_id = await _add_record(db_session, session_id, classroom["student_ids"][0], "absent")
-    resp = await lecturer_client.put(f"/attendance/{record_id}/override", json={"status": "unidentified"})
+    resp = await lecturer_client.put(
+        f"/attendance/{record_id}/override", json={"status": "unidentified", "reason": "test"}
+    )
     assert resp.status_code == 400
-    assert (await lecturer_client.put("/attendance/999999/override", json={"status": "present"})).status_code == 404
+    assert (await lecturer_client.put(
+        "/attendance/999999/override", json={"status": "present", "reason": "test"}
+    )).status_code == 404
 
 
 async def test_student_cannot_override(student_client, lecturer_client, classroom, db_session):
     session_id = await _open_session(lecturer_client, classroom)
     record_id = await _add_record(db_session, session_id, classroom["student_ids"][0], "absent")
-    resp = await student_client.put(f"/attendance/{record_id}/override", json={"status": "present"})
+    resp = await student_client.put(
+        f"/attendance/{record_id}/override", json={"status": "present", "reason": "test"}
+    )
     assert resp.status_code == 403
 
 
@@ -95,7 +103,7 @@ async def test_session_override_creates_missing_record(lecturer_client, classroo
 
     resp = await lecturer_client.put(
         f"/lecturer/sessions/{session_id}/attendance/override",
-        json={"student_id": student_id, "status": "present"},
+        json={"student_id": student_id, "status": "present", "reason": "test"},
     )
     assert resp.status_code == 200, resp.text
     assert resp.json()["record_id"] is not None
@@ -111,7 +119,7 @@ async def test_session_override_creates_missing_record(lecturer_client, classroo
 
     resp = await lecturer_client.put(
         f"/lecturer/sessions/{session_id}/attendance/override",
-        json={"student_id": 999_999, "status": "present"},
+        json={"student_id": 999_999, "status": "present", "reason": "test"},
     )
     assert resp.status_code == 404
 
@@ -121,7 +129,7 @@ async def test_session_csv_export(lecturer_client, classroom, db_session):
     await _add_record(db_session, session_id, classroom["student_ids"][0], "present")
     await lecturer_client.put(
         f"/lecturer/sessions/{session_id}/attendance/override",
-        json={"student_id": classroom["student_ids"][1], "status": "present"},
+        json={"student_id": classroom["student_ids"][1], "status": "present", "reason": "test"},
     )
 
     resp = await lecturer_client.get(f"/lecturer/sessions/{session_id}/export")

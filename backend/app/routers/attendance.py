@@ -87,6 +87,7 @@ async def override_attendance(
     db: AsyncSession = Depends(get_db),
     actor: User = Depends(_lecturer),
 ):
+    """Override one record's status. A reason is required (FR-305) and is audited."""
     if body.status not in ATTENDANCE_STATUSES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail="Status must be one of: present, late, excused, absent")
@@ -106,7 +107,7 @@ async def override_attendance(
     # Audit log and status update in same flush — rolled back together on error (NFR-05)
     await write_log(
         db, actor.id, "ATTENDANCE_OVERRIDE", "attendance_record", record_id,
-        old_val={"status": old_status}, new_val={"status": body.status},
+        old_val={"status": old_status}, new_val={"status": body.status, "reason": body.reason},
     )
     record.status = body.status
     record.override_by = actor.id
@@ -145,7 +146,10 @@ async def override_session_attendance(
     db: AsyncSession = Depends(get_db),
     actor: User = Depends(_lecturer),
 ):
-    """Create-or-update an attendance record for a student who has no existing record (not_recorded → any of the four statuses)."""
+    """Create-or-update an attendance record for a student who has no existing record (not_recorded → any of the four statuses).
+
+    A reason is required (FR-305) and is audited.
+    """
     if body.status not in ATTENDANCE_STATUSES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail="Status must be one of: present, late, excused, absent")
@@ -186,7 +190,7 @@ async def override_session_attendance(
         old_status = "not_recorded"
 
     await write_log(db, actor.id, "ATTENDANCE_OVERRIDE", "attendance_record", record.id,
-        old_val={"status": old_status}, new_val={"status": body.status})
+        old_val={"status": old_status}, new_val={"status": body.status, "reason": body.reason})
     await db.flush()
 
     counts = await get_session_counts(session_id, db)

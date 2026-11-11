@@ -251,7 +251,8 @@ async def test_override_accepts_four_statuses(lecturer_client, classroom, db_ses
 
     for status_value in ("late", "excused", "present", "absent"):
         resp = await lecturer_client.put(
-            f"/attendance/{record_id}/override", json={"status": status_value}
+            f"/attendance/{record_id}/override",
+            json={"status": status_value, "reason": "test"},
         )
         assert resp.status_code == 200, (status_value, resp.text)
         db_session.expire_all()
@@ -259,7 +260,7 @@ async def test_override_accepts_four_statuses(lecturer_client, classroom, db_ses
 
     resp = await lecturer_client.put(
         f"/lecturer/sessions/{session_id}/attendance/override",
-        json={"student_id": second_student, "status": "excused"},
+        json={"student_id": second_student, "status": "excused", "reason": "test"},
     )
     assert resp.status_code == 200, resp.text
     created = (await db_session.execute(select(AttendanceRecord).where(
@@ -284,12 +285,13 @@ async def test_override_rejects_unknown_status(lecturer_client, classroom, db_se
 
     for bad_status in ("unidentified", "not_recorded", ""):
         resp = await lecturer_client.put(
-            f"/attendance/{record_id}/override", json={"status": bad_status}
+            f"/attendance/{record_id}/override",
+            json={"status": bad_status, "reason": "test"},
         )
         assert resp.status_code == 400, (bad_status, resp.text)
         resp = await lecturer_client.put(
             f"/lecturer/sessions/{session_id}/attendance/override",
-            json={"student_id": second_student, "status": bad_status},
+            json={"student_id": second_student, "status": bad_status, "reason": "test"},
         )
         assert resp.status_code == 400, (bad_status, resp.text)
 

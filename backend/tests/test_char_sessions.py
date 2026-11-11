@@ -42,7 +42,7 @@ async def test_close_marks_unrecorded_students_absent(lecturer_client, classroom
     present_student = classroom["student_ids"][0]
     resp = await lecturer_client.put(
         f"/lecturer/sessions/{session_id}/attendance/override",
-        json={"student_id": present_student, "status": "present"},
+        json={"student_id": present_student, "status": "present", "reason": "test"},
     )
     assert resp.status_code == 200, resp.text
 

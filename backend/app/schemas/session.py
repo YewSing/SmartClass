@@ -1,7 +1,10 @@
-from typing import Optional
+from typing import Annotated, Optional
 from datetime import date, datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints
+
+# FR-305: an override must carry a reason. Trimming first makes whitespace-only invalid.
+OverrideReason = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
 
 
 class SessionOut(BaseModel):
@@ -55,11 +58,13 @@ class AttendanceStudentOut(BaseModel):
 
 class OverrideRequest(BaseModel):
     status: str  # present | late | excused | absent
+    reason: OverrideReason  # FR-305: mandatory, audited
 
 
 class SessionOverrideRequest(BaseModel):
     student_id: int
     status: str  # present | late | excused | absent
+    reason: OverrideReason  # FR-305: mandatory, audited
 
 
 class FaceMatchRequest(BaseModel):

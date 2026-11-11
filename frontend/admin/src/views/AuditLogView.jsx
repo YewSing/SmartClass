@@ -65,7 +65,8 @@ function formatDetails(action, old_val_str, new_val_str) {
         return parts.join(' · ')
       }
       case 'ATTENDANCE_OVERRIDE':
-        return ov?.status && nv?.status ? `${ov.status} → ${nv.status}` : null
+        return ov?.status && nv?.status
+          ? `${ov.status} → ${nv.status}${nv.reason ? ` · "${nv.reason}"` : ''}` : null
       default:
         return null
     }

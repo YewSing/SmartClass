@@ -177,7 +177,7 @@ async def test_override_counts_as_activity(lecturer_client, classroom, db_sessio
     [row] = await rows_for(db_session, classroom["occurrence_id"])
     resp = await lecturer_client.put(
         f"/lecturer/sessions/{row.id}/attendance/override",
-        json={"student_id": classroom["student_ids"][0], "status": "present"},
+        json={"student_id": classroom["student_ids"][0], "status": "present", "reason": "test"},
     )
     assert resp.status_code == 200, resp.text
 
@@ -570,7 +570,7 @@ async def test_cancel_during_class(lecturer_client, classroom, db_session, fixed
     fixed_clock(at(8, 0))
     resp = await lecturer_client.put(
         f"/lecturer/sessions/{row.id}/attendance/override",
-        json={"student_id": classroom["student_ids"][0], "status": "present"},
+        json={"student_id": classroom["student_ids"][0], "status": "present", "reason": "test"},
     )
     assert resp.status_code == 200, resp.text
     resp = await lecturer_client.post(f"{date_url(classroom['occurrence_id'])}/cancel")
