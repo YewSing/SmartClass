@@ -364,10 +364,12 @@ async def test_occurrence_export_letters_and_rate(lecturer_client, classroom, db
     )
     assert resp.status_code == 200, resp.text
     rows = list(csv.reader(io.StringIO(resp.text)))
-    assert rows[0][:2] == ["Matric No", "Name"] and rows[0][-2:] == ["Total", "Rate"]
-    assert rows[1][2:] == ["L", "P", "2/2", "100.0%"]
-    assert rows[2][2:] == ["E", "P", "1/1", "100.0%"]
-    assert rows[3][2:] == ["A", "A", "0/2", "0.0%"]
+    assert rows[0][:2] == ["Matric No", "Name"] and rows[0][-6:] == [
+        "Present", "Late", "Excused", "Absent", "Total", "Rate",
+    ]
+    assert rows[1][2:] == ["L", "P", "1", "1", "0", "0", "2/2", "100.0%"]
+    assert rows[2][2:] == ["E", "P", "1", "0", "1", "0", "1/1", "100.0%"]
+    assert rows[3][2:] == ["A", "A", "0", "0", "0", "2", "0/2", "0.0%"]
 
 
 async def test_low_attendance_alert_counts_late(

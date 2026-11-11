@@ -47,3 +47,27 @@ class ClassAttendanceRatesOut(BaseModel):
     course_name: str
     closed_sessions: int
     students: list[ClassStudentRateOut]
+
+
+class ReportSessionOut(BaseModel):
+    session_id: int
+    date: Optional[date_] = None
+    starts_at: Optional[datetime] = None
+    label: str                # same text as the CSV column header
+
+
+class ReportStudentRowOut(AttendanceCountsOut):
+    student_id: int
+    matric_no: str
+    name: str
+    statuses: list[str]       # present | late | excused | absent, one per session in `sessions` order
+
+
+class ClassAttendanceReportOut(BaseModel):
+    occurrence_id: int
+    course_code: str
+    course_name: str
+    from_date: Optional[date_] = None
+    to_date: Optional[date_] = None
+    sessions: list[ReportSessionOut]
+    students: list[ReportStudentRowOut]

@@ -89,7 +89,7 @@ These M8 tasks run before everything else after the T04 checkpoint, so the stude
   Done when: both override endpoints require a non-empty reason (422 otherwise) and audit actor, old, new, reason, time; only the class's lecturer may override (already enforced, with the NFR-04 checks on open, close, roster and exports, in `tests/test_lecturer_access.py`; keep those tests passing). The T02 tests that override without a reason are updated to send one, with a `TEST-CHANGE:` line.
 - [x] **T32 [API] Attendance rate + history (FR-307–FR-309).** Depends on: T30.
   Done when: rate = (present + late) ÷ (closed sessions − excused) per student per course, with status counts returned too; student endpoint returns per-course rate + session history; lecturer endpoint returns per-student rates for a course; tests including zero closed sessions and every session excused.
-- [ ] **T33 [API] Reports + CSV export for course/date range (FR-310).** Depends on: T32.
+- [x] **T33 [API] Reports + CSV export for course/date range (FR-310).** Depends on: T32.
   Done when: CSV for a session and for a course over `from`/`to` (students × sessions showing all four statuses + rate); tests check headers and rows.
 - [ ] **T34 [INFRA] Moodle Attendance plugin in the simulated SPeCTRUM.** Depends on: T01, T04.
   Done when: `backend/moodle/scripts/setup.sh` installs `mod_attendance` (version matching Moodle 4.5) idempotently, adds its web-service functions (`mod_attendance_add_session`, `mod_attendance_get_sessions`, `mod_attendance_update_user_status`, …) to the `smartclass` service, and `seed.sh` adds an Attendance activity to each seeded course; the plugin's student self-marking stays off for these sessions; a `moodle` test calls `mod_attendance_get_sessions` successfully.

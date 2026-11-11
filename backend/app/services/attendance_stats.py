@@ -12,6 +12,7 @@ from app.models.session import AttendanceSession
 from app.models.user import Student
 
 HISTORY_SESSION_STATUSES = ("open", "closed")  # scheduled / cancelled / needs_confirmation are not shown
+REPORT_SESSION_STATUSES = ("closed",)  # only finalised sessions go into a report (same rule as the rate)
 
 
 @dataclass
@@ -50,6 +51,26 @@ def session_date(sess: AttendanceSession) -> date | None:
         return sess.class_date
     when = sess.opened_at or sess.starts_at
     return when.date() if when else None
+
+
+def session_label(sess: AttendanceSession) -> str:
+    """'YYYY-MM-DD HH:MM' (MYT) of the class; date only when no start time is stored."""
+    d = session_date(sess)
+    start = sess.starts_at or sess.opened_at
+    day = d.isoformat() if d else ""
+    return f"{day} {start.strftime('%H:%M')}".strip() if start else day
+
+
+def resolve_date_range(
+    from_: date | None, to: date | None, from_date: date | None = None, to_date: date | None = None,
+) -> tuple[date | None, date | None]:
+    """`from`/`to` (FR-310), with the older `from_date`/`to_date` names still accepted.
+    Raises ValueError when from is after to."""
+    start = from_ or from_date
+    end = to or to_date
+    if start and end and start > end:
+        raise ValueError("'from' must be on or before 'to'")
+    return start, end
 
 
 async def student_course_history(db: AsyncSession, student_id: int) -> list[dict]:
@@ -130,15 +151,20 @@ async def student_course_history(db: AsyncSession, student_id: int) -> list[dict
     return out
 
 
-async def class_student_rates(db: AsyncSession, occurrence_id: int) -> tuple[int, list[dict]]:
-    """Per-student counts and rate for one class, ordered by matric no. Returns (closed session count, rows)."""
-    students = (await db.execute(
+async def _class_students(db: AsyncSession, occurrence_id: int) -> list[Student]:
+    """Enrolled students of one class, ordered by matric no."""
+    return (await db.execute(
         select(Student)
         .options(selectinload(Student.user))
         .join(Enrollment, Enrollment.student_id == Student.id)
         .where(Enrollment.occurrence_id == occurrence_id)
         .order_by(Student.matric_no)
     )).scalars().all()
+
+
+async def class_student_rates(db: AsyncSession, occurrence_id: int) -> tuple[int, list[dict]]:
+    """Per-student counts and rate for one class, ordered by matric no. Returns (closed session count, rows)."""
+    students = await _class_students(db, occurrence_id)
 
     closed_ids = (await db.execute(
         select(AttendanceSession.id).where(
@@ -167,6 +193,58 @@ async def class_student_rates(db: AsyncSession, occurrence_id: int) -> tuple[int
             "counts": counts,
         })
     return len(closed_ids), out
+
+
+async def class_report(
+    db: AsyncSession, occurrence_id: int, from_date: date | None = None, to_date: date | None = None,
+) -> tuple[list[AttendanceSession], list[dict]]:
+    """Closed sessions of one class between from_date and to_date (inclusive, by session_date),
+    oldest first, and one row per enrolled student (ordered by matric no):
+    {"student_id", "matric_no", "name", "statuses": [status per session, same order], "counts": StatusCounts}.
+    A missing record in a closed session is absent."""
+    students = await _class_students(db, occurrence_id)
+
+    sessions = (await db.execute(
+        select(AttendanceSession).where(
+            AttendanceSession.occurrence_id == occurrence_id,
+            AttendanceSession.status.in_(REPORT_SESSION_STATUSES),
+        )
+    )).scalars().all()
+
+    kept: list[AttendanceSession] = []
+    for sess in sessions:
+        d = session_date(sess)
+        if from_date and (d is None or d < from_date):
+            continue
+        if to_date and (d is None or d > to_date):
+            continue
+        kept.append(sess)
+    kept.sort(key=lambda s: (
+        session_date(s) or date.min, s.starts_at or s.opened_at or datetime.min, s.id,
+    ))
+
+    lookup: dict[tuple[int, int], str] = {}
+    if kept:
+        rows = (await db.execute(
+            select(AttendanceRecord.session_id, AttendanceRecord.student_id, AttendanceRecord.status)
+            .where(AttendanceRecord.session_id.in_([s.id for s in kept]))
+        )).all()
+        lookup = {(session_id, student_id): status for session_id, student_id, status in rows}
+
+    out: list[dict] = []
+    for stu in students:
+        statuses = [lookup.get((sess.id, stu.id), "absent") for sess in kept]
+        counts = StatusCounts()
+        for status in statuses:
+            counts.add(status)
+        out.append({
+            "student_id": stu.id,
+            "matric_no": stu.matric_no,
+            "name": stu.user.name,
+            "statuses": statuses,
+            "counts": counts,
+        })
+    return kept, out
 
 
 def counts_out(counts: StatusCounts) -> dict:

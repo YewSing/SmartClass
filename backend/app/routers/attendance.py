@@ -1,6 +1,6 @@
 import csv
 import io
-from datetime import date, timedelta
+from datetime import date
 
 from app.core.timezone import now_myt
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -14,8 +14,9 @@ from app.core.deps import ensure_teaches_occurrence, require_role
 from app.models.user import User, Student
 from app.models.class_ import Enrollment, ClassOccurrence
 from app.models.session import AttendanceSession
-from app.models.attendance import AttendanceRecord, ATTENDANCE_STATUSES, ATTENDED_STATUSES
+from app.models.attendance import AttendanceRecord, ATTENDANCE_STATUSES
 from app.schemas.session import AttendanceStudentOut, OverrideRequest, SessionOverrideRequest
+from app.services.attendance_stats import class_report, resolve_date_range, session_date, session_label
 from app.services.audit_service import write_log
 from app.services.session_service import get_session_counts
 from app.websocket.manager import manager
@@ -249,12 +250,13 @@ async def export_session(
         writer.writerow([
             stu.matric_no,
             stu.user.name,
-            rec.status if rec else "absent",
+            rec.status if rec else ("absent" if session.status == "closed" else "not_recorded"),
             rec.detected_at.isoformat() if rec and rec.detected_at else "",
             "Yes" if rec and rec.override_by else "No",
         ])
 
-    filename = f"attendance_{session.occurrence.course.code}_{session.opened_at.strftime('%Y%m%d')}.csv"
+    d = session_date(session) or now_myt().date()
+    filename = f"attendance_{session.occurrence.course.code}_{d.strftime('%Y%m%d')}.csv"
     output.seek(0)
     return StreamingResponse(
         iter([output.getvalue()]),
@@ -266,7 +268,9 @@ async def export_session(
 @router.get("/lecturer/occurrences/{occ_id}/attendance/export")
 async def export_occurrence(
     occ_id: int,
-    from_date: date | None = Query(None),
+    from_: date | None = Query(None, alias="from"),
+    to: date | None = Query(None),
+    from_date: date | None = Query(None),   # older name, used by the lecturer app's Analytics screen
     to_date: date | None = Query(None),
     db: AsyncSession = Depends(get_db),
     actor: User = Depends(_lecturer),
@@ -281,61 +285,43 @@ async def export_occurrence(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Occurrence not found")
     await ensure_teaches_occurrence(db, actor, occ_id)
 
-    session_filters = [
-        AttendanceSession.occurrence_id == occ_id,
-        AttendanceSession.status == "closed",
-    ]
-    if from_date:
-        session_filters.append(AttendanceSession.opened_at >= from_date)
-    if to_date:
-        session_filters.append(AttendanceSession.opened_at < to_date + timedelta(days=1))
+    try:
+        start, end = resolve_date_range(from_, to, from_date, to_date)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
 
-    sessions_result = await db.execute(
-        select(AttendanceSession)
-        .where(*session_filters)
-        .order_by(AttendanceSession.opened_at)
-    )
-    sessions = sessions_result.scalars().all()
-
-    enrolled = await db.execute(
-        select(Student)
-        .options(selectinload(Student.user))
-        .join(Enrollment, Enrollment.student_id == Student.id)
-        .where(Enrollment.occurrence_id == occ_id)
-        .order_by(Student.matric_no)
-    )
-    students = enrolled.scalars().all()
-
-    records_by_session: dict[int, dict[int, str]] = {}
-    for sess in sessions:
-        recs = await db.execute(
-            select(AttendanceRecord).where(AttendanceRecord.session_id == sess.id)
-        )
-        records_by_session[sess.id] = {r.student_id: r.status for r in recs.scalars().all()}
+    sessions, rows = await class_report(db, occ_id, start, end)
 
     output = io.StringIO()
     writer = csv.writer(output)
-    session_labels = [s.opened_at.strftime('%d-%b') for s in sessions]
-    writer.writerow(["Matric No", "Name"] + session_labels + ["Total", "Rate"])
+    writer.writerow(
+        ["Matric No", "Name"]
+        + [session_label(s) for s in sessions]
+        + ["Present", "Late", "Excused", "Absent", "Total", "Rate"]
+    )
 
-    for stu in students:
-        row = [stu.matric_no, stu.user.name]
-        attended = 0
-        excused = 0
-        for sess in sessions:
-            att = records_by_session[sess.id].get(stu.id, "absent")
-            row.append(_LETTER.get(att, "A"))
-            if att in ATTENDED_STATUSES:
-                attended += 1
-            if att == "excused":
-                excused += 1
-        counted = len(sessions) - excused  # Excused is left out of the rate (decision T00d)
-        rate = round(attended / counted * 100, 1) if counted > 0 else 0.0
-        row += [f"{attended}/{counted}", f"{rate}%"]
-        writer.writerow(row)
+    for row in rows:
+        counts = row["counts"]
+        writer.writerow([
+            row["matric_no"],
+            row["name"],
+            *[_LETTER[x] for x in row["statuses"]],
+            counts.present,
+            counts.late,
+            counts.excused,
+            counts.absent,
+            f"{counts.attended}/{counts.counted_sessions}",
+            f"{counts.rate}%" if counts.rate is not None else "",
+        ])
 
-    year = sessions[0].opened_at.year if sessions else now_myt().year
-    filename = f"attendance_report_{occ.course.code}_{year}.csv"
+    today = now_myt().date()
+    first_day = session_date(sessions[0]) if sessions else None
+    last_day = session_date(sessions[-1]) if sessions else None
+    start_day = start or first_day or today
+    end_day = end or last_day or today
+    filename = (
+        f"attendance_report_{occ.course.code}_{start_day:%Y%m%d}_{end_day:%Y%m%d}.csv"
+    )
     output.seek(0)
     return StreamingResponse(
         iter([output.getvalue()]),

@@ -141,7 +141,7 @@ async def test_session_csv_export(lecturer_client, classroom, db_session):
     assert [(r[0], r[1], r[2], r[4]) for r in rows[1:]] == [
         ("S0000001", "Test Student", "present", "No"),
         ("S0000002", "Student 2", "present", "Yes"),
-        ("S0000003", "Student 3", "absent", "No"),  # no record yet → exported as absent
+        ("S0000003", "Student 3", "not_recorded", "No"),  # no record in an open session
     ]
 
 
@@ -160,16 +160,20 @@ async def test_occurrence_csv_export_with_date_range(lecturer_client, classroom,
     assert resp.status_code == 200, resp.text
     assert "attendance_report_CS101_" in resp.headers["content-disposition"]
     rows = _csv_rows(resp)
-    assert rows[0][:2] == ["Matric No", "Name"] and rows[0][-2:] == ["Total", "Rate"]
-    assert len(rows[0]) == 2 + 2 + 2  # two closed sessions
-    assert rows[1][2:] == ["P", "P", "2/2", "100.0%"]
-    assert rows[2][2:] == ["A", "P", "1/2", "50.0%"]
-    assert rows[3][2:] == ["A", "A", "0/2", "0.0%"]
+    assert rows[0][:2] == ["Matric No", "Name"] and rows[0][-6:] == [
+        "Present", "Late", "Excused", "Absent", "Total", "Rate",
+    ]
+    assert len(rows[0]) == 2 + 2 + 6  # two closed sessions
+    assert rows[1][2:] == ["P", "P", "2", "0", "0", "0", "2/2", "100.0%"]
+    assert rows[2][2:] == ["A", "P", "1", "0", "0", "1", "1/2", "50.0%"]
+    assert rows[3][2:] == ["A", "A", "0", "0", "0", "2", "0/2", "0.0%"]
 
     # A date range that excludes today leaves only the header + students with 0 sessions.
     future = (date.today() + timedelta(days=30)).isoformat()
     rows = _csv_rows(await lecturer_client.get(url, params={"from_date": future}))
-    assert rows[0] == ["Matric No", "Name", "Total", "Rate"]
-    assert rows[1][2:] == ["0/0", "0.0%"]
+    assert rows[0] == [
+        "Matric No", "Name", "Present", "Late", "Excused", "Absent", "Total", "Rate",
+    ]
+    assert rows[1][2:] == ["0", "0", "0", "0", "0/0", ""]
 
     assert (await lecturer_client.get("/lecturer/occurrences/999999/attendance/export")).status_code == 404
