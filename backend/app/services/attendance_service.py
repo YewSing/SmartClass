@@ -74,7 +74,12 @@ async def check_low_attendance_alert(session_id: int, present: int, db: AsyncSes
     if not session or not session.occurrence_id:
         return
 
-    elapsed_minutes = (now_myt() - session.opened_at).total_seconds() / 60
+    # Count from the class's effective start, like the Late rule: scheduled sessions open
+    # SESSION_EARLY_OPEN_MINUTES early, and an alert then would fire before anyone arrives.
+    start = session.starts_at or session.opened_at
+    if start is None:
+        return
+    elapsed_minutes = (now_myt() - start).total_seconds() / 60
     if elapsed_minutes < 1:
         return
 

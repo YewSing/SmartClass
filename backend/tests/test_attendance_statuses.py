@@ -431,3 +431,36 @@ async def test_migration_maps_unidentified_to_absent(lecturer_client, classroom,
             "CHECK (status IN ('present','late','excused','absent'))"
         ))
         await db_session.commit()
+
+
+# ── Low-attendance alert timing (checkpoint review 2026-11-12) ──────────────
+
+async def test_low_attendance_alert_waits_for_class_start_not_early_open(
+    classroom, db_session, fixed_clock, monkeypatch
+):
+    """A scheduled session opens 15 min early; the alert must not fire before the class starts."""
+    await run_tick(at(7, 45))                      # class 08:00-10:00 opens at 07:45
+    [row] = await rows_for(db_session, classroom["occurrence_id"])
+    assert row.opened_at == at(7, 45) and row.starts_at == at(8, 0)
+
+    sent = []
+
+    async def capture(session_id, message):
+        sent.append((session_id, message))
+
+    monkeypatch.setattr(attendance_service.manager, "broadcast", capture)
+    attendance_service._alerted_sessions.discard(row.id)
+
+    # 07:50: 5 min after opening, 10 min before class. Nobody there yet: no alert.
+    monkeypatch.setattr(attendance_service, "now_myt", lambda: at(7, 50))
+    async with AsyncSessionLocal() as db:
+        await attendance_service.check_low_attendance_alert(row.id, 0, db)
+    assert sent == []
+    assert row.id not in attendance_service._alerted_sessions
+
+    # 08:05: class started 5 min ago and 0 of 3 are in: the alert fires once.
+    monkeypatch.setattr(attendance_service, "now_myt", lambda: at(8, 5))
+    async with AsyncSessionLocal() as db:
+        await attendance_service.check_low_attendance_alert(row.id, 0, db)
+    assert [m["type"] for _, m in sent] == ["low_attendance"]
+    attendance_service._alerted_sessions.discard(row.id)
