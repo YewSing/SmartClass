@@ -351,3 +351,11 @@ TEST-CHANGE: tests/test_seed_courses.py (test_materials_course_exists_in_the_see
 - Tests: `test_llm_hardening.py` (10), `test_synthetic_course.py` (2), `test_qa_replay.py` (replays the 2 recorded answers), `tests/live/test_live_qa.py` (19: 10 in-syllabus + 5 off-syllabus + 2 follow-up + prompt-injection + empty course). check.sh 493 passed with the live suite skipping `LLM_QUOTA`.
 - [~] Manual: Gemini's free-tier daily quota (20 requests/day for gemini-3.5-flash thinking) is exhausted, so the full ~30-call live run and recording couldn't finish. Re-run `cd backend && python -m pytest -m live --record-llm` after the quota resets to record the remaining fixtures and confirm the whole suite passes.
 - Next: T85.
+
+### T85 — Summary / study guide — 2026-11-12 [~]
+- Changed: new `services/kb/summarize.py` (`summarize(db, course, material_id|topic, kind)` — a whole material's chunks via `search.material_passages`, or a topic via `search_materials`, prompted for structured Markdown with `[n]` citations, parsed through `parse_answer`); `POST /student/assistant/summaries` (enrolled students; 422 unless exactly one of material_id/topic; 404 unknown material).
+- Decisions: source_type (course/general) is derived from citations, exactly like answers (NFR-19); the endpoint returns the summary but does not save it to a chat (UC-804's "save" is the app's job, T90). Same no-LaTeX rule as T93.
+- Interface/schema changes: new endpoint; `SummaryCreate`/`SummaryOut` (additive); `search.py` gains `material_passages`. `tests/live/conftest.py` now turns `LLMQuotaExhausted` into a skip via a `pytest_runtest_makereport` hook (the test files themselves hold no skip logic, per CLAUDE.md).
+- Tests: `test_summary.py` (7 db: material/topic/off-topic/validation/403/404/503); 3 live cases added to `test_live_qa.py` (material summary, topic study guide, off-topic). check.sh 500 passed; live suite skips LLM_QUOTA.
+- [~] Manual: quota (see T82) — re-run `pytest -m live --record-llm` to record the 3 summary fixtures.
+- Next: T86.

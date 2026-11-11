@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, computed_field
 
@@ -92,3 +92,19 @@ class SyncOut(BaseModel):
     deleted: int
     failed: list[str]
     statuses: dict[str, int]
+
+
+class SummaryCreate(BaseModel):
+    course_id: int
+    material_id: Optional[int] = None   # exactly one of material_id / topic
+    topic: Optional[str] = Field(default=None, max_length=200)
+    kind: Literal["summary", "study_guide"] = "summary"
+
+
+class SummaryOut(BaseModel):
+    content: str
+    citations: list[Citation] = []
+    source_type: str            # course | general
+    kind: str
+    material_id: Optional[int] = None
+    topic: Optional[str] = None

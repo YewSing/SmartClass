@@ -20,7 +20,6 @@ from app.models.ai_chat import ChatMessage, ChatSession
 from app.models.class_ import Course
 from app.services.kb import llm as llm_mod
 from app.services.kb.assistant import SOURCE_COURSE, SOURCE_GENERAL, answer_question
-from app.services.kb.llm import LLMQuotaExhausted
 
 pytestmark = [pytest.mark.db, pytest.mark.live]
 
@@ -53,8 +52,10 @@ async def course(synthetic_kb, db_session):
 
 @pytest.fixture
 def capture(monkeypatch):
-    """Wraps llm.chat + search_materials so a test can record raw answer + passages."""
+    """Wraps llm.chat + retrieval so a test can record raw answer + passages."""
+    import app.services.kb.summarize as summarize_mod
     from app.services.kb.llm import chat as real_chat
+    from app.services.kb.search import material_passages as real_material
     from app.services.kb.search import search_materials as real_search
 
     state = {"raw": None, "passages": []}
@@ -70,8 +71,15 @@ def capture(monkeypatch):
         state["passages"] = ps
         return ps
 
+    async def material(db, material_id):
+        ps = await real_material(db, material_id)
+        state["passages"] = ps
+        return ps
+
     monkeypatch.setattr(llm_mod, "chat", chat)
     monkeypatch.setattr(assistant_mod, "search_materials", search)
+    monkeypatch.setattr(summarize_mod, "search_materials", search)
+    monkeypatch.setattr(summarize_mod, "material_passages", material)
     return state
 
 
@@ -79,10 +87,7 @@ async def _ask_fresh(db, student_id, course, question):
     session = ChatSession(student_id=student_id, course_id=course.id)
     db.add(session)
     await db.flush()
-    try:
-        return await answer_question(db, session, course, question)
-    except LLMQuotaExhausted:
-        pytest.skip("LLM_QUOTA")
+    return await answer_question(db, session, course, question)
 
 
 async def _ask_stable(db, student_id, course, question, want_course: bool):
@@ -100,6 +105,21 @@ async def _ask_stable(db, student_id, course, question, want_course: bool):
 def _cites_key_term(reply, key_term: str) -> bool:
     needle = key_term.lower()
     return any(needle in (c["snippet"] + " " + c["title"]).lower() for c in reply.citations or [])
+
+
+async def _summarize_stable(db, course, *, material_id=None, topic=None, kind, want_course: bool):
+    from app.services.kb.summarize import summarize
+
+    last = None
+    for _ in range(2):
+        content, citations, source = await summarize(db, course, material_id=material_id,
+                                                     topic=topic, kind=kind)
+        last = (content, citations, source)
+        if want_course and source == SOURCE_COURSE and citations:
+            return last
+        if not want_course and source == SOURCE_GENERAL:
+            return last
+    return last
 
 
 # ── in-syllabus ───────────────────────────────────────────────────────────────
@@ -144,11 +164,8 @@ async def test_follow_up_query_keeps_topic(synthetic_kb, course, capture, db_ses
     db_session.add(session)
     await db_session.flush()
 
-    try:
-        await answer_question(db_session, session, course, first)
-        await answer_question(db_session, session, course, follow_up)
-    except LLMQuotaExhausted:
-        pytest.skip("LLM_QUOTA")
+    await answer_question(db_session, session, course, first)
+    await answer_question(db_session, session, course, follow_up)
 
     queries = (await db_session.execute(
         select(ChatMessage.retrieval_query).where(ChatMessage.session_id == session.id,
@@ -200,3 +217,32 @@ async def test_empty_course_gives_general_answer(classroom, capture, db_session)
 
     assert reply.source_type == SOURCE_GENERAL
     assert reply.citations == []
+
+
+# ── summaries / study guides (FR-810, T85) ────────────────────────────────────
+
+async def test_summary_live_material_is_cited(synthetic_kb, course, capture, record, db_session):
+    material_id = synthetic_kb["material_ids"]["boundary-value-analysis"]
+    content, citations, source = await _summarize_stable(
+        db_session, course, material_id=material_id, kind="summary", want_course=True)
+    record("summary:boundary-value-analysis", capture["raw"], capture["passages"], SOURCE_COURSE)
+
+    assert source == SOURCE_COURSE and citations
+    assert any(c["material_id"] == material_id for c in citations)
+
+
+async def test_study_guide_live_topic_is_cited(synthetic_kb, course, capture, record, db_session):
+    content, citations, source = await _summarize_stable(
+        db_session, course, topic="equivalence partitioning", kind="study_guide", want_course=True)
+    record("study_guide:equivalence partitioning", capture["raw"], capture["passages"], SOURCE_COURSE)
+
+    assert source == SOURCE_COURSE and citations
+
+
+async def test_study_guide_live_off_topic_is_general(synthetic_kb, course, capture, record, db_session):
+    content, citations, source = await _summarize_stable(
+        db_session, course, topic="quantum entanglement", kind="study_guide", want_course=False)
+    record("study_guide:quantum entanglement (off-syllabus)", capture["raw"], capture["passages"],
+           SOURCE_GENERAL)
+
+    assert source == SOURCE_GENERAL and citations == []
