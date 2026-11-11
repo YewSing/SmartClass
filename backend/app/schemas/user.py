@@ -44,6 +44,7 @@ class UserDetailOut(BaseModel):
     moodle_linked: bool = False   # signs in through SPeCTRUM; its name and password belong to Moodle
     face_enrolled: bool = False
     face_enrolled_at: Optional[datetime] = None
+    face_status: Optional[str] = None   # students: not_enrolled | pending_review | active | rejected
     student: Optional[StudentProfileOut] = None
     lecturer: Optional[LecturerProfileOut] = None
     enrolled_classes: list[OccurrenceEnrollmentOut] = []

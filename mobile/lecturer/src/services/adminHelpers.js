@@ -86,6 +86,19 @@ export function accountSubtitle(u) {
     .filter(Boolean).join(' · ')
 }
 
+// Face enrolment on an account row (FR-115, FR-117). Falls back to face_enrolled for an older server.
+const FACE_STATUS = {
+  active:         { label: 'Face enrolled',  tone: 'good' },
+  pending_review: { label: 'Pending review', tone: 'warn' },
+  rejected:       { label: 'Face rejected',  tone: 'bad' },
+  not_enrolled:   { label: 'No face data',   tone: 'neutral' },
+}
+export function faceStatus(u) {
+  if (u.role !== 'student') return null
+  const key = u.face_status ?? (u.face_enrolled ? 'active' : 'not_enrolled')
+  return { key, ...(FACE_STATUS[key] ?? FACE_STATUS.not_enrolled) }
+}
+
 const SYNC_ROWS = [
   ['accounts_created', 'Accounts created'],
   ['courses_created', 'Courses created'],

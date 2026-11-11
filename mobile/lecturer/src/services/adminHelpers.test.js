@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { auditAction, auditDetail, newAdminError, adminSignInError, accountSubtitle, syncRows } from './adminHelpers.js'
+import { auditAction, auditDetail, newAdminError, adminSignInError, accountSubtitle, syncRows, faceStatus } from './adminHelpers.js'
 
 test('administrator sign-in asks for an email address instead of sending a non-email', () => {
   assert.equal(adminSignInError({ email: '', password: 'x' }), 'Enter your email and password.')
@@ -48,6 +48,18 @@ test('account subtitle shows role, number and where it signs in', () => {
   assert.equal(accountSubtitle({ role: 'lecturer', lecturer: { staff_id: 'S1' }, moodle_linked: false }),
     'Lecturer · S1 · Local account')
   assert.equal(accountSubtitle({ role: 'admin', moodle_linked: false }), 'Administrator · Local account')
+})
+
+test('face status on an account row', () => {
+  assert.deepEqual(faceStatus({ role: 'student', face_status: 'pending_review' }),
+    { key: 'pending_review', label: 'Pending review', tone: 'warn' })
+  assert.equal(faceStatus({ role: 'student', face_status: 'active' }).label, 'Face enrolled')
+  assert.equal(faceStatus({ role: 'student', face_status: 'rejected' }).label, 'Face rejected')
+  assert.equal(faceStatus({ role: 'student', face_status: 'not_enrolled' }).label, 'No face data')
+  assert.equal(faceStatus({ role: 'student', face_enrolled: true }).label, 'Face enrolled')
+  assert.equal(faceStatus({ role: 'student' }).label, 'No face data')
+  assert.equal(faceStatus({ role: 'student', face_status: 'weird' }).label, 'No face data')
+  assert.equal(faceStatus({ role: 'lecturer' }), null)
 })
 
 test('sync rows keep the order and only known keys', () => {

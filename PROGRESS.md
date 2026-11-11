@@ -262,3 +262,10 @@ TEST-CHANGE: tests/test_seed_courses.py (test_materials_course_exists_in_the_see
 - T23a manual check done: `eval_card_quality.py` on the 13 real card photos: 11 AUTO-APPROVE (2 needed a 90/270 turn), the 2 very blurry ones BLOCKED (blur 8.9, 11.5); before T23a, 8 were `no_card_found` and 3 `card_too_small` (misdetections). Phone: proper card auto-approved; myrapid transport card went to review (matric unreadable, face 3%). T23a ticked `[x]`.
 - T23b passed in the browser (stays signed in after refresh, Accounts refresh, sign-in message). New gap → T23c: Accounts shows "No face data" while a submission is pending review.
 
+### T23c — Admin Accounts shows a pending face submission — 2026-11-12
+- Changed: `face_enrolment_service.enrolment_statuses` + `status_word` (one query per page); `UserDetailOut.face_status`; admin Accounts shows an amber "Pending review" badge with a "Review in Face verification" link, shows "Face rejected", and offers "Reset face data" for pending submissions too.
+- Decisions: status words are the existing `not_enrolled | pending_review | active | rejected` (the task said `none`; `not_enrolled` matches `/auth/me` and the student status endpoint); `null` for non-students. Interface: `GET /admin/users` items and `GET/POST/PUT /admin/users[/{id}]` responses gain `face_status` (additive); `face_enrolled` kept for `frontend/admin` until T96; no schema change, no migration.
+- Tests: `test_admin_face_status.py` (7 db, incl. parity with `enrolment_status` and one-query check), `adminHelpers.test.js` face status case; Playwright `admin.spec.js` approve-then-Accounts now opens Face verification from the row's link; `npm run e2e:web` 25/25; check.sh 369 passed; reviewer PASS.
+- TEST-CHANGE: admin.spec.js "admin approves a face, and Accounts shows it on return" - renamed and now expects "Pending review" (not "No face data") for the seeded pending submission and opens Face verification through the row's link; "No face data" there was the T23c bug.
+- Next: nothing; `frontend/admin` keeps `face_enrolled` until T96.
+
