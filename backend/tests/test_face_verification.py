@@ -255,6 +255,29 @@ def test_split_um_text_on_a_real_card_counts(face_app, imgs):
     assert r.card.um_card and r.passed
 
 
+def test_blur_default_follows_the_t21_photos():
+    # Real readable photos scored 68-86, truly blurry ones 4-11 (T21): the default sits between.
+    from app.core.config import Settings
+
+    assert 11 < Settings.model_fields["CARD_BLUR_MIN_VARIANCE"].default <= 60
+
+
+@pytest.mark.face
+def test_blur_is_measured_on_the_card_not_the_plain_table(face_app, imgs):
+    """A sharp portrait card with lots of empty white table around it isn't called blurry:
+    the flat table would pull a whole-photo score down."""
+    import cv2
+
+    card_images, people, _ = imgs
+    photo = card_images.card_photo(people[0], portrait=True, table=WHITE_TABLE, scale=0.8)
+    img = fv.decode_image(photo)
+    whole = cv2.Laplacian(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), cv2.CV_64F).var()
+    q = fv.check_quality(img, [], card_face_found=True)
+    assert "no_card_found" not in q.reasons
+    assert q.scores["blur_variance"] > whole
+    assert "blurry" not in q.reasons
+
+
 @pytest.mark.face
 def test_transport_like_card_without_a_matric_number_is_never_auto_approved(face_app, imgs):
     r = _verify(face_app, imgs, portrait=True, table=WHITE_TABLE, header="myrapid CARD",
