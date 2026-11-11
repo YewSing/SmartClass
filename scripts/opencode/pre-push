@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Installed by scripts/run-tasks.sh when OpenCode builds. The loop script pushes itself;
+# the builder must not, and nothing may push to main.
+if [ "${SMARTCLASS_NO_PUSH:-0}" = "1" ]; then
+  echo "pre-push: the loop builder may not push (the loop script pushes)." >&2
+  exit 1
+fi
+while read -r _ _ remote_ref _; do
+  if [ "$remote_ref" = "refs/heads/main" ]; then
+    echo "pre-push: pushing to main is not allowed; merge through a PR." >&2
+    exit 1
+  fi
+done
+exit 0
