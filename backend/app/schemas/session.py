@@ -1,4 +1,4 @@
-from typing import Annotated, Optional
+from typing import Annotated, Literal, Optional
 from datetime import date, datetime
 
 from pydantic import BaseModel, BeforeValidator, Field, StringConstraints
@@ -17,6 +17,17 @@ OverrideReason = Annotated[
     Optional[Annotated[str, StringConstraints(max_length=500)]],
     BeforeValidator(_blank_reason_to_none),
 ]
+
+
+class MoodleConflictOut(BaseModel):
+    """A student whose status was changed in Moodle after SmartClass sent it (FR-320)."""
+    record_id: int
+    student_id: int
+    matric_no: str
+    name: str
+    smartclass_status: str              # present | late | excused | absent
+    moodle_status: str                  # present | late | excused | absent | none (no mark) | other
+    keep_smartclass: bool = False       # chosen; sent on the next sync if Moodle hasn't changed again
 
 
 class SessionOut(BaseModel):
@@ -39,8 +50,18 @@ class SessionOut(BaseModel):
     late: int = 0
     excused: int = 0
     unid: int = 0
+    # Moodle Attendance sync (FR-312, FR-320); status None = never queued (not closed yet)
+    moodle_sync_status: Optional[str] = None   # pending | synced | failed | conflict
+    moodle_synced_at: Optional[datetime] = None
+    moodle_sync_next_at: Optional[datetime] = None
+    moodle_sync_error: Optional[str] = None
+    moodle_conflicts: list[MoodleConflictOut] = []
 
     model_config = {"from_attributes": True}
+
+
+class ResolveConflictRequest(BaseModel):
+    keep: Literal["smartclass", "moodle"]
 
 
 class OpenSessionRequest(BaseModel):

@@ -22,6 +22,8 @@ class AttendanceRecord(Base):
                         name="ck_attendance_records_status"),
         CheckConstraint("moodle_status_sent IN ('present','late','excused','absent')",
                         name="ck_attendance_records_moodle_status_sent"),
+        CheckConstraint("moodle_status_found IN ('present','late','excused','absent','none','other')",
+                        name="ck_attendance_records_moodle_status_found"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -32,6 +34,10 @@ class AttendanceRecord(Base):
     override_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))
     override_at: Mapped[Optional[datetime]] = mapped_column()
     moodle_status_sent: Mapped[Optional[str]] = mapped_column(String(20))  # last status sent to Moodle (FR-311)
+    # FR-320 conflict: Moodle's value when it was changed there (a status, 'none' = no mark, 'other' = a
+    # status SmartClass doesn't have). NULL = no conflict.
+    moodle_status_found: Mapped[Optional[str]] = mapped_column(String(20))
+    moodle_overwrite_ok: Mapped[bool] = mapped_column(nullable=False, server_default="false")  # keep SmartClass's
 
     session: Mapped["AttendanceSession"] = relationship(back_populates="attendance_records")
     student: Mapped["Student"] = relationship(back_populates="attendance_records")

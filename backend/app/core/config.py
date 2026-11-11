@@ -78,6 +78,8 @@ class Settings(BaseSettings):
     MOODLE_ATTENDANCE_SYNC_INTERVAL_SECONDS: int = 30
     MOODLE_ATTENDANCE_RETRY_BASE_SECONDS: int = 60     # first retry after a failure; doubles each time
     MOODLE_ATTENDANCE_RETRY_MAX_SECONDS: int = 3600    # backoff cap; retries never stop
+    MOODLE_ATTENDANCE_CHECK_INTERVAL_SECONDS: int = 10800  # re-read synced sessions in Moodle this often (FR-320)
+    MOODLE_ATTENDANCE_CHECK_DAYS: int = 30             # ...for sessions closed within this many days
 
 
 settings = Settings()

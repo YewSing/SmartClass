@@ -48,6 +48,7 @@ class AttendanceSession(Base):
     moodle_sync_next_at: Mapped[Optional[datetime]] = mapped_column()  # next try (backoff after a failure)
     moodle_synced_at: Mapped[Optional[datetime]] = mapped_column()
     moodle_sync_error: Mapped[Optional[str]] = mapped_column(String(255))  # last error, or a note on a synced session
+    moodle_checked_at: Mapped[Optional[datetime]] = mapped_column()  # last scheduled read of Moodle (FR-320)
 
     occurrence: Mapped[Optional["ClassOccurrence"]] = relationship(back_populates="sessions")
     lecturer: Mapped["Lecturer"] = relationship(back_populates="sessions")

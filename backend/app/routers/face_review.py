@@ -17,6 +17,8 @@ from app.models.face_review import FaceReviewEntry
 from app.models.face import FaceEmbedding
 from app.models.user import User, Student
 from app.models.attendance import AttendanceRecord
+from app.models.session import AttendanceSession
+from app.services import attendance_moodle_sync
 from app.services.audit_service import write_log
 from app.services.consent_service import require_active_consent
 from app.services.session_service import get_session_counts
@@ -277,6 +279,9 @@ async def promote_review_entry(
                 override_by=actor.id,
                 override_at=now,
             ))
+        session = await db.get(AttendanceSession, entry.session_id)
+        if session:
+            attendance_moodle_sync.queue_resync(session, now)  # FR-312
 
     await db.delete(entry)
     await write_log(

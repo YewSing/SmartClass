@@ -15,13 +15,23 @@ Rules:
   and counted in `moodle_sync_error` on the synced session.
 - Any failure makes the session `failed`, keeps what was already sent, and schedules the next try
   after RETRY_BASE * 2^(attempts-1) seconds, capped at RETRY_MAX. Retries never stop (NFR-20).
+
+T36 (FR-312, FR-320):
+- An override on a queued session (queue_resync) sets it back to `pending`.
+- Every sync first reads the students' statuses in Moodle. A student whose Moodle status is neither
+  the last one sent nor SmartClass's current one was changed in Moodle: it is never overwritten,
+  Moodle's value is kept in `moodle_status_found`, and the session becomes `conflict` (the other
+  students are still sent). The lecturer keeps SmartClass's value (`moodle_overwrite_ok`, sent next
+  time if Moodle hasn't changed again) or takes Moodle's (resolve_conflict).
+- `synced`/`conflict` sessions closed in the last CHECK_DAYS are re-read every CHECK_INTERVAL; a
+  check that can't reach Moodle leaves the status as it was.
 """
 import asyncio
 import logging
 from datetime import datetime, timedelta
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -31,6 +41,7 @@ from app.models.attendance import AttendanceRecord
 from app.models.class_ import ClassOccurrence, Course
 from app.models.session import AttendanceSession
 from app.models.user import Lecturer, Student, User
+from app.services.audit_service import write_log
 from app.services.kb.moodle_client import MoodleClient, MoodleError
 
 log = logging.getLogger(__name__)
@@ -38,6 +49,7 @@ log = logging.getLogger(__name__)
 # SmartClass status -> mod_attendance status acronym (the plugin's default status set)
 STATUS_ACRONYMS = {"present": "P", "late": "L", "excused": "E", "absent": "A"}
 DUE_STATUSES = ("pending", "failed")
+CHECKED_STATUSES = ("synced", "conflict")   # re-read on a schedule (FR-320)
 
 _run_lock = asyncio.Lock()
 
@@ -94,13 +106,14 @@ async def _attendance_id(client: MoodleClient, course_id: int, code: str) -> int
 
 
 async def _find_or_create_moodle_session(client: MoodleClient, session: AttendanceSession, course: Course,
-                                         attendance_id: int) -> dict:
-    """The Moodle session record (get_session shape) for `session`; stores its id on `session`."""
+                                         attendance_id: int) -> tuple[dict, bool]:
+    """The Moodle session record (get_session shape) for `session`; stores its id on `session`.
+    The flag is True when the session was (re)linked to a Moodle session other than the stored one."""
     if session.moodle_session_id is not None:
         try:
             found = await client.call("mod_attendance_get_session", sessionid=session.moodle_session_id)
             if int(found.get("attendanceid", 0)) == attendance_id:
-                return found
+                return found, False
         except MoodleError as exc:
             if "invalidrecord" not in str(exc):
                 raise
@@ -114,13 +127,13 @@ async def _find_or_create_moodle_session(client: MoodleClient, session: Attendan
     for found in await client.call("mod_attendance_get_sessions", attendanceid=attendance_id):
         if found.get("description") == marker and int(found.get("sessdate", 0)) == sessiontime:
             session.moodle_session_id = int(found["id"])
-            return found
+            return found, True
 
     added = await client.call("mod_attendance_add_session", attendanceid=attendance_id, description=marker,
                               sessiontime=sessiontime, duration=max(0, int((end - start).total_seconds())),
                               addcalendarevent=0)
     session.moodle_session_id = int(added["sessionid"])
-    return await client.call("mod_attendance_get_session", sessionid=session.moodle_session_id)
+    return await client.call("mod_attendance_get_session", sessionid=session.moodle_session_id), True
 
 
 def _status_ids(moodle_session: dict) -> dict[str, int]:
@@ -146,16 +159,31 @@ async def _taken_by(db: AsyncSession, client: MoodleClient, session: AttendanceS
     return int(info["userid"])
 
 
-async def _send(db: AsyncSession, client: MoodleClient, session: AttendanceSession) -> int:
-    """Push the session's records. Returns how many students were skipped (no Moodle account)."""
+def _moodle_values(moodle_session: dict, status_ids: dict[str, int]) -> dict[int, str]:
+    """Moodle user id -> the student's status in Moodle: a SmartClass status, or 'other' for a status
+    SmartClass doesn't have. Students with no mark are missing (their value is 'none')."""
+    by_id = {sid: status for status, sid in status_ids.items()}
+    return {int(entry["studentid"]): by_id.get(int(entry["statusid"]), "other")
+            for entry in moodle_session.get("attendance_log") or []}
+
+
+def _clear_conflict(rec: AttendanceRecord) -> None:
+    rec.moodle_status_found = None
+    rec.moodle_overwrite_ok = False
+
+
+async def _send(db: AsyncSession, client: MoodleClient, session: AttendanceSession) -> tuple[int, int]:
+    """Read Moodle, then push the session's records that are safe to send (FR-320).
+    Returns (students skipped for having no Moodle account, students in conflict)."""
     occ = await db.get(ClassOccurrence, session.occurrence_id)
     course = await db.get(Course, occ.course_id)
     course_id = await _moodle_course_id(db, client, course)
     attendance_id = await _attendance_id(client, course_id, course.code)
-    moodle_session = await _find_or_create_moodle_session(client, session, course, attendance_id)
+    moodle_session, relinked = await _find_or_create_moodle_session(client, session, course, attendance_id)
     await db.flush()   # keep the Moodle session id even if a later call fails
     status_ids = _status_ids(moodle_session)
     statusset = int(moodle_session.get("statusset") or 0)
+    in_moodle = _moodle_values(moodle_session, status_ids)
 
     rows = (await db.execute(
         select(AttendanceRecord, User.moodle_user_id)
@@ -165,10 +193,28 @@ async def _send(db: AsyncSession, client: MoodleClient, session: AttendanceSessi
         .order_by(AttendanceRecord.id)
     )).all()
     skipped = sum(1 for _, moodle_id in rows if moodle_id is None)
-    to_send = [(rec, moodle_id) for rec, moodle_id in rows
-               if moodle_id is not None and rec.moodle_status_sent != rec.status]
+    to_send, conflicts = [], 0
+    for rec, moodle_id in rows:
+        if moodle_id is None:
+            continue
+        if relinked:
+            rec.moodle_status_sent = None   # nothing was sent to this Moodle session by us yet
+        actual = in_moodle.get(int(moodle_id), "none")
+        expected = rec.moodle_status_sent or "none"
+        if actual == rec.status:            # Moodle already has SmartClass's value
+            rec.moodle_status_sent = rec.status
+            _clear_conflict(rec)
+        elif actual == expected or (rec.moodle_overwrite_ok and actual == rec.moodle_status_found):
+            _clear_conflict(rec)
+            to_send.append((rec, moodle_id))
+        else:                               # changed in Moodle: never overwrite, let the lecturer choose
+            if rec.moodle_status_found != actual:
+                rec.moodle_overwrite_ok = False
+            rec.moodle_status_found = actual
+            conflicts += 1
+    await db.flush()
     if not to_send:
-        return skipped
+        return skipped, conflicts
 
     taken_by = await _taken_by(db, client, session)
     for rec, moodle_id in to_send:
@@ -177,47 +223,116 @@ async def _send(db: AsyncSession, client: MoodleClient, session: AttendanceSessi
                           statusset=statusset)
         rec.moodle_status_sent = rec.status
         await db.flush()
-    return skipped
+    return skipped, conflicts
 
 
 async def sync_session(db: AsyncSession, session_id: int, client: MoodleClient,
                        now: datetime | None = None) -> str:
     """Sync one session and record the outcome on it. Flushes, does not commit.
-    Returns the new sync status ("synced" or "failed")."""
+    Returns the new sync status ("synced", "conflict" or "failed").
+
+    A scheduled check of a `synced`/`conflict` session that can't reach Moodle keeps its status:
+    what was sent is still in Moodle, and the next check tries again."""
     now = now or clock()
     session = await db.get(AttendanceSession, session_id)
+    checking = session.moodle_sync_status in CHECKED_STATUSES
+    session.moodle_checked_at = now
     try:
         if session.status != "closed" or session.occurrence_id is None:
             raise SyncError("Only a closed class session can be sent to Moodle")
-        skipped = await _send(db, client, session)
+        skipped, conflicts = await _send(db, client, session)
     except (SyncError, MoodleError, httpx.HTTPError, KeyError, ValueError, TypeError) as exc:
+        error = _error_text(exc)
+        log.warning("Moodle attendance sync of session %s failed (attempt %s): %s",
+                    session_id, session.moodle_sync_attempts + 1, error)
+        if checking:
+            await db.flush()
+            return session.moodle_sync_status
         session.moodle_sync_attempts += 1
         session.moodle_sync_status = "failed"
-        session.moodle_sync_error = _error_text(exc)
+        session.moodle_sync_error = error
         session.moodle_sync_next_at = now + retry_delay(session.moodle_sync_attempts)
         await db.flush()
-        log.warning("Moodle attendance sync of session %s failed (attempt %s): %s",
-                    session_id, session.moodle_sync_attempts, session.moodle_sync_error)
         return "failed"
 
-    session.moodle_sync_status = "synced"
-    session.moodle_synced_at = now
+    notes = []
+    if conflicts:
+        notes.append(f"{conflicts} student(s) were changed in Moodle; choose which value to keep")
+    if skipped:
+        notes.append(f"{skipped} student(s) have no Moodle account and were not sent")
+    session.moodle_sync_status = "conflict" if conflicts else "synced"
+    if not conflicts:
+        session.moodle_synced_at = now
     session.moodle_sync_attempts = 0
     session.moodle_sync_next_at = None
-    session.moodle_sync_error = (f"{skipped} student(s) have no Moodle account and were not sent"
-                                 if skipped else None)
+    session.moodle_sync_error = "; ".join(notes)[:255] or None
     await db.flush()
-    return "synced"
+    return session.moodle_sync_status
+
+
+def queue_resync(session: AttendanceSession, now: datetime) -> None:
+    """Queue a session already handed to the sync (closed) to be sent again now, e.g. after an
+    override (FR-312). Open sessions and sessions never queued are left alone."""
+    if session.moodle_sync_status is None:
+        return
+    session.moodle_sync_status = "pending"
+    session.moodle_sync_attempts = 0
+    session.moodle_sync_next_at = now
+    session.moodle_sync_error = None
+
+
+async def resolve_conflict(db: AsyncSession, session: AttendanceSession, record: AttendanceRecord, keep: str,
+                           actor_id: int, now: datetime) -> None:
+    """The lecturer's choice for a student changed in Moodle (FR-320): keep SmartClass's value (it
+    overwrites Moodle on the next sync, unless Moodle changes again) or take Moodle's. Audited, then
+    the session is queued. The caller checks the record is in conflict and Moodle's value is usable."""
+    old = {"smartclass": record.status, "moodle": record.moodle_status_found}
+    if keep == "moodle":
+        record.status = record.moodle_status_found
+        record.override_by = actor_id
+        record.override_at = now
+        record.moodle_status_sent = record.status   # Moodle already has it
+        _clear_conflict(record)
+    else:
+        record.moodle_overwrite_ok = True
+    await write_log(db, actor_id, "MOODLE_CONFLICT_RESOLVED", "attendance_record", record.id,
+                    old_val=old, new_val={"keep": keep, "status": record.status})
+    queue_resync(session, now)
+    await db.flush()
+
+
+async def sync_now(db: AsyncSession, session_id: int, now: datetime | None = None) -> str:
+    """The lecturer's "Retry now": sync one session at once and commit. Raises MoodleError when no
+    Moodle token is configured."""
+    async with _run_lock:   # never alongside the background loop (it could send the same records)
+        async with MoodleClient(timeout=30.0) as client:
+            result = await sync_session(db, session_id, client, now)
+        await db.commit()
+    return result
 
 
 async def due_session_ids(db: AsyncSession, now: datetime) -> list[int]:
-    return list((await db.execute(
+    """Sessions to send (pending/failed whose next try has come), then synced or conflicting sessions
+    closed in the last MOODLE_ATTENDANCE_CHECK_DAYS whose scheduled Moodle check is due (FR-320)."""
+    to_send = list((await db.execute(
         select(AttendanceSession.id)
         .where(AttendanceSession.moodle_sync_status.in_(DUE_STATUSES),
                AttendanceSession.moodle_sync_next_at.is_not(None),
                AttendanceSession.moodle_sync_next_at <= now)
         .order_by(AttendanceSession.moodle_sync_next_at, AttendanceSession.id)
     )).scalars())
+    if settings.MOODLE_ATTENDANCE_CHECK_INTERVAL_SECONDS <= 0:
+        return to_send
+    last_check = func.coalesce(AttendanceSession.moodle_checked_at, AttendanceSession.moodle_synced_at,
+                               AttendanceSession.closed_at)
+    to_check = list((await db.execute(
+        select(AttendanceSession.id)
+        .where(AttendanceSession.moodle_sync_status.in_(CHECKED_STATUSES),
+               AttendanceSession.closed_at >= now - timedelta(days=settings.MOODLE_ATTENDANCE_CHECK_DAYS),
+               last_check <= now - timedelta(seconds=settings.MOODLE_ATTENDANCE_CHECK_INTERVAL_SECONDS))
+        .order_by(last_check, AttendanceSession.id)
+    )).scalars())
+    return to_send + to_check
 
 
 async def run_due(client: MoodleClient | None = None, now: datetime | None = None) -> dict[int, str]:

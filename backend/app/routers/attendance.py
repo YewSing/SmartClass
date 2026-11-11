@@ -16,6 +16,7 @@ from app.models.class_ import Enrollment, ClassOccurrence
 from app.models.session import AttendanceSession
 from app.models.attendance import AttendanceRecord, ATTENDANCE_STATUSES
 from app.schemas.session import AttendanceStudentOut, OverrideRequest, SessionOverrideRequest
+from app.services import attendance_moodle_sync
 from app.services.attendance_stats import class_report, resolve_date_range, session_date, session_label
 from app.services.audit_service import write_log
 from app.services.session_service import get_session_counts
@@ -101,7 +102,7 @@ async def override_attendance(
     record = result.scalar_one_or_none()
     if not record:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attendance record not found")
-    await _get_taught_session(db, actor, record.session_id)
+    session = await _get_taught_session(db, actor, record.session_id)
 
     old_status = record.status
 
@@ -113,6 +114,7 @@ async def override_attendance(
     record.status = body.status
     record.override_by = actor.id
     record.override_at = now_myt()
+    attendance_moodle_sync.queue_resync(session, record.override_at)  # FR-312
     await db.flush()
 
     counts = await get_session_counts(record.session_id, db)
@@ -154,7 +156,7 @@ async def override_session_attendance(
     if body.status not in ATTENDANCE_STATUSES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail="Status must be one of: present, late, excused, absent")
-    await _get_taught_session(db, actor, session_id)
+    session = await _get_taught_session(db, actor, session_id)
 
     student_result = await db.execute(
         select(Student)
@@ -192,6 +194,7 @@ async def override_session_attendance(
 
     await write_log(db, actor.id, "ATTENDANCE_OVERRIDE", "attendance_record", record.id,
         old_val={"status": old_status}, new_val={"status": body.status, "reason": body.reason})
+    attendance_moodle_sync.queue_resync(session, now)  # FR-312
     await db.flush()
 
     counts = await get_session_counts(session_id, db)
