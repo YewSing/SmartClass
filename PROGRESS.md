@@ -343,3 +343,11 @@ TEST-CHANGE: tests/test_seed_courses.py (test_materials_course_exists_in_the_see
 - Interface/schema changes: none.
 - Tests: new `tests/test_kb_sync_schedule.py` (5 `db` tests: sync_all over every Moodle-linked course, skip non-Moodle courses, isolate a failing course, loop disabled without a token and at zero interval); check.sh 480 passed.
 - Next: T82.
+
+### T82 — Live Gemini suite + record/replay + Q&A eval harness — 2026-11-12 [~]
+- Changed: `llm.py` adapter hardening — client-side `LLM_RPM` rate limiter (default 10), retry with backoff on 429/5xx (max `LLM_MAX_RETRIES`=3), a distinct `LLMQuotaExhausted` for daily-quota 429s (Gemini wraps the error in a one-element list body, handled in `_error_kind`), and a loop-aware client (tests run each case on its own event loop; reusing one httpx client across loops raised "Event loop is closed"). Config: `LLM_RPM`, `LLM_MAX_RETRIES`, `LLM_RETRY_BASE_SECONDS`.
+- Decisions: the live suite runs over a synthetic, copyright-free test course (`tests/fixtures/course/` 3 original software-testing notes → PDFs, indexed by `synthetic_kb`), so it's stable and never touches real material. check.sh runs `pytest -m live` once per KB code state (hash → `.claude/.live-pass`), printing `LIVE TESTS PENDING (quota)` when quota is exhausted (detected via `-rs` skip reasons) instead of failing the round. Recording → `tests/fixtures/llm/qa.json`, replayed at zero cost by `test_qa_replay.py`.
+- Interface/schema changes: none (config only). `.gitignore` allows `backend/eval/qa_set.jsonl` while still ignoring `backend/eval/cards/`.
+- Tests: `test_llm_hardening.py` (10), `test_synthetic_course.py` (2), `test_qa_replay.py` (replays the 2 recorded answers), `tests/live/test_live_qa.py` (19: 10 in-syllabus + 5 off-syllabus + 2 follow-up + prompt-injection + empty course). check.sh 493 passed with the live suite skipping `LLM_QUOTA`.
+- [~] Manual: Gemini's free-tier daily quota (20 requests/day for gemini-3.5-flash thinking) is exhausted, so the full ~30-call live run and recording couldn't finish. Re-run `cd backend && python -m pytest -m live --record-llm` after the quota resets to record the remaining fixtures and confirm the whole suite passes.
+- Next: T85.

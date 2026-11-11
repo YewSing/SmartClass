@@ -127,7 +127,7 @@ These M8 tasks run before everything else after the T04 checkpoint, so the stude
 
 - [x] **T81 [API] Scheduled material sync + lecturer materials status (FR-803, FR-804).** Depends on: T80.
   Done when: sync runs on a configurable schedule for all courses; only the course's lecturer (or admin) can trigger a sync or list status; tests.
-- [ ] **T82 [INFRA] Live Gemini test suite + record/replay + Q&A evaluation harness (NFR-18, NFR-19, NFR-21).** Depends on: T80.
+- [~] **T82 [INFRA] Live Gemini test suite + record/replay + Q&A evaluation harness (NFR-18, NFR-19, NFR-21).** Depends on: T80.
   Done when:
   - **Synthetic test course:** `backend/tests/fixtures/course/` holds 3 short teaching documents written for testing (e.g. software-testing notes; no real course material), indexed into the test DB by a fixture. Live tests use only this, so they are stable and copyright-free.
   - **LLM adapter hardening (production code):** client-side rate limiter (`LLM_RPM`, default 10), retry with backoff on 429/5xx (max 3), and a distinct `LLMQuotaExhausted` error for daily-quota exhaustion.
