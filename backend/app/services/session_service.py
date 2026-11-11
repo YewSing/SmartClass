@@ -20,6 +20,12 @@ async def close_session(session_id: int, db: AsyncSession, now: datetime | None 
 
     session.status = "closed"
     session.closed_at = now or now_myt()
+    if session.occurrence_id is not None:
+        # Queue the Moodle Attendance sync (FR-311); attendance_moodle_sync picks it up
+        session.moodle_sync_status = "pending"
+        session.moodle_sync_attempts = 0
+        session.moodle_sync_next_at = session.closed_at
+        session.moodle_sync_error = None
 
     # Find all enrolled students for this occurrence
     enrolled = await db.execute(

@@ -20,6 +20,8 @@ class AttendanceRecord(Base):
         UniqueConstraint("session_id", "student_id"),
         CheckConstraint("status IN ('present','late','excused','absent')",
                         name="ck_attendance_records_status"),
+        CheckConstraint("moodle_status_sent IN ('present','late','excused','absent')",
+                        name="ck_attendance_records_moodle_status_sent"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -29,6 +31,7 @@ class AttendanceRecord(Base):
     detected_at: Mapped[Optional[datetime]] = mapped_column()
     override_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))
     override_at: Mapped[Optional[datetime]] = mapped_column()
+    moodle_status_sent: Mapped[Optional[str]] = mapped_column(String(20))  # last status sent to Moodle (FR-311)
 
     session: Mapped["AttendanceSession"] = relationship(back_populates="attendance_records")
     student: Mapped["Student"] = relationship(back_populates="attendance_records")

@@ -74,6 +74,10 @@ class Settings(BaseSettings):
     MOODLE_TOKEN: str = ""
     KB_SYNC_INTERVAL_SECONDS: int = 300       # 0 disables; also disabled when MOODLE_TOKEN is empty
     MOODLE_SYNC_INTERVAL_SECONDS: int = 900   # courses + enrolments (FR-104); same rules as above
+    # Closed sessions -> Moodle Attendance (FR-311, NFR-20); same rules as above
+    MOODLE_ATTENDANCE_SYNC_INTERVAL_SECONDS: int = 30
+    MOODLE_ATTENDANCE_RETRY_BASE_SECONDS: int = 60     # first retry after a failure; doubles each time
+    MOODLE_ATTENDANCE_RETRY_MAX_SECONDS: int = 3600    # backoff cap; retries never stop
 
 
 settings = Settings()
