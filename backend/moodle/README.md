@@ -8,7 +8,7 @@ Separate from the app DB in `../docker-compose.yml`.
 ```bash
 cd backend/moodle
 docker compose up -d          # first boot installs Moodle: ~3-5 min; wait for HTTP 200 on :8080/login/index.php
-./scripts/setup.sh            # web services, "smartclass" service, smartclass_svc user, token -> .env.moodle, branding
+./scripts/setup.sh            # installs mod_attendance, web services, "smartclass" service, smartclass_svc user, token -> .env.moodle, branding
 ./scripts/seed.sh             # users, courses, enrolments, course materials (idempotent)
 ./scripts/seed.sh --dry-run   # users/courses only; does not list files
 ```
@@ -45,7 +45,9 @@ your real matric card) go in `seed_config.local.json` next to `seed_config.json`
 `MOODLE_URL=http://localhost:8080` and `MOODLE_TOKEN=<smartclass_svc token>`. Copy them into `backend/.env`.
 
 The service `smartclass` exposes: `core_webservice_get_site_info`, `core_enrol_get_users_courses`, `core_enrol_get_enrolled_users`,
-`core_course_get_contents`, `core_course_get_courses_by_field`, `core_user_get_users_by_field`.
+`core_course_get_contents`, `core_course_get_courses_by_field`, `core_user_get_users_by_field`,
+`mod_attendance_add_session`, `mod_attendance_remove_session`, `mod_attendance_get_session`,
+`mod_attendance_get_sessions`, `mod_attendance_update_user_status`.
 
 A student token (what a student login would yield):
 
@@ -55,6 +57,18 @@ curl -s http://localhost:8080/webservice/rest/server.php -d wstoken=$TOK -d wsfu
 curl -s http://localhost:8080/webservice/rest/server.php -d wstoken=$TOK -d wsfunction=core_course_get_contents -d courseid=<id> -d moodlewsrestformat=json
 curl -L "<fileurl>&token=$TOK" -o file     # download a course file
 ```
+
+## Attendance plugin
+
+The [mod_attendance](https://github.com/danmarsden/moodle-mod_attendance) plugin is pinned to
+`MOODLE_405_STABLE`, commit `7985321`, version `2024082404`. `install_attendance.php` downloads it
+inside the container (needs internet on the first run) and `setup.sh` then runs Moodle's upgrade.
+Each seeded course gets one activity named "Attendance" in section 0; it starts with the plugin's
+default statuses P/A/L/E. Student self-marking is off (site setting `attendance/studentscanmark`
+and `studentscanmark_default` are 0, and `add_session` never enables it).
+
+To find a course's activity: `core_course_get_contents` → the module with `modname == "attendance"`;
+its `instance` is the `attendanceid` the `mod_attendance_*` functions take.
 
 ## Materials seeding
 

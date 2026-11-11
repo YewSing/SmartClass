@@ -1,5 +1,6 @@
 <?php
-// Seeds courses, users, enrolments and mod_resource files from /seed/seed_config.json. Idempotent.
+// Seeds courses, users, enrolments and course modules (one mod_attendance activity per course,
+// mod_resource files) from /seed/seed_config.json. Idempotent.
 // Run: docker exec smartclass-moodle-moodle-1 php /scripts/seed_courses.php [--dry-run]
 define('CLI_SCRIPT', true);
 require('/bitnami/moodle/config.php');
@@ -8,6 +9,7 @@ require_once($CFG->dirroot . '/course/lib.php');
 require_once($CFG->dirroot . '/user/lib.php');
 require_once($CFG->dirroot . '/lib/enrollib.php');
 require_once($CFG->dirroot . '/lib/filelib.php');
+require_once($CFG->dirroot . '/course/modlib.php');
 require_once($CFG->dirroot . '/mod/resource/lib.php');
 
 $dry = in_array('--dry-run', $argv);
@@ -138,6 +140,28 @@ foreach ($conf['enrolments'] as $e) {
     if ($already && user_has_role_assignment($ids[$e['username']], $role->id, $ctx->id)) continue;
     echo "enrol {$e['username']} in {$e['course']} as {$e['role']}\n";
     $manual->enrol_user($inst, $ids[$e['username']], $role->id);
+}
+
+// ---- Attendance activity (one per course; T35 syncs sessions into it)
+$attmod = $DB->get_record('modules', ['name' => 'attendance']);
+if (!$attmod) {
+    echo "!! mod_attendance not installed (run setup.sh); no Attendance activities added\n";
+} else {
+    foreach ($conf['courses'] as $c) {
+        $short = $c['shortname'];
+        if (empty($courses[$short])) continue;          // dry run on a new course
+        $course = $courses[$short];
+        if ($DB->record_exists('attendance', ['course' => $course->id])) { echo "attendance exists: $short\n"; continue; }
+        echo "add attendance: $short\n";
+        if ($dry) continue;
+        $mi = new stdClass();
+        $mi->modulename = 'attendance'; $mi->module = $attmod->id;
+        $mi->name = 'Attendance'; $mi->intro = 'Synced from SmartClass. Students do not mark themselves.';
+        $mi->introformat = FORMAT_HTML;
+        $mi->section = 0; $mi->visible = 1; $mi->visibleoncoursepage = 1;
+        $mi->cmidnumber = ''; $mi->groupmode = NOGROUPS; $mi->groupingid = 0;
+        add_moduleinfo($mi, $course);
+    }
 }
 
 // ---- Materials
