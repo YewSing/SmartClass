@@ -25,6 +25,8 @@ Notifications are Module 2.
 logs and the apps refresh their own screens. M2 replaces or wraps `emit` to deliver. The same
 hook will carry `attendance.recorded` (student) and `attendance.flagged` (lecturer), listed in
 `docs/requirements/functional-requirements.md` under Module 2.
+Built in T44 (2026-11-13): `emit` exists, logs only, and raises `attendance.recorded`; see
+`docs/interfaces.md`.
 
 **Question for Shino:** is `emit(event, user_ids, payload)` a shape that works for M2? If you
 prefer a different one (e.g. with a priority level: urgent / important / general), say so here

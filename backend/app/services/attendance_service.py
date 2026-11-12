@@ -10,9 +10,11 @@ from sqlalchemy import select, func
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal, after_commit
 from app.core.timezone import now_myt
-from app.models.attendance import AttendanceRecord
-from app.models.class_ import Enrollment
+from app.models.attendance import ATTENDED_STATUSES, AttendanceRecord
+from app.models.class_ import ClassOccurrence, Course, Enrollment
 from app.models.session import AttendanceSession
+from app.models.user import Student
+from app.services import notify
 from app.services.session_service import get_session_counts
 from app.websocket.manager import manager
 
@@ -111,7 +113,9 @@ async def broadcast_attendance_update(
     matric_no: str,
     db: AsyncSession,
 ) -> None:
-    """Announce a new record once `db` commits (a screen that re-reads must see it)."""
+    """Announce a new Present/Late record once `db` commits: `attendance_update` to the lecturer's
+    session channel, `attendance_recorded` to the student's channel and
+    `notify.emit('attendance.recorded')` for Module 2 (FR-406)."""
     counts = await get_session_counts(session_id, db)
     payload = {
         "event": "attendance_update",
@@ -127,8 +131,36 @@ async def broadcast_attendance_update(
         },
     }
 
+    student_event = None
+    student_user_id = None
+    if record.status in ATTENDED_STATUSES:
+        student_user_id = await db.scalar(
+            select(Student.user_id).where(Student.id == record.student_id)
+        )
+        course = (await db.execute(
+            select(Course.code, Course.name)
+            .join(ClassOccurrence, ClassOccurrence.course_id == Course.id)
+            .join(AttendanceSession, AttendanceSession.occurrence_id == ClassOccurrence.id)
+            .where(AttendanceSession.id == session_id)
+        )).one_or_none()
+        if student_user_id is not None and course is not None:
+            code, name = course
+            student_event = {
+                "event": "attendance_recorded",
+                "session_id": session_id,
+                "course_code": code,
+                "course_name": name,
+                "status": record.status,                     # "present" | "late"
+                "detected_at": record.detected_at.isoformat() if record.detected_at else None,
+                "source": record.source or "recognition",    # "student_flag" when a flag was confirmed
+                "message": f"Attendance recorded for {code}",
+            }
+
     async def _announce() -> None:
         await manager.broadcast(session_id, payload)
+        if student_event is not None:
+            await manager.send_to_user(student_user_id, student_event)
+            await notify.emit("attendance.recorded", [student_user_id], student_event)
         # The alert payload key "present" now means attended (Present + Late).
         await check_low_attendance_alert(session_id, counts["present"] + counts["late"], db)
 

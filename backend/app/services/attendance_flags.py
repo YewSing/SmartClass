@@ -231,11 +231,15 @@ async def reject_flag(db: AsyncSession, flag: AttendanceFlag, session: Attendanc
     await db.flush()
 
 
-def announce(db: AsyncSession, session_id: int, event: str, flag: dict) -> None:
-    """Tell the session's lecturer screens once `db` commits (`attendance_flagged` / `attendance_flag_resolved`)."""
+def announce(db: AsyncSession, session_id: int, event: str, flag: dict,
+             student_user_id: int | None = None) -> None:
+    """Tell the session's lecturer screens and, if given, the student's own channel once `db`
+    commits (`attendance_flagged` / `attendance_flag_resolved`)."""
     payload = {"event": event, "session_id": session_id, "flag": flag}
 
     async def _broadcast() -> None:
         await manager.broadcast(session_id, payload)
+        if student_user_id is not None:
+            await manager.send_to_user(student_user_id, payload)
 
     after_commit(db, _broadcast)

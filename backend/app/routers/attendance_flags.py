@@ -181,7 +181,8 @@ async def confirm_flag(
     record = await attendance_flags.confirm_flag(db, flag, session, actor)
     await attendance_service.broadcast_attendance_update(session.id, record, user.name, student.matric_no, db)
     out = await _flag_out(db, (await db.execute(_flag_rows().where(AttendanceFlag.id == flag_id))).one())
-    attendance_flags.announce(db, session.id, "attendance_flag_resolved", out.model_dump(mode="json"))
+    attendance_flags.announce(db, session.id, "attendance_flag_resolved", out.model_dump(mode="json"),
+                              student_user_id=user.id)
     return out
 
 
@@ -193,8 +194,9 @@ async def reject_flag(
     actor: User = Depends(_lecturer_or_admin),
 ):
     """Reject with a reason the student sees (FR-319). The student stays as they were (Absent if no record)."""
-    flag, session, *_ = await _get_flag(db, actor, flag_id)
+    flag, session, _occ, _course, _student, user, _status = await _get_flag(db, actor, flag_id)
     await attendance_flags.reject_flag(db, flag, session, actor, body.reason)
     out = await _flag_out(db, (await db.execute(_flag_rows().where(AttendanceFlag.id == flag_id))).one())
-    attendance_flags.announce(db, session.id, "attendance_flag_resolved", out.model_dump(mode="json"))
+    attendance_flags.announce(db, session.id, "attendance_flag_resolved", out.model_dump(mode="json"),
+                              student_user_id=user.id)
     return out
