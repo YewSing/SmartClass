@@ -4,7 +4,7 @@ import {
   statusLabel, statusBadge, overrideReasonError, cleanReason, rosterStatus, groupRoster, countStatuses,
   hhmm, timeRange, dayMonth, minutesBetween, timeRangeError, weeklyScheduleError, WEEK_DAYS, timeOptions,
   sessionStateLabel, syncInfo, moodleValueLabel, canTakeMoodle, OVERRIDE_REASON_MAX, STATUSES,
-  sessionCounts, followsLive,
+  sessionCounts, followsLive, flagAlertText, upsertFlag, cropText,
 } from './attendance.js'
 
 test('all four statuses have a label and a colour; no record shows "Not yet"', () => {
@@ -136,4 +136,42 @@ test('a synced session still shows students that were not sent', () => {
     moodle_sync_error: '2 student(s) have no Moodle account and were not sent' })
   assert.equal(info.label, 'Synced to SPeCTRUM')
   assert.match(info.detail, /Last sent 10:01 · 2 student\(s\) have no Moodle account/)
+})
+
+// ─── Flags (FR-318, FR-319, FR-407) ──────────────────────────────────────────
+
+const flag = (id, status, flaggedAt) => ({
+  id, status, flagged_at: flaggedAt, name: `Student ${id}`, matric_no: `M${id}`,
+})
+
+test("the flag toast names the student and is lowercase (the card title differs)", () => {
+  assert.equal(flagAlertText({ name: 'Aina Rahman', matric_no: '17234567' }),
+    "Aina Rahman (17234567) says they're here but wasn't recognised")
+})
+
+test('a flag is replaced by id or prepended, pending first and newest first', () => {
+  const resolved = flag(2, 'confirmed', '2026-11-13T10:20:00')
+  const olderPending = flag(1, 'pending', '2026-11-13T10:10:00')
+  const newerPending = flag(3, 'pending', '2026-11-13T10:15:00')
+
+  let list = upsertFlag([], resolved)
+  assert.deepEqual(list.map(f => f.id), [2])
+
+  list = upsertFlag(list, olderPending)
+  list = upsertFlag(list, newerPending)
+  assert.deepEqual(list.map(f => f.id), [3, 1, 2])
+
+  // Same id: replaced in place, no duplicate
+  list = upsertFlag(list, { ...olderPending, status: 'rejected', reject_reason: 'Not in the room' })
+  assert.deepEqual(list.map(f => f.id), [3, 2, 1])
+  assert.equal(list.find(f => f.id === 1).status, 'rejected')
+})
+
+test('the crop note gives the similarity, or says there is none', () => {
+  assert.equal(cropText({ closest_crop: { id: 4, similarity: 0.623 } }),
+    'Closest unrecognised face · 62% similar')
+  assert.equal(cropText({ closest_crop: null }),
+    'No unrecognised face from the camera for this student')
+  assert.equal(cropText({}),
+    'No unrecognised face from the camera for this student')
 })

@@ -194,6 +194,8 @@ adb shell am force-stop "$EXPO_GO" >/dev/null 2>&1 || true
 adb shell am start -a android.intent.action.VIEW -d "exp://127.0.0.1:$EXPO_PORT" "$EXPO_GO" >/dev/null
 
 if [ -f "$flow_setup" ]; then
+  # flow setup scripts that call the API in the background read this
+  export E2E_API_URL="http://127.0.0.1:$API_PORT"
   echo "== flow setup $(basename "$flow_setup")"
   flow_setup_ran=1
   bash "$flow_setup" setup || { echo "Flow setup failed"; exit 1; }

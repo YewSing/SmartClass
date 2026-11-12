@@ -233,6 +233,17 @@ export const getStudents = async (sessionId, { sessionOpen = false } = {}) => {
   return list.map((s, i) => studentAdapter(s, i, sessionOpen))
 }
 
+// "Says they're here" flags of one session, pending first (FR-318, FR-319)
+export const getSessionFlags = (sessionId) => apiCall('GET', `/lecturer/flags?session_id=${sessionId}`)
+
+export const confirmFlag = (flagId) => apiCall('POST', `/lecturer/flags/${flagId}/confirm`)
+
+export const rejectFlag = (flagId, reason) =>
+  apiCall('POST', `/lecturer/flags/${flagId}/reject`, { reason })
+
+// The closest unmatched crop (FR-407); needs the token, so it goes through AuthImage
+export const flagCropPath = (flagId) => `/lecturer/flags/${flagId}/crop`
+
 // Any of the four statuses, with an optional reason that is audited (FR-305)
 export const overrideAttendance = async (recordId, newStatus, sessionId, studentId, reason) => {
   const body = { status: newStatus, reason: cleanReason(reason) }

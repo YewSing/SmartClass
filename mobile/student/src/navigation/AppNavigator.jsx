@@ -7,6 +7,7 @@ import { useStudent } from '../context/StudentContext'
 import { navigationRef } from './navigationRef'
 import ToastContainer from '../components/Toast'
 import ModalRouter from '../components/Modals'
+import RecordedBanner from '../components/RecordedBanner'
 import { C } from '../theme'
 
 // ─── Screens ──────────────────────────────────────────────────────────────────
@@ -143,6 +144,7 @@ export default function AppNavigator() {
   return (
     <NavigationContainer ref={navigationRef}>
       {state.isLoggedIn ? <MainTabs /> : <LoginStack />}
+      {state.isLoggedIn ? <RecordedBanner /> : null}
       <ToastContainer />
       <ModalRouter />
     </NavigationContainer>

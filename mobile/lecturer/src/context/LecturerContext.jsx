@@ -2,7 +2,7 @@ import { createContext, useContext, useReducer, useCallback, useEffect, useRef }
 import * as api from '../services/api'
 import { getToken, getRefreshToken, onAuthExpired, BASE } from '../services/client'
 import { restoreSession } from '../services/session'
-import { hhmm, statusLabel, followsLive } from '../services/attendance'
+import { hhmm, statusLabel, followsLive, flagAlertText, upsertFlag } from '../services/attendance'
 
 const LecturerContext = createContext(null)
 
@@ -19,6 +19,7 @@ const initialState = {
   sessions: [],
   selectedSession: null,
   students: [],
+  flags: [],
   analytics: null,
   analyticsLoading: false,
   modal: null,
@@ -67,10 +68,16 @@ function reducer(state, action) {
       }
     }
     case 'SET_SELECTED_SESSION':
-      return { ...state, selectedSession: action.payload, students: [] }
+      return { ...state, selectedSession: action.payload, students: [], flags: [] }
     case 'SET_STUDENTS':
       if (action.sessionId != null && action.sessionId !== state.selectedSession?.id) return state
       return { ...state, students: action.payload }
+    case 'SET_FLAGS':
+      if (action.sessionId != null && action.sessionId !== state.selectedSession?.id) return state
+      return { ...state, flags: action.payload }
+    case 'UPSERT_FLAG':
+      if (action.payload.session_id !== state.selectedSession?.id) return state
+      return { ...state, flags: upsertFlag(state.flags, action.payload) }
     case 'SET_ANALYTICS':
       return { ...state, analytics: action.payload, analyticsLoading: false }
     case 'SET_ANALYTICS_LOADING':
@@ -242,6 +249,40 @@ export function LecturerProvider({ children }) {
     } catch (e) { showToast(e.message, 'error') }
   }, [showToast])
 
+  // The session's "Says they're here" flags (FR-318, FR-319)
+  const loadFlags = useCallback(async (sessionId) => {
+    try {
+      const flags = await api.getSessionFlags(sessionId)
+      dispatch({ type: 'SET_FLAGS', payload: flags, sessionId })
+    } catch (e) { showToast(e.message, 'error') }
+  }, [showToast])
+
+  const doConfirmFlag = useCallback(async (flag) => {
+    try {
+      const saved = await api.confirmFlag(flag.id)
+      dispatch({ type: 'UPSERT_FLAG', payload: saved })
+      showToast(`Confirmed ${flag.name}`, 'success')
+      return saved
+    } catch (e) {
+      showToast(e.message, 'error')
+      if (state.selectedSession?.id) loadFlags(state.selectedSession.id)
+      throw e
+    }
+  }, [showToast, loadFlags, state.selectedSession])
+
+  const doRejectFlag = useCallback(async (flag, reason) => {
+    try {
+      const saved = await api.rejectFlag(flag.id, reason)
+      dispatch({ type: 'UPSERT_FLAG', payload: saved })
+      showToast(`Rejected ${flag.name}'s flag`, 'success')
+      return saved
+    } catch (e) {
+      showToast(e.message, 'error')
+      if (state.selectedSession?.id) loadFlags(state.selectedSession.id)
+      throw e
+    }
+  }, [showToast, loadFlags, state.selectedSession])
+
   // Any of the four statuses with an optional reason (FR-305)
   const overrideStudent = useCallback(async (recordId, newStatus, studentId, reason) => {
     const sessionId = state.selectedSession?.id
@@ -373,6 +414,13 @@ export function LecturerProvider({ children }) {
         } })
         rereadSession(sessionId)
       }
+      if (data.event === 'attendance_flagged' && data.flag) {
+        showToast(flagAlertText(data.flag), 'info')
+        dispatch({ type: 'UPSERT_FLAG', payload: data.flag })
+      }
+      if (data.event === 'attendance_flag_resolved' && data.flag) {
+        dispatch({ type: 'UPSERT_FLAG', payload: data.flag })   // the lecturer did it
+      }
       if (data.event === 'attendance_alert' && data.type === 'low_attendance') {
         showToast(
           `Low attendance — only ${Math.round(data.rate * 100)}% present (${data.present}/${data.enrolled} students)`,
@@ -412,6 +460,9 @@ export function LecturerProvider({ children }) {
     doResolveConflict,
     doSetWeeklySchedule,
     loadStudents,
+    loadFlags,
+    doConfirmFlag,
+    doRejectFlag,
     overrideStudent,
     selectSession,
     loadAnalytics,

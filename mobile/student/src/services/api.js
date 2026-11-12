@@ -89,6 +89,14 @@ export const getAttendanceCourses = async () => {
   return courses.map(c => toCourseView(c, occLookup))
 }
 
+// "I'm here but wasn't recognised" (FR-318): once per open session with no record
+export const flagNotRecognised = (sessionId) =>
+  apiCall('POST', `/student/me/sessions/${sessionId}/flag`)
+
+// The student's own flags, newest first (FR-319)
+export const getMyFlags = (sessionId) =>
+  apiCall('GET', sessionId != null ? `/student/me/flags?session_id=${sessionId}` : '/student/me/flags')
+
 // ─── AI Learning Assistant (Module 8) ─────────────────────────────────────────
 
 export const getAssistantCourses = () => apiCall('GET', '/student/assistant/courses')
@@ -137,5 +145,4 @@ const delay = (ms) => new Promise(res => setTimeout(res, ms))
 export const getParticipationSummary = async () => { await delay(200); return PART_SUMMARY }
 export const getParticipationGroups  = async () => { await delay(300); return PARTICIPATION_GROUPS }
 export const getSessionPerf = async (perfKey) => { await delay(200); return SESSION_PERFS[perfKey] ?? null }
-export const submitReport = async () => { await delay(400); return { refNo: `RPT-${Date.now()}`, status: 'pending' } }
 export const sendPasswordReset = async () => { await delay(400); return { success: true } }

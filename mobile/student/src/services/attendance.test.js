@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {
   STATUSES, statusInfo, parseLocal, hhmm, dayMonth, dateLabel, rateText, rateNote,
   classLabel, toSessionView, toCourseView, findSession,
+  canFlag, flagView, recordedBannerText,
 } from './attendance.js'
 
 const COURSE = {
@@ -125,4 +126,71 @@ test('findSession finds a session by course and session id as strings', () => {
   assert.equal(findSession(courses, 7, '999'), null)
   assert.equal(findSession(courses, 8, '11'), null)
   assert.equal(findSession([], 7, '11'), null)
+})
+
+// ─── Flags (FR-318, FR-319, FR-406) ──────────────────────────────────────────
+
+const FLAG = {
+  id: 1, session_id: 12, class_code: 'WIA1002', class_name: 'Data Structures',
+  class_date: '2026-10-20', flagged_at: '2026-11-13T10:12:30', status: 'pending',
+  record_status: null, reject_reason: null, resolved_at: null,
+}
+
+test('the flag button needs an open class, no record and no flag yet', () => {
+  const open = { isLive: true, status: 'not_recorded' }
+  assert.equal(canFlag(open, null), true)
+  assert.equal(canFlag(open, undefined), true)
+  assert.equal(canFlag({ isLive: false, status: 'not_recorded' }, null), false)
+  assert.equal(canFlag({ isLive: true, status: 'present' }, null), false)
+  assert.equal(canFlag({ isLive: true, status: 'absent' }, null), false)
+  assert.equal(canFlag(open, FLAG), false)
+  assert.equal(canFlag(null, null), false)
+})
+
+test('a pending flag says the lecturer will check, in yellow', () => {
+  const view = flagView(FLAG)
+  assert.equal(view.state, 'pending')
+  assert.equal(view.title, 'Waiting for your lecturer')
+  assert.equal(view.badge, 'yellow')
+  assert.equal(view.icon, 'hourglass-outline')
+  assert.equal(view.classText, 'WIA1002 — Data Structures')
+  assert.equal(view.dateText, 'Tue 20 Oct')
+  assert.equal(view.flaggedText, '10:12')
+  assert.equal(view.resolvedText, null)
+})
+
+test('a confirmed flag shows the mark the lecturer recorded', () => {
+  const late = flagView({ ...FLAG, status: 'confirmed', record_status: 'late', resolved_at: '2026-11-13T10:20:00' })
+  assert.equal(late.state, 'confirmed')
+  assert.equal(late.title, 'Confirmed')
+  assert.equal(late.badge, 'green')
+  assert.match(late.sub, /You're marked Late/)
+  assert.equal(late.resolvedText, '10:20')
+
+  const present = flagView({ ...FLAG, status: 'confirmed', record_status: null })
+  assert.match(present.sub, /You're marked Present/)
+})
+
+test('a rejected flag shows the reason, or just that it was not accepted', () => {
+  const withReason = flagView({ ...FLAG, status: 'rejected', reject_reason: 'You were not in the room' })
+  assert.equal(withReason.state, 'rejected')
+  assert.equal(withReason.title, 'Not accepted')
+  assert.equal(withReason.badge, 'red')
+  assert.match(withReason.sub, /You were not in the room/)
+
+  const noReason = flagView({ ...FLAG, status: 'rejected', reject_reason: null })
+  assert.equal(noReason.sub, 'Your lecturer did not accept it.')
+})
+
+test('an unknown flag status is treated as pending', () => {
+  const view = flagView({ ...FLAG, status: 'something_new' })
+  assert.equal(view.state, 'pending')
+  assert.equal(view.title, 'Waiting for your lecturer')
+})
+
+test('the recorded banner is the event message plus the status', () => {
+  assert.equal(recordedBannerText({ message: 'Attendance recorded for CS101', status: 'late' }),
+    'Attendance recorded for CS101 · Late')
+  assert.equal(recordedBannerText({ course_code: 'CS101', status: 'present' }),
+    'Attendance recorded for CS101 · Present')
 })
