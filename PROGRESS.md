@@ -443,6 +443,13 @@ TEST-CHANGE: tests/test_seed_courses.py (test_materials_course_exists_in_the_see
 - Tests: `test_question_trends.py` (7 db: topic tagging for course/general, ≥3 filter, most-cited materials, uncovered topics, anonymisation, access control). check.sh 515 passed; live suite skips LLM_QUOTA.
 - Next: T88.
 
+### T101 — "Before next class" summary (FR-816, NFR-09) — 2026-11-13
+- Changed: new `services/kb/before_class.py` (`before_class_summary(db, course)` builds a two-part note "## Revisit" (citing real material sections) + "## Not covered by the materials" purely from the T87 aggregates; empty aggregates → a fixed "not enough questions yet" message with no LLM call; sections resolved to still-existing materials so a deleted material is never cited; result cached in memory per course until the trends fingerprint changes, `reset_cache()` for tests); `GET /lecturer/assistant/before-class/{course_id}` + `BeforeClassOut` schema.
+- Decisions: prompt is built only from `trends.question_trends` output (topics ≥3 students), so it can never carry names, chat text or below-minimum topics; access = course lecturer or admin (`_course_for_staff`); LLM down → 503.
+- Interface/schema: new endpoint + `BeforeClassOut` (additive). No migration.
+- Tests: new `test_before_class.py` (6 db: no-data no-LLM, prompt anonymisation + real citations, caching until trends change, deleted-material skip, access control, 503); 1 live case `test_before_class_summary_is_grounded` recorded into `qa.json` (`before-class`); `capture` fixture now wraps `before_class._sections_for_materials`. Live suite 28 passed; check.sh 616 passed.
+- Next: T91.
+
 ### T100 — Lecturer asks their own materials (FR-815) — 2026-11-13
 - Changed: `ChatSession` now has one owner — `student_id` (nullable) or a new `lecturer_id` (nullable FK → lecturers, CASCADE) with a CHECK `(student_id IS NOT NULL) <> (lecturer_id IS NOT NULL)`; migration `e2f3a4b5c6d7`. New lecturer chat endpoints in `routers/assistant.py` (`GET/POST /lecturer/assistant/sessions`, `PATCH/DELETE .../{id}`, `GET/POST .../{id}/messages`, `GET /lecturer/assistant/courses`) that reuse `answer_question` unchanged, so citations/labels match the student flow; the quiz lock is skipped for lecturer sessions. `trends.py` now filters `s.student_id IS NOT NULL` so a lecturer's own chat is never counted in question trends.
 - Decisions: lecturer-only (`require_role("lecturer")`), teaching = assigned to any `ClassOccurrence` of the course; other lecturers/students/admins get 403. A lecturer's chat is private and never aggregated.

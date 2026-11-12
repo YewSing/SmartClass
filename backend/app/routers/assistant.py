@@ -14,12 +14,13 @@ from app.models.class_ import ClassOccurrence, Course, Enrollment
 from app.models.knowledge import MAT_INDEXED, KbMaterial
 from app.models.user import Lecturer, Student, User
 from app.schemas.assistant import (
-    AssistantCourseOut, MaterialOut, MessageCreate, MessageOut, SessionCreate, SessionOut,
-    SessionRename, StudyToolsCreate, StudyToolsOut, SummaryCreate, SummaryOut, SyncOut,
-    TrendsOut,
+    AssistantCourseOut, BeforeClassOut, MaterialOut, MessageCreate, MessageOut, SessionCreate,
+    SessionOut, SessionRename, StudyToolsCreate, StudyToolsOut, SummaryCreate, SummaryOut,
+    SyncOut, TrendsOut,
 )
 from app.services.kb import trends
 from app.services.kb.assistant import answer_question
+from app.services.kb.before_class import before_class_summary
 from app.services.kb.llm import LLMMalformedOutput, LLMUnavailable
 from app.services.kb.moodle_client import MoodleClient, MoodleError
 from app.services.kb.study_tools import generate_study_tools
@@ -383,3 +384,14 @@ async def question_trends(course_id: int, db: AsyncSession = Depends(get_db),
     """Anonymised question trends for the course's lecturer (FR-813, NFR-09)."""
     course = await _course_for_staff(db, user, course_id)
     return await trends.question_trends(db, course.id)
+
+
+@router.get("/lecturer/assistant/before-class/{course_id}", response_model=BeforeClassOut)
+async def before_class(course_id: int, db: AsyncSession = Depends(get_db),
+                       user: User = Depends(_lecturer_or_admin)):
+    """A short "before next class" note built from the question trends (FR-816, NFR-09)."""
+    course = await _course_for_staff(db, user, course_id)
+    try:
+        return await before_class_summary(db, course)
+    except LLMUnavailable as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc))

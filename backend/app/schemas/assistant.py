@@ -179,3 +179,9 @@ class TrendsOut(BaseModel):
     most_asked_topics: list[TopicCount]
     most_cited_materials: list[MaterialCount]
     topics_materials_dont_cover: list[TopicCount]
+
+
+class BeforeClassOut(BaseModel):
+    content: str                  # markdown note, or the "not enough questions yet" message
+    citations: list[Citation] = []
+    not_enough_data: bool = False
