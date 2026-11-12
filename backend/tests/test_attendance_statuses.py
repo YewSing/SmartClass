@@ -36,6 +36,16 @@ def at(h: int, m: int, d: date = MON) -> datetime:
     return datetime(d.year, d.month, d.day, h, m)
 
 
+# T40: face-match takes the room's device key (X-Device-Key) instead of the shared internal key
+_DEVICE_HEADERS: dict[str, str] = {}
+
+
+@pytest.fixture(autouse=True)
+def _device_key(device):
+    _DEVICE_HEADERS.clear()
+    _DEVICE_HEADERS.update(device["headers"])
+
+
 @pytest.fixture
 def fixed_clock(monkeypatch):
     def set_clock(t: datetime) -> None:
@@ -85,7 +95,7 @@ async def recognise(client, db, session_id: int, student_id: int, now: datetime,
     resp = await client.post(
         "/internal/face-match",
         json={"embedding": vec, "session_id": session_id, "dry_run": dry_run},
-        headers={"X-Internal-Key": settings.INTERNAL_API_KEY},
+        headers=_DEVICE_HEADERS,
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()

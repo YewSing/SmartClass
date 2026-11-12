@@ -5,14 +5,14 @@ can manually identify and promote them to enrollment (UC-07 / UC-08 alt flow).
 from typing import Optional
 
 from app.core.timezone import now_myt
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text
 
-from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import require_role
+from app.models.camera import Camera
 from app.models.face_review import FaceReviewEntry
 from app.models.face import FaceEmbedding
 from app.models.user import User, Student
@@ -20,6 +20,7 @@ from app.models.attendance import AttendanceRecord
 from app.models.session import AttendanceSession
 from app.services import attendance_moodle_sync
 from app.services.audit_service import write_log
+from app.services.device_service import require_device
 from app.services.consent_service import require_active_consent
 from app.services.session_service import get_session_counts
 from app.websocket.manager import manager
@@ -32,18 +33,13 @@ _admin_only = require_role("admin")
 _GROUP_THRESHOLD = 0.35
 
 
-async def _verify_internal_key(x_internal_key: str = Header(...)) -> None:
-    if x_internal_key != settings.INTERNAL_API_KEY:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid internal key")
-
-
 # ── Schemas ───────────────────────────────────────────────────────────────────
 
 class FaceReviewCreate(BaseModel):
     embedding: list[float]
     session_id: Optional[int] = None
     similarity: float = 0.0
-    camera_device_id: Optional[str] = None
+    camera_device_id: Optional[str] = None  # ignored: the authenticated device's id is stored
 
 
 class FaceReviewOut(BaseModel):
@@ -96,10 +92,10 @@ async def _find_closest_enrolled(db: AsyncSession, embedding: list[float]) -> tu
 async def report_unrecognised_face(
     body: FaceReviewCreate,
     db: AsyncSession = Depends(get_db),
-    _: None = Depends(_verify_internal_key),
+    camera: Camera = Depends(require_device),
 ):
     """
-    Called by the face worker when it detects a face that scores below the match
+    Called by the camera device (its own X-Device-Key, FR-408) when it detects a face that scores below the match
     threshold. Entries with similar embeddings are merged (occurrences++).
     """
     if len(body.embedding) != 512:
@@ -144,7 +140,7 @@ async def report_unrecognised_face(
         db.add(FaceReviewEntry(
             embedding=body.embedding,
             session_id=body.session_id,
-            camera_device_id=body.camera_device_id,
+            camera_device_id=camera.device_id,
             similarity=body.similarity,
             occurrences=1,
             closest_match_student_id=closest_user_id,

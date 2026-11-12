@@ -276,6 +276,20 @@ async def classroom(users) -> dict:
         }
 
 
+@pytest.fixture
+async def device() -> dict:
+    """A camera device in room DK1 (the `classroom` room) with its own key (T40, FR-408)."""
+    from app.models.camera import Camera
+    from app.services import device_service
+
+    async with AsyncSessionLocal() as db:
+        cam = Camera(label="DK1 door", room="DK1", device_id="cam-1")
+        key = device_service.issue_key(cam)
+        db.add(cam)
+        await db.commit()
+        return {"id": cam.id, "device_id": cam.device_id, "key": key, "headers": {"X-Device-Key": key}}
+
+
 def _client(token: str | None = None) -> httpx.AsyncClient:
     headers = {"Authorization": f"Bearer {token}"} if token else {}
     return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test", headers=headers)

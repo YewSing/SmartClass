@@ -9,7 +9,8 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
-    INTERNAL_API_KEY: str = "worker-shared-secret"
+    INTERNAL_API_KEY: str = "worker-shared-secret"   # unused since T40 (devices have their own keys); kept so old .env files load
+    DEVICE_ONLINE_SECONDS: int = 60   # FR-408/NFR-23: a device is online if it sent a heartbeat this recently
 
     FACE_MATCH_THRESHOLD: float = 0.40
     INSIGHTFACE_MODEL: str = "buffalo_sc"

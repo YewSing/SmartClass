@@ -11,7 +11,8 @@ from app.models.face_review import FaceReviewEntry
 
 pytestmark = pytest.mark.db
 
-INTERNAL_KEY = "test-internal-key"
+# T40: the worker endpoint takes the device's own key (X-Device-Key) instead of the shared internal key
+_DEVICE_HEADERS: dict[str, str] = {}
 
 
 def _vec(*head: float) -> list[float]:
@@ -20,15 +21,16 @@ def _vec(*head: float) -> list[float]:
 
 
 @pytest.fixture(autouse=True)
-def _internal_key(monkeypatch):
-    monkeypatch.setattr(settings, "INTERNAL_API_KEY", INTERNAL_KEY)
+def _device_key(device):
+    _DEVICE_HEADERS.clear()
+    _DEVICE_HEADERS.update(device["headers"])
 
 
 async def _report(client, embedding, **extra):
     return await client.post(
         "/internal/face-review",
         json={"embedding": embedding, **extra},
-        headers={"X-Internal-Key": INTERNAL_KEY},
+        headers=_DEVICE_HEADERS,
     )
 
 
@@ -39,7 +41,7 @@ async def _entries(db):
 
 async def test_internal_endpoint_needs_key_and_512_dims(client, users):
     resp = await client.post("/internal/face-review", json={"embedding": _vec(1.0)},
-                             headers={"X-Internal-Key": "wrong"})
+                             headers={"X-Device-Key": "wrong"})
     assert resp.status_code == 401
     resp = await client.post("/internal/face-review", json={"embedding": _vec(1.0)})
     assert resp.status_code == 422  # header missing
