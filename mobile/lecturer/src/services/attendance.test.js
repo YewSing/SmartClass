@@ -63,9 +63,9 @@ test('a start and end need two 24-hour times in order', () => {
   assert.match(timeRangeError('11:00', '10:00'), /after the start/)
 })
 
-test('the weekly schedule is all three fields or none', () => {
+test('the weekly schedule needs a day, a start and an end', () => {
   assert.equal(weeklyScheduleError({ day: 'Mon', start: '08:00', end: '10:00' }), null)
-  assert.equal(weeklyScheduleError({ day: null, start: '', end: '' }), null)
+  assert.match(weeklyScheduleError({ day: null, start: '', end: '' }), /Pick a day, a start and an end/)
   assert.match(weeklyScheduleError({ day: 'Mon', start: '08:00', end: '' }), /Pick a day, a start and an end/)
   assert.match(weeklyScheduleError({ day: 'Mon', start: '10:00', end: '08:00' }), /after the start/)
 })

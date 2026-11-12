@@ -291,6 +291,9 @@ function StudentModal({ visible, onClose, data, overrideStudent }) {
 
 // ─── WeeklyScheduleModal (FR-301) ──────────────────────────────────────────────
 
+const SCHEDULE_HINT =
+  'The new time is used from the next class that has not started yet. A class already running keeps its old time. For an extra class, use Start now.'
+
 function WeeklyScheduleModal({ visible, onClose, data }) {
   const { doSetWeeklySchedule, closeModal } = useLecturer()
   const [day, setDay] = useState(null)
@@ -351,15 +354,12 @@ function WeeklyScheduleModal({ visible, onClose, data }) {
       <TextInput style={styles.input} value={room} onChangeText={setRoom}
         placeholder="e.g. DK 2 FSKTM" placeholderTextColor={C.textHint} />
       <Text style={styles.hintText} testID="schedule-hint">
-        Changes apply from the next class. Use Start now for an extra class today.
+        {SCHEDULE_HINT}
       </Text>
-      <BtnPrimary label={busy ? 'Saving…' : 'Save schedule'} icon="checkmark" disabled={busy}
-        onPress={() => save({ day, start: start.trim(), end: end.trim(), room })} />
-      <Divider />
       <BtnRow>
         <BtnOutline label="Cancel" onPress={onClose} />
-        <BtnOutline label="No fixed time" icon="remove-circle-outline"
-          onPress={() => save({ day: null, start: '', end: '', room })} />
+        <BtnPrimary label={busy ? 'Saving…' : 'Save schedule'} icon="checkmark" disabled={busy}
+          onPress={() => save({ day, start: start.trim(), end: end.trim(), room })} />
       </BtnRow>
     </Sheet>
   )

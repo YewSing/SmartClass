@@ -48,7 +48,9 @@ appId: host.exp.exponent
     visible:
       id: "schedule-hint"
     timeout: 10000
-- assertVisible: "Changes apply from the next class. Use Start now for an extra class today."
+- assertVisible: "The new time is used from the next class that has not started yet. A class already running keeps its old time. For an extra class, use Start now."
+- assertNotVisible: "No fixed time"
+- assertVisible: "Save schedule"
 - tapOn: "Cancel"
 - extendedWaitUntil:
     notVisible:

@@ -120,9 +120,7 @@ export const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 // The weekly slot: all of day/start/end, or none to clear it (matches WeeklyScheduleRequest)
 export function weeklyScheduleError({ day, start, end }) {
-  const given = [day, start, end].filter(Boolean).length
-  if (given === 0) return null
-  if (given < 3) return 'Pick a day, a start and an end time, or clear all three.'
+  if (!day || !start || !end) return 'Pick a day, a start and an end time.'
   if (!WEEK_DAYS.includes(day)) return 'Pick a day.'
   return timeRangeError(start, end)
 }
