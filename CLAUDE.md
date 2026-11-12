@@ -12,6 +12,7 @@ SmartClass/
 │   ├── app/            # FastAPI application (routers, models, schemas, services)
 │   ├── alembic/        # DB migrations
 │   ├── face_worker/    # Standalone face recognition worker process
+│   ├── device_client/  # Camera device client (Pi / webcam): detect faces, send crops
 │   ├── moodle/         # Local Moodle 4.5 simulating SPeCTRUM (own docker-compose)
 │   ├── tests/          # pytest suite
 │   ├── scripts/        # seed.py — admin, timetable, always-open test class; reset_to_moodle.py; kb_sync.py
@@ -48,12 +49,13 @@ uvicorn app.main:app --reload --host 0.0.0.0     # API at localhost:8000, also r
 
 > Use `--host 0.0.0.0` so the React Native app on a physical device can reach the backend over WiFi.
 
-### Face Worker (separate terminal)
+### Camera device client (separate terminal)
 ```bash
-cd backend/face_worker
-pip install -r requirements.txt
-python worker.py
+cd backend
+python scripts/device_key.py CAM-TEST     # prints the seeded room's new key (copy it)
+DEVICE_KEY=<key> python -m device_client --camera 0
 ```
+The client detects faces locally and sends crops to `POST /device/faces`; the server recognises them (`backend/device_client/README.md`). `face_worker/` is the old worker, kept until T43.
 
 ### Admin Web App
 ```bash

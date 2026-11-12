@@ -21,3 +21,11 @@ class CropResult(BaseModel):
 class DeviceFacesResponse(BaseModel):
     session_id: int
     results: list[CropResult]
+
+
+class DeviceSessionOut(BaseModel):
+    """The open session a device records into, or 404 (GET /device/session, FR-401)."""
+
+    session_id: int
+    occurrence_id: Optional[int] = None
+    room: str            # the device's room
