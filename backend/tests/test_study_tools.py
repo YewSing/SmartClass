@@ -79,7 +79,7 @@ async def test_practice_questions_for_topic(student_client, synthetic_kb, fake_l
 async def test_malformed_json_is_retried_once_then_502(student_client, synthetic_kb, fake_llm):
     fake_llm.responses = ["not json at all", "still not json"]
     resp = await _tools(student_client, synthetic_kb, topic="bva", kind="flashcards")
-    assert resp.status_code == 503
+    assert resp.status_code == 502  # spec (T86): malformed after one retry -> 502, not 503
     assert "malformed" in resp.json()["detail"].lower()
     assert fake_llm.calls == 2  # one retry, no more
 

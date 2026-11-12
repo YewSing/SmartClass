@@ -62,9 +62,20 @@ def _check_study_tools(question, case):
             f"{question!r}: citation {item.citation!r} does not point at a retrieved passage"
 
 
+@pytest.mark.llm_recording  # skipped by conftest.py while no recording exists
 def test_recorded_answers_replay():
     cases = _cases()
-    if not cases:
-        pytest.skip("no recorded LLM fixtures yet (run: pytest -m live --record-llm)")
+    assert cases, "no recorded LLM fixtures (run: pytest -m live --record-llm)"
     for question, case in cases:
         _check(question, case)
+
+
+def test_a_partial_recording_run_keeps_earlier_recordings():
+    """`--record-llm` merges into qa.json: a run that records only some questions keeps the rest."""
+    from tests.fixtures.synthetic import merge_recordings
+
+    on_disk = json.dumps({"q1": {"raw": "old 1"}, "q2": {"raw": "old 2"}})
+    merged = merge_recordings(on_disk, {"q2": {"raw": "new 2"}, "q3": {"raw": "new 3"}})
+    assert merged == {"q1": {"raw": "old 1"}, "q2": {"raw": "new 2"}, "q3": {"raw": "new 3"}}
+    assert merge_recordings(None, {"q": {"raw": "a"}}) == {"q": {"raw": "a"}}
+    assert merge_recordings("not json", {"q": {"raw": "a"}}) == {"q": {"raw": "a"}}

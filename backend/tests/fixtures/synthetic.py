@@ -72,3 +72,20 @@ def passage_from_dict(d: dict) -> Passage:
         heading=d["heading"], text=d["text"], score=d["score"],
         vector_similarity=d["vector_similarity"],
     )
+
+
+def merge_recordings(existing_text: str | None, new: dict[str, dict]) -> dict[str, dict]:
+    """Recordings already on disk, updated with this run's (T82 `--record-llm`).
+
+    A partial run (a quota or network stop, or `-k` picking a few tests) must not erase
+    what earlier runs recorded, so new answers replace only the questions they cover.
+    """
+    import json
+
+    try:
+        old = json.loads(existing_text) if existing_text else {}
+    except json.JSONDecodeError:
+        old = {}
+    if not isinstance(old, dict):
+        old = {}
+    return {**old, **new}

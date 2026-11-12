@@ -70,6 +70,17 @@ def _face_libs_missing() -> str | None:
     return None
 
 
+def _has_llm_recording() -> bool:
+    """tests/fixtures/llm/qa.json exists and holds at least one recorded answer (T82)."""
+    import json
+
+    path = BACKEND_DIR / "tests" / "fixtures" / "llm" / "qa.json"
+    try:
+        return bool(json.loads(path.read_text(encoding="utf-8")))
+    except (OSError, ValueError):
+        return False
+
+
 def pytest_collection_modifyitems(config, items):
     skip_live = pytest.mark.skip(reason="LLM_API_KEY not set")
     skip_moodle = pytest.mark.skip(reason="MOODLE_TOKEN not set")
@@ -84,6 +95,8 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(skip_live)
         if "moodle" in item.keywords and not settings.MOODLE_TOKEN:
             item.add_marker(skip_moodle)
+        if item.get_closest_marker("llm_recording") and not _has_llm_recording():
+            item.add_marker(pytest.mark.skip(reason="no recorded LLM fixtures yet (run: pytest -m live --record-llm)"))
 
 
 # ── test database ─────────────────────────────────────────────────────────────

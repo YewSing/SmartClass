@@ -97,6 +97,34 @@ async def test_quota_error_is_distinct_and_not_retried(fake_client):
     assert c.calls == 1  # retrying a quota error is pointless
 
 
+# Gemini answers its per-minute limit with the same "quota" / RESOURCE_EXHAUSTED wording
+# as its daily one, as a one-element list body.
+_PER_MINUTE_BODY = [{"error": {"code": 429, "status": "RESOURCE_EXHAUSTED",
+                               "message": "You exceeded your current quota. Quota exceeded for metric: "
+                                          "generate_content_free_tier_requests, limit: 10"}}]
+
+
+async def test_per_minute_rate_limit_is_retried_not_reported_as_quota(fake_client):
+    c = fake_client([_api_error(429, "", _PER_MINUTE_BODY), _ok("recovered")])
+    assert await llm.chat([{"role": "user", "content": "hi"}]) == "recovered"
+    assert c.calls == 2
+
+
+async def test_quota_worded_429_that_never_clears_is_quota(fake_client):
+    c = fake_client([_api_error(429, "", _PER_MINUTE_BODY)] * 4)
+    with pytest.raises(LLMQuotaExhausted):
+        await llm.chat([{"role": "user", "content": "hi"}])
+    assert c.calls == 4  # retried with backoff first, then reported as quota
+
+
+async def test_deepseek_insufficient_balance_is_quota_and_not_retried(fake_client):
+    body = {"error": {"message": "Insufficient Balance", "type": "unknown_error"}}
+    c = fake_client([_api_error(402, "Insufficient Balance", body)])
+    with pytest.raises(LLMQuotaExhausted):
+        await llm.chat([{"role": "user", "content": "hi"}])
+    assert c.calls == 1
+
+
 async def test_fatal_4xx_is_not_retried(fake_client):
     c = fake_client([_api_error(400, "bad request")])
     with pytest.raises(LLMUnavailable):

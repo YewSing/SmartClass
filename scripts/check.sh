@@ -42,7 +42,8 @@ kb_changed="$(git diff --name-only "$base" -- app/services/kb | grep -c . || tru
 if [ "$kb_changed" -gt 0 ] && [ "$(live_hash)" != "$(cat "$passfile" 2>/dev/null || true)" ]; then
   echo "== live LLM tests (kb changed)"
   # -rs prints the skip reasons, so "LLM_QUOTA" shows up in the summary when quota is gone
-  live_out="$(python -m pytest -m live -q -rs -p no:cacheprovider 2>&1)"; rc=$?
+  # "|| rc=$?" keeps set -e from exiting here before the output is printed
+  rc=0; live_out="$(python -m pytest -m live -q -rs -p no:cacheprovider 2>&1)" || rc=$?
   echo "$live_out"
   if echo "$live_out" | grep -q "LLM_QUOTA"; then
     echo "LIVE TESTS PENDING (quota)"

@@ -28,6 +28,10 @@ class LLMUnavailable(Exception):
     """No key configured, provider down, or timed out. Routers turn this into a 503."""
 
 
+class LLMMalformedOutput(LLMUnavailable):
+    """The provider answered, but not with the JSON asked for (even after a retry). Routers: 502."""
+
+
 class LLMQuotaExhausted(LLMUnavailable):
     """The provider's daily quota is used up. Retrying won't help (it is still a 503)."""
 
@@ -112,9 +116,8 @@ async def _throttle() -> None:
 
 # ── error classification ──────────────────────────────────────────────────────
 
-def _error_kind(exc: Exception) -> str:
-    """'quota' | 'retryable' | 'fatal' for an openai client exception."""
-    status = getattr(exc, "status_code", None)
+def _error_text(exc: Exception) -> str:
+    """Lower-cased message text of an openai client exception, including the error body."""
     body = getattr(exc, "body", None)
     message = str(getattr(exc, "message", "") or "")
     # Gemini's OpenAI-compatible endpoint wraps the error in a one-element list:
@@ -129,12 +132,33 @@ def _error_kind(exc: Exception) -> str:
                     v = err.get(field)
                     if isinstance(v, str):
                         message += " " + v
-    text = message.lower()
-    if any(k in text for k in ("quota", "resource_exhausted", "daily limit", "exceeded your current quota")):
+    return message.lower()
+
+
+_DAILY_MARKERS = ("per day", "perday", "daily", "insufficient balance", "insufficient_quota")
+_QUOTA_MARKERS = ("quota", "resource_exhausted")
+
+
+def _error_kind(exc: Exception) -> str:
+    """'quota' | 'retryable' | 'fatal' for an openai client exception.
+
+    Gemini answers both its per-minute and its per-day limit with a 429 that says
+    "quota" / RESOURCE_EXHAUSTED, so those words alone mean "retry": only an explicit
+    per-day / out-of-credit signal (or DeepSeek's 402 Insufficient Balance) is 'quota'.
+    A quota-worded 429 that keeps failing after every retry is reported as quota by
+    `chat` (see `_looks_like_quota`).
+    """
+    status = getattr(exc, "status_code", None)
+    text = _error_text(exc)
+    if status == 402 or any(k in text for k in _DAILY_MARKERS):
         return "quota"
     if status is not None and (status == 429 or status >= 500):
         return "retryable"
     return "fatal"
+
+
+def _looks_like_quota(exc: Exception) -> bool:
+    return any(k in _error_text(exc) for k in _QUOTA_MARKERS)
 
 
 async def chat(messages: list[dict], max_tokens: int | None = None, temperature: float = 0.2) -> str:
@@ -159,8 +183,11 @@ async def chat(messages: list[dict], max_tokens: int | None = None, temperature:
             if kind == "quota":
                 raise LLMQuotaExhausted("The AI provider's daily quota is exhausted.") from exc
             if kind == "retryable" and attempt < attempts - 1:
-                await asyncio.sleep(settings.LLM_RETRY_BASE_SECONDS * (2 ** attempt))
+                await _sleep(settings.LLM_RETRY_BASE_SECONDS * (2 ** attempt))
                 continue
+            if kind == "retryable" and _looks_like_quota(exc):
+                # still rate-limited after every backoff: a used-up quota, not a blip
+                raise LLMQuotaExhausted("The AI provider's quota is exhausted.") from exc
             raise LLMUnavailable(f"AI provider error: {type(exc).__name__}") from exc
         return (resp.choices[0].message.content or "").strip()
     raise LLMUnavailable("AI provider error: retries exhausted")  # pragma: no cover
@@ -185,7 +212,7 @@ async def chat_json(messages: list[dict], *, max_tokens: int | None = None,
 
     `validator` (optional) is applied to the parsed object; a `ValueError` from it (e.g. a
     pydantic `ValidationError`) counts as malformed too. Raises `LLMUnavailable` when the
-    provider errors or the JSON stays malformed (routers turn that into a 502).
+    provider errors (503), or `LLMMalformedOutput` when the JSON stays malformed (502).
     `LLMQuotaExhausted` propagates unchanged.
     """
     for attempt in range(retries + 1):
@@ -195,9 +222,9 @@ async def chat_json(messages: list[dict], *, max_tokens: int | None = None,
             return validator(data) if validator else data
         except ValueError:
             if attempt >= retries:
-                raise LLMUnavailable("The AI returned malformed JSON.") from None
+                raise LLMMalformedOutput("The AI returned malformed JSON.") from None
             messages = messages + [
                 {"role": "assistant", "content": raw},
                 {"role": "user", "content": "That was not valid JSON. Reply with a single valid JSON object only."},
             ]
-    raise LLMUnavailable("The AI returned malformed JSON.")  # pragma: no cover
+    raise LLMMalformedOutput("The AI returned malformed JSON.")  # pragma: no cover

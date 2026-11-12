@@ -39,10 +39,12 @@ Rules:
    fact you take from them with its number in square brackets, like [2] or [1][3].
 2. If the passages do not cover the question, you may answer from general knowledge, but start
    with: "This isn't covered in your course materials, so here's a general explanation:" and
-   cite nothing.
+   cite nothing anywhere in the answer.
 3. Never invent citations or cite a passage that does not support the sentence.
 4. Be clear and concise for a university student. Use short paragraphs or bullet points.
-5. If the question has nothing to do with studying, politely steer back to the course.
+5. If the question has nothing to do with studying, politely steer back to the course. You may
+   name course topics when you do, but do not cite passages for them: an answer that does not
+   use the passages cites nothing.
 6. Students read your answer as plain text on a phone. Never use LaTeX, $ signs or backslash
    commands. Write formulas in plain text, like (a + b) / c, x^2, sqrt(n), 3 × 4 or 50%."""
 
@@ -51,6 +53,11 @@ materials, resolving words like "it" or "that" from the conversation. Reply with
 
 _TOPIC_LABEL_PROMPT = ("Label the student's question with a short topic of 2-5 words, so a lecturer "
                        "can see what students ask about. Reply with the topic only.")
+
+# Budget for the short helper calls (follow-up rewrite, topic label). Thinking models
+# (deepseek-flash, Gemini 3.x) count hidden reasoning tokens against max_tokens, so a tight
+# limit like 60 can be spent entirely on reasoning and return an empty or cut-off reply.
+_SHORT_CALL_MAX_TOKENS = 400
 
 _CITE_RE = re.compile(r"\[(\d{1,2})\]")
 
@@ -114,7 +121,7 @@ async def _standalone_query(question: str, history: list[dict]) -> str:
         rewritten = await llm.chat(
             [{"role": "system", "content": _REWRITE_PROMPT},
              {"role": "user", "content": f"Conversation:\n{convo}\n\nLatest question: {question}"}],
-            max_tokens=60, temperature=0,
+            max_tokens=_SHORT_CALL_MAX_TOKENS, temperature=0,
         )
         return rewritten.strip().strip('"') or question
     except llm.LLMUnavailable:
@@ -131,7 +138,7 @@ async def _label_topic(question: str) -> str | None:
         label = await llm.chat(
             [{"role": "system", "content": _TOPIC_LABEL_PROMPT},
              {"role": "user", "content": question}],
-            max_tokens=20, temperature=0,
+            max_tokens=_SHORT_CALL_MAX_TOKENS, temperature=0,
         )
         return label.strip().strip('"').strip() or None
     except llm.LLMUnavailable:

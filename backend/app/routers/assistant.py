@@ -20,7 +20,7 @@ from app.schemas.assistant import (
 )
 from app.services.kb import trends
 from app.services.kb.assistant import answer_question
-from app.services.kb.llm import LLMUnavailable
+from app.services.kb.llm import LLMMalformedOutput, LLMUnavailable
 from app.services.kb.moodle_client import MoodleClient, MoodleError
 from app.services.kb.study_tools import generate_study_tools
 from app.services.kb.summarize import summarize
@@ -222,6 +222,8 @@ async def study_tools(body: StudyToolsCreate, db: AsyncSession = Depends(get_db)
     try:
         cards, questions, source = await generate_study_tools(
             db, course, material_id=body.material_id, topic=body.topic, kind=body.kind)
+    except LLMMalformedOutput as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc))
     except LLMUnavailable as exc:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc))
     return StudyToolsOut(kind=body.kind, source_type=source, cards=cards, questions=questions)

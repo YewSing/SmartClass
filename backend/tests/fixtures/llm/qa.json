@@ -1,7 +1,54 @@
 {
-  "What is equivalence partitioning?": {
-    "raw": "**Equivalence Partitioning (EP)** is a testing technique that divides the input domain of a program into equivalence classes—groups of values that the program is expected to treat identically [1]. \n\nKey aspects of EP include:\n\n* **Representative Testing:** Testing one representative value from each class is assumed to uncover the same faults as testing every single value in that class, which significantly reduces the total number of test cases needed [1].\n* **Valid and Invalid Classes:** Partitions are created for both valid and invalid inputs [1]. For example, for an age field accepting values from 0 to 120, the classes would be:\n  * Valid class: 0 to 120 [1]\n  * Invalid class 1: negative values [1]\n  * Invalid class 2: values above 120 [1]\n* **Multiple Inputs:** When a program requires multiple inputs, EP determines classes for each input independently and combines their representative values using strategies like all-combinations or pairwise testing [1].\n\nThis approach produces a test suite that is much smaller than exhaustive testing while still covering every distinct category of input behavior [1].",
+  "What is boundary value analysis?": {
+    "raw": "Boundary value analysis (BVA) is a black-box testing technique that designs test cases around the edges of the input domain. The idea is that programmers most often make mistakes at the boundaries of a range — the minimum, the maximum, and the values immediately inside and outside them [1].\n\n- For a field accepting integers from 1 to 100 inclusive, BVA suggests testing 0, 1, 2, 99, 100 and 101 [1].\n- The classic three-point rule tests the minimum, minimum minus one, minimum plus one, plus the maximum, maximum minus one and maximum plus one — giving six test cases [1].\n- BVA pairs naturally with equivalence partitioning: EP first divides the input domain into classes of values that should behave the same, and BVA then picks the values at the edges of each class, where off-by-one errors are most likely to hide [1].",
     "source": "course",
+    "kind": null,
+    "passages": [
+      {
+        "chunk_id": 1,
+        "material_id": 1,
+        "title": "Boundary Value Analysis",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Boundary value analysis, usually shortened to BVA, is a black-box testing technique",
+        "text": "Boundary value analysis, usually shortened to BVA, is a black-box testing technique\nthat designs test cases around the edges of the input domain. The idea is that\nprogrammers most often make mistakes at the boundaries of a range, such as the\nminimum, the maximum, and the values immediately inside and outside them.\n\nFor a field that accepts integers from 1 to 100 inclusive, BVA suggests testing the\nvalues 0, 1, 2, 99, 100 and 101. The classic three-point rule tests the minimum, the\nminimum minus one and the minimum plus one, plus the maximum, the maximum minus one\nand the maximum plus one, which yields six test cases.\n\nBVA pairs naturally with equivalence partitioning. Equivalence partitioning first\ndivides the input domain into classes of values that should behave the same, and then\nboundary value analysis picks the values at the edges of each class, where off-by-one\nerrors are most likely to hide.",
+        "score": 0.03278688524590164,
+        "vector_similarity": 0.7988259552509731
+      },
+      {
+        "chunk_id": 2,
+        "material_id": 2,
+        "title": "Equivalence Partitioning",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Equivalence partitioning, or EP, divides the input domain of a program into",
+        "text": "Equivalence partitioning, or EP, divides the input domain of a program into\nequivalence classes: groups of values the program is expected to treat identically.\nTesting one representative value from each class is assumed to reveal the same faults\nas testing every member of the class, so EP greatly reduces the number of test cases.\n\nPartitions are drawn from both valid and invalid inputs. For an age field that accepts\n0 to 120, the valid class is the range 0 to 120, and there are two invalid classes:\nnegative values and values above 120. A complete test set samples at least one value\nfrom each class.\n\nWhen a program takes several inputs, EP considers each input's classes independently\nand then combines representative values, usually with an all-combinations or pairwise\nstrategy. The resulting test suite is much smaller than exhaustive testing but still\ncovers every behaviourally distinct category of input.",
+        "score": 0.016129032258064516,
+        "vector_similarity": 0.5407752120956915
+      },
+      {
+        "chunk_id": 3,
+        "material_id": 3,
+        "title": "Statement and Branch Coverage",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Statement coverage measures the share of executable statements that a test suite",
+        "text": "Statement coverage measures the share of executable statements that a test suite\nexercises. A suite reaches one hundred percent statement coverage when every line of\ncode has been run at least once. Statement coverage is the weakest structural coverage\ncriterion, because it can pass while the suite misses many bugs in decisions.\n\nBranch coverage is stronger. It requires every decision in the program, such as an if\nor a switch, to take both the true and the false outcome at least once. For an if\nstatement with no else clause, branch coverage still demands one test that skips the\nbody and one test that enters it.\n\nBranch coverage is often called decision coverage. It subsumes statement coverage:\nreaching full branch coverage also gives full statement coverage, because every\nstatement lies on some branch. A test suite that achieves branch coverage but not\ncondition coverage may still miss bugs that depend on the combination of several\nconditions inside a single decision.",
+        "score": 0.015873015873015872,
+        "vector_similarity": 0.4888060980323621
+      }
+    ]
+  },
+  "What is equivalence partitioning?": {
+    "raw": "Equivalence partitioning (EP) is a black-box technique that divides a program's input domain into equivalence classes: groups of values the program should treat identically. The idea is that testing one representative value from each class should reveal the same faults as testing every member, so EP greatly reduces the number of test cases you need [1].\n\nKey points:\n\n- Partitions come from both valid and invalid inputs. For an age field accepting 0 to 120, the valid class is 0 to 120, and the invalid classes are negative values and values above 120. A complete test set samples at least one value from each class [1].\n- With several inputs, EP handles each input's classes independently, then combines representative values, usually with an all-combinations or pairwise strategy. The suite is much smaller than exhaustive testing but still covers every behaviourally distinct category of input [1].\n- EP pairs naturally with boundary value analysis: EP splits the domain into classes, then BVA picks values at the edges of each class, where off-by-one errors tend to hide [2].",
+    "source": "course",
+    "kind": null,
     "passages": [
       {
         "chunk_id": 2,
@@ -44,9 +91,56 @@
       }
     ]
   },
-  "What is the difference between statement coverage and branch coverage?": {
-    "raw": "Based on your course materials, here are the main differences between statement coverage and branch coverage:\n\n* **Definition & Goal:** \n  * **Statement coverage** measures the percentage of executable statements run by a test suite. Full coverage means every line of code has been executed at least once [1].\n  * **Branch coverage** (also known as decision coverage) requires every decision in the program (such as an `if` or `switch` statement) to evaluate to both `true` and `false` outcomes at least once [1].\n\n* **Strength & Coverage Relationship:** \n  * Statement coverage is the weakest structural coverage criterion and can pass even if the test suite misses many bugs in decisions [1].\n  * Branch coverage is stronger and **subsumes** statement coverage—achieving 100% branch coverage automatically guarantees 100% statement coverage because every statement lies on some branch [1].\n\n* **Handling `if` Statements Without `else`:** \n  * For an `if` statement without an `else` clause, statement coverage only requires one test case that enters the `if` body [1]. \n  * Branch coverage requires two test cases: one that enters the body (`true` outcome) and one that skips it (`false` outcome) [1].",
+  "Why does equivalence partitioning reduce the number of test cases?": {
+    "raw": "Equivalence partitioning reduces test cases because it divides the input domain into equivalence classes: groups of values that the program is expected to treat identically. Testing one representative value from each class is assumed to reveal the same faults as testing every member of the class, so you do not need to test every possible input [1].\n\nA complete test set only needs to sample at least one value from each valid and invalid class [1]. When there are several inputs, EP considers each input’s classes independently and then combines representative values, usually with an all-combinations or pairwise strategy. This gives a test suite much smaller than exhaustive testing while still covering every behaviourally distinct category of input [1].",
     "source": "course",
+    "kind": null,
+    "passages": [
+      {
+        "chunk_id": 2,
+        "material_id": 2,
+        "title": "Equivalence Partitioning",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Equivalence partitioning, or EP, divides the input domain of a program into",
+        "text": "Equivalence partitioning, or EP, divides the input domain of a program into\nequivalence classes: groups of values the program is expected to treat identically.\nTesting one representative value from each class is assumed to reveal the same faults\nas testing every member of the class, so EP greatly reduces the number of test cases.\n\nPartitions are drawn from both valid and invalid inputs. For an age field that accepts\n0 to 120, the valid class is the range 0 to 120, and there are two invalid classes:\nnegative values and values above 120. A complete test set samples at least one value\nfrom each class.\n\nWhen a program takes several inputs, EP considers each input's classes independently\nand then combines representative values, usually with an all-combinations or pairwise\nstrategy. The resulting test suite is much smaller than exhaustive testing but still\ncovers every behaviourally distinct category of input.",
+        "score": 0.03278688524590164,
+        "vector_similarity": 0.7919497725948628
+      },
+      {
+        "chunk_id": 1,
+        "material_id": 1,
+        "title": "Boundary Value Analysis",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Boundary value analysis, usually shortened to BVA, is a black-box testing technique",
+        "text": "Boundary value analysis, usually shortened to BVA, is a black-box testing technique\nthat designs test cases around the edges of the input domain. The idea is that\nprogrammers most often make mistakes at the boundaries of a range, such as the\nminimum, the maximum, and the values immediately inside and outside them.\n\nFor a field that accepts integers from 1 to 100 inclusive, BVA suggests testing the\nvalues 0, 1, 2, 99, 100 and 101. The classic three-point rule tests the minimum, the\nminimum minus one and the minimum plus one, plus the maximum, the maximum minus one\nand the maximum plus one, which yields six test cases.\n\nBVA pairs naturally with equivalence partitioning. Equivalence partitioning first\ndivides the input domain into classes of values that should behave the same, and then\nboundary value analysis picks the values at the edges of each class, where off-by-one\nerrors are most likely to hide.",
+        "score": 0.016129032258064516,
+        "vector_similarity": 0.6511448011825803
+      },
+      {
+        "chunk_id": 3,
+        "material_id": 3,
+        "title": "Statement and Branch Coverage",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Statement coverage measures the share of executable statements that a test suite",
+        "text": "Statement coverage measures the share of executable statements that a test suite\nexercises. A suite reaches one hundred percent statement coverage when every line of\ncode has been run at least once. Statement coverage is the weakest structural coverage\ncriterion, because it can pass while the suite misses many bugs in decisions.\n\nBranch coverage is stronger. It requires every decision in the program, such as an if\nor a switch, to take both the true and the false outcome at least once. For an if\nstatement with no else clause, branch coverage still demands one test that skips the\nbody and one test that enters it.\n\nBranch coverage is often called decision coverage. It subsumes statement coverage:\nreaching full branch coverage also gives full statement coverage, because every\nstatement lies on some branch. A test suite that achieves branch coverage but not\ncondition coverage may still miss bugs that depend on the combination of several\nconditions inside a single decision.",
+        "score": 0.015873015873015872,
+        "vector_similarity": 0.646920223442323
+      }
+    ]
+  },
+  "What is the difference between statement coverage and branch coverage?": {
+    "raw": "Statement coverage and branch coverage differ in what they require a test suite to exercise.\n\n- **Statement coverage** measures the share of executable statements that a suite runs. Full statement coverage means every line of code has been executed at least once [1].\n- **Branch coverage** (also called decision coverage) requires every decision, such as an if or a switch, to take both its true and false outcome at least once. Even an if with no else clause needs one test that skips the body and one that enters it [1].\n\nStrength: statement coverage is the weakest structural criterion, because a suite can reach full statement coverage while still missing many bugs in decisions. Branch coverage is stronger, and it subsumes statement coverage: full branch coverage also gives full statement coverage, since every statement lies on some branch [1].\n\nOne limit to note: a suite with full branch coverage but not condition coverage may still miss bugs that depend on combinations of several conditions inside a single decision [1].",
+    "source": "course",
+    "kind": null,
     "passages": [
       {
         "chunk_id": 3,
@@ -86,6 +180,704 @@
         "text": "Boundary value analysis, usually shortened to BVA, is a black-box testing technique\nthat designs test cases around the edges of the input domain. The idea is that\nprogrammers most often make mistakes at the boundaries of a range, such as the\nminimum, the maximum, and the values immediately inside and outside them.\n\nFor a field that accepts integers from 1 to 100 inclusive, BVA suggests testing the\nvalues 0, 1, 2, 99, 100 and 101. The classic three-point rule tests the minimum, the\nminimum minus one and the minimum plus one, plus the maximum, the maximum minus one\nand the maximum plus one, which yields six test cases.\n\nBVA pairs naturally with equivalence partitioning. Equivalence partitioning first\ndivides the input domain into classes of values that should behave the same, and then\nboundary value analysis picks the values at the edges of each class, where off-by-one\nerrors are most likely to hide.",
         "score": 0.015873015873015872,
         "vector_similarity": 0.5165627906657938
+      }
+    ]
+  },
+  "Which structural coverage criterion is stronger, statement or branch?": {
+    "raw": "Branch coverage is stronger than statement coverage [1]. It requires every decision (such as an if or switch) to take both the true and false outcomes at least once [1]. Full branch coverage also subsumes statement coverage, because every statement lies on some branch [1].",
+    "source": "course",
+    "kind": null,
+    "passages": [
+      {
+        "chunk_id": 3,
+        "material_id": 3,
+        "title": "Statement and Branch Coverage",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Statement coverage measures the share of executable statements that a test suite",
+        "text": "Statement coverage measures the share of executable statements that a test suite\nexercises. A suite reaches one hundred percent statement coverage when every line of\ncode has been run at least once. Statement coverage is the weakest structural coverage\ncriterion, because it can pass while the suite misses many bugs in decisions.\n\nBranch coverage is stronger. It requires every decision in the program, such as an if\nor a switch, to take both the true and the false outcome at least once. For an if\nstatement with no else clause, branch coverage still demands one test that skips the\nbody and one test that enters it.\n\nBranch coverage is often called decision coverage. It subsumes statement coverage:\nreaching full branch coverage also gives full statement coverage, because every\nstatement lies on some branch. A test suite that achieves branch coverage but not\ncondition coverage may still miss bugs that depend on the combination of several\nconditions inside a single decision.",
+        "score": 0.03278688524590164,
+        "vector_similarity": 0.8405634259841799
+      },
+      {
+        "chunk_id": 2,
+        "material_id": 2,
+        "title": "Equivalence Partitioning",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Equivalence partitioning, or EP, divides the input domain of a program into",
+        "text": "Equivalence partitioning, or EP, divides the input domain of a program into\nequivalence classes: groups of values the program is expected to treat identically.\nTesting one representative value from each class is assumed to reveal the same faults\nas testing every member of the class, so EP greatly reduces the number of test cases.\n\nPartitions are drawn from both valid and invalid inputs. For an age field that accepts\n0 to 120, the valid class is the range 0 to 120, and there are two invalid classes:\nnegative values and values above 120. A complete test set samples at least one value\nfrom each class.\n\nWhen a program takes several inputs, EP considers each input's classes independently\nand then combines representative values, usually with an all-combinations or pairwise\nstrategy. The resulting test suite is much smaller than exhaustive testing but still\ncovers every behaviourally distinct category of input.",
+        "score": 0.016129032258064516,
+        "vector_similarity": 0.5798461091610139
+      },
+      {
+        "chunk_id": 1,
+        "material_id": 1,
+        "title": "Boundary Value Analysis",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Boundary value analysis, usually shortened to BVA, is a black-box testing technique",
+        "text": "Boundary value analysis, usually shortened to BVA, is a black-box testing technique\nthat designs test cases around the edges of the input domain. The idea is that\nprogrammers most often make mistakes at the boundaries of a range, such as the\nminimum, the maximum, and the values immediately inside and outside them.\n\nFor a field that accepts integers from 1 to 100 inclusive, BVA suggests testing the\nvalues 0, 1, 2, 99, 100 and 101. The classic three-point rule tests the minimum, the\nminimum minus one and the minimum plus one, plus the maximum, the maximum minus one\nand the maximum plus one, which yields six test cases.\n\nBVA pairs naturally with equivalence partitioning. Equivalence partitioning first\ndivides the input domain into classes of values that should behave the same, and then\nboundary value analysis picks the values at the edges of each class, where off-by-one\nerrors are most likely to hide.",
+        "score": 0.015873015873015872,
+        "vector_similarity": 0.5578347444534342
+      }
+    ]
+  },
+  "Why is statement coverage considered the weakest criterion?": {
+    "raw": "Statement coverage is considered the weakest structural coverage criterion because it only measures whether each executable statement has been run at least once [1]. A test suite can reach 100% statement coverage while still missing many bugs in decisions, since it may never make an if or switch take both outcomes [1]. Branch coverage is stronger and subsumes statement coverage [1].",
+    "source": "course",
+    "kind": null,
+    "passages": [
+      {
+        "chunk_id": 3,
+        "material_id": 3,
+        "title": "Statement and Branch Coverage",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Statement coverage measures the share of executable statements that a test suite",
+        "text": "Statement coverage measures the share of executable statements that a test suite\nexercises. A suite reaches one hundred percent statement coverage when every line of\ncode has been run at least once. Statement coverage is the weakest structural coverage\ncriterion, because it can pass while the suite misses many bugs in decisions.\n\nBranch coverage is stronger. It requires every decision in the program, such as an if\nor a switch, to take both the true and the false outcome at least once. For an if\nstatement with no else clause, branch coverage still demands one test that skips the\nbody and one test that enters it.\n\nBranch coverage is often called decision coverage. It subsumes statement coverage:\nreaching full branch coverage also gives full statement coverage, because every\nstatement lies on some branch. A test suite that achieves branch coverage but not\ncondition coverage may still miss bugs that depend on the combination of several\nconditions inside a single decision.",
+        "score": 0.01639344262295082,
+        "vector_similarity": 0.7957877164140142
+      },
+      {
+        "chunk_id": 1,
+        "material_id": 1,
+        "title": "Boundary Value Analysis",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Boundary value analysis, usually shortened to BVA, is a black-box testing technique",
+        "text": "Boundary value analysis, usually shortened to BVA, is a black-box testing technique\nthat designs test cases around the edges of the input domain. The idea is that\nprogrammers most often make mistakes at the boundaries of a range, such as the\nminimum, the maximum, and the values immediately inside and outside them.\n\nFor a field that accepts integers from 1 to 100 inclusive, BVA suggests testing the\nvalues 0, 1, 2, 99, 100 and 101. The classic three-point rule tests the minimum, the\nminimum minus one and the minimum plus one, plus the maximum, the maximum minus one\nand the maximum plus one, which yields six test cases.\n\nBVA pairs naturally with equivalence partitioning. Equivalence partitioning first\ndivides the input domain into classes of values that should behave the same, and then\nboundary value analysis picks the values at the edges of each class, where off-by-one\nerrors are most likely to hide.",
+        "score": 0.016129032258064516,
+        "vector_similarity": 0.5677795071733382
+      },
+      {
+        "chunk_id": 2,
+        "material_id": 2,
+        "title": "Equivalence Partitioning",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Equivalence partitioning, or EP, divides the input domain of a program into",
+        "text": "Equivalence partitioning, or EP, divides the input domain of a program into\nequivalence classes: groups of values the program is expected to treat identically.\nTesting one representative value from each class is assumed to reveal the same faults\nas testing every member of the class, so EP greatly reduces the number of test cases.\n\nPartitions are drawn from both valid and invalid inputs. For an age field that accepts\n0 to 120, the valid class is the range 0 to 120, and there are two invalid classes:\nnegative values and values above 120. A complete test set samples at least one value\nfrom each class.\n\nWhen a program takes several inputs, EP considers each input's classes independently\nand then combines representative values, usually with an all-combinations or pairwise\nstrategy. The resulting test suite is much smaller than exhaustive testing but still\ncovers every behaviourally distinct category of input.",
+        "score": 0.015873015873015872,
+        "vector_similarity": 0.5548265511004308
+      }
+    ]
+  },
+  "How do boundary value analysis and equivalence partitioning relate?": {
+    "raw": "Boundary value analysis (BVA) and equivalence partitioning (EP) are complementary black-box techniques, and they're usually used together.\n\n- EP goes first: it divides the input domain into equivalence classes, groups of values the program should treat identically. Testing one representative value per class is assumed to catch the same faults as testing every value, which cuts the number of test cases dramatically [2]. Classes come from both valid and invalid inputs. For an age field accepting 0 to 120, the valid class is 0 to 120 and the invalid classes are negative values and values above 120 [2].\n- BVA then refines where you pick values: instead of any representative, it targets the edges of each class, where off-by-one errors are most likely to hide [1]. For a field accepting integers 1 to 100, BVA suggests 0, 1, 2, 99, 100 and 101, following the three-point rule (min, min-1, min+1, max, max-1, max+1), which gives six test cases [1].\n- So EP tells you which classes to cover; BVA tells you which values inside or just outside each class are worth testing [1].\n\nWhen a program has several inputs, EP treats each input's classes independently and then combines representative values, usually with an all-combinations or pairwise strategy, so the suite stays far smaller than exhaustive testing while still covering every behaviourally distinct category of input [2].",
+    "source": "course",
+    "kind": null,
+    "passages": [
+      {
+        "chunk_id": 1,
+        "material_id": 1,
+        "title": "Boundary Value Analysis",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Boundary value analysis, usually shortened to BVA, is a black-box testing technique",
+        "text": "Boundary value analysis, usually shortened to BVA, is a black-box testing technique\nthat designs test cases around the edges of the input domain. The idea is that\nprogrammers most often make mistakes at the boundaries of a range, such as the\nminimum, the maximum, and the values immediately inside and outside them.\n\nFor a field that accepts integers from 1 to 100 inclusive, BVA suggests testing the\nvalues 0, 1, 2, 99, 100 and 101. The classic three-point rule tests the minimum, the\nminimum minus one and the minimum plus one, plus the maximum, the maximum minus one\nand the maximum plus one, which yields six test cases.\n\nBVA pairs naturally with equivalence partitioning. Equivalence partitioning first\ndivides the input domain into classes of values that should behave the same, and then\nboundary value analysis picks the values at the edges of each class, where off-by-one\nerrors are most likely to hide.",
+        "score": 0.01639344262295082,
+        "vector_similarity": 0.7880157105932077
+      },
+      {
+        "chunk_id": 2,
+        "material_id": 2,
+        "title": "Equivalence Partitioning",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Equivalence partitioning, or EP, divides the input domain of a program into",
+        "text": "Equivalence partitioning, or EP, divides the input domain of a program into\nequivalence classes: groups of values the program is expected to treat identically.\nTesting one representative value from each class is assumed to reveal the same faults\nas testing every member of the class, so EP greatly reduces the number of test cases.\n\nPartitions are drawn from both valid and invalid inputs. For an age field that accepts\n0 to 120, the valid class is the range 0 to 120, and there are two invalid classes:\nnegative values and values above 120. A complete test set samples at least one value\nfrom each class.\n\nWhen a program takes several inputs, EP considers each input's classes independently\nand then combines representative values, usually with an all-combinations or pairwise\nstrategy. The resulting test suite is much smaller than exhaustive testing but still\ncovers every behaviourally distinct category of input.",
+        "score": 0.016129032258064516,
+        "vector_similarity": 0.7606282830238342
+      },
+      {
+        "chunk_id": 3,
+        "material_id": 3,
+        "title": "Statement and Branch Coverage",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Statement coverage measures the share of executable statements that a test suite",
+        "text": "Statement coverage measures the share of executable statements that a test suite\nexercises. A suite reaches one hundred percent statement coverage when every line of\ncode has been run at least once. Statement coverage is the weakest structural coverage\ncriterion, because it can pass while the suite misses many bugs in decisions.\n\nBranch coverage is stronger. It requires every decision in the program, such as an if\nor a switch, to take both the true and the false outcome at least once. For an if\nstatement with no else clause, branch coverage still demands one test that skips the\nbody and one test that enters it.\n\nBranch coverage is often called decision coverage. It subsumes statement coverage:\nreaching full branch coverage also gives full statement coverage, because every\nstatement lies on some branch. A test suite that achieves branch coverage but not\ncondition coverage may still miss bugs that depend on the combination of several\nconditions inside a single decision.",
+        "score": 0.015873015873015872,
+        "vector_similarity": 0.5591473579406738
+      }
+    ]
+  },
+  "What does reaching one hundred percent statement coverage mean?": {
+    "raw": "Reaching 100% statement coverage means that every line of executable code in the program has been run at least once by the test suite [1].\n\nTwo things worth keeping in mind:\n\n- Statement coverage is the weakest structural coverage criterion, because a suite can reach it while still missing many bugs in decisions [1].\n- Branch coverage is stronger and subsumes it: full branch coverage guarantees full statement coverage, since every statement lies on some branch [1].\n\nSo 100% statement coverage is a floor, not a finish line [1].",
+    "source": "course",
+    "kind": null,
+    "passages": [
+      {
+        "chunk_id": 3,
+        "material_id": 3,
+        "title": "Statement and Branch Coverage",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Statement coverage measures the share of executable statements that a test suite",
+        "text": "Statement coverage measures the share of executable statements that a test suite\nexercises. A suite reaches one hundred percent statement coverage when every line of\ncode has been run at least once. Statement coverage is the weakest structural coverage\ncriterion, because it can pass while the suite misses many bugs in decisions.\n\nBranch coverage is stronger. It requires every decision in the program, such as an if\nor a switch, to take both the true and the false outcome at least once. For an if\nstatement with no else clause, branch coverage still demands one test that skips the\nbody and one test that enters it.\n\nBranch coverage is often called decision coverage. It subsumes statement coverage:\nreaching full branch coverage also gives full statement coverage, because every\nstatement lies on some branch. A test suite that achieves branch coverage but not\ncondition coverage may still miss bugs that depend on the combination of several\nconditions inside a single decision.",
+        "score": 0.01639344262295082,
+        "vector_similarity": 0.7001537710565748
+      },
+      {
+        "chunk_id": 1,
+        "material_id": 1,
+        "title": "Boundary Value Analysis",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Boundary value analysis, usually shortened to BVA, is a black-box testing technique",
+        "text": "Boundary value analysis, usually shortened to BVA, is a black-box testing technique\nthat designs test cases around the edges of the input domain. The idea is that\nprogrammers most often make mistakes at the boundaries of a range, such as the\nminimum, the maximum, and the values immediately inside and outside them.\n\nFor a field that accepts integers from 1 to 100 inclusive, BVA suggests testing the\nvalues 0, 1, 2, 99, 100 and 101. The classic three-point rule tests the minimum, the\nminimum minus one and the minimum plus one, plus the maximum, the maximum minus one\nand the maximum plus one, which yields six test cases.\n\nBVA pairs naturally with equivalence partitioning. Equivalence partitioning first\ndivides the input domain into classes of values that should behave the same, and then\nboundary value analysis picks the values at the edges of each class, where off-by-one\nerrors are most likely to hide.",
+        "score": 0.016129032258064516,
+        "vector_similarity": 0.5274574946548785
+      },
+      {
+        "chunk_id": 2,
+        "material_id": 2,
+        "title": "Equivalence Partitioning",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Equivalence partitioning, or EP, divides the input domain of a program into",
+        "text": "Equivalence partitioning, or EP, divides the input domain of a program into\nequivalence classes: groups of values the program is expected to treat identically.\nTesting one representative value from each class is assumed to reveal the same faults\nas testing every member of the class, so EP greatly reduces the number of test cases.\n\nPartitions are drawn from both valid and invalid inputs. For an age field that accepts\n0 to 120, the valid class is the range 0 to 120, and there are two invalid classes:\nnegative values and values above 120. A complete test set samples at least one value\nfrom each class.\n\nWhen a program takes several inputs, EP considers each input's classes independently\nand then combines representative values, usually with an all-combinations or pairwise\nstrategy. The resulting test suite is much smaller than exhaustive testing but still\ncovers every behaviourally distinct category of input.",
+        "score": 0.015873015873015872,
+        "vector_similarity": 0.5240011683703535
+      }
+    ]
+  },
+  "summary:boundary-value-analysis": {
+    "raw": "## Boundary Value Analysis (BVA)\n\n- BVA is a black-box testing technique that designs test cases around the edges of the input domain [1].\n- The underlying rationale is that programmers most often make mistakes at the boundaries of a range: the minimum, the maximum, and the values immediately inside and outside them [1].\n- For a field that accepts integers from 1 to 100 inclusive, BVA suggests testing the values 0, 1, 2, 99, 100 and 101 [1].\n- The classic three-point rule tests the minimum, the minimum minus one and the minimum plus one, plus the maximum, the maximum minus one and the maximum plus one, which yields six test cases [1].\n\n## Combining BVA with Equivalence Partitioning\n\n- BVA pairs naturally with equivalence partitioning [1].\n- Equivalence partitioning first divides the input domain into classes of values that should behave the same [1].\n- Boundary value analysis then picks the values at the edges of each class, where off-by-one errors are most likely to hide [1].",
+    "source": "course",
+    "kind": null,
+    "passages": [
+      {
+        "chunk_id": 1,
+        "material_id": 1,
+        "title": "Boundary Value Analysis",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Boundary value analysis, usually shortened to BVA, is a black-box testing technique",
+        "text": "Boundary value analysis, usually shortened to BVA, is a black-box testing technique\nthat designs test cases around the edges of the input domain. The idea is that\nprogrammers most often make mistakes at the boundaries of a range, such as the\nminimum, the maximum, and the values immediately inside and outside them.\n\nFor a field that accepts integers from 1 to 100 inclusive, BVA suggests testing the\nvalues 0, 1, 2, 99, 100 and 101. The classic three-point rule tests the minimum, the\nminimum minus one and the minimum plus one, plus the maximum, the maximum minus one\nand the maximum plus one, which yields six test cases.\n\nBVA pairs naturally with equivalence partitioning. Equivalence partitioning first\ndivides the input domain into classes of values that should behave the same, and then\nboundary value analysis picks the values at the edges of each class, where off-by-one\nerrors are most likely to hide.",
+        "score": 0.0,
+        "vector_similarity": 0.0
+      }
+    ]
+  },
+  "study_guide:equivalence partitioning": {
+    "raw": "## What equivalence partitioning is\n- Equivalence partitioning, or EP, divides a program's input domain into equivalence classes: groups of values the program is expected to treat identically [1].\n- Testing one representative value from each class is assumed to reveal the same faults as testing every member of the class, so EP greatly reduces the number of test cases [1].\n\n## Valid and invalid partitions\n- Partitions are drawn from both valid and invalid inputs [1].\n- A complete test set samples at least one value from each equivalence class [1].\n\n## Example: an age field\n- For an age field that accepts 0 to 120, the valid class is the range 0 to 120 [1].\n- The same field has two invalid classes: negative values and values above 120 [1].\n\n## Multiple inputs\n- When a program takes several inputs, EP considers each input's classes independently and then combines representative values, usually with an all-combinations or pairwise strategy [1].\n- The resulting test suite is much smaller than exhaustive testing but still covers every behaviourally distinct category of input [1].\n\n## How EP relates to boundary value analysis\n- BVA pairs naturally with equivalence partitioning: EP first divides the input domain into classes of values that should behave the same, and then boundary value analysis picks the values at the edges of each class, where off-by-one errors are most likely to hide [2].",
+    "source": "course",
+    "kind": null,
+    "passages": [
+      {
+        "chunk_id": 2,
+        "material_id": 2,
+        "title": "Equivalence Partitioning",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Equivalence partitioning, or EP, divides the input domain of a program into",
+        "text": "Equivalence partitioning, or EP, divides the input domain of a program into\nequivalence classes: groups of values the program is expected to treat identically.\nTesting one representative value from each class is assumed to reveal the same faults\nas testing every member of the class, so EP greatly reduces the number of test cases.\n\nPartitions are drawn from both valid and invalid inputs. For an age field that accepts\n0 to 120, the valid class is the range 0 to 120, and there are two invalid classes:\nnegative values and values above 120. A complete test set samples at least one value\nfrom each class.\n\nWhen a program takes several inputs, EP considers each input's classes independently\nand then combines representative values, usually with an all-combinations or pairwise\nstrategy. The resulting test suite is much smaller than exhaustive testing but still\ncovers every behaviourally distinct category of input.",
+        "score": 0.03252247488101534,
+        "vector_similarity": 0.8272341633350432
+      },
+      {
+        "chunk_id": 1,
+        "material_id": 1,
+        "title": "Boundary Value Analysis",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Boundary value analysis, usually shortened to BVA, is a black-box testing technique",
+        "text": "Boundary value analysis, usually shortened to BVA, is a black-box testing technique\nthat designs test cases around the edges of the input domain. The idea is that\nprogrammers most often make mistakes at the boundaries of a range, such as the\nminimum, the maximum, and the values immediately inside and outside them.\n\nFor a field that accepts integers from 1 to 100 inclusive, BVA suggests testing the\nvalues 0, 1, 2, 99, 100 and 101. The classic three-point rule tests the minimum, the\nminimum minus one and the minimum plus one, plus the maximum, the maximum minus one\nand the maximum plus one, which yields six test cases.\n\nBVA pairs naturally with equivalence partitioning. Equivalence partitioning first\ndivides the input domain into classes of values that should behave the same, and then\nboundary value analysis picks the values at the edges of each class, where off-by-one\nerrors are most likely to hide.",
+        "score": 0.03252247488101534,
+        "vector_similarity": 0.6422590378312826
+      },
+      {
+        "chunk_id": 3,
+        "material_id": 3,
+        "title": "Statement and Branch Coverage",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Statement coverage measures the share of executable statements that a test suite",
+        "text": "Statement coverage measures the share of executable statements that a test suite\nexercises. A suite reaches one hundred percent statement coverage when every line of\ncode has been run at least once. Statement coverage is the weakest structural coverage\ncriterion, because it can pass while the suite misses many bugs in decisions.\n\nBranch coverage is stronger. It requires every decision in the program, such as an if\nor a switch, to take both the true and the false outcome at least once. For an if\nstatement with no else clause, branch coverage still demands one test that skips the\nbody and one test that enters it.\n\nBranch coverage is often called decision coverage. It subsumes statement coverage:\nreaching full branch coverage also gives full statement coverage, because every\nstatement lies on some branch. A test suite that achieves branch coverage but not\ncondition coverage may still miss bugs that depend on the combination of several\nconditions inside a single decision.",
+        "score": 0.015873015873015872,
+        "vector_similarity": 0.5882258345090623
+      }
+    ]
+  },
+  "study_guide:quantum entanglement (off-syllabus)": {
+    "raw": "## Quantum Entanglement\n\nThis isn't covered in your course materials, so here's a general explanation:\n\n- Quantum entanglement is a relationship between two or more quantum particles whose combined state cannot be described by describing each particle separately, no matter how far apart they are.\n- Entangled particles are described by a single shared state. For two qubits, a well-known example is the Bell state, written in plain text as (|00> + |11>)/sqrt(2), where the two particles are always measured in matching states.\n- Before measurement, neither particle has a definite value for the measured property. Measurement outcomes are correlated, and those correlations can be stronger than any classical shared-randomness model can reproduce; this is what Bell tests and Bell inequalities check.\n- Entanglement does not allow faster-than-light communication. Each side's local measurement results look random on their own; the correlation only becomes visible when the two sets of results are compared through an ordinary (slower-than-light) channel.\n- Entanglement is a physical resource rather than just a curiosity. It underlies quantum teleportation, quantum key distribution, dense coding, and is used as a resource in quantum computing and quantum error correction.\n- Entanglement is fragile: interactions with the environment cause decoherence, which degrades entangled states, so experiments and devices rely on isolation, low temperatures, and error correction.\n- A useful conceptual caution: entanglement is not the same as superposition (one particle in several states at once) or as classical correlation (for example, two gloves in separate boxes). It is the non-separable joint state that distinguishes it.\n\nNote: your course passages cover software testing topics (boundary value analysis, equivalence partitioning, statement and branch coverage), so they do not contain material on this topic. The points above are general background and carry no citations from your course readings.",
+    "source": "general",
+    "kind": null,
+    "passages": [
+      {
+        "chunk_id": 1,
+        "material_id": 1,
+        "title": "Boundary Value Analysis",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Boundary value analysis, usually shortened to BVA, is a black-box testing technique",
+        "text": "Boundary value analysis, usually shortened to BVA, is a black-box testing technique\nthat designs test cases around the edges of the input domain. The idea is that\nprogrammers most often make mistakes at the boundaries of a range, such as the\nminimum, the maximum, and the values immediately inside and outside them.\n\nFor a field that accepts integers from 1 to 100 inclusive, BVA suggests testing the\nvalues 0, 1, 2, 99, 100 and 101. The classic three-point rule tests the minimum, the\nminimum minus one and the minimum plus one, plus the maximum, the maximum minus one\nand the maximum plus one, which yields six test cases.\n\nBVA pairs naturally with equivalence partitioning. Equivalence partitioning first\ndivides the input domain into classes of values that should behave the same, and then\nboundary value analysis picks the values at the edges of each class, where off-by-one\nerrors are most likely to hide.",
+        "score": 0.01639344262295082,
+        "vector_similarity": 0.5009010136664527
+      },
+      {
+        "chunk_id": 3,
+        "material_id": 3,
+        "title": "Statement and Branch Coverage",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Statement coverage measures the share of executable statements that a test suite",
+        "text": "Statement coverage measures the share of executable statements that a test suite\nexercises. A suite reaches one hundred percent statement coverage when every line of\ncode has been run at least once. Statement coverage is the weakest structural coverage\ncriterion, because it can pass while the suite misses many bugs in decisions.\n\nBranch coverage is stronger. It requires every decision in the program, such as an if\nor a switch, to take both the true and the false outcome at least once. For an if\nstatement with no else clause, branch coverage still demands one test that skips the\nbody and one test that enters it.\n\nBranch coverage is often called decision coverage. It subsumes statement coverage:\nreaching full branch coverage also gives full statement coverage, because every\nstatement lies on some branch. A test suite that achieves branch coverage but not\ncondition coverage may still miss bugs that depend on the combination of several\nconditions inside a single decision.",
+        "score": 0.016129032258064516,
+        "vector_similarity": 0.4470704197883606
+      },
+      {
+        "chunk_id": 2,
+        "material_id": 2,
+        "title": "Equivalence Partitioning",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Equivalence partitioning, or EP, divides the input domain of a program into",
+        "text": "Equivalence partitioning, or EP, divides the input domain of a program into\nequivalence classes: groups of values the program is expected to treat identically.\nTesting one representative value from each class is assumed to reveal the same faults\nas testing every member of the class, so EP greatly reduces the number of test cases.\n\nPartitions are drawn from both valid and invalid inputs. For an age field that accepts\n0 to 120, the valid class is the range 0 to 120, and there are two invalid classes:\nnegative values and values above 120. A complete test set samples at least one value\nfrom each class.\n\nWhen a program takes several inputs, EP considers each input's classes independently\nand then combines representative values, usually with an all-combinations or pairwise\nstrategy. The resulting test suite is much smaller than exhaustive testing but still\ncovers every behaviourally distinct category of input.",
+        "score": 0.015873015873015872,
+        "vector_similarity": 0.4412413537502289
+      }
+    ]
+  },
+  "flashcards:boundary-value-analysis": {
+    "raw": "{\"cards\":[{\"front\":\"What is Boundary Value Analysis (BVA)?\",\"back\":\"BVA (short for Boundary Value Analysis) is a black-box testing technique that designs test cases around the edges of the input domain.\",\"citation\":1},{\"front\":\"According to BVA, where do programmers most often make mistakes?\",\"back\":\"At the boundaries of a range, such as the minimum, the maximum, and the values immediately inside and outside them.\",\"citation\":1},{\"front\":\"For a field that accepts integers from 1 to 100 inclusive, which values does BVA suggest testing?\",\"back\":\"0, 1, 2, 99, 100, and 101.\",\"citation\":1},{\"front\":\"What does the classic three-point rule in BVA test?\",\"back\":\"The minimum, minimum minus one, minimum plus one, maximum, maximum minus one, and maximum plus one, which yields six test cases.\",\"citation\":1},{\"front\":\"How does BVA pair with equivalence partitioning?\",\"back\":\"Equivalence partitioning first divides the input domain into classes of values that should behave the same, and then boundary value analysis picks the values at the edges of each class, where off-by-one errors are most likely to hide.\",\"citation\":1}]}",
+    "source": "course",
+    "kind": "flashcards",
+    "passages": [
+      {
+        "chunk_id": 1,
+        "material_id": 1,
+        "title": "Boundary Value Analysis",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Boundary value analysis, usually shortened to BVA, is a black-box testing technique",
+        "text": "Boundary value analysis, usually shortened to BVA, is a black-box testing technique\nthat designs test cases around the edges of the input domain. The idea is that\nprogrammers most often make mistakes at the boundaries of a range, such as the\nminimum, the maximum, and the values immediately inside and outside them.\n\nFor a field that accepts integers from 1 to 100 inclusive, BVA suggests testing the\nvalues 0, 1, 2, 99, 100 and 101. The classic three-point rule tests the minimum, the\nminimum minus one and the minimum plus one, plus the maximum, the maximum minus one\nand the maximum plus one, which yields six test cases.\n\nBVA pairs naturally with equivalence partitioning. Equivalence partitioning first\ndivides the input domain into classes of values that should behave the same, and then\nboundary value analysis picks the values at the edges of each class, where off-by-one\nerrors are most likely to hide.",
+        "score": 0.0,
+        "vector_similarity": 0.0
+      }
+    ]
+  },
+  "flashcards:equivalence-partitioning": {
+    "raw": "{\"cards\": [{\"front\": \"What is Equivalence Partitioning (EP)?\", \"back\": \"A test-design technique that divides a program's input domain into equivalence classes: groups of values the program is expected to treat identically.\", \"citation\": 1}, {\"front\": \"On what assumption does Equivalence Partitioning rest, and why does it reduce test cases?\", \"back\": \"Testing one representative value from each class is assumed to reveal the same faults as testing every member of the class, so EP greatly reduces the number of test cases.\", \"citation\": 1}, {\"front\": \"For an age field accepting 0 to 120, what are the equivalence classes under EP?\", \"back\": \"One valid class: the range 0 to 120. Two invalid classes: negative values, and values above 120.\", \"citation\": 1}, {\"front\": \"What does a complete EP test set require?\", \"back\": \"It must sample at least one value from each equivalence class, both valid and invalid partitions.\", \"citation\": 1}, {\"front\": \"How does EP handle a program with several inputs?\", \"back\": \"It considers each input's classes independently and then combines representative values, usually with an all-combinations or pairwise strategy.\", \"citation\": 1}, {\"front\": \"What is the trade-off of an EP test suite for multi-input programs?\", \"back\": \"The suite is much smaller than exhaustive testing but still covers every behaviourally distinct category of input.\", \"citation\": 1}]}",
+    "source": "course",
+    "kind": "flashcards",
+    "passages": [
+      {
+        "chunk_id": 2,
+        "material_id": 2,
+        "title": "Equivalence Partitioning",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Equivalence partitioning, or EP, divides the input domain of a program into",
+        "text": "Equivalence partitioning, or EP, divides the input domain of a program into\nequivalence classes: groups of values the program is expected to treat identically.\nTesting one representative value from each class is assumed to reveal the same faults\nas testing every member of the class, so EP greatly reduces the number of test cases.\n\nPartitions are drawn from both valid and invalid inputs. For an age field that accepts\n0 to 120, the valid class is the range 0 to 120, and there are two invalid classes:\nnegative values and values above 120. A complete test set samples at least one value\nfrom each class.\n\nWhen a program takes several inputs, EP considers each input's classes independently\nand then combines representative values, usually with an all-combinations or pairwise\nstrategy. The resulting test suite is much smaller than exhaustive testing but still\ncovers every behaviourally distinct category of input.",
+        "score": 0.0,
+        "vector_similarity": 0.0
+      }
+    ]
+  },
+  "practice_questions:boundary-value-analysis": {
+    "raw": "{\"questions\":[{\"stem\":\"What is boundary value analysis (BVA) primarily used for?\",\"options\":[\"Testing only the internal code paths of a program\",\"Designing black-box test cases around the edges of the input domain\",\"Replacing equivalence partitioning entirely\",\"Measuring code coverage during unit tests\"],\"answer\":\"B\",\"explanation\":\"The passage defines BVA as a black-box testing technique that designs test cases around the edges of the input domain, where mistakes are most common.\",\"citation\":1},{\"stem\":\"For an integer field accepting values from 1 to 100 inclusive, which set of values does BVA suggest testing?\",\"options\":[\"0, 1, 2, 99, 100, 101\",\"1, 10, 50, 90, 100\",\"0, 50, 101\",\"1, 2, 3, 98, 99, 100\"],\"answer\":\"A\",\"explanation\":\"The passage states that for a field accepting integers from 1 to 100 inclusive, BVA suggests testing 0, 1, 2, 99, 100 and 101.\",\"citation\":1},{\"stem\":\"According to the classic three-point rule described in the passage, how many test cases does BVA yield for a range?\",\"options\":[\"Three\",\"Four\",\"Six\",\"Ten\"],\"answer\":\"C\",\"explanation\":\"The classic three-point rule tests the minimum, minimum minus one, minimum plus one, maximum, maximum minus one and maximum plus one, yielding six test cases.\",\"citation\":1},{\"stem\":\"Which technique does BVA pair naturally with?\",\"options\":[\"Equivalence partitioning\",\"Mutation testing\",\"Regression testing\",\"White-box path testing\"],\"answer\":\"A\",\"explanation\":\"The passage says BVA pairs naturally with equivalence partitioning.\",\"citation\":1},{\"stem\":\"What does equivalence partitioning do before boundary value analysis picks the edges of each class?\",\"options\":[\"It divides the input domain into classes of values that should behave the same\",\"It executes every statement in the program at least once\",\"It removes all invalid inputs from testing\",\"It ranks defects by severity\"],\"answer\":\"A\",\"explanation\":\"Equivalence partitioning first divides the input domain into classes of values expected to behave the same; BVA then selects values at the edges of each class.\",\"citation\":1}]}",
+    "source": "course",
+    "kind": "practice_questions",
+    "passages": [
+      {
+        "chunk_id": 1,
+        "material_id": 1,
+        "title": "Boundary Value Analysis",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Boundary value analysis, usually shortened to BVA, is a black-box testing technique",
+        "text": "Boundary value analysis, usually shortened to BVA, is a black-box testing technique\nthat designs test cases around the edges of the input domain. The idea is that\nprogrammers most often make mistakes at the boundaries of a range, such as the\nminimum, the maximum, and the values immediately inside and outside them.\n\nFor a field that accepts integers from 1 to 100 inclusive, BVA suggests testing the\nvalues 0, 1, 2, 99, 100 and 101. The classic three-point rule tests the minimum, the\nminimum minus one and the minimum plus one, plus the maximum, the maximum minus one\nand the maximum plus one, which yields six test cases.\n\nBVA pairs naturally with equivalence partitioning. Equivalence partitioning first\ndivides the input domain into classes of values that should behave the same, and then\nboundary value analysis picks the values at the edges of each class, where off-by-one\nerrors are most likely to hide.",
+        "score": 0.0,
+        "vector_similarity": 0.0
+      }
+    ]
+  },
+  "practice_questions:equivalence-partitioning": {
+    "raw": "{\"questions\":[{\"stem\":\"What does Equivalence Partitioning (EP) divide the input domain of a program into?\",\"options\":[\"A. Equivalence classes, which are groups of values expected to be treated identically\",\"B. Random test cases with no shared expected behavior\",\"C. Only invalid inputs that should cause failures\",\"D. Individual source-code statements\"],\"answer\":\"A\",\"explanation\":\"EP divides the input domain into equivalence classes: groups of values the program is expected to treat identically.\",\"citation\":1},{\"stem\":\"Why does Equivalence Partitioning greatly reduce the number of test cases?\",\"options\":[\"A. It tests every possible input value at least once\",\"B. It assumes testing one representative value from each class reveals the same faults as testing every member of the class\",\"C. It ignores invalid inputs entirely\",\"D. It replaces test design with exhaustive testing\"],\"answer\":\"B\",\"explanation\":\"EP assumes that one representative value from each equivalence class can reveal the same faults as testing every member of the class, so fewer test cases are needed.\",\"citation\":1},{\"stem\":\"For an age field that accepts 0 to 120, what are the equivalence classes described?\",\"options\":[\"A. One valid class only: 0 to 120\",\"B. One invalid class only: values above 120\",\"C. Valid class 0 to 120, plus invalid classes for negative values and values above 120\",\"D. Valid classes for negative values and values above 120, with no valid range\"],\"answer\":\"C\",\"explanation\":\"The valid class is the range 0 to 120; the two invalid classes are negative values and values above 120.\",\"citation\":1},{\"stem\":\"According to the passage, what must a complete test set do?\",\"options\":[\"A. Sample at least one value from each equivalence class\",\"B. Test only the valid equivalence class\",\"C. Test every value in every equivalence class\",\"D. Test only values above the valid range\"],\"answer\":\"A\",\"explanation\":\"A complete test set samples at least one value from each equivalence class.\",\"citation\":1},{\"stem\":\"When a program takes several inputs, how does EP combine representative values?\",\"options\":[\"A. It ignores all but one input\",\"B. It considers each input's classes independently and then combines representatives, usually with all-combinations or pairwise strategy\",\"C. It tests only invalid classes from every input\",\"D. It uses exhaustive testing for every input combination\"],\"answer\":\"B\",\"explanation\":\"EP considers each input's equivalence classes independently and then combines representative values, usually using all-combinations or pairwise strategies.\",\"citation\":1},{\"stem\":\"How does the resulting EP test suite compare with exhaustive testing?\",\"options\":[\"A. It is larger than exhaustive testing but less accurate\",\"B. It is the same size as exhaustive testing\",\"C. It is much smaller but still covers every behaviourally distinct category of input\",\"D. It covers only one category of input\"],\"answer\":\"C\",\"explanation\":\"The EP test suite is much smaller than exhaustive testing but still covers every behaviourally distinct category of input.\",\"citation\":1}]}",
+    "source": "course",
+    "kind": "practice_questions",
+    "passages": [
+      {
+        "chunk_id": 2,
+        "material_id": 2,
+        "title": "Equivalence Partitioning",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Equivalence partitioning, or EP, divides the input domain of a program into",
+        "text": "Equivalence partitioning, or EP, divides the input domain of a program into\nequivalence classes: groups of values the program is expected to treat identically.\nTesting one representative value from each class is assumed to reveal the same faults\nas testing every member of the class, so EP greatly reduces the number of test cases.\n\nPartitions are drawn from both valid and invalid inputs. For an age field that accepts\n0 to 120, the valid class is the range 0 to 120, and there are two invalid classes:\nnegative values and values above 120. A complete test set samples at least one value\nfrom each class.\n\nWhen a program takes several inputs, EP considers each input's classes independently\nand then combines representative values, usually with an all-combinations or pairwise\nstrategy. The resulting test suite is much smaller than exhaustive testing but still\ncovers every behaviourally distinct category of input.",
+        "score": 0.0,
+        "vector_similarity": 0.0
+      }
+    ]
+  },
+  "Which six values does boundary value analysis test for a field from 1 to 100?": {
+    "raw": "For a field that accepts integers from 1 to 100 inclusive, BVA tests these six values [1]:\n\n- 0 — minimum minus one\n- 1 — the minimum\n- 2 — minimum plus one\n- 99 — maximum minus one\n- 100 — the maximum\n- 101 — maximum plus one\n\nThis comes from the classic three-point rule, which takes the minimum, minimum minus one and minimum plus one, plus the maximum, maximum minus one and maximum plus one, giving six test cases in total [1]. The reasoning is that off-by-one errors cluster at the edges of a range, which is why BVA is usually paired with equivalence partitioning: partitioning picks the classes, and BVA picks the values at their edges [1].",
+    "source": "course",
+    "kind": null,
+    "passages": [
+      {
+        "chunk_id": 1,
+        "material_id": 1,
+        "title": "Boundary Value Analysis",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Boundary value analysis, usually shortened to BVA, is a black-box testing technique",
+        "text": "Boundary value analysis, usually shortened to BVA, is a black-box testing technique\nthat designs test cases around the edges of the input domain. The idea is that\nprogrammers most often make mistakes at the boundaries of a range, such as the\nminimum, the maximum, and the values immediately inside and outside them.\n\nFor a field that accepts integers from 1 to 100 inclusive, BVA suggests testing the\nvalues 0, 1, 2, 99, 100 and 101. The classic three-point rule tests the minimum, the\nminimum minus one and the minimum plus one, plus the maximum, the maximum minus one\nand the maximum plus one, which yields six test cases.\n\nBVA pairs naturally with equivalence partitioning. Equivalence partitioning first\ndivides the input domain into classes of values that should behave the same, and then\nboundary value analysis picks the values at the edges of each class, where off-by-one\nerrors are most likely to hide.",
+        "score": 0.03278688524590164,
+        "vector_similarity": 0.7284442620542219
+      },
+      {
+        "chunk_id": 2,
+        "material_id": 2,
+        "title": "Equivalence Partitioning",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Equivalence partitioning, or EP, divides the input domain of a program into",
+        "text": "Equivalence partitioning, or EP, divides the input domain of a program into\nequivalence classes: groups of values the program is expected to treat identically.\nTesting one representative value from each class is assumed to reveal the same faults\nas testing every member of the class, so EP greatly reduces the number of test cases.\n\nPartitions are drawn from both valid and invalid inputs. For an age field that accepts\n0 to 120, the valid class is the range 0 to 120, and there are two invalid classes:\nnegative values and values above 120. A complete test set samples at least one value\nfrom each class.\n\nWhen a program takes several inputs, EP considers each input's classes independently\nand then combines representative values, usually with an all-combinations or pairwise\nstrategy. The resulting test suite is much smaller than exhaustive testing but still\ncovers every behaviourally distinct category of input.",
+        "score": 0.016129032258064516,
+        "vector_similarity": 0.5487631559371948
+      },
+      {
+        "chunk_id": 3,
+        "material_id": 3,
+        "title": "Statement and Branch Coverage",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Statement coverage measures the share of executable statements that a test suite",
+        "text": "Statement coverage measures the share of executable statements that a test suite\nexercises. A suite reaches one hundred percent statement coverage when every line of\ncode has been run at least once. Statement coverage is the weakest structural coverage\ncriterion, because it can pass while the suite misses many bugs in decisions.\n\nBranch coverage is stronger. It requires every decision in the program, such as an if\nor a switch, to take both the true and the false outcome at least once. For an if\nstatement with no else clause, branch coverage still demands one test that skips the\nbody and one test that enters it.\n\nBranch coverage is often called decision coverage. It subsumes statement coverage:\nreaching full branch coverage also gives full statement coverage, because every\nstatement lies on some branch. A test suite that achieves branch coverage but not\ncondition coverage may still miss bugs that depend on the combination of several\nconditions inside a single decision.",
+        "score": 0.015873015873015872,
+        "vector_similarity": 0.487113893032074
+      }
+    ]
+  },
+  "What does branch coverage require for an if statement with no else clause?": {
+    "raw": "Branch coverage requires every decision to take both its true and false outcome at least once [1]. For an if statement with no else clause, that means one test that skips the body (the false outcome) and one test that enters it (the true outcome) [1].\n\nNote that branch coverage is stronger than statement coverage and subsumes it: full branch coverage also gives full statement coverage, since every statement lies on some branch [1].",
+    "source": "course",
+    "kind": null,
+    "passages": [
+      {
+        "chunk_id": 3,
+        "material_id": 3,
+        "title": "Statement and Branch Coverage",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Statement coverage measures the share of executable statements that a test suite",
+        "text": "Statement coverage measures the share of executable statements that a test suite\nexercises. A suite reaches one hundred percent statement coverage when every line of\ncode has been run at least once. Statement coverage is the weakest structural coverage\ncriterion, because it can pass while the suite misses many bugs in decisions.\n\nBranch coverage is stronger. It requires every decision in the program, such as an if\nor a switch, to take both the true and the false outcome at least once. For an if\nstatement with no else clause, branch coverage still demands one test that skips the\nbody and one test that enters it.\n\nBranch coverage is often called decision coverage. It subsumes statement coverage:\nreaching full branch coverage also gives full statement coverage, because every\nstatement lies on some branch. A test suite that achieves branch coverage but not\ncondition coverage may still miss bugs that depend on the combination of several\nconditions inside a single decision.",
+        "score": 0.03278688524590164,
+        "vector_similarity": 0.7824761271476746
+      },
+      {
+        "chunk_id": 2,
+        "material_id": 2,
+        "title": "Equivalence Partitioning",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Equivalence partitioning, or EP, divides the input domain of a program into",
+        "text": "Equivalence partitioning, or EP, divides the input domain of a program into\nequivalence classes: groups of values the program is expected to treat identically.\nTesting one representative value from each class is assumed to reveal the same faults\nas testing every member of the class, so EP greatly reduces the number of test cases.\n\nPartitions are drawn from both valid and invalid inputs. For an age field that accepts\n0 to 120, the valid class is the range 0 to 120, and there are two invalid classes:\nnegative values and values above 120. A complete test set samples at least one value\nfrom each class.\n\nWhen a program takes several inputs, EP considers each input's classes independently\nand then combines representative values, usually with an all-combinations or pairwise\nstrategy. The resulting test suite is much smaller than exhaustive testing but still\ncovers every behaviourally distinct category of input.",
+        "score": 0.016129032258064516,
+        "vector_similarity": 0.5625355243682861
+      },
+      {
+        "chunk_id": 1,
+        "material_id": 1,
+        "title": "Boundary Value Analysis",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Boundary value analysis, usually shortened to BVA, is a black-box testing technique",
+        "text": "Boundary value analysis, usually shortened to BVA, is a black-box testing technique\nthat designs test cases around the edges of the input domain. The idea is that\nprogrammers most often make mistakes at the boundaries of a range, such as the\nminimum, the maximum, and the values immediately inside and outside them.\n\nFor a field that accepts integers from 1 to 100 inclusive, BVA suggests testing the\nvalues 0, 1, 2, 99, 100 and 101. The classic three-point rule tests the minimum, the\nminimum minus one and the minimum plus one, plus the maximum, the maximum minus one\nand the maximum plus one, which yields six test cases.\n\nBVA pairs naturally with equivalence partitioning. Equivalence partitioning first\ndivides the input domain into classes of values that should behave the same, and then\nboundary value analysis picks the values at the edges of each class, where off-by-one\nerrors are most likely to hide.",
+        "score": 0.015873015873015872,
+        "vector_similarity": 0.5472181169520696
+      }
+    ]
+  },
+  "What is the capital of France?": {
+    "raw": "That's not a testing question, so it's outside what I can help with here. I'm set up for CS101 Intro to Testing, so I can help with things like boundary value analysis, equivalence partitioning, and statement and branch coverage. Is there something on those topics I can explain?",
+    "source": "general",
+    "kind": null,
+    "passages": [
+      {
+        "chunk_id": 1,
+        "material_id": 1,
+        "title": "Boundary Value Analysis",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Boundary value analysis, usually shortened to BVA, is a black-box testing technique",
+        "text": "Boundary value analysis, usually shortened to BVA, is a black-box testing technique\nthat designs test cases around the edges of the input domain. The idea is that\nprogrammers most often make mistakes at the boundaries of a range, such as the\nminimum, the maximum, and the values immediately inside and outside them.\n\nFor a field that accepts integers from 1 to 100 inclusive, BVA suggests testing the\nvalues 0, 1, 2, 99, 100 and 101. The classic three-point rule tests the minimum, the\nminimum minus one and the minimum plus one, plus the maximum, the maximum minus one\nand the maximum plus one, which yields six test cases.\n\nBVA pairs naturally with equivalence partitioning. Equivalence partitioning first\ndivides the input domain into classes of values that should behave the same, and then\nboundary value analysis picks the values at the edges of each class, where off-by-one\nerrors are most likely to hide.",
+        "score": 0.01639344262295082,
+        "vector_similarity": 0.40802756500080495
+      },
+      {
+        "chunk_id": 2,
+        "material_id": 2,
+        "title": "Equivalence Partitioning",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Equivalence partitioning, or EP, divides the input domain of a program into",
+        "text": "Equivalence partitioning, or EP, divides the input domain of a program into\nequivalence classes: groups of values the program is expected to treat identically.\nTesting one representative value from each class is assumed to reveal the same faults\nas testing every member of the class, so EP greatly reduces the number of test cases.\n\nPartitions are drawn from both valid and invalid inputs. For an age field that accepts\n0 to 120, the valid class is the range 0 to 120, and there are two invalid classes:\nnegative values and values above 120. A complete test set samples at least one value\nfrom each class.\n\nWhen a program takes several inputs, EP considers each input's classes independently\nand then combines representative values, usually with an all-combinations or pairwise\nstrategy. The resulting test suite is much smaller than exhaustive testing but still\ncovers every behaviourally distinct category of input.",
+        "score": 0.016129032258064516,
+        "vector_similarity": 0.34978162052850725
+      },
+      {
+        "chunk_id": 3,
+        "material_id": 3,
+        "title": "Statement and Branch Coverage",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Statement coverage measures the share of executable statements that a test suite",
+        "text": "Statement coverage measures the share of executable statements that a test suite\nexercises. A suite reaches one hundred percent statement coverage when every line of\ncode has been run at least once. Statement coverage is the weakest structural coverage\ncriterion, because it can pass while the suite misses many bugs in decisions.\n\nBranch coverage is stronger. It requires every decision in the program, such as an if\nor a switch, to take both the true and the false outcome at least once. For an if\nstatement with no else clause, branch coverage still demands one test that skips the\nbody and one test that enters it.\n\nBranch coverage is often called decision coverage. It subsumes statement coverage:\nreaching full branch coverage also gives full statement coverage, because every\nstatement lies on some branch. A test suite that achieves branch coverage but not\ncondition coverage may still miss bugs that depend on the combination of several\nconditions inside a single decision.",
+        "score": 0.015873015873015872,
+        "vector_similarity": 0.3157673697748957
+      }
+    ]
+  },
+  "Explain the process of photosynthesis.": {
+    "raw": "That question is outside CS101 Intro to Testing, so I can't help with it here — photosynthesis isn't part of this course's material.\n\nIf you have questions about the topics we do cover, I'm happy to help. For example:\n- Equivalence partitioning and how to choose valid and invalid classes\n- Boundary value analysis and the three-point rule\n- Statement coverage vs branch coverage, and why branch coverage is stronger\n\nSend one of those over and we'll work through it.",
+    "source": "general",
+    "kind": null,
+    "passages": [
+      {
+        "chunk_id": 2,
+        "material_id": 2,
+        "title": "Equivalence Partitioning",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Equivalence partitioning, or EP, divides the input domain of a program into",
+        "text": "Equivalence partitioning, or EP, divides the input domain of a program into\nequivalence classes: groups of values the program is expected to treat identically.\nTesting one representative value from each class is assumed to reveal the same faults\nas testing every member of the class, so EP greatly reduces the number of test cases.\n\nPartitions are drawn from both valid and invalid inputs. For an age field that accepts\n0 to 120, the valid class is the range 0 to 120, and there are two invalid classes:\nnegative values and values above 120. A complete test set samples at least one value\nfrom each class.\n\nWhen a program takes several inputs, EP considers each input's classes independently\nand then combines representative values, usually with an all-combinations or pairwise\nstrategy. The resulting test suite is much smaller than exhaustive testing but still\ncovers every behaviourally distinct category of input.",
+        "score": 0.01639344262295082,
+        "vector_similarity": 0.4981317521255173
+      },
+      {
+        "chunk_id": 1,
+        "material_id": 1,
+        "title": "Boundary Value Analysis",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Boundary value analysis, usually shortened to BVA, is a black-box testing technique",
+        "text": "Boundary value analysis, usually shortened to BVA, is a black-box testing technique\nthat designs test cases around the edges of the input domain. The idea is that\nprogrammers most often make mistakes at the boundaries of a range, such as the\nminimum, the maximum, and the values immediately inside and outside them.\n\nFor a field that accepts integers from 1 to 100 inclusive, BVA suggests testing the\nvalues 0, 1, 2, 99, 100 and 101. The classic three-point rule tests the minimum, the\nminimum minus one and the minimum plus one, plus the maximum, the maximum minus one\nand the maximum plus one, which yields six test cases.\n\nBVA pairs naturally with equivalence partitioning. Equivalence partitioning first\ndivides the input domain into classes of values that should behave the same, and then\nboundary value analysis picks the values at the edges of each class, where off-by-one\nerrors are most likely to hide.",
+        "score": 0.016129032258064516,
+        "vector_similarity": 0.47940152883529996
+      },
+      {
+        "chunk_id": 3,
+        "material_id": 3,
+        "title": "Statement and Branch Coverage",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Statement coverage measures the share of executable statements that a test suite",
+        "text": "Statement coverage measures the share of executable statements that a test suite\nexercises. A suite reaches one hundred percent statement coverage when every line of\ncode has been run at least once. Statement coverage is the weakest structural coverage\ncriterion, because it can pass while the suite misses many bugs in decisions.\n\nBranch coverage is stronger. It requires every decision in the program, such as an if\nor a switch, to take both the true and the false outcome at least once. For an if\nstatement with no else clause, branch coverage still demands one test that skips the\nbody and one test that enters it.\n\nBranch coverage is often called decision coverage. It subsumes statement coverage:\nreaching full branch coverage also gives full statement coverage, because every\nstatement lies on some branch. A test suite that achieves branch coverage but not\ncondition coverage may still miss bugs that depend on the combination of several\nconditions inside a single decision.",
+        "score": 0.015873015873015872,
+        "vector_similarity": 0.44291687351960785
+      }
+    ]
+  },
+  "Who wrote the novel Nineteen Eighty-Four?": {
+    "raw": "That question is outside this course, so I can't help with it here — SmartClass is set up for CS101 Intro to Testing. Happy to help with anything from your materials, such as boundary value analysis, equivalence partitioning, or statement and branch coverage.",
+    "source": "general",
+    "kind": null,
+    "passages": [
+      {
+        "chunk_id": 1,
+        "material_id": 1,
+        "title": "Boundary Value Analysis",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Boundary value analysis, usually shortened to BVA, is a black-box testing technique",
+        "text": "Boundary value analysis, usually shortened to BVA, is a black-box testing technique\nthat designs test cases around the edges of the input domain. The idea is that\nprogrammers most often make mistakes at the boundaries of a range, such as the\nminimum, the maximum, and the values immediately inside and outside them.\n\nFor a field that accepts integers from 1 to 100 inclusive, BVA suggests testing the\nvalues 0, 1, 2, 99, 100 and 101. The classic three-point rule tests the minimum, the\nminimum minus one and the minimum plus one, plus the maximum, the maximum minus one\nand the maximum plus one, which yields six test cases.\n\nBVA pairs naturally with equivalence partitioning. Equivalence partitioning first\ndivides the input domain into classes of values that should behave the same, and then\nboundary value analysis picks the values at the edges of each class, where off-by-one\nerrors are most likely to hide.",
+        "score": 0.01639344262295082,
+        "vector_similarity": 0.30673079530780334
+      },
+      {
+        "chunk_id": 2,
+        "material_id": 2,
+        "title": "Equivalence Partitioning",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Equivalence partitioning, or EP, divides the input domain of a program into",
+        "text": "Equivalence partitioning, or EP, divides the input domain of a program into\nequivalence classes: groups of values the program is expected to treat identically.\nTesting one representative value from each class is assumed to reveal the same faults\nas testing every member of the class, so EP greatly reduces the number of test cases.\n\nPartitions are drawn from both valid and invalid inputs. For an age field that accepts\n0 to 120, the valid class is the range 0 to 120, and there are two invalid classes:\nnegative values and values above 120. A complete test set samples at least one value\nfrom each class.\n\nWhen a program takes several inputs, EP considers each input's classes independently\nand then combines representative values, usually with an all-combinations or pairwise\nstrategy. The resulting test suite is much smaller than exhaustive testing but still\ncovers every behaviourally distinct category of input.",
+        "score": 0.016129032258064516,
+        "vector_similarity": 0.27600133419036865
+      },
+      {
+        "chunk_id": 3,
+        "material_id": 3,
+        "title": "Statement and Branch Coverage",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Statement coverage measures the share of executable statements that a test suite",
+        "text": "Statement coverage measures the share of executable statements that a test suite\nexercises. A suite reaches one hundred percent statement coverage when every line of\ncode has been run at least once. Statement coverage is the weakest structural coverage\ncriterion, because it can pass while the suite misses many bugs in decisions.\n\nBranch coverage is stronger. It requires every decision in the program, such as an if\nor a switch, to take both the true and the false outcome at least once. For an if\nstatement with no else clause, branch coverage still demands one test that skips the\nbody and one test that enters it.\n\nBranch coverage is often called decision coverage. It subsumes statement coverage:\nreaching full branch coverage also gives full statement coverage, because every\nstatement lies on some branch. A test suite that achieves branch coverage but not\ncondition coverage may still miss bugs that depend on the combination of several\nconditions inside a single decision.",
+        "score": 0.015873015873015872,
+        "vector_similarity": 0.26913124322891235
+      }
+    ]
+  },
+  "What is the chemical formula of water?": {
+    "raw": "That's outside this course, so I'll leave it there — SmartClass here is for CS101 Intro to Testing.\n\nHappy to help with topics like boundary value analysis, equivalence partitioning, statement coverage and branch coverage, or how these techniques compare when you're designing a test suite. What would you like to work on?",
+    "source": "general",
+    "kind": null,
+    "passages": [
+      {
+        "chunk_id": 1,
+        "material_id": 1,
+        "title": "Boundary Value Analysis",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Boundary value analysis, usually shortened to BVA, is a black-box testing technique",
+        "text": "Boundary value analysis, usually shortened to BVA, is a black-box testing technique\nthat designs test cases around the edges of the input domain. The idea is that\nprogrammers most often make mistakes at the boundaries of a range, such as the\nminimum, the maximum, and the values immediately inside and outside them.\n\nFor a field that accepts integers from 1 to 100 inclusive, BVA suggests testing the\nvalues 0, 1, 2, 99, 100 and 101. The classic three-point rule tests the minimum, the\nminimum minus one and the minimum plus one, plus the maximum, the maximum minus one\nand the maximum plus one, which yields six test cases.\n\nBVA pairs naturally with equivalence partitioning. Equivalence partitioning first\ndivides the input domain into classes of values that should behave the same, and then\nboundary value analysis picks the values at the edges of each class, where off-by-one\nerrors are most likely to hide.",
+        "score": 0.01639344262295082,
+        "vector_similarity": 0.5152802178430697
+      },
+      {
+        "chunk_id": 2,
+        "material_id": 2,
+        "title": "Equivalence Partitioning",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Equivalence partitioning, or EP, divides the input domain of a program into",
+        "text": "Equivalence partitioning, or EP, divides the input domain of a program into\nequivalence classes: groups of values the program is expected to treat identically.\nTesting one representative value from each class is assumed to reveal the same faults\nas testing every member of the class, so EP greatly reduces the number of test cases.\n\nPartitions are drawn from both valid and invalid inputs. For an age field that accepts\n0 to 120, the valid class is the range 0 to 120, and there are two invalid classes:\nnegative values and values above 120. A complete test set samples at least one value\nfrom each class.\n\nWhen a program takes several inputs, EP considers each input's classes independently\nand then combines representative values, usually with an all-combinations or pairwise\nstrategy. The resulting test suite is much smaller than exhaustive testing but still\ncovers every behaviourally distinct category of input.",
+        "score": 0.016129032258064516,
+        "vector_similarity": 0.5124380588531494
+      },
+      {
+        "chunk_id": 3,
+        "material_id": 3,
+        "title": "Statement and Branch Coverage",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Statement coverage measures the share of executable statements that a test suite",
+        "text": "Statement coverage measures the share of executable statements that a test suite\nexercises. A suite reaches one hundred percent statement coverage when every line of\ncode has been run at least once. Statement coverage is the weakest structural coverage\ncriterion, because it can pass while the suite misses many bugs in decisions.\n\nBranch coverage is stronger. It requires every decision in the program, such as an if\nor a switch, to take both the true and the false outcome at least once. For an if\nstatement with no else clause, branch coverage still demands one test that skips the\nbody and one test that enters it.\n\nBranch coverage is often called decision coverage. It subsumes statement coverage:\nreaching full branch coverage also gives full statement coverage, because every\nstatement lies on some branch. A test suite that achieves branch coverage but not\ncondition coverage may still miss bugs that depend on the combination of several\nconditions inside a single decision.",
+        "score": 0.015873015873015872,
+        "vector_similarity": 0.4078555107116699
+      }
+    ]
+  },
+  "Describe the rules of chess.": {
+    "raw": "That question is outside CS101 Intro to Testing, so I can't help with it here — chess rules aren't part of your course material.\n\nIf you'd like to get back to testing, I can help with topics like boundary value analysis, equivalence partitioning, statement and branch coverage, or how black-box and structural techniques compare. Just ask about one of those.",
+    "source": "general",
+    "kind": null,
+    "passages": [
+      {
+        "chunk_id": 1,
+        "material_id": 1,
+        "title": "Boundary Value Analysis",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Boundary value analysis, usually shortened to BVA, is a black-box testing technique",
+        "text": "Boundary value analysis, usually shortened to BVA, is a black-box testing technique\nthat designs test cases around the edges of the input domain. The idea is that\nprogrammers most often make mistakes at the boundaries of a range, such as the\nminimum, the maximum, and the values immediately inside and outside them.\n\nFor a field that accepts integers from 1 to 100 inclusive, BVA suggests testing the\nvalues 0, 1, 2, 99, 100 and 101. The classic three-point rule tests the minimum, the\nminimum minus one and the minimum plus one, plus the maximum, the maximum minus one\nand the maximum plus one, which yields six test cases.\n\nBVA pairs naturally with equivalence partitioning. Equivalence partitioning first\ndivides the input domain into classes of values that should behave the same, and then\nboundary value analysis picks the values at the edges of each class, where off-by-one\nerrors are most likely to hide.",
+        "score": 0.01639344262295082,
+        "vector_similarity": 0.5611433982849161
+      },
+      {
+        "chunk_id": 2,
+        "material_id": 2,
+        "title": "Equivalence Partitioning",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Equivalence partitioning, or EP, divides the input domain of a program into",
+        "text": "Equivalence partitioning, or EP, divides the input domain of a program into\nequivalence classes: groups of values the program is expected to treat identically.\nTesting one representative value from each class is assumed to reveal the same faults\nas testing every member of the class, so EP greatly reduces the number of test cases.\n\nPartitions are drawn from both valid and invalid inputs. For an age field that accepts\n0 to 120, the valid class is the range 0 to 120, and there are two invalid classes:\nnegative values and values above 120. A complete test set samples at least one value\nfrom each class.\n\nWhen a program takes several inputs, EP considers each input's classes independently\nand then combines representative values, usually with an all-combinations or pairwise\nstrategy. The resulting test suite is much smaller than exhaustive testing but still\ncovers every behaviourally distinct category of input.",
+        "score": 0.016129032258064516,
+        "vector_similarity": 0.5315847676047831
+      },
+      {
+        "chunk_id": 3,
+        "material_id": 3,
+        "title": "Statement and Branch Coverage",
+        "section_name": "Synthetic test course",
+        "location_type": "page",
+        "location_start": 2,
+        "location_end": 4,
+        "heading": "Statement coverage measures the share of executable statements that a test suite",
+        "text": "Statement coverage measures the share of executable statements that a test suite\nexercises. A suite reaches one hundred percent statement coverage when every line of\ncode has been run at least once. Statement coverage is the weakest structural coverage\ncriterion, because it can pass while the suite misses many bugs in decisions.\n\nBranch coverage is stronger. It requires every decision in the program, such as an if\nor a switch, to take both the true and the false outcome at least once. For an if\nstatement with no else clause, branch coverage still demands one test that skips the\nbody and one test that enters it.\n\nBranch coverage is often called decision coverage. It subsumes statement coverage:\nreaching full branch coverage also gives full statement coverage, because every\nstatement lies on some branch. A test suite that achieves branch coverage but not\ncondition coverage may still miss bugs that depend on the combination of several\nconditions inside a single decision.",
+        "score": 0.015873015873015872,
+        "vector_similarity": 0.46852162667980113
       }
     ]
   }

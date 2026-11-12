@@ -127,7 +127,7 @@ These M8 tasks run before everything else after the T04 checkpoint, so the stude
 
 - [x] **T81 [API] Scheduled material sync + lecturer materials status (FR-803, FR-804).** Depends on: T80.
   Done when: sync runs on a configurable schedule for all courses; only the course's lecturer (or admin) can trigger a sync or list status; tests.
-- [~] **T82 [INFRA] Live Gemini test suite + record/replay + Q&A evaluation harness (NFR-18, NFR-19, NFR-21).** Depends on: T80.
+- [x] **T82 [INFRA] Live Gemini test suite + record/replay + Q&A evaluation harness (NFR-18, NFR-19, NFR-21).** Depends on: T80.
   Done when:
   - **Synthetic test course:** `backend/tests/fixtures/course/` holds 3 short teaching documents written for testing (e.g. software-testing notes; no real course material), indexed into the test DB by a fixture. Live tests use only this, so they are stable and copyright-free.
   - **LLM adapter hardening (production code):** client-side rate limiter (`LLM_RPM`, default 10), retry with backoff on 429/5xx (max 3), and a distinct `LLMQuotaExhausted` error for daily-quota exhaustion.
@@ -136,9 +136,9 @@ These M8 tasks run before everything else after the T04 checkpoint, so the stude
   - **Automatic trigger:** `scripts/check.sh` runs `pytest -m live` itself when the round changed `app/services/kb/` or any prompt file (diff vs `SMARTCLASS_BASE`). It runs **at most once per code state**: a hash of `app/services/kb/` + prompts is stored in `.claude/.live-pass` (git-ignored) after a pass, and check.sh skips the live suite when the hash is unchanged. Otherwise the Stop hook and the loop script calling check.sh several times per round would burn the daily quota. If Gemini's daily quota is exhausted, the live tests skip with reason `LLM_QUOTA` and check.sh prints `LIVE TESTS PENDING (quota)`; the task is then marked `[~]` with "re-run live tests" instead of blocking the loop.
   - **Eval harness:** `backend/eval/qa_set.jsonl` (draft ~20 in-syllabus + 5 off-syllabus questions over the seeded courses, `draft: true`) and `scripts/eval_assistant.py`, which runs them throttled and reports citation-support, off-syllabus labelling, latency (NFR-14) and an LLM-judged correctness score, for the report.
 - [ ] **T83 [HUMAN] Review and finalise the Q&A evaluation set** (correct answers, remove `draft`).
-- [~] **T85 [API] Summary / study guide (FR-810).** Depends on: T82.
+- [x] **T85 [API] Summary / study guide (FR-810).** Depends on: T82.
   Done when: `POST /student/assistant/summaries {course_id, material_id | topic, kind: summary|study_guide}` returns structured markdown with citations; replay/mock tests + live cases added to the T82 suite (≥3: material summary, topic study guide, topic not in materials) with recorded fixtures.
-- [~] **T86 [API] Flashcards + practice questions (FR-811).** Depends on: T82.
+- [x] **T86 [API] Flashcards + practice questions (FR-811).** Depends on: T82.
   Done when: endpoint returns validated JSON (cards: front/back/citation; questions: stem/options/answer/explanation/citation); malformed LLM output is retried once, then 502; replay/mock tests + live cases in the T82 suite (≥4: flashcards and practice questions for 2 materials each, JSON schema-valid, every citation real) with recorded fixtures.
 - [x] **T87 [API] Anonymised question trends for lecturers (FR-813, NFR-09).** Depends on: T80.
   Done when: each student question is tagged with a topic (from the cited materials/sections or a cheap LLM label); the lecturer endpoint returns three lists, most-asked topics, most-cited materials, and most-asked topics the materials don't cover (answers labelled general knowledge), each with ≥3 distinct students only and no names or text; tests prove that k<3 topics are hidden and that no endpoint exposes another student's chat.
