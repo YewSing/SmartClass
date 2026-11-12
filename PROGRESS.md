@@ -374,3 +374,11 @@ TEST-CHANGE: tests/test_seed_courses.py (test_materials_course_exists_in_the_see
 - Interface/schema changes: new endpoint + `TrendsOut`/`TopicCount`/`MaterialCount`; migration above. `test_char_assistant.test_no_materials_tells_the_llm_so` now locates the answer prompt by content (a general answer also makes a topic-label call after it).
 - Tests: `test_question_trends.py` (7 db: topic tagging for course/general, ≥3 filter, most-cited materials, uncovered topics, anonymisation, access control). check.sh 515 passed; live suite skips LLM_QUOTA.
 - Next: T88.
+
+### T88 — Retrieval interface for Module 6 — 2026-11-12
+- Changed: new `services/kb/retrieval_api.py` (`search(course_id, query, k)` → top-k `Passage`s, each carrying its source file + page/slide/section); documented in new `docs/interfaces.md` (the M8→M6 interface).
+- Decisions: a thin wrapper over `search_materials` that owns its own DB session, so Module 6 (Shino) passes no session and never parses materials itself (FR-814).
+- Interface/schema changes: none (additive service + docs).
+- Tests: `test_retrieval_api.py` (3 db: passages with source, course-scoped, honours k). check.sh 518 passed.
+- Note: T88's files landed in the T87 commit (`git add -A` picked up the already-written retrieval_api/docs/tests), so this commit holds only the tick + log.
+- Next: nothing — the six Module 8 API tasks (T81, T82, T85, T86, T87, T88) are done.
