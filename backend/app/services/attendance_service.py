@@ -34,11 +34,13 @@ async def mark_present(
     student_id: int,
     db: AsyncSession,
     now: datetime | None = None,
+    camera_id: int | None = None,
 ) -> tuple[AttendanceRecord, bool]:
     """
     Insert a 'present' or 'late' record for the student (FR-302).
     Returns (record, was_new) — was_new=False means the student was already recorded.
     Only the first recognition counts: an existing record is never changed.
+    `camera_id` is the device that recognised the student (FR-405).
     """
     existing = await db.execute(
         select(AttendanceRecord).where(
@@ -59,6 +61,7 @@ async def mark_present(
         student_id=student_id,
         status=status,
         detected_at=now,
+        camera_id=camera_id,
     )
     db.add(record)
     await db.flush()

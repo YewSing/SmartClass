@@ -31,6 +31,7 @@ class AttendanceRecord(Base):
     student_id: Mapped[int] = mapped_column(ForeignKey("students.id"), nullable=False, index=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False)  # present | late | excused | absent
     detected_at: Mapped[Optional[datetime]] = mapped_column()
+    camera_id: Mapped[Optional[int]] = mapped_column(ForeignKey("cameras.id", ondelete="SET NULL"), nullable=True)  # device that recognised the student (FR-405)
     override_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))
     override_at: Mapped[Optional[datetime]] = mapped_column()
     moodle_status_sent: Mapped[Optional[str]] = mapped_column(String(20))  # last status sent to Moodle (FR-311)

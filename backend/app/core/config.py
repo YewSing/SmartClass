@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     FACE_MATCH_THRESHOLD: float = 0.40
     INSIGHTFACE_MODEL: str = "buffalo_sc"
     FACE_VOTE_THRESHOLD: int = 3
+    FACE_VOTE_MAX_GAP_SECONDS: int = 10   # FR-404: frames further apart than this aren't "consecutive"
+    DEVICE_MAX_CROPS: int = 10            # crops per POST /device/faces (one frame)
+    DEVICE_MAX_CROP_BYTES: int = 2 * 1024 * 1024
     FACE_COOLDOWN_SECONDS: int = 30
     # PDPA face-data notice the student app shows (FR-109). Bump it when the wording changes.
     FACE_CONSENT_VERSION: str = "2026-11-v1"

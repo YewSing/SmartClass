@@ -132,7 +132,8 @@ async def face_match(
 
     # Commit the match — write attendance record
     record, was_new = await mark_present(
-        body.session_id, candidate_student_id, db, now=session_schedule.clock()
+        body.session_id, candidate_student_id, db, now=session_schedule.clock(),
+        camera_id=camera.id,
     )
 
     if was_new:

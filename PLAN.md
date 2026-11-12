@@ -108,7 +108,7 @@ These M8 tasks run before everything else after the T04 checkpoint, so the stude
 
 - [x] **T40 [API] Camera device registry + per-device keys + heartbeat (FR-408, NFR-07, NFR-23).** Depends on: T02, T04.
   Done when: admins can register a device (name, room) and get its key once (stored hashed), regenerate a key (old one revoked); device endpoints authenticate with `X-Device-Key` instead of the shared internal key; `POST /device/heartbeat`; online = heartbeat within 60 s; tests.
-- [ ] **T41 [API] Server-side recognition from face crops (FR-402–FR-405, NFR-10, NFR-22).** Depends on: T40, T30.
+- [x] **T41 [API] Server-side recognition from face crops (FR-402–FR-405, NFR-10, NFR-22).** Depends on: T40, T30.
   Done when: `POST /device/faces` (multipart crop(s)) embeds on the server, matches only students enrolled in the open session's course above the threshold, keeps per-device consecutive-match votes (default 3) and records Present or Late through the attendance service; non-enrolled matches are logged, not recorded; tests with InsightFace sample images (match, late arrival, below threshold, not enrolled, vote counting, duplicate).
 - [ ] **T42 [API] Device client for Pi and webcam (FR-401, FR-409, FR-411).** Depends on: T41.
   Done when: `device_client/` (replaces `face_worker/`'s role) polls for an open session for its room, detects faces locally (light model suitable for a Pi), POSTs crops with its key, sends heartbeats, optionally buffers while offline; runs on the laptop with a USB webcam via `python -m device_client --camera 0`; unit tests for the detection → crop → post logic with a fake camera.
