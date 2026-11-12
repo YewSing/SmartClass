@@ -1,5 +1,6 @@
 import { apiCall, apiCallRaw, getToken, setToken, clearToken, setRefreshToken, clearRefreshToken, BASE } from './client'
 import { saveCsv } from './saveCsv'
+import { dayMonth, hhmm, minutesBetween, rosterStatus, cleanReason } from './attendance'
 import {
   QUIZZES, BREAKDOWN_ROWS,
   ANALYTICS_PAR_BARS, ANALYTICS_PAR_LABELS,
@@ -11,27 +12,35 @@ function initials(name = '') {
   return name.split(' ').map(p => p[0]).join('').substring(0, 2).toUpperCase()
 }
 
-function durationStr(openedAt, closedAt) {
-  const ms = new Date(closedAt) - new Date(openedAt)
-  const mins = Math.round(ms / 60000)
-  return `${mins} min`
-}
-
+// Times come as Malaysia time without a zone, so they are read as written (see attendance.js)
 function sessionAdapter(s) {
-  const d = new Date(s.opened_at)
+  const shownAt = s.opened_at ?? s.starts_at   // a missed class never opened
+  const { day, month } = dayMonth(shownAt)
+  const mins = s.opened_at && s.closed_at ? minutesBetween(s.opened_at, s.closed_at) : null
   return {
     id: s.id,
     class_id: s.class_id,
     class_code: s.class_code,
     class_name: s.class_name,
-    day: d.getDate(),
-    month: d.toLocaleString('en-MY', { month: 'short', timeZone: 'Asia/Kuala_Lumpur' }),
-    time: d.toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kuala_Lumpur' }),
-    duration: s.closed_at ? durationStr(s.opened_at, s.closed_at) : null,
+    day,
+    month,
+    time: hhmm(shownAt),
+    duration: mins != null ? `${mins} min` : null,
     open: s.status === 'open',
+    status: s.status,
+    class_date: s.class_date ?? null,
+    starts_at: s.starts_at ?? null,
+    ends_at: s.ends_at ?? null,
     present: s.present ?? 0,
+    late: s.late ?? 0,
+    excused: s.excused ?? 0,
     absent: s.absent ?? 0,
     unid: s.unid ?? 0,
+    moodle_sync_status: s.moodle_sync_status ?? null,
+    moodle_synced_at: s.moodle_synced_at ?? null,
+    moodle_sync_next_at: s.moodle_sync_next_at ?? null,
+    moodle_sync_error: s.moodle_sync_error ?? null,
+    moodle_conflicts: s.moodle_conflicts ?? [],
   }
 }
 
@@ -41,7 +50,7 @@ const AVATAR_COLORS = [
   { bg: '#FFF7ED', color: '#C2410C' },
 ]
 
-function studentAdapter(s, idx) {
+function studentAdapter(s, idx, sessionOpen) {
   const c = AVATAR_COLORS[idx % AVATAR_COLORS.length]
   return {
     id: s.matric_no,
@@ -51,7 +60,8 @@ function studentAdapter(s, idx) {
     initials: initials(s.name),
     avatarBg: c.bg,
     avatarColor: c.color,
-    status: s.status === 'not_recorded' ? 'absent' : s.status,
+    status: rosterStatus(s.status, sessionOpen),
+    arrivedAt: s.detected_at ? hhmm(s.detected_at) : null,
     overridden: s.overridden ?? false,
   }
 }
@@ -181,23 +191,61 @@ export const openSession = async (classId) => {
   return sessionAdapter(s)
 }
 
+// End the class early (FR-315)
 export const closeSession = async (sessionId) => {
   const s = await apiCall('PUT', `/lecturer/sessions/${sessionId}/close`)
   return sessionAdapter(s)
 }
 
-// ─── Attendance ───────────────────────────────────────────────────────────────
+export const extendSession = async (sessionId, minutes) =>
+  sessionAdapter(await apiCall('POST', `/lecturer/sessions/${sessionId}/extend`, { minutes }))
 
-export const getStudents = async (sessionId) => {
-  const list = await apiCall('GET', `/lecturer/sessions/${sessionId}/attendance`)
-  return list.map(studentAdapter)
+// A class the job couldn't tell was held (FR-317)
+export const confirmSession = async (sessionId, held) =>
+  sessionAdapter(await apiCall('POST', `/lecturer/sessions/${sessionId}/confirm`, { held }))
+
+// Moodle sync now instead of at the next try (FR-312)
+export const retryMoodleSync = async (sessionId) =>
+  sessionAdapter(await apiCall('POST', `/lecturer/sessions/${sessionId}/moodle-sync`))
+
+// keep: 'smartclass' | 'moodle' (FR-320)
+export const resolveMoodleConflict = async (sessionId, recordId, keep) =>
+  sessionAdapter(await apiCall('POST', `/lecturer/sessions/${sessionId}/moodle-conflicts/${recordId}`, { keep }))
+
+// ─── Class schedule (FR-301, FR-315) ──────────────────────────────────────────
+
+// All of day/start/end, or all null to clear the weekly slot. Moodle sync never overwrites it.
+export const setWeeklySchedule = async (classId, { day, start, end, room }) => {
+  const c = await apiCall('PUT', `/lecturer/classes/${classId}/schedule`, {
+    day_of_week: day || null,
+    start_time: start || null,
+    end_time: end || null,
+    room: room?.trim() || null,
+  })
+  return { day_of_week: c.day_of_week, start_time: c.start_time, end_time: c.end_time, room: c.room }
 }
 
-export const overrideAttendance = async (recordId, newStatus, sessionId, studentId) => {
+// One class date only; the weekly schedule stays as it is
+export const changeClassTime = async (classId, isoDate, start, end) =>
+  sessionAdapter(await apiCall('PUT', `/lecturer/classes/${classId}/dates/${isoDate}`, { start_time: start, end_time: end }))
+
+export const cancelClass = async (classId, isoDate) =>
+  sessionAdapter(await apiCall('POST', `/lecturer/classes/${classId}/dates/${isoDate}/cancel`))
+
+// ─── Attendance ───────────────────────────────────────────────────────────────
+
+export const getStudents = async (sessionId, { sessionOpen = false } = {}) => {
+  const list = await apiCall('GET', `/lecturer/sessions/${sessionId}/attendance`)
+  return list.map((s, i) => studentAdapter(s, i, sessionOpen))
+}
+
+// Any of the four statuses, with an optional reason that is audited (FR-305)
+export const overrideAttendance = async (recordId, newStatus, sessionId, studentId, reason) => {
+  const body = { status: newStatus, reason: cleanReason(reason) }
   if (recordId) {
-    return apiCall('PUT', `/attendance/${recordId}/override`, { status: newStatus })
+    return apiCall('PUT', `/attendance/${recordId}/override`, body)
   }
-  return apiCall('PUT', `/lecturer/sessions/${sessionId}/attendance/override`, { student_id: studentId, status: newStatus })
+  return apiCall('PUT', `/lecturer/sessions/${sessionId}/attendance/override`, { student_id: studentId, ...body })
 }
 
 export const exportSessionCsv = async (sessionId, filename) => {

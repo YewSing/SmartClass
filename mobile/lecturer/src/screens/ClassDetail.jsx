@@ -26,6 +26,80 @@ function StudentRow({ student }) {
   )
 }
 
+// Weekly schedule, start now and one-class changes (FR-301, FR-315, FR-316)
+function ClassControls({ cls, navigation }) {
+  const { state, openModal, doOpenSession, selectSession, loadSessions } = useLecturer()
+  const [busy, setBusy] = useState(false)
+  const live = state.sessions.find(s => s.class_id === cls.id && s.open)
+  const title = `${cls.code}${cls.label ? ` ${cls.label}` : ''}`
+  const hasSchedule = Boolean(cls.day_of_week && cls.start_time && cls.end_time)
+
+  useEffect(() => { loadSessions() }, [])
+
+  const openLive = (session) => {
+    selectSession(session)
+    navigation.navigate('AttendanceDetail')
+  }
+
+  const startNow = async () => {
+    setBusy(true)
+    try {
+      openLive(await doOpenSession(cls.id))
+    } catch { /* toast shown in context */ } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <View style={styles.card}>
+      <View style={styles.controlsHeader}>
+        <Text style={styles.listTitle}>Weekly schedule</Text>
+        <TouchableOpacity
+          testID="edit-weekly-schedule"
+          onPress={() => openModal('weekly-schedule', { classId: cls.id, title, ...cls })}
+          hitSlop={8}
+        >
+          <Text style={styles.link}>Edit</Text>
+        </TouchableOpacity>
+      </View>
+      <Text style={styles.meta} testID="weekly-schedule">
+        {hasSchedule
+          ? `${cls.day_of_week} ${cls.start_time}–${cls.end_time}${cls.room ? ` · ${cls.room}` : ''} · opens by itself`
+          : 'No fixed time. The class only runs when you start it.'}
+      </Text>
+
+      <View style={styles.controlsRow}>
+        {live ? (
+          <TouchableOpacity style={[styles.ctrlBtn, styles.ctrlLive]} testID="class-open-live" onPress={() => openLive(live)}>
+            <Ionicons name="radio-outline" size={16} color="#fff" />
+            <Text style={styles.ctrlBtnTextFilled}>Live session</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={[styles.ctrlBtn, styles.ctrlStart, busy && styles.disabled]}
+            testID="class-start-now"
+            disabled={busy}
+            onPress={startNow}
+          >
+            <Ionicons name="play-circle-outline" size={16} color="#fff" />
+            <Text style={styles.ctrlBtnTextFilled}>{busy ? 'Starting…' : 'Start now'}</Text>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity
+          style={[styles.ctrlBtn, styles.ctrlOutline]}
+          testID="class-change-one"
+          onPress={() => openModal('class-time', {
+            classId: cls.id, title, start: cls.start_time ?? '', end: cls.end_time ?? '',
+          })}
+        >
+          <Ionicons name="calendar-outline" size={16} color={C.text} />
+          <Text style={styles.ctrlBtnText}>Change or cancel a class</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  )
+}
+
 export default function ClassDetail({ route, navigation }) {
   const { classId } = route.params
   const { state, loadAllClasses } = useLecturer()
@@ -81,7 +155,7 @@ export default function ClassDetail({ route, navigation }) {
             <View style={styles.metaRow}>
               <Ionicons name="time-outline" size={14} color={C.textSub} />
               <Text style={styles.meta}>
-                {typeLabel} · {cls.day_of_week} {cls.start_time}–{cls.end_time}
+                {typeLabel}{cls.day_of_week ? ` · ${cls.day_of_week} ${cls.start_time}–${cls.end_time}` : ''}
               </Text>
             </View>
             {cls.room ? (
@@ -93,6 +167,8 @@ export default function ClassDetail({ route, navigation }) {
           </>
         ) : null}
       </View>
+
+      {cls ? <ClassControls cls={cls} navigation={navigation} /> : null}
 
       <View style={styles.listHeader}>
         <Text style={styles.listTitle} testID="class-student-count">
@@ -173,6 +249,19 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   listTitle: { fontSize: 14, fontWeight: '700', color: C.text },
+  controlsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  link: { fontSize: 13, fontWeight: '700', color: C.primary },
+  controlsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
+  ctrlBtn: {
+    flexGrow: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 9,
+  },
+  ctrlStart: { backgroundColor: C.green },
+  ctrlLive: { backgroundColor: C.primary },
+  ctrlOutline: { borderWidth: 1.5, borderColor: C.border, backgroundColor: C.card },
+  ctrlBtnText: { fontSize: 13, fontWeight: '600', color: C.text },
+  ctrlBtnTextFilled: { fontSize: 13, fontWeight: '700', color: '#fff' },
+  disabled: { opacity: 0.5 },
   listHint: { fontSize: 12, color: C.textHint },
   searchBox: {
     flexDirection: 'row',

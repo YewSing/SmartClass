@@ -2,6 +2,7 @@ import { createContext, useContext, useReducer, useCallback, useEffect, useRef }
 import * as api from '../services/api'
 import { getToken, getRefreshToken, onAuthExpired, BASE } from '../services/client'
 import { restoreSession } from '../services/session'
+import { hhmm, statusLabel } from '../services/attendance'
 
 const LecturerContext = createContext(null)
 
@@ -42,46 +43,59 @@ function reducer(state, action) {
       const without = state.sessions.filter(s => !(s.class_id === action.payload.class_id && s.open))
       return { ...state, sessions: [action.payload, ...without] }
     }
-    case 'UPDATE_SESSION':
+    case 'UPDATE_SESSION': {
+      const known = state.sessions.some(s => s.id === action.payload.id)
       return {
         ...state,
-        sessions: state.sessions.map(s => s.id === action.payload.id ? action.payload : s),
+        sessions: known
+          ? state.sessions.map(s => s.id === action.payload.id ? action.payload : s)
+          : [action.payload, ...state.sessions],
         selectedSession: state.selectedSession?.id === action.payload.id ? action.payload : state.selectedSession,
       }
+    }
+    case 'PATCH_SESSION': {
+      // payload: { id, ...fields } — e.g. live counts from the websocket
+      const { id, ...patch } = action.payload
+      return {
+        ...state,
+        sessions: state.sessions.map(s => s.id === id ? { ...s, ...patch } : s),
+        selectedSession: state.selectedSession?.id === id ? { ...state.selectedSession, ...patch } : state.selectedSession,
+      }
+    }
     case 'SET_SELECTED_SESSION':
-      return { ...state, selectedSession: action.payload }
+      return { ...state, selectedSession: action.payload, students: [] }
     case 'SET_STUDENTS':
+      if (action.sessionId != null && action.sessionId !== state.selectedSession?.id) return state
       return { ...state, students: action.payload }
     case 'SET_ANALYTICS':
       return { ...state, analytics: action.payload, analyticsLoading: false }
     case 'SET_ANALYTICS_LOADING':
       return { ...state, analyticsLoading: action.payload }
     case 'UPDATE_STUDENT': {
-      // payload from API: { record_id, student_id, status }
-      // payload from WS:  { id (=student_id), record_id, status, ... }
-      const payloadStudentId = action.payload.student_id ?? action.payload.id
-      const updatedStudents = state.students.map(s => {
-        const byRecordId = action.payload.record_id != null && s.recordId === action.payload.record_id
-        const byStudentId = payloadStudentId != null && s.studentId === payloadStudentId
-        return (byRecordId || byStudentId)
-          ? { ...s, recordId: action.payload.record_id ?? s.recordId, status: action.payload.status, overridden: true }
-          : s
+      // payload: { session_id, record_id, student_id, status, detected_at?, overridden }
+      // Only the roster on screen changes; an update for another session is ignored.
+      const p = action.payload
+      if (p.session_id != null && p.session_id !== state.selectedSession?.id) return state
+      const students = state.students.map(s => {
+        const byRecordId = p.record_id != null && s.recordId === p.record_id
+        const byStudentId = p.student_id != null && s.studentId === p.student_id
+        if (!byRecordId && !byStudentId) return s
+        return {
+          ...s,
+          recordId: p.record_id ?? s.recordId,
+          status: p.status,
+          arrivedAt: p.detected_at ? hhmm(p.detected_at) : s.arrivedAt,
+          overridden: s.overridden || Boolean(p.overridden),
+        }
       })
-      const sessionId = state.selectedSession?.id
-      const present = updatedStudents.filter(s => s.status === 'present').length
-      const absent  = updatedStudents.filter(s => s.status === 'absent').length
-      const unid    = updatedStudents.filter(s => s.status === 'unidentified').length
+      return { ...state, students }
+    }
+    case 'SET_CLASS_SCHEDULE':
       return {
         ...state,
-        students: updatedStudents,
-        sessions: state.sessions.map(s =>
-          s.id === sessionId ? { ...s, present, absent, unid } : s
-        ),
-        selectedSession: state.selectedSession?.id === sessionId
-          ? { ...state.selectedSession, present, absent, unid }
-          : state.selectedSession,
+        allClasses: state.allClasses.map(c => c.id === action.payload.id ? { ...c, ...action.payload } : c),
+        classes: state.classes.map(c => c.id === action.payload.id ? { ...c, ...action.payload } : c),
       }
-    }
     case 'OPEN_MODAL':
       return { ...state, modal: action.payload }
     case 'CLOSE_MODAL':
@@ -184,21 +198,72 @@ export function LecturerProvider({ children }) {
     } catch (e) { showToast(e.message, 'error'); throw e }
   }, [showToast])
 
-  const loadStudents = useCallback(async (sessionId) => {
+  // Runs a call that returns the updated session, keeps it in state and shows `done` (FR-312–FR-320)
+  const sessionAction = useCallback(async (call, done) => {
     try {
-      const students = await api.getStudents(sessionId)
-      dispatch({ type: 'SET_STUDENTS', payload: students })
+      const session = await call()
+      dispatch({ type: 'UPDATE_SESSION', payload: session })
+      if (done) showToast(done, 'success')
+      return session
+    } catch (e) { showToast(e.message, 'error'); throw e }
+  }, [showToast])
+
+  const doExtendSession = useCallback((sessionId, minutes) =>
+    sessionAction(() => api.extendSession(sessionId, minutes), `Extended by ${minutes} min`), [sessionAction])
+
+  const doConfirmSession = useCallback((sessionId, held) =>
+    sessionAction(() => api.confirmSession(sessionId, held),
+      held ? 'Marked as held; anyone not recorded is Absent' : 'Marked as not held'), [sessionAction])
+
+  const doRetrySync = useCallback((sessionId) =>
+    sessionAction(() => api.retryMoodleSync(sessionId), null), [sessionAction])
+
+  const doResolveConflict = useCallback((sessionId, recordId, keep) =>
+    sessionAction(() => api.resolveMoodleConflict(sessionId, recordId, keep),
+      keep === 'moodle' ? "Took SPeCTRUM's value" : "Kept SmartClass's value"), [sessionAction])
+
+  const doChangeClassTime = useCallback((classId, isoDate, start, end) =>
+    sessionAction(() => api.changeClassTime(classId, isoDate, start, end), `Class moved to ${start}–${end}`),
+  [sessionAction])
+
+  const doCancelClass = useCallback((classId, isoDate) =>
+    sessionAction(() => api.cancelClass(classId, isoDate), 'Class cancelled'), [sessionAction])
+
+  const doSetWeeklySchedule = useCallback(async (classId, slot) => {
+    try {
+      const saved = await api.setWeeklySchedule(classId, slot)
+      dispatch({ type: 'SET_CLASS_SCHEDULE', payload: { id: classId, ...saved } })
+      showToast(saved.day_of_week ? 'Weekly schedule saved' : 'Weekly schedule cleared', 'success')
+      return saved
+    } catch (e) { showToast(e.message, 'error'); throw e }
+  }, [showToast])
+
+  const loadStudents = useCallback(async (sessionId, { sessionOpen = false } = {}) => {
+    try {
+      const students = await api.getStudents(sessionId, { sessionOpen })
+      dispatch({ type: 'SET_STUDENTS', payload: students, sessionId })
     } catch (e) { showToast(e.message, 'error') }
   }, [showToast])
 
-  const overrideStudent = useCallback(async (recordId, newStatus, studentId) => {
+  // Any of the four statuses with an optional reason (FR-305)
+  const overrideStudent = useCallback(async (recordId, newStatus, studentId, reason) => {
     const sessionId = state.selectedSession?.id
     try {
-      const result = await api.overrideAttendance(recordId, newStatus, sessionId, studentId)
-      dispatch({ type: 'UPDATE_STUDENT', payload: { record_id: result.record_id, student_id: result.student_id, status: result.status } })
-      showToast(`Marked ${newStatus}`, 'success')
+      const result = await api.overrideAttendance(recordId, newStatus, sessionId, studentId, reason)
+      dispatch({
+        type: 'UPDATE_STUDENT',
+        payload: { session_id: sessionId, record_id: result.record_id, student_id: result.student_id,
+                   status: result.status, overridden: true },
+      })
+      showToast(`Marked ${statusLabel(newStatus)}`, 'success')
+      // An override on a closed class re-queues the Moodle sync (FR-312)
+      if (state.selectedSession && !state.selectedSession.open) {
+        api.getSessions()
+          .then(list => { const s = list.find(x => x.id === sessionId); if (s) dispatch({ type: 'UPDATE_SESSION', payload: s }) })
+          .catch(() => {})
+      }
     } catch (e) { showToast(e.message, 'error'); throw e }
-  }, [showToast, state.selectedSession?.id])
+  }, [showToast, state.selectedSession])
 
   const selectSession = useCallback((session) => {
     dispatch({ type: 'SET_SELECTED_SESSION', payload: session })
@@ -237,35 +302,69 @@ export function LecturerProvider({ children }) {
     return cleanup
   }, [])
 
-  // WebSocket: connect when an open session exists
+  // WebSocket: follow the open session on screen, else the first open one
+  const selectedOpenId = state.selectedSession?.open ? state.selectedSession.id : null
+  const liveSessionId = selectedOpenId ?? state.sessions.find(s => s.open)?.id ?? null
+  const selectedIdRef = useRef(null)
+  selectedIdRef.current = state.selectedSession?.id ?? null
+
   useEffect(() => {
-    const openSession = state.sessions.find(s => s.open)
-    if (!openSession || !state.isLoggedIn) {
+    if (!liveSessionId || !state.isLoggedIn) {
       if (wsRef.current) { wsRef.current.close(); wsRef.current = null }
       return
     }
-    if (wsRef.current && wsRef.current._sessionId === openSession.id) return
+    if (wsRef.current && wsRef.current._sessionId === liveSessionId) return
     if (wsRef.current) wsRef.current.close()
 
+    const sessionId = liveSessionId
     const token = getToken()
     const wsUrl = BASE.replace(/^http/, 'ws')
-    const ws = new WebSocket(`${wsUrl}/ws/sessions/${openSession.id}?token=${token}`)
-    ws._sessionId = openSession.id
+    const ws = new WebSocket(`${wsUrl}/ws/sessions/${sessionId}?token=${token}`)
+    ws._sessionId = sessionId
 
     ws.onmessage = (e) => {
       const data = JSON.parse(e.data)
       if (data.event === 'attendance_update' || data.event === 'attendance_override') {
-        if (data.student) dispatch({ type: 'UPDATE_STUDENT', payload: data.student })
-        if (data.counts) {
+        if (data.student) {
           dispatch({
-            type: 'UPDATE_SESSION',
+            type: 'UPDATE_STUDENT',
             payload: {
-              ...openSession,
-              present: data.counts.present ?? openSession.present,
-              absent: data.counts.absent ?? openSession.absent,
-              unid: data.counts.unid ?? openSession.unid,
+              session_id: sessionId,
+              record_id: data.student.record_id,
+              student_id: data.student.id,
+              status: data.student.status,
+              detected_at: data.student.detected_at,
+              overridden: data.event === 'attendance_override',
             },
           })
+        }
+        if (data.counts) {
+          const { present, late, excused, absent, unid } = data.counts
+          dispatch({ type: 'PATCH_SESSION', payload: { id: sessionId, present, late, excused, absent, unid } })
+        }
+        // A face matched after an unidentified entry was resolved: the event has counts only
+        if (!data.student && selectedIdRef.current === sessionId) {
+          api.getStudents(sessionId, { sessionOpen: true })
+            .then(list => dispatch({ type: 'SET_STUDENTS', payload: list, sessionId }))
+            .catch(() => {})
+        }
+      }
+      if (data.event === 'session_closed') {
+        // Ended by the lecturer (maybe on another device) or by the schedule. The server sends this
+        // before it commits, so take the status from the event; a re-read that still says "open"
+        // is that not-yet-committed row and is ignored.
+        const status = data.status ?? 'closed'
+        dispatch({ type: 'PATCH_SESSION', payload: { id: sessionId, status, open: false, ...(data.counts ?? {}) } })
+        setTimeout(() => {
+          api.getSessions().then(list => {
+            const s = list.find(x => x.id === sessionId)
+            if (s && s.status !== 'open') dispatch({ type: 'UPDATE_SESSION', payload: s })
+          }).catch(() => {})
+        }, 1500)
+        if (selectedIdRef.current === sessionId) {
+          api.getStudents(sessionId, { sessionOpen: false })
+            .then(list => dispatch({ type: 'SET_STUDENTS', payload: list, sessionId }))
+            .catch(() => {})
         }
       }
       if (data.event === 'attendance_alert' && data.type === 'low_attendance') {
@@ -277,7 +376,7 @@ export function LecturerProvider({ children }) {
     }
     ws.onerror = () => showToast('Live updates disconnected', 'error')
     wsRef.current = ws
-  }, [state.sessions, state.isLoggedIn, showToast])
+  }, [liveSessionId, state.isLoggedIn, showToast])
 
   const value = {
     state,
@@ -292,6 +391,13 @@ export function LecturerProvider({ children }) {
     loadSessions,
     doOpenSession,
     doCloseSession,
+    doExtendSession,
+    doConfirmSession,
+    doRetrySync,
+    doResolveConflict,
+    doChangeClassTime,
+    doCancelClass,
+    doSetWeeklySchedule,
     loadStudents,
     overrideStudent,
     selectSession,

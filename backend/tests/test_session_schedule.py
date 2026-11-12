@@ -660,6 +660,33 @@ async def test_scheduled_rows_hidden_from_list(lecturer_client, classroom, fixed
     assert [(s["id"], s["status"]) for s in listed] == [(session_id, "cancelled")]
 
 
+async def test_missed_class_waiting_for_confirmation_is_listed(lecturer_client, classroom, db_session,
+                                                               fixed_clock):
+    """A moved class the job never opened still reaches the lecturer's list to confirm (T38)."""
+    fixed_clock(at(7, 0))
+    resp = await lecturer_client.put(date_url(classroom["occurrence_id"]), json={
+        "start_time": "09:00", "end_time": "11:00",
+    })
+    missed_id = resp.json()["id"]
+    await run_tick(at(11, 0))   # the job was down while the class should have run
+    [row] = await rows_for(db_session, classroom["occurrence_id"])
+    assert (row.status, row.opened_at) == ("needs_confirmation", None)
+
+    fixed_clock(at(7, 0, TUE))
+    resp = await lecturer_client.post("/lecturer/sessions",
+                                      json={"occurrence_id": classroom["occurrence_id"]})
+    assert resp.status_code == 201, resp.text
+    newer_id = resp.json()["id"]
+
+    listed = (await lecturer_client.get("/lecturer/sessions")).json()
+    assert [(s["id"], s["status"]) for s in listed] == [(newer_id, "open"), (missed_id, "needs_confirmation")]
+
+    resp = await lecturer_client.post(f"/lecturer/sessions/{missed_id}/confirm", json={"held": False})
+    assert resp.status_code == 200, resp.text
+    listed = (await lecturer_client.get("/lecturer/sessions")).json()
+    assert [s["id"] for s in listed] == [newer_id]   # cancelled before it ever opened: hidden again
+
+
 async def test_scheduler_loop_disabled_at_zero(monkeypatch):
     monkeypatch.setattr(settings, "SESSION_SCHEDULER_INTERVAL_SECONDS", 0)
     assert await asyncio.wait_for(session_schedule.session_scheduler_loop(), 1) is None

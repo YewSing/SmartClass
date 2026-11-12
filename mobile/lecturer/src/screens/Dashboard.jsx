@@ -24,6 +24,7 @@ function computeNextClasses(allClasses, limit = 3) {
   const hhmm = nowHHMM()
 
   return allClasses
+    .filter(c => c.day_of_week && c.start_time && c.end_time)   // a class with no schedule has no "next"
     .map(c => {
       const dayIdx = DAY_ORDER.indexOf(c.day_of_week)
       let daysAway = (dayIdx - todayIdx + 7) % 7
@@ -43,7 +44,9 @@ function nextLabel(c) {
 }
 
 export default function Dashboard({ navigation }) {
-  const { state, openModal, loadClasses, loadAllClasses, loadSessions, doOpenSession, doCloseSession } = useLecturer()
+  const {
+    state, loadClasses, loadAllClasses, loadSessions, doOpenSession, doCloseSession, selectSession,
+  } = useLecturer()
   const { sessions, classes, allClasses, lecturer } = state
   const insets = useSafeAreaInsets()
   const [toggling, setToggling] = useState(false)
@@ -237,7 +240,7 @@ export default function Dashboard({ navigation }) {
           </View>
           <TouchableOpacity
             style={styles.card}
-            onPress={() => navigation.navigate('Attendance')}
+            onPress={() => { selectSession(activeSession); navigation.navigate('AttendanceDetail') }}
           >
             <View style={styles.attendStats}>
               <View style={styles.attendStat}>
@@ -245,11 +248,11 @@ export default function Dashboard({ navigation }) {
                 <Text style={styles.attendLbl}>Present</Text>
               </View>
               <View style={styles.attendStat}>
-                <Text style={[styles.attendNum, { color: C.red }]}>{activeSession.absent}</Text>
-                <Text style={styles.attendLbl}>Absent</Text>
+                <Text style={[styles.attendNum, { color: C.orange }]}>{activeSession.late}</Text>
+                <Text style={styles.attendLbl}>Late</Text>
               </View>
               <View style={styles.attendStat}>
-                <Text style={[styles.attendNum, { color: C.orange }]}>{activeSession.unid}</Text>
+                <Text style={[styles.attendNum, { color: C.gray500 }]}>{activeSession.unid}</Text>
                 <Text style={styles.attendLbl}>Unidentified</Text>
               </View>
             </View>
@@ -273,6 +276,39 @@ export default function Dashboard({ navigation }) {
             </View>
             <Ionicons name="chevron-forward" size={14} color={C.primary} />
           </TouchableOpacity>
+        </>
+      )}
+
+      {/* Every class taught, to set its schedule or start it (FR-301, FR-316) */}
+      {allClasses.length > 0 && (
+        <>
+          <View style={[styles.sectionHeader, { paddingTop: 4 }]}>
+            <Text style={styles.sectionTitle}>My classes</Text>
+          </View>
+          <View style={styles.card}>
+            {allClasses.map((c, i) => (
+              <TouchableOpacity
+                key={c.id}
+                style={[styles.myClassRow, i > 0 && styles.nextClassRowBorder]}
+                testID="home-my-class"
+                onPress={() => openClass(c.id)}
+              >
+                <View style={styles.tappableText}>
+                  <Text style={styles.cardExtraTitle}>
+                    {c.code} {c.type === 'LECTURE' ? 'Lecture' : (c.label ?? 'Tutorial')}
+                  </Text>
+                  <Text style={styles.cardExtraMeta}>
+                    {c.day_of_week ? `${c.day_of_week} ${c.start_time}–${c.end_time}` : 'No fixed time'}
+                    {c.room ? ` · ${c.room}` : ''}
+                  </Text>
+                </View>
+                {sessions.some(s => s.class_id === c.id && s.open)
+                  ? <Badge variant="green" dot>Live</Badge>
+                  : null}
+                <Ionicons name="chevron-forward" size={16} color={C.gray300} />
+              </TouchableOpacity>
+            ))}
+          </View>
         </>
       )}
 
@@ -540,6 +576,12 @@ const styles = StyleSheet.create({
   tappableText: {
     flex: 1,
     gap: 2,
+  },
+  myClassRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    gap: 8,
   },
   nextClassRowBorder: {
     borderTopWidth: 1,

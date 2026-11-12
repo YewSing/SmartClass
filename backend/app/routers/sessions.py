@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
@@ -100,11 +100,15 @@ async def list_sessions(
     db: AsyncSession = Depends(get_db),
     actor: User = Depends(_lecturer_or_admin),
 ):
+    # Scheduled/cancelled-ahead rows never opened are left out, but a missed class waiting for
+    # the lecturer to confirm it (FR-317) is listed even though it never opened.
     q = (
         select(AttendanceSession)
         .options(*_session_opts)
-        .where(AttendanceSession.opened_at.is_not(None))  # scheduled/cancelled-ahead rows never opened
-        .order_by(AttendanceSession.opened_at.desc())
+        .where(or_(AttendanceSession.opened_at.is_not(None),
+                   AttendanceSession.status == "needs_confirmation"))
+        .order_by(func.coalesce(AttendanceSession.opened_at, AttendanceSession.starts_at).desc(),
+                  AttendanceSession.id.desc())
     )
     if actor.role == "lecturer":
         lec_result = await db.execute(select(Lecturer).where(Lecturer.user_id == actor.id))

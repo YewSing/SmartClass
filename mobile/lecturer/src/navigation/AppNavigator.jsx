@@ -53,6 +53,7 @@ function HomeStack() {
       <Stack.Screen name="Dashboard" component={Dashboard} />
       <Stack.Screen name="Profile"   component={Profile} />
       <Stack.Screen name="ClassDetail" component={ClassDetail} />
+      <Stack.Screen name="AttendanceDetail" component={AttendanceDetail} />
       <Stack.Screen name="FaceVerification" component={FaceVerification} />
     </Stack.Navigator>
   )

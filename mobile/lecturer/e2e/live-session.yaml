@@ -1,0 +1,85 @@
+# Live session (T38): start a class now, override a student to Excused with a reason, end the class.
+# Run: bash scripts/e2e-mobile.sh lecturer live-session
+# Needs the local Moodle up (lecturer1 / Lecturer123!) and the backend's MOODLE_URL pointing at it.
+# live-session.setup.sh checks WIF3001's lecture is free and deletes the test session afterwards.
+appId: host.exp.exponent
+---
+- extendedWaitUntil:
+    visible: "Welcome back|Continue|.*(Open|Close) Session"
+    timeout: 180000
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+- runFlow:
+    when:
+      visible: "Welcome back"
+    commands:
+      - tapOn:
+          id: "login-username"
+      - inputText: "lecturer1"
+      - tapOn:
+          id: "login-password"
+      - inputText: "Lecturer123!"
+      - hideKeyboard
+      - tapOn: "Sign In"
+- extendedWaitUntil:
+    visible: ".*(Open|Close) Session"
+    timeout: 60000
+
+# Home lists every class taught; open WIF3001's lecture
+- scrollUntilVisible:
+    element: "WIF3001 Lecture"
+    direction: DOWN
+    timeout: 30000
+- tapOn: "WIF3001 Lecture"
+- extendedWaitUntil:
+    visible:
+      id: "weekly-schedule"
+    timeout: 15000
+
+# Start now opens the live session screen
+- tapOn:
+    id: "class-start-now"
+- extendedWaitUntil:
+    visible: "Live — updates as students are recognised"
+    timeout: 20000
+- assertVisible: "Open now"
+- assertVisible:
+    id: "count-not-yet"
+
+# Override the first student to Excused with a reason
+- tapOn:
+    id: "attendance-student"
+    index: 0
+- extendedWaitUntil:
+    visible: "Change status to"
+    timeout: 10000
+- tapOn:
+    id: "status-option-excused"
+- tapOn:
+    id: "override-reason"
+- inputText: "Medical certificate"
+- hideKeyboard
+- tapOn: "Mark Excused"
+- extendedWaitUntil:
+    visible: "Marked Excused"
+    timeout: 15000
+- assertVisible:
+    id: "count-excused"
+    text: "1"
+
+# End the class: confirm, then it is closed and queued for SPeCTRUM
+- tapOn:
+    id: "session-end"
+- tapOn:
+    id: "session-end-confirm"
+- extendedWaitUntil:
+    visible: "SPeCTRUM attendance"
+    timeout: 20000
+- assertVisible: "Closed"
+- assertVisible: "Waiting to sync"
+- assertVisible:
+    id: "count-excused"
+    text: "1"
