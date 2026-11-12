@@ -251,7 +251,10 @@ async def test_no_materials_tells_the_llm_so(student_client, classroom, fake_llm
     reply = (await student_client.post(f"/student/assistant/sessions/{chat['id']}/messages",
                                        json={"content": "What is BVA?"})).json()
     assert reply["source_type"] == SOURCE_GENERAL
-    assert "No course materials are indexed" in fake_llm.calls[-1][-1]["content"]
+    # find the answer prompt (the general answer also triggers a T87 topic-label call after it)
+    answer_prompt = next(c[-1]["content"] for c in fake_llm.calls
+                         if "Course material passages" in c[-1]["content"])
+    assert "No course materials are indexed" in answer_prompt
 
 
 async def test_follow_up_is_rewritten_and_history_sent(student_client, classroom, kb, fake_llm, db_session,

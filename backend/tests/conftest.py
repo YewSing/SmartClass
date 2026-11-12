@@ -15,6 +15,13 @@ from pathlib import Path
 import pytest
 from sqlalchemy.engine import make_url
 
+def pytest_addoption(parser):
+    # Registered here (the top-level test conftest) so `pytest -m live --record-llm` works
+    # without naming a path: subdirectory conftests load too late for argument parsing.
+    parser.addoption("--record-llm", action="store_true", default=False,
+                     help="save live LLM responses to tests/fixtures/llm/qa.json for the replay tests")
+
+
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 
 # Point the app at the test database BEFORE app.core.database creates its engine.
@@ -67,6 +74,17 @@ def _face_libs_missing() -> str | None:
     return None
 
 
+def _has_llm_recording() -> bool:
+    """tests/fixtures/llm/qa.json exists and holds at least one recorded answer (T82)."""
+    import json
+
+    path = BACKEND_DIR / "tests" / "fixtures" / "llm" / "qa.json"
+    try:
+        return bool(json.loads(path.read_text(encoding="utf-8")))
+    except (OSError, ValueError):
+        return False
+
+
 def pytest_collection_modifyitems(config, items):
     skip_live = pytest.mark.skip(reason="LLM_API_KEY not set")
     skip_moodle = pytest.mark.skip(reason="MOODLE_TOKEN not set")
@@ -81,6 +99,8 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(skip_live)
         if "moodle" in item.keywords and not settings.MOODLE_TOKEN:
             item.add_marker(skip_moodle)
+        if item.get_closest_marker("llm_recording") and not _has_llm_recording():
+            item.add_marker(pytest.mark.skip(reason="no recorded LLM fixtures yet (run: pytest -m live --record-llm)"))
 
 
 # ── test database ─────────────────────────────────────────────────────────────
@@ -292,6 +312,25 @@ async def device() -> dict:
         db.add(cam)
         await db.commit()
         return {"id": cam.id, "device_id": cam.device_id, "key": key, "headers": {"X-Device-Key": key}}
+
+
+@pytest.fixture
+async def synthetic_kb(classroom, db_session):
+    """CS101 indexed with the three synthetic testing notes (real embeddings).
+
+    The live AI suite (tests/live/) and the replay tests use only these, so they are
+    stable and copyright-free (T82). Returns plain ids + the seeded material ids.
+    """
+    from tests.fixtures.synthetic import index_synthetic_course
+
+    material_ids = await index_synthetic_course(db_session, classroom["course_id"])
+    return {
+        "course_id": classroom["course_id"],
+        "course_code": "CS101",
+        "student_id": classroom["student_ids"][0],
+        "student_user_id": classroom["student_user_ids"][0],
+        "material_ids": material_ids,
+    }
 
 
 def _client(token: str | None = None) -> httpx.AsyncClient:

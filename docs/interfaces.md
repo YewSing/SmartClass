@@ -5,10 +5,10 @@ own. It is plain English on purpose: the code is the source of truth, this page 
 expect from it. Fields may be added; names are not changed without a note in
 `docs/requests-for-shino.md`.
 
-One interface so far:
+Two interfaces so far:
 
 - **Attendance read interface for Module 7 (FR-313)** — below.
-- A retrieval interface for Module 6 (T88) will be added later.
+- **Course knowledge base retrieval for Module 6 (FR-814, T88)** — below.
 
 ---
 
@@ -123,3 +123,32 @@ still treats the removed `unidentified` status as absent. Since T30, Late counts
 `/student/me/attendance/courses`. Suggested fix: build the counts from `student_rates`,
 `course_rates` or `course_records` instead of counting `AttendanceRecord` rows directly.
 Yew Sing did not edit `analytics.py` because M7 belongs to Shino.
+
+---
+
+## Module 8 → Module 6 — course knowledge base retrieval (FR-814)
+
+**File:** `backend/app/services/kb/retrieval_api.py`
+
+```python
+async def search(course_id: int, query: str, k: int = 8) -> list[Passage]
+```
+
+Returns the top-k passages for `query` within one course. Module 6 (AI quiz generation)
+uses this to draft questions from a course's materials without parsing them itself.
+
+Each `Passage` (from `app.services.kb.search`) carries its source so citations and quiz
+question references can point at the material:
+
+| Field | Meaning |
+|---|---|
+| `material_id`, `title` | the source file |
+| `section_name` | the Moodle section (e.g. "Week 3") |
+| `location_type` | `page`, `slide` or `section` |
+| `location_start`, `location_end` | the page/slide/section number(s) |
+| `heading`, `text` | the passage itself |
+| `score`, `vector_similarity` | retrieval confidence (RRF score, cosine similarity) |
+
+The search is hybrid (vector + keyword) and is scoped to `course_id`, so Module 6 gets
+only the materials of the course it is generating for. The function owns its own
+database session; the caller passes no session.

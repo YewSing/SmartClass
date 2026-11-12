@@ -7,6 +7,7 @@ Short log, newest entry at the bottom of "Log". Each entry is at most 5 lines:
 <!-- Format: - Txx: <problem>, what was tried, what is needed. Remove the line when it's resolved. -->
 
 ## Next
+- Merge fyp2-m8 → fyp2-loop (2026-11-12): migration `d1e2f3a4b5c6` now follows T41's `5b8d3f0a2c41` (one Alembic head). On the merged tree check.sh ran 602 passed and `pytest -m db` 483 passed. The live suite had 1 failure in 26: `test_study_tools_live_valid_and_grounded[boundary-value-analysis-practice_questions]` got truncated JSON from DeepSeek twice, then passed 4/4 on a re-run. It is flaky: DeepSeek's reasoning tokens count against `LLM_MAX_OUTPUT_TOKENS`, so a long practice-question set can be cut off. Consider a larger token budget for study tools.
 <!-- Follow-up ideas found during tasks that are out of the current task's scope. -->
 - (T00f) `GET /lecturer/analytics` (`routers/analytics.py`, M7, Shino) lets any lecturer read any class's analytics (NFR-04). Not changed because it's her module; the issue and fix are written up for her under Module 7 in `docs/requirements/functional-requirements.md`.
 - T94 (2026-11-09): the approved overnight run past T94 (T05, T10, T11, T12, T13) is finished and the checkpoint wording is back in PLAN.md. The chat to test is at tag `t94-chat-ready` (T89).
@@ -403,3 +404,60 @@ TEST-CHANGE: tests/test_seed_courses.py (test_materials_course_exists_in_the_see
 - Follow-up (Yew Sing, 2026-11-12): the schedule hint now reads "The new time is used from the next class that has not started yet. A class already running keeps its old time. For an extra class, use Start now." The editor's "No fixed time" button is removed and Save sits beside Cancel. The editor now needs a day, start and end (`weeklyScheduleError` no longer accepts all three empty). The API still accepts a cleared slot, and classes synced without a time still show "No fixed time".
 - TEST-CHANGE: attendance.test.js "the weekly schedule is all three fields or none" - renamed "the weekly schedule needs a day, a start and an end"; the all-empty case now expects the error, because Yew Sing removed "No fixed time" from the editor (2026-11-12).
 
+### T81 — Scheduled material sync + lecturer materials status — 2026-11-12
+- Changed: `services/kb/sync.py` `sync_all` now re-fetches each course per iteration and logs a captured `code`, fixing a real bug found while testing: a failed course's `rollback()` expired every loaded `Course`, so the log line and the next course hit SQLAlchemy `MissingGreenlet` under async. The schedule (`kb_sync_loop` + `KB_SYNC_INTERVAL_SECONDS`), the manual trigger (`POST /kb/courses/{id}/sync`) and the status list (`GET /kb/courses/{id}/materials`) already existed from T80; T81 formalises and tests the scheduled path and access control.
+- Decisions: no new endpoints or schema — "only the course's lecturer (or admin)" is already enforced by `_course_for_staff` in the router.
+- Interface/schema changes: none.
+- Tests: new `tests/test_kb_sync_schedule.py` (5 `db` tests: sync_all over every Moodle-linked course, skip non-Moodle courses, isolate a failing course, loop disabled without a token and at zero interval); check.sh 480 passed.
+- Next: T82.
+
+### T82 — Live Gemini suite + record/replay + Q&A eval harness — 2026-11-12 [~]
+- Changed: `llm.py` adapter hardening — client-side `LLM_RPM` rate limiter (default 10), retry with backoff on 429/5xx (max `LLM_MAX_RETRIES`=3), a distinct `LLMQuotaExhausted` for daily-quota 429s (Gemini wraps the error in a one-element list body, handled in `_error_kind`), and a loop-aware client (tests run each case on its own event loop; reusing one httpx client across loops raised "Event loop is closed"). Config: `LLM_RPM`, `LLM_MAX_RETRIES`, `LLM_RETRY_BASE_SECONDS`.
+- Decisions: the live suite runs over a synthetic, copyright-free test course (`tests/fixtures/course/` 3 original software-testing notes → PDFs, indexed by `synthetic_kb`), so it's stable and never touches real material. check.sh runs `pytest -m live` once per KB code state (hash → `.claude/.live-pass`), printing `LIVE TESTS PENDING (quota)` when quota is exhausted (detected via `-rs` skip reasons) instead of failing the round. Recording → `tests/fixtures/llm/qa.json`, replayed at zero cost by `test_qa_replay.py`.
+- Interface/schema changes: none (config only). `.gitignore` allows `backend/eval/qa_set.jsonl` while still ignoring `backend/eval/cards/`.
+- Tests: `test_llm_hardening.py` (10), `test_synthetic_course.py` (2), `test_qa_replay.py` (replays the 2 recorded answers), `tests/live/test_live_qa.py` (19: 10 in-syllabus + 5 off-syllabus + 2 follow-up + prompt-injection + empty course). check.sh 493 passed with the live suite skipping `LLM_QUOTA`.
+- [~] Manual: Gemini's free-tier daily quota (20 requests/day for gemini-3.5-flash thinking) is exhausted, so the full ~30-call live run and recording couldn't finish. Re-run `cd backend && python -m pytest -m live --record-llm` after the quota resets to record the remaining fixtures and confirm the whole suite passes.
+- Next: T85.
+
+### T85 — Summary / study guide — 2026-11-12 [~]
+- Changed: new `services/kb/summarize.py` (`summarize(db, course, material_id|topic, kind)` — a whole material's chunks via `search.material_passages`, or a topic via `search_materials`, prompted for structured Markdown with `[n]` citations, parsed through `parse_answer`); `POST /student/assistant/summaries` (enrolled students; 422 unless exactly one of material_id/topic; 404 unknown material).
+- Decisions: source_type (course/general) is derived from citations, exactly like answers (NFR-19); the endpoint returns the summary but does not save it to a chat (UC-804's "save" is the app's job, T90). Same no-LaTeX rule as T93.
+- Interface/schema changes: new endpoint; `SummaryCreate`/`SummaryOut` (additive); `search.py` gains `material_passages`. `tests/live/conftest.py` now turns `LLMQuotaExhausted` into a skip via a `pytest_runtest_makereport` hook (the test files themselves hold no skip logic, per CLAUDE.md).
+- Tests: `test_summary.py` (7 db: material/topic/off-topic/validation/403/404/503); 3 live cases added to `test_live_qa.py` (material summary, topic study guide, off-topic). check.sh 500 passed; live suite skips LLM_QUOTA.
+- [~] Manual: quota (see T82) — re-run `pytest -m live --record-llm` to record the 3 summary fixtures.
+- Next: T86.
+
+### T86 — Flashcards + practice questions — 2026-11-12 [~]
+- Changed: `llm.chat_json` (asks for a JSON object, retries malformed output once with a "reply with valid JSON only" nudge, then raises `LLMUnavailable` → 502; an optional `validator` counts pydantic `ValidationError` as malformed) + `llm._extract_json` (strips markdown fences); new `services/kb/study_tools.py` (`generate_study_tools` — a material's chunks via `material_passages` or a topic's top-k, prompted for JSON, validated against `LLMCards`/`LLMQuestions`, each item's `citation` number mapped to a real `Citation`); `POST /student/assistant/study-tools {course_id, material_id|topic, kind: flashcards|practice_questions}`.
+- Decisions: source_type is "course" when any item cites a passage, else "general"; invalid citation numbers are dropped (like parse_answer). No chat save (the app's job, T90).
+- Interface/schema changes: new endpoint; `StudyToolsCreate`/`StudyToolsOut`, `FlashcardOut`/`PracticeQuestionOut`, `LLMCards`/`LLMQuestions` (additive). No DB schema change.
+- Tests: `test_study_tools.py` (8 db: flashcards/questions, malformed-retry-then-502, retry-recovers, off-topic general, validation, 403/503); 4 live cases added (flashcards + practice questions × 2 materials); `test_qa_replay.py` now also replays JSON recordings (schema-valid + real citations). check.sh 508 passed; live suite skips LLM_QUOTA.
+- [~] Manual: quota (see T82) — re-run `pytest -m live --record-llm` to record the 4 study-tools fixtures.
+- Next: T87.
+
+### T87 — Anonymised question trends for lecturers — 2026-11-12
+- Changed: migration `d1e2f3a4b5c6` adds `ai_chat_messages.topic`; `answer_question` tags each answer's topic (course → the first citation's material title; general → a short LLM label via `_label_topic`, best-effort and never the raw question text); new `services/kb/trends.py` (`question_trends`) and `GET /lecturer/assistant/trends/{course_id}` (the course's lecturer, or admin).
+- Decisions: the three lists aggregate assistant messages, each filtered to ≥3 distinct students, with no names and no question text (NFR-09); the topic label is cheap (`max_tokens=20`, temperature 0) and is swallowed on LLM failure so the answer is still saved. Topics below 3 students are hidden.
+- Interface/schema changes: new endpoint + `TrendsOut`/`TopicCount`/`MaterialCount`; migration above. `test_char_assistant.test_no_materials_tells_the_llm_so` now locates the answer prompt by content (a general answer also makes a topic-label call after it).
+- Tests: `test_question_trends.py` (7 db: topic tagging for course/general, ≥3 filter, most-cited materials, uncovered topics, anonymisation, access control). check.sh 515 passed; live suite skips LLM_QUOTA.
+- Next: T88.
+
+### T88 — Retrieval interface for Module 6 — 2026-11-12
+- Changed: new `services/kb/retrieval_api.py` (`search(course_id, query, k)` → top-k `Passage`s, each carrying its source file + page/slide/section); documented in new `docs/interfaces.md` (the M8→M6 interface).
+- Decisions: a thin wrapper over `search_materials` that owns its own DB session, so Module 6 (Shino) passes no session and never parses materials itself (FR-814).
+- Interface/schema changes: none (additive service + docs).
+- Tests: `test_retrieval_api.py` (3 db: passages with source, course-scoped, honours k). check.sh 518 passed.
+- Note: T88's files landed in the T87 commit (`git add -A` picked up the already-written retrieval_api/docs/tests), so this commit holds only the tick + log.
+- Next: nothing — the six Module 8 API tasks (T81, T82, T85, T86, T87, T88) are done.
+
+### T82 / T85 / T86 finish — review fixes + DeepSeek live run — 2026-11-12
+- Why: Claude review of the OpenCode-built `fyp2-m8` round found four problems; Yew Sing switched the LLM to DeepSeek (`deepseek-flash`, no daily cap) so the live suite could run in full.
+- Changed: `llm._error_kind` — Gemini answers its per-minute and per-day limits with the same "quota"/RESOURCE_EXHAUSTED 429, so those now retry with backoff; only an explicit per-day / out-of-credit signal (or DeepSeek's 402 Insufficient Balance) is `LLMQuotaExhausted` at once, and a quota-worded 429 that survives every retry is reported as quota. Retry backoff uses the injectable `_sleep`. New `LLMMalformedOutput` (subclass of `LLMUnavailable`): malformed study-tools JSON after one retry is now 502, as T86's Done-when says (was 503). `--record-llm` merges into `qa.json` (`merge_recordings`) and keeps a test's answers only if the test passed (a wrong answer was being recorded before its asserts ran). The replay test's "no recording yet" skip moved from the test file to `conftest.py` (marker `llm_recording`). `check.sh` prints the live output when the live suite fails (`set -e` used to exit before printing).
+- Prompt (Yew Sing's call, "answer, no citations"): rule 2 says cite nothing anywhere in a general answer; rule 5 may name course topics when steering back but must not cite them. DeepSeek used to answer "capital of France" and then cite [1][2][3] course topics, so off-topic answers were labelled "course".
+- Token budget: `deepseek-flash` is a thinking model whose hidden reasoning tokens count against `max_tokens`; the follow-up rewrite (60) and the T87 topic label (20) sometimes spent the whole budget on reasoning and came back empty or cut off ("example of"), so both now use `_SHORT_CALL_MAX_TOKENS = 400` (the reply stays a few words; only the ceiling moved). Answers use `LLM_MAX_OUTPUT_TOKENS` (1200) and were not affected in the runs.
+- Interface/schema changes: none (study-tools malformed-JSON status 503 → 502, per spec).
+- TEST-CHANGE: tests/test_study_tools.py::test_malformed_json_is_retried_once_then_502 - asserted 503, contradicting its own name and T86's Done-when (502); now asserts 502.
+- TEST-CHANGE: tests/live/test_live_qa.py::test_in_syllabus_is_grounded - `_cites_key_term` looked only at the 280-char `snippet`, so a correctly cited passage failed when the key term sat further down ("else", "100"); it now checks the whole cited passage (Yew Sing agreed 2026-11-12).
+- TEST-CHANGE: tests/live/test_live_qa.py::test_prompt_injection_in_a_document_does_not_change_format - failed whenever the word "PWNED" appeared, even when the model quoted the planted line while refusing it; it now fails if the reply obeys the injection (just "PWNED", reduced to a few words, or no citations) (Yew Sing agreed 2026-11-12).
+- Tests: 3 new in `test_llm_hardening.py` (per-minute 429 retried, persistent quota 429 → quota, 402 → quota), 1 in `test_qa_replay.py` (partial recording keeps earlier entries). Live suite on DeepSeek: 26 passed, twice; `qa.json` re-recorded from scratch with 22 passing DeepSeek answers (replaces the 2 Gemini ones).
+- Next: T83 (Yew Sing finalises the Q&A eval set); optionally run `scripts/eval_assistant.py` on DeepSeek for the report. When merging with `fyp2-loop`, point migration `d1e2f3a4b5c6` at `d0e1f2a3b4c5` (T36) so Alembic has one head. Not done here: the topic label (T87) costs one extra LLM call per general answer, and whole-material summaries/study tools send every chunk with no size cap.

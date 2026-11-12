@@ -69,6 +69,25 @@ _FETCH_SQL = text("""
 """)
 
 
+async def material_passages(db: AsyncSession, material_id: int) -> list[Passage]:
+    """Every chunk of one material, in reading order (for a whole-material summary)."""
+    rows = (await db.execute(text("""
+        SELECT c.id, c.material_id, m.title, m.section_name, c.location_type, c.location_start,
+               c.location_end, c.heading, c.text
+        FROM kb_chunks c JOIN kb_materials m ON m.id = c.material_id
+        WHERE c.material_id = :material_id
+        ORDER BY c.chunk_index
+    """), {"material_id": material_id})).all()
+    return [
+        Passage(
+            chunk_id=r.id, material_id=r.material_id, title=r.title, section_name=r.section_name,
+            location_type=r.location_type, location_start=r.location_start, location_end=r.location_end,
+            heading=r.heading, text=r.text, score=0.0, vector_similarity=0.0,
+        )
+        for r in rows
+    ]
+
+
 async def search_materials(db: AsyncSession, course_id: int, query: str, k: int = 8) -> list[Passage]:
     """Top-k passages for `query` within one course (interface shared with Modules 5 and 6)."""
     vec = str(await embed_query(query))
