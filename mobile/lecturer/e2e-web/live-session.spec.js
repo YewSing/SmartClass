@@ -35,7 +35,17 @@ test('lecturer starts a class, excuses a student with a reason and ends it', asy
   await expect(page.getByTestId('class-change-one')).toHaveCount(0)
   await visible(page.getByTestId('edit-weekly-schedule')).click()
   await expect(visible(page.getByTestId('schedule-hint')))
-    .toHaveText('The new time is used from the next class that has not started yet. A class already running keeps its old time. For an extra class, use Start now.')
+    .toHaveText('Changes apply to upcoming classes. A class already in progress is not affected. For an extra class, use Start now.')
+  // Weekdays only, and times come from a picker: the end list only offers times after the start
+  for (const d of ['Mon', 'Fri']) await expect(visible(page.getByRole('radio', { name: d, exact: true }))).toBeVisible()
+  for (const d of ['Sat', 'Sun']) await expect(page.getByRole('radio', { name: d, exact: true })).toHaveCount(0)
+  await visible(page.getByTestId('schedule-start')).click()
+  await visible(page.getByTestId('schedule-start-09:00')).click()
+  await expect(visible(page.getByTestId('schedule-start'))).toHaveText(/09:00/)
+  await visible(page.getByTestId('schedule-end')).click()
+  await expect(page.getByTestId('schedule-end-09:00')).toHaveCount(0)
+  await visible(page.getByTestId('schedule-end-11:00')).click()
+  await expect(visible(page.getByTestId('schedule-end'))).toHaveText(/11:00/)
   // Save sits beside Cancel on one row, and the editor no longer offers "No fixed time"
   await expect(page.getByRole('button', { name: 'No fixed time' })).toHaveCount(0)
   const saveBox = await visible(page.getByText('Save schedule', { exact: true })).boundingBox()

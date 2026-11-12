@@ -13,7 +13,7 @@ import { useWideLayout } from '../hooks/useWideLayout'
 import { C } from '../theme'
 import Badge from './Badge'
 import {
-  STATUSES, WEEK_DAYS, OVERRIDE_REASON_MAX, statusLabel, statusBadge, overrideReasonError,
+  STATUSES, WEEK_DAYS, timeOptions, OVERRIDE_REASON_MAX, statusLabel, statusBadge, overrideReasonError,
   weeklyScheduleError,
 } from '../services/attendance'
 
@@ -291,8 +291,35 @@ function StudentModal({ visible, onClose, data, overrideStudent }) {
 
 // ─── WeeklyScheduleModal (FR-301) ──────────────────────────────────────────────
 
+// A time field that opens a list of half-hour times instead of free typing
+function TimeSelect({ label, value, onChange, after, testID }) {
+  const [open, setOpen] = useState(false)
+  const options = timeOptions(after)
+  return (
+    <View style={styles.flex1}>
+      <Text style={styles.inputLabel}>{label}</Text>
+      <TouchableOpacity style={[styles.input, styles.timeField, open && styles.statusOptionOn]} testID={testID}
+        onPress={() => setOpen(o => !o)} accessibilityRole="button" accessibilityLabel={`${label} time`}>
+        <Text style={[styles.statusOptionText, !value && { color: C.textHint }]}>{value || 'Choose'}</Text>
+        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color={C.textSub} />
+      </TouchableOpacity>
+      {open ? (
+        <ScrollView style={styles.timeList} nestedScrollEnabled>
+          {options.length === 0 ? <Text style={styles.hintText}>Pick an earlier start first.</Text> : null}
+          {options.map(t => (
+            <TouchableOpacity key={t} testID={`${testID}-${t}`} style={[styles.timeOption, value === t && styles.statusOptionOn]}
+              onPress={() => { onChange(t); setOpen(false) }} accessibilityRole="radio" accessibilityState={{ selected: value === t }}>
+              <Text style={[styles.statusOptionText, value === t && styles.statusOptionTextOn]}>{t}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      ) : null}
+    </View>
+  )
+}
+
 const SCHEDULE_HINT =
-  'The new time is used from the next class that has not started yet. A class already running keeps its old time. For an extra class, use Start now.'
+  'Changes apply to upcoming classes. A class already in progress is not affected. For an extra class, use Start now.'
 
 function WeeklyScheduleModal({ visible, onClose, data }) {
   const { doSetWeeklySchedule, closeModal } = useLecturer()
@@ -305,7 +332,7 @@ function WeeklyScheduleModal({ visible, onClose, data }) {
 
   useEffect(() => {
     if (!visible || !data) return
-    setDay(data.day_of_week ?? null); setStart(data.start_time ?? ''); setEnd(data.end_time ?? '')
+    setDay(WEEK_DAYS.includes(data.day_of_week) ? data.day_of_week : null);   // a weekend slot must be moved to a weekday setStart(data.start_time ?? ''); setEnd(data.end_time ?? '')
     setRoom(data.room ?? ''); setErr(''); setBusy(false)
   }, [visible, data])
 
@@ -338,17 +365,10 @@ function WeeklyScheduleModal({ visible, onClose, data }) {
           </TouchableOpacity>
         ))}
       </View>
-      <View style={styles.btnRow}>
-        <View style={styles.flex1}>
-          <Text style={styles.inputLabel}>Start</Text>
-          <TextInput style={styles.input} value={start} onChangeText={setStart}
-            placeholder="08:00" placeholderTextColor={C.textHint} autoCorrect={false} />
-        </View>
-        <View style={styles.flex1}>
-          <Text style={styles.inputLabel}>End</Text>
-          <TextInput style={styles.input} value={end} onChangeText={setEnd}
-            placeholder="10:00" placeholderTextColor={C.textHint} autoCorrect={false} />
-        </View>
+      <View style={[styles.btnRow, styles.timeRow]}>
+        <TimeSelect label="Start" value={start} testID="schedule-start"
+          onChange={t => { setStart(t); if (end && end <= t) setEnd('') }} />
+        <TimeSelect label="End" value={end} after={start || null} testID="schedule-end" onChange={setEnd} />
       </View>
       <Text style={styles.inputLabel}>Room (optional)</Text>
       <TextInput style={styles.input} value={room} onChangeText={setRoom}
@@ -708,6 +728,29 @@ const styles = StyleSheet.create({
   reasonInput: {
     minHeight: 64,
     textAlignVertical: 'top',
+  },
+  timeRow: {
+    alignItems: 'flex-start',
+  },
+  timeField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  timeList: {
+    maxHeight: 180,
+    marginTop: -6,
+    marginBottom: 12,
+    borderWidth: 1.5,
+    borderColor: C.border,
+    borderRadius: 10,
+    backgroundColor: C.card,
+  },
+  timeOption: {
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
   },
   hintText: {
     fontSize: 12,

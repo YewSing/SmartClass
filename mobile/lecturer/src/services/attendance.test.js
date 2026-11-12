@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   statusLabel, statusBadge, overrideReasonError, cleanReason, rosterStatus, groupRoster, countStatuses,
-  hhmm, timeRange, dayMonth, minutesBetween, timeRangeError, weeklyScheduleError,
+  hhmm, timeRange, dayMonth, minutesBetween, timeRangeError, weeklyScheduleError, WEEK_DAYS, timeOptions,
   sessionStateLabel, syncInfo, moodleValueLabel, canTakeMoodle, OVERRIDE_REASON_MAX, STATUSES,
   sessionCounts, followsLive,
 } from './attendance.js'
@@ -117,4 +117,23 @@ test('live updates follow a session until SPeCTRUM has it (T38b)', () => {
   assert.equal(followsLive({ open: false, moodle_sync_status: 'conflict' }), false)
   assert.equal(followsLive({ open: false, moodle_sync_status: null }), false)
   assert.equal(followsLive(null), false)
+})
+
+test('the schedule editor offers weekdays only and half-hour times after the start', () => {
+  assert.deepEqual(WEEK_DAYS, ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'])
+  assert.match(weeklyScheduleError({ day: 'Sat', start: '08:00', end: '10:00' }), /Monday to Friday\. Pick a weekday/)
+  const all = timeOptions()
+  assert.equal(all[0], '07:00')
+  assert.equal(all[all.length - 1], '22:00')
+  assert.ok(all.includes('08:30'))
+  assert.equal(all.length, 31)
+  assert.deepEqual(timeOptions('21:00'), ['21:30', '22:00'])
+  assert.deepEqual(timeOptions('22:00'), [])
+})
+
+test('a synced session still shows students that were not sent', () => {
+  const info = syncInfo({ moodle_sync_status: 'synced', moodle_synced_at: '2026-11-16T10:01:00',
+    moodle_sync_error: '2 student(s) have no Moodle account and were not sent' })
+  assert.equal(info.label, 'Synced to SPeCTRUM')
+  assert.match(info.detail, /Last sent 10:01 · 2 student\(s\) have no Moodle account/)
 })

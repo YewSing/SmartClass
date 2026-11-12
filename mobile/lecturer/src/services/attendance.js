@@ -116,12 +116,23 @@ export function timeRangeError(start, end) {
   return null
 }
 
-export const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+// Classes run Monday to Friday, so the schedule editor offers only weekdays (Yew Sing, 2026-11-12)
+export const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
+
+// Times the schedule editor offers: every 30 minutes from 07:00 to 22:00, only those after `after`
+export function timeOptions(after = null) {
+  const out = []
+  for (let m = 7 * 60; m <= 22 * 60; m += 30) {
+    const t = `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
+    if (!after || t > after) out.push(t)
+  }
+  return out
+}
 
 // The weekly slot: all of day/start/end, or none to clear it (matches WeeklyScheduleRequest)
 export function weeklyScheduleError({ day, start, end }) {
   if (!day || !start || !end) return 'Pick a day, a start and an end time.'
-  if (!WEEK_DAYS.includes(day)) return 'Pick a day.'
+  if (!WEEK_DAYS.includes(day)) return 'Classes run Monday to Friday. Pick a weekday.'
   return timeRangeError(start, end)
 }
 
@@ -150,7 +161,10 @@ export function syncInfo(session) {
     case 'synced':
       return {
         label: 'Synced to SPeCTRUM', badge: 'green', canRetry: false,
-        detail: session.moodle_synced_at ? `Last sent ${hhmm(session.moodle_synced_at)}` : null,
+        detail: [
+          session.moodle_synced_at ? `Last sent ${hhmm(session.moodle_synced_at)}` : null,
+          session.moodle_sync_error,   // e.g. students with no SPeCTRUM account, who were not sent
+        ].filter(Boolean).join(' · ') || null,
       }
     case 'pending':
       return { label: 'Waiting to sync', badge: 'yellow', canRetry: true, detail: 'Sends within a minute.' }
