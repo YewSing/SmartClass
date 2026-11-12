@@ -1,64 +1,12 @@
 import { apiCall, apiUpload, setToken, clearToken, setRefreshToken, clearRefreshToken } from './client'
 import { enrolmentParts } from './faceEnrolment'
+import { toCourseView } from './attendance'
 import { PART_SUMMARY, PARTICIPATION_GROUPS, SESSION_PERFS } from '../data/mockData'
-import { C } from '../theme'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function initials(name = '') {
   return name.split(' ').map(p => p[0]).join('').substring(0, 2).toUpperCase()
-}
-
-function mapStatus(status) {
-  if (status === 'present') return 'present'
-  if (status === 'unidentified') return 'unid'
-  return 'absent'
-}
-
-// Build the attendance item + detail structure the screens expect
-function sessionToAttItem(s, meta = {}) {
-  const date = new Date(s.date)
-  const variant = s.is_live && s.status === 'pending' ? 'pending' : mapStatus(s.status)
-  const day   = String(date.getDate()).padStart(2, '0')
-  const month = date.toLocaleString('en-MY', { month: 'short', timeZone: 'Asia/Kuala_Lumpur' })
-  const dateBg =
-    variant === 'present' ? C.greenLt :
-    variant === 'absent'  ? C.redLt   :
-    variant === 'pending' ? C.blueLt  : C.orangeLt
-  const dateColor =
-    variant === 'present' ? C.green   :
-    variant === 'absent'  ? C.red     :
-    variant === 'pending' ? C.primary : C.orange
-
-  const checkinTime = s.detected_at
-    ? new Date(s.detected_at).toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kuala_Lumpur' })
-    : null
-
-  const dateLabel = date.toLocaleDateString('en-MY', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kuala_Lumpur' })
-
-  return {
-    id: String(s.session_id),
-    day, month, dateBg, dateColor,
-    title: `${s.class_code} — Session`,
-    sub: `${date.toLocaleDateString('en-MY', { weekday: 'short', timeZone: 'Asia/Kuala_Lumpur' })} · ${s.class_name}`,
-    status: variant,
-    isLive: false,
-    variant,
-    detail: {
-      title: `${s.class_code} — ${s.class_name}`,
-      meta: dateLabel,
-      checkinTime,
-      checkinNote: null,
-      sessionDate: s.date,
-      sessionTime: meta.start_time && meta.end_time ? `${meta.start_time} – ${meta.end_time}` : null,
-      venue: meta.venue ?? '—',
-      lecturer: meta.lecturer ?? '—',
-      classPresent: null,
-      classAbsent: null,
-      classUnid: null,
-      isLive: s.is_live ?? false,
-    },
-  }
 }
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
@@ -130,46 +78,15 @@ export const getEnrolledClasses = async () => {
 
 // ─── Attendance ───────────────────────────────────────────────────────────────
 
-export const getAttendanceSummary = async () => {
-  const s = await apiCall('GET', '/student/me/attendance/summary')
-  return {
-    present: s.present,
-    absent: s.absent,
-    rate: s.rate,
-  }
-}
-
-export const getAttendanceGroups = async () => {
-  const [groups, classes] = await Promise.all([
-    apiCall('GET', '/student/me/attendance'),
+// Per-course rate, counts and session history (FR-309, T32)
+export const getAttendanceCourses = async () => {
+  const [courses, classes] = await Promise.all([
+    apiCall('GET', '/student/me/attendance/courses'),
     apiCall('GET', '/classes'),
   ])
   const occLookup = {}
-  for (const c of classes) {
-    occLookup[c.id] = {
-      venue: c.room ?? '—',
-      lecturer: c.lecturer_name ?? '—',
-      start_time: c.start_time ?? null,
-      end_time: c.end_time ?? null,
-    }
-  }
-  const merged = {}
-  for (const g of groups) {
-    const key = g.class_code.toLowerCase().replace(/\W+/g, '')
-    if (!merged[key]) {
-      const baseName = g.class_name.split(' — ')[0].trim()
-      merged[key] = { id: key, label: `${g.class_code} · ${baseName}`, sessions: [] }
-    }
-    const meta = occLookup[g.occurrence_id] ?? {}
-    merged[key].sessions.push(...g.sessions.map(s => sessionToAttItem(s, meta)))
-  }
-  for (const g of Object.values(merged)) {
-    g.sessions.sort((a, b) => {
-      if (a.detail.isLive !== b.detail.isLive) return a.detail.isLive ? -1 : 1
-      return new Date(b.detail.sessionDate) - new Date(a.detail.sessionDate)
-    })
-  }
-  return Object.values(merged)
+  for (const c of classes) occLookup[c.id] = { venue: c.room ?? '', lecturer: c.lecturer_name ?? '' }
+  return courses.map(c => toCourseView(c, occLookup))
 }
 
 // ─── AI Learning Assistant (Module 8) ─────────────────────────────────────────

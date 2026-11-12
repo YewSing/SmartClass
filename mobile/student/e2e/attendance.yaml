@@ -1,0 +1,73 @@
+# Attendance (T39): the Attendance tab shows a seeded course's real rate, counts and session
+# history from GET /student/me/attendance/courses, then opens the excused session's detail.
+# Run: bash scripts/e2e-mobile.sh student attendance
+# Needs the local Moodle up (student4 signs in) and student4 already in SmartClass, because
+# attendance.setup.sh seeds course E2E039 before the flow logs in.
+appId: host.exp.exponent
+---
+- extendedWaitUntil:
+    visible: "Welcome back|Continue"
+    timeout: 180000
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+- extendedWaitUntil:
+    visible: "Welcome back"
+    timeout: 60000
+
+- tapOn:
+    id: "login-username"
+- inputText: "student4"
+- tapOn:
+    id: "login-password"
+- inputText: "Student123!"
+- hideKeyboard
+- tapOn: "Sign In"
+
+- extendedWaitUntil:
+    visible: "Profile"
+    timeout: 60000
+- tapOn:
+    id: "tab-attendance"
+- extendedWaitUntil:
+    visible: "My Attendance"
+    timeout: 30000
+- extendedWaitUntil:
+    visible:
+      id: "att-rate-E2E039"
+    timeout: 30000
+
+# The seeded course: 1 present, 1 late, 1 excused, 1 absent → 2 of 3 counted classes attended
+- assertVisible:
+    id: "att-rate-E2E039"
+    text: "66.7%"
+- assertVisible:
+    id: "att-note-E2E039"
+    text: "2 of 3 classes attended"
+- assertVisible:
+    id: "att-count-present-E2E039"
+    text: "Present 1"
+- assertVisible:
+    id: "att-count-late-E2E039"
+    text: "Late 1"
+- assertVisible:
+    id: "att-count-excused-E2E039"
+    text: "Excused 1"
+- assertVisible:
+    id: "att-count-absent-E2E039"
+    text: "Absent 1"
+- takeScreenshot: attendance-courses
+
+# Filter to the course, then open the excused session (19 Oct) from its history
+- tapOn: "E2E039"
+- assertVisible: "E2E039 · Lecture"
+- tapOn: ".*19 Oct.*"
+- extendedWaitUntil:
+    visible:
+      id: "att-detail-status"
+      text: "Excused"
+    timeout: 30000
+- assertVisible: "Excused classes don't count against.*"
+- takeScreenshot: attendance-session-excused

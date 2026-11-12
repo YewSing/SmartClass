@@ -38,6 +38,7 @@ Short log, newest entry at the bottom of "Log". Each entry is at most 5 lines:
 - REVIEW: T36 (low) - an override committed while the background sync is mid-run on the same session can be lost: the sync's later flush sets `moodle_sync_status` back to `synced` over the override's `pending`. The 3-hourly check re-sends it (Moodle still equals the last sent value), so it heals, but late. A `SELECT ... FOR UPDATE` on the session in `sync_session`, or re-checking `pending` before writing `synced`, would close it.
 - REVIEW: T34 - merge note: Shino must re-run `backend/moodle/scripts/setup.sh` (needs internet in the container once, to download `mod_attendance`) and `seed.sh` after pulling. T35/T36 add migrations `c9d0e1f2a3b4`, `d0e1f2a3b4c5` and `SessionOut` gains `moodle_*` fields + two endpoints (non-breaking). Checkpoint review 632c956..78a4da3: no finished task reopened.
 - (2026-11-11) T23a's first loop session hit the 80-turn limit and left its work uncommitted; it is committed as `WIP T23a` (untested, unreviewed) and T23a is split into T23a (card checks) + T23b (lecturer web fixes). For big tasks run `bash scripts/run-tasks.sh <rounds> 150`.
+- (T39) `AttReportStatus.jsx` is now unreachable — the old "Report This Session" form was removed from the session detail screen; it is left for T43/T45 ("I'm here" flag).
 
 ## Log
 
@@ -360,3 +361,10 @@ TEST-CHANGE: tests/test_seed_courses.py (test_materials_course_exists_in_the_see
 - Interface: `GET /lecturer/sessions` also lists `needs_confirmation` sessions with `opened_at` NULL, ordered by opened/start time (no schema change).
 - Tests: backend `test_missed_class_waiting_for_confirmation_is_listed`; 11 lecturer unit tests (`attendance.test.js`); Maestro `lecturer live-session` PASS; Playwright `live-session.spec.js` + full suite 26 passed; check.sh 509 passed; reviewer PASS.
 - Next: T39 (student attendance rate + history).
+
+### T39 — Student app: attendance rate + history per course — 2026-11-12
+- Changed: student app — `Attendance` and `AttSessionDetail` rebuilt on T32's `GET /student/me/attendance/courses` via a new pure helper `services/attendance.js`; `api.getAttendanceCourses` also reads `/classes` for venue/lecturer; `StudentContext` state `attendanceCourses`/`attendanceError` + `loadAttendanceCourses` (focus reload, pull-to-refresh); `tabBarTestID: 'tab-attendance'`; old summary/groups code and the Unidentified report form removed; new E2E seed `backend/scripts/e2e_student_attendance.py`, `mobile/student/e2e/attendance.setup.sh` and `attendance.yaml`.
+- Decisions: rate and counts come from the server (Late counts as attended, Excused isn't counted); naive MYT times are read as digits, never `new Date()`; per-course cards with filter pills and a collapsible session list; seed course `E2E039` keeps `moodle_course_id` NULL and `moodle_sync_status` NULL so Moodle sync ignores it (1 present/late/excused/absent → rate 66.7%).
+- Interface/schema: no backend API, schema or migration change — the app now reads T32's endpoint and stops calling Shino's `/student/me/attendance[/summary]`. App state renamed `attendanceSummary`/`attendanceGroups` → `attendanceCourses` + `attendanceError`; loader `loadAttendanceCourses`.
+- Tests: `ruff check .` clean; `pytest tests/test_e2e_student_attendance_seed.py tests/test_attendance_rates.py` 20 passed; `npm test` (student) 37/37 passed; Maestro `student attendance` PASS (66.7%, "2 of 3 classes attended", all four counts, Excused detail); check.sh 512 passed; reviewer PASS.
+- Next: `AttReportStatus.jsx` is now unreachable (old "Report This Session" removed); T43/T45 build the real "I'm here" flag.

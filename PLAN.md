@@ -101,7 +101,7 @@ These M8 tasks run before everything else after the T04 checkpoint, so the stude
   Done when: `app/services/attendance_read.py` exposes documented functions (records per course/student, rates, consecutive absences); `docs/interfaces.md` describes them for Shino; tests.
 - [x] **T38 [UI] Lecturer app: live session, class controls, override with optional reason, sync status.** Depends on: T29, T31, T36, T03.
   Done when: lecturers can set a class's weekly schedule, and for one class change the time, start now, end early, extend, cancel, or confirm a `needs_confirmation` session; the session screen updates live over the websocket, late students are shown separately, override offers all four statuses with an optional reason box, sync status is shown with a Retry button, and a conflict shows both values with a choice; Maestro flow starts a session now, overrides a student to Excused with a reason and ends it.
-- [ ] **T39 [UI] Student app: attendance rate + history per course.** Depends on: T32, T03.
+- [x] **T39 [UI] Student app: attendance rate + history per course.** Depends on: T32, T03.
   Done when: the Attendance screen shows per-course rate, status counts and session list (all four statuses) from the real API; Maestro flow checks a seeded rate.
 
 ## 3. Module 4 — Face Recognition Verification

@@ -1,69 +1,52 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet, RefreshControl,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
+import { useFocusEffect } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useStudent } from '../context/StudentContext'
 import Badge from '../components/Badge'
+import { STATUSES, statusInfo } from '../services/attendance'
 import { C } from '../theme'
 
-const STATUS_BADGE = {
-  present: { variant: 'green',  label: 'Present' },
-  absent:  { variant: 'red',    label: 'Absent' },
-  unid:    { variant: 'orange', label: 'Unidentified' },
-  pending: { variant: 'blue',   label: 'In Progress', dot: true },
+const BADGE_COLORS = {
+  green:  { bg: C.greenLt,  fg: C.green },
+  yellow: { bg: C.yellowLt, fg: C.yellowDk },
+  blue:   { bg: C.blueLt,   fg: C.primary },
+  red:    { bg: C.redLt,    fg: C.red },
+  gray:   { bg: C.gray100,  fg: C.gray500 },
 }
 
 export default function Attendance({ navigation }) {
-  const { state, loadAttendanceSummary, loadAttendanceGroups } = useStudent()
-  const { attendanceSummary, attendanceGroups } = state
+  const { state, loadAttendanceCourses } = useStudent()
+  const { attendanceCourses, attendanceError } = state
   const insets = useSafeAreaInsets()
   const [collapsed, setCollapsed] = useState({})
-  const [activeFilter, setActiveFilter] = useState('All Classes')
-
-  useEffect(() => {
-    loadAttendanceSummary()
-    loadAttendanceGroups()
-  }, [loadAttendanceSummary, loadAttendanceGroups])
-
+  const [activeFilter, setActiveFilter] = useState('All')
   const [refreshing, setRefreshing] = useState(false)
+
+  useFocusEffect(useCallback(() => { loadAttendanceCourses() }, [loadAttendanceCourses]))
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
-    await Promise.all([loadAttendanceSummary(), loadAttendanceGroups()])
+    await loadAttendanceCourses()
     setRefreshing(false)
-  }, [loadAttendanceSummary, loadAttendanceGroups])
+  }, [loadAttendanceCourses])
 
-  const toggleGroup = (id) => setCollapsed(prev => ({ ...prev, [id]: !prev[id] }))
+  const courses = attendanceCourses ?? []
+  const filters = ['All', ...courses.map(c => c.code)]
+  const visibleCourses = activeFilter === 'All' ? courses : courses.filter(c => c.code === activeFilter)
+  const toggleCourse = (code) => setCollapsed(prev => ({ ...prev, [code]: !prev[code] }))
 
-  const summary = attendanceSummary ?? { present: 0, absent: 0, rate: '—' }
-  const filters = ['All Classes', ...attendanceGroups.map(g => g.id.toUpperCase())]
-  const visibleGroups = activeFilter === 'All Classes'
-    ? attendanceGroups
-    : attendanceGroups.filter(g => g.label.toUpperCase().includes(activeFilter))
+  const loading = attendanceCourses === null && !attendanceError
 
   return (
     <View style={styles.flex}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <Text style={styles.headerTitle}>My Attendance</Text>
-        <Text style={styles.headerSub}>All enrolled classes</Text>
-      </View>
-
-      {/* Summary stat row */}
-      <View style={styles.summaryBar}>
-        <View style={styles.statChip}>
-          <Text style={[styles.statNum, { color: C.green }]}>{summary.present}</Text>
-          <Text style={styles.statLbl}>Present</Text>
-        </View>
-        <View style={styles.statChip}>
-          <Text style={[styles.statNum, { color: C.red }]}>{summary.absent}</Text>
-          <Text style={styles.statLbl}>Absent</Text>
-        </View>
-        <View style={styles.statChip}>
-          <Text style={[styles.statNum, { color: C.primary }]}>{summary.rate}</Text>
-          <Text style={styles.statLbl}>Rate</Text>
-        </View>
+        <Text style={styles.headerSub}>Rate per course · Late counts as attended, Excused isn't counted</Text>
       </View>
 
       {/* Filter pills */}
@@ -86,46 +69,83 @@ export default function Attendance({ navigation }) {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} colors={[C.primary]} />}
       >
-        {visibleGroups.length === 0 ? (
+        {loading ? (
           <View style={styles.empty}>
-            <Text style={styles.emptyText}>No attendance records yet.</Text>
+            <ActivityIndicator color={C.primary} />
           </View>
-        ) : visibleGroups.map(group => (
-          <View key={group.id}>
-            <TouchableOpacity style={styles.groupHeader} onPress={() => toggleGroup(group.id)}>
-              <Text style={styles.groupLabel}>{group.label}</Text>
+        ) : attendanceCourses === null && attendanceError ? (
+          <View style={styles.empty}>
+            <Text style={styles.emptyText}>Couldn't load your attendance. Pull down to try again.</Text>
+          </View>
+        ) : courses.length === 0 ? (
+          <View style={styles.empty}>
+            <Text style={styles.emptyText}>You are not enrolled in any course yet.</Text>
+          </View>
+        ) : visibleCourses.map(course => (
+          <View key={course.id} testID={`att-course-${course.code}`} style={styles.courseCard}>
+            <TouchableOpacity style={styles.courseHeader} onPress={() => toggleCourse(course.code)}>
+              <View style={styles.courseNames}>
+                <Text style={styles.courseCode}>{course.code}</Text>
+                <Text style={styles.courseName} numberOfLines={1}>{course.name}</Text>
+              </View>
+              <View style={styles.rateBlock}>
+                <Text testID={`att-rate-${course.code}`} style={styles.rateValue}>{course.rateText}</Text>
+                <Text style={styles.rateLbl}>rate</Text>
+              </View>
               <Ionicons
-                name={collapsed[group.id] ? 'chevron-forward' : 'chevron-down'}
-                size={12}
+                name={collapsed[course.code] ? 'chevron-forward' : 'chevron-down'}
+                size={14}
                 color={C.textSub}
               />
             </TouchableOpacity>
 
-            {!collapsed[group.id] && group.sessions.length === 0 && (
-              <Text style={styles.noRecordText}>No attendance records for this class yet.</Text>
+            <Text testID={`att-note-${course.code}`} style={styles.rateNote}>{course.note}</Text>
+
+            <View style={styles.countsRow}>
+              {STATUSES.map(status => {
+                const colors = BADGE_COLORS[statusInfo(status).badge] ?? BADGE_COLORS.gray
+                return (
+                  <View key={status} style={[styles.countChip, { backgroundColor: colors.bg }]}>
+                    <Text
+                      testID={`att-count-${status}-${course.code}`}
+                      style={[styles.countText, { color: colors.fg }]}
+                    >
+                      {`${statusInfo(status).label} ${course.counts[status]}`}
+                    </Text>
+                  </View>
+                )
+              })}
+            </View>
+
+            {!collapsed[course.code] && course.sessions.length === 0 && (
+              <Text style={styles.noRecordText}>No classes yet for this course.</Text>
             )}
 
-            {!collapsed[group.id] && group.sessions.map(session => {
-              const badge = STATUS_BADGE[session.variant] ?? STATUS_BADGE.absent
+            {!collapsed[course.code] && course.sessions.map(session => {
+              const colors = BADGE_COLORS[session.badge] ?? BADGE_COLORS.gray
               return (
                 <TouchableOpacity
                   key={session.id}
-                  style={[styles.sessionRow, session.detail.isLive && styles.sessionRowLive]}
+                  testID={`att-session-${session.id}`}
+                  style={[styles.sessionRow, session.isLive && styles.sessionRowLive]}
                   onPress={() => navigation.navigate('AttSessionDetail', {
+                    courseId: course.id,
                     sessionId: session.id,
-                    session: session.detail,
-                    variant: session.variant,
                   })}
                 >
-                  <View style={[styles.dateBlock, { backgroundColor: session.dateBg }]}>
-                    <Text style={[styles.dateDay, { color: session.dateColor }]}>{session.day}</Text>
-                    <Text style={[styles.dateMonth, { color: session.dateColor }]}>{session.month}</Text>
+                  <View style={[styles.dateBlock, { backgroundColor: colors.bg }]}>
+                    <Text style={[styles.dateDay, { color: colors.fg }]}>{session.day}</Text>
+                    <Text style={[styles.dateMonth, { color: colors.fg }]}>{session.month}</Text>
                   </View>
                   <View style={styles.sessionInfo}>
                     <Text style={styles.sessionTitle} numberOfLines={1}>{session.title}</Text>
-                    <Text style={styles.sessionSub} numberOfLines={1}>{session.sub}</Text>
+                    <Text style={styles.sessionSub} numberOfLines={1}>
+                      {session.sub}{session.overridden ? ' · changed by lecturer' : ''}
+                    </Text>
                   </View>
-                  <Badge variant={badge.variant} dot={!!badge.dot}>{badge.label}</Badge>
+                  <Badge variant={session.badge} dot={session.isLive}>
+                    {session.isLive && session.status === 'not_recorded' ? 'In progress' : session.label}
+                  </Badge>
                 </TouchableOpacity>
               )
             })}
@@ -153,27 +173,6 @@ const styles = StyleSheet.create({
   },
   headerSub: {
     fontSize: 12,
-    color: C.textSub,
-    marginTop: 2,
-  },
-  summaryBar: {
-    flexDirection: 'row',
-    backgroundColor: C.card,
-    borderBottomWidth: 1,
-    borderBottomColor: C.border,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-  },
-  statChip: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  statNum: {
-    fontSize: 20,
-    fontWeight: '800',
-  },
-  statLbl: {
-    fontSize: 11,
     color: C.textSub,
     marginTop: 2,
   },
@@ -207,29 +206,75 @@ const styles = StyleSheet.create({
   pillTextActive: {
     color: '#fff',
   },
-  groupHeader: {
+  courseCard: {
+    backgroundColor: C.card,
+    marginHorizontal: 16,
+    marginTop: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: C.border,
+    padding: 12,
+  },
+  courseHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    gap: 10,
   },
-  groupLabel: {
-    fontSize: 13,
+  courseNames: {
+    flex: 1,
+  },
+  courseCode: {
+    fontSize: 14,
     fontWeight: '700',
     color: C.text,
+  },
+  courseName: {
+    fontSize: 12,
+    color: C.textSub,
+    marginTop: 2,
+  },
+  rateBlock: {
+    alignItems: 'flex-end',
+  },
+  rateValue: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: C.primary,
+  },
+  rateLbl: {
+    fontSize: 10,
+    color: C.textSub,
+  },
+  rateNote: {
+    fontSize: 11,
+    color: C.textSub,
+    marginTop: 4,
+    marginBottom: 10,
+  },
+  countsRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 4,
+  },
+  countChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  countText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   sessionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: C.card,
-    marginHorizontal: 16,
-    marginBottom: 8,
-    borderRadius: 12,
-    padding: 12,
+    marginTop: 8,
+    borderRadius: 10,
+    padding: 10,
     borderWidth: 1,
     borderColor: C.border,
-    gap: 14,
+    gap: 12,
   },
   sessionRowLive: {
     borderColor: C.primary,
@@ -272,11 +317,11 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 14,
     color: C.textSub,
+    textAlign: 'center',
   },
   noRecordText: {
     fontSize: 13,
     color: C.textHint,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
+    marginTop: 8,
   },
 })
