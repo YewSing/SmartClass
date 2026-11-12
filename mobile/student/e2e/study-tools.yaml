@@ -1,0 +1,79 @@
+# Study tools (T90): a student generates a summary, flips a flashcard and answers a practice question.
+# Run: bash scripts/e2e-mobile.sh student study-tools
+# Needs the dev database with indexed WIA2005 materials and the local Moodle up (student2 signs in
+# through it). The script starts the backend with LLM_FAKE=1, so summary/study-tools are canned and
+# no real LLM is called.
+appId: host.exp.exponent
+---
+- extendedWaitUntil:
+    visible: "Welcome back|Continue"
+    timeout: 180000
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+- extendedWaitUntil:
+    visible: "Welcome back"
+    timeout: 60000
+- tapOn:
+    id: "login-username"
+- inputText: "student2"
+- tapOn:
+    id: "login-password"
+- inputText: "Student123!"
+- hideKeyboard
+- tapOn: "Sign In"
+- extendedWaitUntil:
+    visible: "Assistant"
+    timeout: 60000
+- tapOn: "Assistant"
+- extendedWaitUntil:
+    visible: "New chat"
+    timeout: 30000
+
+# Open the study tools
+- tapOn:
+    id: "assistant-study-tools"
+- extendedWaitUntil:
+    visible: "Study tools"
+    timeout: 15000
+
+# ── Summary ────────────────────────────────────────────────────────────────────
+- tapOn:
+    id: "study-topic"
+- inputText: "greedy algorithm"
+- hideKeyboard
+- tapOn:
+    id: "study-generate"
+- extendedWaitUntil:
+    visible: "This is a test answer from your course materials \\[1\\]\\."
+    timeout: 60000
+
+# ── Flashcards: flip a card ────────────────────────────────────────────────────
+- tapOn:
+    id: "study-kind-flashcards"
+- tapOn:
+    id: "study-generate"
+- extendedWaitUntil:
+    visible: "What does boundary value analysis test\\?"
+    timeout: 60000
+- tapOn:
+    id: "study-card"
+- extendedWaitUntil:
+    visible: "The values at the edges of a range\\."
+    timeout: 10000
+
+# ── Practice question: answer it ───────────────────────────────────────────────
+- tapOn:
+    id: "study-kind-practice_questions"
+- tapOn:
+    id: "study-generate"
+- extendedWaitUntil:
+    visible: "Which structural coverage criterion is stronger\\?"
+    timeout: 60000
+- tapOn:
+    id: "study-option-1"
+- extendedWaitUntil:
+    visible: "Correct"
+    timeout: 10000

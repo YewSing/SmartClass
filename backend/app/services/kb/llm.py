@@ -80,11 +80,20 @@ def fake_chat(messages: list[dict]) -> str:
     """Deterministic reply for E2E runs (LLM_FAKE=1), shaped like the real prompts' answers.
 
     A follow-up rewrite gets the latest question back; an answer cites passage [1] when the
-    prompt carries course passages, otherwise it is a general-knowledge answer.
+    prompt carries course passages, otherwise it is a general-knowledge answer. The study-tools
+    prompts ask for JSON, so those get a small, valid JSON object (flashcards or questions).
     """
     last = messages[-1]["content"]
-    if "standalone search query" in messages[0]["content"]:
+    system = messages[0]["content"]
+    if "standalone search query" in system:
         return last.rsplit("Latest question:", 1)[-1].strip()
+    if "Reply with a single JSON object" in system:
+        if '"cards"' in system:
+            return ('{"cards": [{"front": "What does boundary value analysis test?", '
+                    '"back": "The values at the edges of a range.", "citation": 1}]}')
+        return ('{"questions": [{"stem": "Which structural coverage criterion is stronger?", '
+                '"options": ["statement", "branch", "neither", "both"], "answer": "branch", '
+                '"explanation": "Branch coverage subsumes statement coverage.", "citation": 1}]}')
     if "\n[1] " in last:
         return FAKE_COURSE_ANSWER
     return FAKE_GENERAL_ANSWER

@@ -146,7 +146,7 @@ These M8 tasks run before everything else after the T04 checkpoint, so the stude
   Done when: each student question is tagged with a topic (from the cited materials/sections or a cheap LLM label); the lecturer endpoint returns three lists, most-asked topics, most-cited materials, and most-asked topics the materials don't cover (answers labelled general knowledge), each with ≥3 distinct students only and no names or text; tests prove that k<3 topics are hidden and that no endpoint exposes another student's chat.
 - [x] **T88 [API] Retrieval interface for Module 6 (FR-814).** Depends on: T80.
   Done when: `app/services/kb/retrieval_api.py` (`search(course_id, query, k)` → passages with source) is documented in `docs/interfaces.md`; tests.
-- [ ] **T90 [UI] Student app: summaries + flashcards/practice.** Depends on: T85, T86, T89.
+- [x] **T90 [UI] Student app: summaries + flashcards/practice.** Depends on: T85, T86, T89.
   Done when: screens for generate summary, flip flashcards, answer practice questions; Maestro flow with the fake LLM.
 - [x] **T91 [UI] Lecturer app: materials status + sync button + question trends.** Depends on: T81, T87, T03.
   Done when: Maestro flow triggers a sync and sees the statuses and all three trends lists.

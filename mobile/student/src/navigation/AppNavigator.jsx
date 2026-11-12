@@ -22,6 +22,7 @@ import Assistant from '../screens/Assistant'
 import AssistantChat from '../screens/AssistantChat'
 import AssistantSource from '../screens/AssistantSource'
 import AssistantPdf from '../screens/AssistantPdf'
+import StudyTools from '../screens/StudyTools'
 import FaceEnrolment from '../screens/FaceEnrolment'
 import FaceConsent from '../screens/FaceConsent'
 import FaceCapture from '../screens/FaceCapture'
@@ -65,6 +66,7 @@ function AssistantStack() {
       <Stack.Screen name="AssistantChat"   component={AssistantChat} />
       <Stack.Screen name="AssistantSource" component={AssistantSource} />
       <Stack.Screen name="AssistantPdf"    component={AssistantPdf} />
+      <Stack.Screen name="StudyTools"      component={StudyTools} />
     </Stack.Navigator>
   )
 }

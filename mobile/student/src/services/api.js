@@ -111,6 +111,18 @@ export const getChatMessages = (sessionId) =>
 export const sendChatMessage = (sessionId, content) =>
   apiCall('POST', `/student/assistant/sessions/${sessionId}/messages`, { content })
 
+// Summary / study guide (FR-810): exactly one of material_id / topic
+export const generateSummary = (courseId, { materialId = null, topic = null, kind = 'summary' } = {}) =>
+  apiCall('POST', '/student/assistant/summaries', {
+    course_id: courseId, material_id: materialId, topic: topic, kind,
+  })
+
+// Flashcards / practice questions (FR-811)
+export const generateStudyTools = (courseId, { materialId = null, topic = null, kind } = {}) =>
+  apiCall('POST', '/student/assistant/study-tools', {
+    course_id: courseId, material_id: materialId, topic: topic, kind,
+  })
+
 // ─── Face enrolment (FR-109, FR-110, FR-115, FR-116) ──────────────────────────
 
 export const getFaceConsent = () => apiCall('GET', '/student/me/face-consent')

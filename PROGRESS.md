@@ -443,6 +443,13 @@ TEST-CHANGE: tests/test_seed_courses.py (test_materials_course_exists_in_the_see
 - Tests: `test_question_trends.py` (7 db: topic tagging for course/general, ≥3 filter, most-cited materials, uncovered topics, anonymisation, access control). check.sh 515 passed; live suite skips LLM_QUOTA.
 - Next: T88.
 
+### T90 — Student app: summaries + flashcards/practice — 2026-11-13
+- Changed: new student `StudyTools` screen (kind picker — Summarise / Study guide / Flashcards / Practice —, topic input, and results: Markdown summary with citation chips, flip cards, answerable practice questions with an explanation) reached from a "Study tools" button on the Assistant screen; `api.js` gains `generateSummary`/`generateStudyTools`; `llm.fake_chat` now answers the study-tools JSON prompts with a deterministic valid JSON object (flashcards / practice questions) so `LLM_FAKE=1` E2E works (was 502 before).
+- Decisions: the input is a typed topic (no student-facing material list endpoint exists yet — see Next); summaries show the "General knowledge" tag for off-syllabus topics.
+- Interface/schema: no API/schema change (the fake-LLM JSON reply is E2E-only). No migration.
+- Tests: `test_llm_fake.py::test_fake_mode_summary_and_study_tools_are_cited` (through the API: summary cited + flashcards + practice questions with a real citation); student `npm test` 37 passed; Maestro `student study-tools` PASS (summary, flip a card, answer a question); check.sh 619 passed.
+- Next: T102.
+
 ### T91 — Lecturer app: materials status + sync + question trends — 2026-11-13
 - Changed: new lecturer screen `LecturerAssistant.jsx` (course picker, "Sync materials" → `POST /kb/courses/{id}/sync`, materials list with status badges, and the three anonymised trend lists) on a new "AI Assistant" bottom tab; `api.js` gains `getAssistantCourses`, `getMaterials`, `syncMaterials`, `getQuestionTrends`; new `scripts/e2e_assistant.py` (seed/teardown: one synthetic indexed material + 3 students' question history for WIF3001) + `mobile/lecturer/e2e/assistant.yaml` and `assistant.setup.sh`.
 - Decisions: "AI Assistant" is a 5th tab (sparkles icon), so the lecturer's M8 tools sit together; materials/trends use the endpoints from T80/T81/T87 unchanged.
