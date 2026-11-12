@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     DEVICE_MAX_CROPS: int = 10            # crops per POST /device/faces (one frame)
     DEVICE_MAX_CROP_BYTES: int = 2 * 1024 * 1024
     FACE_COOLDOWN_SECONDS: int = 30
+    # Unmatched face crops kept as evidence for "not recognised" flags (FR-407, FR-410, NFR-02)
+    FACE_UNMATCHED_RETENTION_DAYS: int = 7
+    FACE_UNMATCHED_CLEANUP_INTERVAL_SECONDS: int = 3600   # <= 0 disables the retention job
+    FACE_UNMATCHED_SAME_PERSON: float = 0.5   # cosine: a new crop this close to a kept one is not stored again
+    FACE_UNMATCHED_MAX_PER_SESSION: int = 200
     # PDPA face-data notice the student app shows (FR-109). Bump it when the wording changes.
     FACE_CONSENT_VERSION: str = "2026-11-v1"
 

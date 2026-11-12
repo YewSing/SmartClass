@@ -25,6 +25,8 @@ const AUDIT_ACTIONS = {
   FACE_REVIEW_DISMISS:    { label: 'Dismissed face alert',     tone: 'neutral' },
   FACE_PROMOTE:           { label: 'Resolved face alert',      tone: 'info' },
   ATTENDANCE_OVERRIDE:    { label: 'Overrode attendance',      tone: 'warn' },
+  ATTENDANCE_FLAG_CONFIRM: { label: 'Confirmed "not recognised" flag', tone: 'info' },
+  ATTENDANCE_FLAG_REJECT:  { label: 'Rejected "not recognised" flag',  tone: 'warn' },
   CLASS_SCHEDULE_SET:     { label: 'Set class schedule',       tone: 'info' },
   SESSION_START_NOW:      { label: 'Started class now',        tone: 'info' },
   SESSION_TIME_CHANGED:   { label: 'Changed class time',       tone: 'info' },
