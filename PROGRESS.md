@@ -443,6 +443,13 @@ TEST-CHANGE: tests/test_seed_courses.py (test_materials_course_exists_in_the_see
 - Tests: `test_question_trends.py` (7 db: topic tagging for course/general, ≥3 filter, most-cited materials, uncovered topics, anonymisation, access control). check.sh 515 passed; live suite skips LLM_QUOTA.
 - Next: T88.
 
+### T100 — Lecturer asks their own materials (FR-815) — 2026-11-13
+- Changed: `ChatSession` now has one owner — `student_id` (nullable) or a new `lecturer_id` (nullable FK → lecturers, CASCADE) with a CHECK `(student_id IS NOT NULL) <> (lecturer_id IS NOT NULL)`; migration `e2f3a4b5c6d7`. New lecturer chat endpoints in `routers/assistant.py` (`GET/POST /lecturer/assistant/sessions`, `PATCH/DELETE .../{id}`, `GET/POST .../{id}/messages`, `GET /lecturer/assistant/courses`) that reuse `answer_question` unchanged, so citations/labels match the student flow; the quiz lock is skipped for lecturer sessions. `trends.py` now filters `s.student_id IS NOT NULL` so a lecturer's own chat is never counted in question trends.
+- Decisions: lecturer-only (`require_role("lecturer")`), teaching = assigned to any `ClassOccurrence` of the course; other lecturers/students/admins get 403. A lecturer's chat is private and never aggregated.
+- Interface/schema: new endpoints above (additive); `SessionOut`/`MessageOut` unchanged (no ownership field exposed). Migration `e2f3a4b5c6d7` (down_revision `d1e2f3a4b5c6`).
+- Tests: new `test_lecturer_assistant.py` (8 db: CRUD + ask, general label, other lecturer 403, student/admin 403, student chat not reachable, trends exclusion, LLM down 503); 1 live case `test_lecturer_ask_materials_is_cited` recorded into `qa.json` (`lecturer:boundary value analysis`). Live suite 27 passed; check.sh 610 passed.
+- Next: T101.
+
 ### T88 — Retrieval interface for Module 6 — 2026-11-12
 - Changed: new `services/kb/retrieval_api.py` (`search(course_id, query, k)` → top-k `Passage`s, each carrying its source file + page/slide/section); documented in new `docs/interfaces.md` (the M8→M6 interface).
 - Decisions: a thin wrapper over `search_materials` that owns its own DB session, so Module 6 (Shino) passes no session and never parses materials itself (FR-814).

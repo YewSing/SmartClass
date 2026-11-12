@@ -18,7 +18,7 @@ _MOST_ASKED_SQL = text("""
     FROM ai_chat_messages m
     JOIN ai_chat_sessions s ON s.id = m.session_id
     WHERE s.course_id = :course_id AND m.role = 'assistant' AND m.source_type = 'course'
-      AND m.topic IS NOT NULL
+      AND m.topic IS NOT NULL AND s.student_id IS NOT NULL
     GROUP BY m.topic
     HAVING COUNT(DISTINCT s.student_id) >= :min_students
     ORDER BY students DESC, topic
@@ -32,6 +32,7 @@ _MOST_CITED_SQL = text("""
     JOIN ai_chat_sessions s ON s.id = m.session_id
     CROSS JOIN LATERAL jsonb_array_elements(m.citations) AS c(value)
     WHERE s.course_id = :course_id AND m.role = 'assistant' AND m.source_type = 'course'
+      AND s.student_id IS NOT NULL
     GROUP BY (c.value->>'material_id')::int, c.value->>'title'
     HAVING COUNT(DISTINCT s.student_id) >= :min_students
     ORDER BY students DESC, title
@@ -42,7 +43,7 @@ _UNCOVERED_SQL = text("""
     FROM ai_chat_messages m
     JOIN ai_chat_sessions s ON s.id = m.session_id
     WHERE s.course_id = :course_id AND m.role = 'assistant' AND m.source_type = 'general'
-      AND m.topic IS NOT NULL
+      AND m.topic IS NOT NULL AND s.student_id IS NOT NULL
     GROUP BY m.topic
     HAVING COUNT(DISTINCT s.student_id) >= :min_students
     ORDER BY students DESC, topic

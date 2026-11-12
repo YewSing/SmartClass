@@ -249,6 +249,25 @@ async def test_empty_course_gives_general_answer(classroom, capture, db_session)
     assert reply.citations == []
 
 
+# ── lecturer asks their own materials (FR-815, T100) ──────────────────────────
+
+async def test_lecturer_ask_materials_is_cited(synthetic_kb, course, capture, record, db_session):
+    reply = None
+    for _ in range(2):
+        session = ChatSession(lecturer_id=synthetic_kb["lecturer_id"], course_id=course.id)
+        db_session.add(session)
+        await db_session.flush()
+        reply = await answer_question(db_session, session, course, "What is boundary value analysis?")
+        if reply.source_type == SOURCE_COURSE and reply.citations:
+            break
+    record("lecturer:boundary value analysis", capture["raw"], capture["passages"], SOURCE_COURSE)
+
+    assert reply.source_type == SOURCE_COURSE, f"expected a course answer, got {reply.source_type!r}"
+    assert reply.citations, "lecturer answer must carry at least one citation"
+    material_ids = set(synthetic_kb["material_ids"].values())
+    assert {c["material_id"] for c in reply.citations} <= material_ids
+
+
 # ── summaries / study guides (FR-810, T85) ────────────────────────────────────
 
 async def test_summary_live_material_is_cited(synthetic_kb, course, capture, record, db_session):

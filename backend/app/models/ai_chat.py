@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import Any, Optional
 
-from sqlalchemy import ForeignKey, String, Text, func
+from sqlalchemy import CheckConstraint, ForeignKey, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -11,10 +11,21 @@ from app.core.database import Base
 
 class ChatSession(Base):
     __tablename__ = "ai_chat_sessions"
+    __table_args__ = (
+        # A chat has exactly one owner: a student (student chat) or a lecturer
+        # ("ask my materials", FR-815) — never both, never neither.
+        CheckConstraint(
+            "(student_id IS NOT NULL) <> (lecturer_id IS NOT NULL)",
+            name="ck_ai_chat_sessions_single_owner",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    student_id: Mapped[int] = mapped_column(
-        ForeignKey("students.id", ondelete="CASCADE"), nullable=False, index=True
+    student_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("students.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    lecturer_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("lecturers.id", ondelete="CASCADE"), nullable=True, index=True
     )
     course_id: Mapped[int] = mapped_column(
         ForeignKey("courses.id", ondelete="CASCADE"), nullable=False, index=True

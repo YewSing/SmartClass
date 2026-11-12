@@ -150,7 +150,7 @@ These M8 tasks run before everything else after the T04 checkpoint, so the stude
   Done when: screens for generate summary, flip flashcards, answer practice questions; Maestro flow with the fake LLM.
 - [ ] **T91 [UI] Lecturer app: materials status + sync button + question trends.** Depends on: T81, T87, T03.
   Done when: Maestro flow triggers a sync and sees the statuses and all three trends lists.
-- [ ] **T100 [API] Lecturer asks their own materials (FR-815).** Depends on: T82, T87.
+- [x] **T100 [API] Lecturer asks their own materials (FR-815).** Depends on: T82, T87.
   Done when: a lecturer can create, list, rename and delete chats and ask questions for courses they teach (other lecturers and students get 403), through the same answer code as students, with the same citations and labels; chats have one owner, a student or a lecturer (migration); a lecturer's chats are visible only to that lecturer and are never counted in question trends (test); replay/mock tests + live cases in the T82 suite with recorded fixtures.
 - [ ] **T101 [API] "Before next class" summary (FR-816, NFR-09).** Depends on: T82, T87.
   Done when: `GET` for a course returns a short summary built only from the T87 aggregates, with what to revisit (citing material sections that exist) and what the materials don't cover; a test proves the LLM prompt holds no names, chat text or topics below the 3-student minimum; with too little data it returns "not enough questions yet" and makes no LLM call; the result is cached until the trends change; only the course's lecturer can read it; replay/mock tests + live cases in the T82 suite with recorded fixtures.
