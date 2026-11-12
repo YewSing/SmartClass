@@ -6,8 +6,10 @@
 const path = require('path')
 const { defineConfig, devices } = require('@playwright/test')
 
-const WEB_PORT = 8092
-const API_PORT = 8001
+// E2E_WEB_PORT / E2E_WEB_API_PORT move both servers, so a loop in a second worktree can run
+// its own Playwright tests at the same time (e.g. 8093 / 8011).
+const WEB_PORT = Number(process.env.E2E_WEB_PORT || 8092)
+const API_PORT = Number(process.env.E2E_WEB_API_PORT || 8001)
 
 module.exports = defineConfig({
   testDir: './e2e-web',

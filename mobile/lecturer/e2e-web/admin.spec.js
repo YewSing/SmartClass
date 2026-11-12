@@ -7,7 +7,7 @@ const path = require('path')
 const { execFileSync } = require('child_process')
 const { test, expect } = require('@playwright/test')
 
-const API = 'http://localhost:8001'
+const API = `http://localhost:${process.env.E2E_WEB_API_PORT || 8001}`
 const BACKEND = path.join(__dirname, '..', '..', '..', 'backend')
 const TARGET = 'student6@example.com'
 

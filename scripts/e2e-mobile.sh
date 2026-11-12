@@ -94,9 +94,27 @@ cleanup() {
     adb -s "$booted_emulator" emu kill >/dev/null 2>&1 || true
     [ -n "${emu_pid:-}" ] && kill_tree "$emu_pid"
   fi
+  [ -n "${lock_held:-}" ] && rm -rf "$lock_dir"
   exit "$code"
 }
 trap cleanup EXIT INT TERM
+
+# One Maestro run at a time across all worktrees of this repo: there is one emulator, and Expo
+# (:8081) and the API port are shared. The lock lives in the shared .git dir, so a loop in another
+# worktree waits here instead of fighting over the emulator. A lock whose owner is gone, or older
+# than 40 minutes, is stale and taken over.
+lock_dir="$(cd "$root" && cd "$(git rev-parse --git-common-dir)" && pwd)/e2e-mobile.lock"
+lock_wait_until=$(( $(date +%s) + 45*60 ))
+until mkdir "$lock_dir" 2>/dev/null; do
+  owner=$(cat "$lock_dir/pid" 2>/dev/null || true)
+  age=$(( $(date +%s) - $(cat "$lock_dir/since" 2>/dev/null || date +%s) ))
+  if { [ -n "$owner" ] && ! kill -0 "$owner" 2>/dev/null; } || [ "$age" -gt $((40*60)) ]; then
+    echo "== removing a stale E2E lock (pid ${owner:-?}, ${age}s old)"; rm -rf "$lock_dir"; continue
+  fi
+  [ "$(date +%s)" -lt "$lock_wait_until" ] || { echo "Gave up waiting for the E2E lock held by pid $owner"; exit 1; }
+  echo "== another worktree is running a Maestro flow (pid $owner); waiting"; sleep 20
+done
+lock_held=1; echo $$ > "$lock_dir/pid"; date +%s > "$lock_dir/since"
 
 port_busy() { curl -s -o /dev/null --max-time 2 "http://127.0.0.1:$1/" ; }
 wait_for() {             # wait_for <seconds> <description> <command...>
