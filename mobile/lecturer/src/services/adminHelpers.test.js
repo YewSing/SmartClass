@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { auditAction, auditDetail, newAdminError, adminSignInError, accountSubtitle, syncRows, faceStatus } from './adminHelpers.js'
+import { auditAction, auditDetail, newAdminError, adminSignInError, accountSubtitle, syncRows, faceStatus, deviceStatus, parseMyt, newDeviceError } from './adminHelpers.js'
 
 test('administrator sign-in asks for an email address instead of sending a non-email', () => {
   assert.equal(adminSignInError({ email: '', password: 'x' }), 'Enter your email and password.')
@@ -70,4 +70,36 @@ test('sync rows keep the order and only known keys', () => {
   const rows = syncRows({ ok: true, enrolments_added: 2, accounts_created: 1, skipped: ['x'] })
   assert.deepEqual(rows.map(r => [r.label, r.value]), [['Accounts created', 1], ['Enrolments added', 2]])
   assert.deepEqual(syncRows(null), [])
+})
+
+test('device audit actions have labels', () => {
+  assert.equal(auditAction('DEVICE_REGISTER').label, 'Registered camera device')
+  assert.equal(auditAction('DEVICE_KEY_REGENERATE').label, 'New camera device key')
+})
+
+test('deviceStatus covers no key, online, never connected and offline', () => {
+  assert.equal(deviceStatus({ has_key: false, online: false }).label, 'No key yet')
+  assert.deepEqual(deviceStatus({ has_key: true, online: true, last_heartbeat_at: '2026-11-13T10:42:00' }),
+    { label: 'Online', tone: 'good', online: true })
+  assert.equal(deviceStatus({ has_key: true, online: false, last_heartbeat_at: null }).label, 'Never connected')
+  const offline = deviceStatus({ has_key: true, online: false, last_heartbeat_at: '2026-11-13T10:42:00' })
+  assert.match(offline.label, /^Offline · last seen 13 Nov/)
+  assert.ok(offline.label.includes('10:42'))
+  assert.equal(offline.tone, 'bad')
+})
+
+test('parseMyt reads naive server times as Malaysia time', () => {
+  assert.equal(parseMyt('2026-11-13T10:42:00').toISOString(), '2026-11-13T02:42:00.000Z')
+  assert.equal(parseMyt('2026-11-13T02:42:00Z').toISOString(), '2026-11-13T02:42:00.000Z')
+  assert.equal(parseMyt('2026-11-13T10:42:00+08:00').toISOString(), '2026-11-13T02:42:00.000Z')
+  assert.equal(parseMyt(null), null)
+})
+
+test('newDeviceError checks the register device form', () => {
+  assert.equal(newDeviceError({ name: '', room: 'DK1' }), 'Enter a device name and a room.')
+  assert.equal(newDeviceError({ name: 'Door cam', room: '' }), 'Enter a device name and a room.')
+  assert.equal(newDeviceError({ name: 'Door cam', room: '   ' }), 'Enter a device name and a room.')
+  assert.equal(newDeviceError({ name: 'a'.repeat(256), room: 'DK1' }),
+    'Keep the name and room under 255 characters.')
+  assert.equal(newDeviceError({ name: 'Door cam', room: 'DK1' }), null)
 })

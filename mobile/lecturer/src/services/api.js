@@ -332,6 +332,12 @@ export const adminLastSync = async () => apiCall('GET', '/admin/moodle/sync')
 
 export const adminSyncNow = async () => apiCall('POST', '/admin/moodle/sync')
 
+// Camera devices (FR-408). The key comes back only from register/regenerate and is never stored.
+export const adminListDevices = async () => apiCall('GET', '/admin/devices')
+export const adminRegisterDevice = async ({ name, room }) =>
+  apiCall('POST', '/admin/devices', { name: name.trim(), room: room.trim() })
+export const adminRegenerateDeviceKey = async (id) => apiCall('POST', `/admin/devices/${id}/regenerate-key`)
+
 // ─── Mocked (Module 3/4 — quiz) ────────────────────────
 
 const delay = (ms) => new Promise(res => setTimeout(res, ms))

@@ -43,7 +43,7 @@ test('admin lands on the admin area and deactivates then reactivates an account'
   page.on('pageerror', (e) => errors.push(e.message))
 
   await signIn(page, 'admin@um.edu.my', 'Admin@1234')
-  for (const tab of ['Accounts', 'Verification', 'AuditLog', 'MoodleSync']) {
+  for (const tab of ['Accounts', 'Verification', 'AuditLog', 'MoodleSync', 'Devices']) {
     await expect(page.getByTestId(`sidenav-${tab}`)).toBeVisible()
   }
   // None of the lecturer screens
@@ -162,7 +162,7 @@ test('administrator sign-in with a non-email asks for an email address', async (
 test('a lecturer sees no admin navigation and gets 403 from an admin endpoint', async ({ page }) => {
   await signIn(page, 'devlecturer@um.edu.my', 'DevTest@1234')
   await expect(page.getByTestId('sidenav-Home')).toBeVisible()
-  for (const tab of ['Accounts', 'Verification', 'AuditLog', 'MoodleSync']) {
+  for (const tab of ['Accounts', 'Verification', 'AuditLog', 'MoodleSync', 'Devices']) {
     await expect(page.getByTestId(`sidenav-${tab}`)).toHaveCount(0)
   }
   await expect(page.getByText('Accounts', { exact: true })).toHaveCount(0)

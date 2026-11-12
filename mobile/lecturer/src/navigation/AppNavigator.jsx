@@ -32,6 +32,7 @@ import FaceVerification from '../screens/FaceVerification'
 import AdminAccounts from '../screens/AdminAccounts'
 import AdminAudit from '../screens/AdminAudit'
 import AdminMoodleSync from '../screens/AdminMoodleSync'
+import AdminDevices from '../screens/AdminDevices'
 
 const Stack = createNativeStackNavigator()
 const Tab   = createBottomTabNavigator()
@@ -157,6 +158,7 @@ const ADMIN_ICONS = {
   Verification: { active: 'scan-circle',      inactive: 'scan-circle-outline' },
   AuditLog:     { active: 'document-text',    inactive: 'document-text-outline' },
   MoodleSync:   { active: 'sync-circle',      inactive: 'sync-circle-outline' },
+  Devices:      { active: 'videocam',         inactive: 'videocam-outline' },
 }
 
 const ADMIN_SCREENS = {
@@ -164,6 +166,7 @@ const ADMIN_SCREENS = {
   Verification: FaceVerification,
   AuditLog:     AdminAudit,
   MoodleSync:   AdminMoodleSync,
+  Devices:      AdminDevices,
 }
 
 // One screen per tab, in a stack so wide screens get the same centred column
@@ -207,6 +210,7 @@ function AdminTabs() {
       <Tab.Screen name="Verification" component={ADMIN_STACKS.Verification} options={{ title: 'Face verification' }} />
       <Tab.Screen name="AuditLog"     component={ADMIN_STACKS.AuditLog}     options={{ title: 'Audit log' }} />
       <Tab.Screen name="MoodleSync"   component={ADMIN_STACKS.MoodleSync}   options={{ title: 'SPeCTRUM sync' }} />
+      <Tab.Screen name="Devices"      component={ADMIN_STACKS.Devices}      options={{ title: 'Devices' }} />
     </Tab.Navigator>
   )
 }
@@ -220,7 +224,7 @@ function AdminBrowserOnly() {
     <View style={[adminStyles.center, { paddingTop: insets.top }]}>
       <Ionicons name="desktop-outline" size={40} color={C.primary} />
       <Text style={adminStyles.title}>Administration is in the browser</Text>
-      <Text style={adminStyles.text}>Open SmartClass in a web browser to manage accounts, face data and the SPeCTRUM sync.</Text>
+      <Text style={adminStyles.text}>Open SmartClass in a web browser to manage accounts, face data, camera devices and the SPeCTRUM sync.</Text>
       <TouchableOpacity style={adminStyles.btn} onPress={() => openModal('signout')}>
         <Text style={adminStyles.btnText}>Sign out</Text>
       </TouchableOpacity>

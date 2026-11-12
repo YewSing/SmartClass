@@ -120,7 +120,7 @@ These M8 tasks run before everything else after the T04 checkpoint, so the stude
   Done when: on Present or Late, a websocket event goes to the lecturer's session channel and to the student's channel, and `app/services/notify.py` exposes `emit(event, user_ids, payload)` as the M2 hook (logs only for now, documented in `docs/interfaces.md`); tests.
 - [x] **T45 [UI] Student "I'm here" flag, lecturer flag alerts, "attendance recorded" banner.** Depends on: T43, T44, T03.
   Done when: the student app's flag button appears only during an open session with no record, and the old mock report screen (`AttReportStatus`) shows the real flag status; Maestro flows: a student flags and sees pending then the result; the lecturer sees the alert and confirms it; the student app shows the banner after a simulated recognition.
-- [ ] **T46 [UI] Admin area: device management page.** Depends on: T40, T22.
+- [x] **T46 [UI] Admin area: device management page.** Depends on: T40, T22.
   Done when: page lists devices with online status, registers a device and shows the key once, regenerates a key; Playwright test.
 - [ ] **T47 [HUMAN] Run the device client on the Raspberry Pi** with the Pi camera at the door; measure NFR-11 (fps) and NFR-10; record results in PROGRESS.md.
 - [ ] **T48 [HUMAN] Checkpoint: full attendance run.** Yew Sing runs one class end to end with the camera: a scheduled session opens by itself, Present and Late recognition, a student flags and the lecturer confirms, override to Excused, close, and check the statuses in Moodle. A Claude session reviews the work so far.
