@@ -34,6 +34,22 @@ before T44 is built.
 
 ---
 
+## R2 — Use the attendance read interface in M7 (M7) — opened 2026-11-12
+
+**Why:** since T30 attendance has four statuses (present, late, excused, absent) and Late counts as
+attended (FR-308). `routers/analytics.py` still counts only `present` and the old `unidentified`, so
+M7's rates disagree with the student app.
+
+**What Yew Sing's side provides:** `app/services/attendance_read.py` (FR-313): records per course or
+student, rates, and consecutive absences, described in `docs/interfaces.md`.
+
+**Needed from M7:** read attendance through those functions instead of counting `AttendanceRecord`
+rows directly. Tell Yew Sing if M7 needs anything the interface doesn't give.
+
+**Status / reply:** open
+
+---
+
 ## Open issue already raised
 
 - `GET /lecturer/analytics` (M7) lets any lecturer read any class's analytics (NFR-04). Details
