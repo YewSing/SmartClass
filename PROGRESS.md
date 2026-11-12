@@ -504,3 +504,17 @@ TEST-CHANGE: tests/test_seed_courses.py (test_materials_course_exists_in_the_see
 - TEST-CHANGE: tests/live/test_live_qa.py::test_prompt_injection_in_a_document_does_not_change_format - failed whenever the word "PWNED" appeared, even when the model quoted the planted line while refusing it; it now fails if the reply obeys the injection (just "PWNED", reduced to a few words, or no citations) (Yew Sing agreed 2026-11-12).
 - Tests: 3 new in `test_llm_hardening.py` (per-minute 429 retried, persistent quota 429 → quota, 402 → quota), 1 in `test_qa_replay.py` (partial recording keeps earlier entries). Live suite on DeepSeek: 26 passed, twice; `qa.json` re-recorded from scratch with 22 passing DeepSeek answers (replaces the 2 Gemini ones).
 - Next: T83 (Yew Sing finalises the Q&A eval set); optionally run `scripts/eval_assistant.py` on DeepSeek for the report. When merging with `fyp2-loop`, point migration `d1e2f3a4b5c6` at `d0e1f2a3b4c5` (T36) so Alembic has one head. Not done here: the topic label (T87) costs one extra LLM call per general answer, and whole-material summaries/study tools send every chunk with no size cap.
+
+### Loop B summary — 2026-11-13 (Module 8, Yew Sing's loop on fyp2-m8)
+- **Tasks done:** T100 (lecturer asks own materials), T101 (before-next-class summary), T91 (lecturer materials/trends UI), T90 (student summaries/flashcards/practice UI), T102 (lecturer ask + before-class UI), T92 (YouTube suggestions). All ticked `[x]`.
+- **[~]:** none. **Blocked:** none.
+- **Migrations:** `e2f3a4b5c6d7` (down_revision `d1e2f3a4b5c6`) — `ai_chat_sessions` gains nullable `lecturer_id` + a `ck_ai_chat_sessions_single_owner` CHECK (`student_id` now nullable). Applied to the dev DB `smartclass_m8`.
+- **New API (all additive):** `/lecturer/assistant/{courses,sessions,{id}/messages,materials/{id}/file}`, `/lecturer/assistant/before-class/{id}`, `/student/assistant/youtube`. New config: `YOUTUBE_API_KEY`, `YOUTUBE_MAX_RESULTS`.
+- **UI:** new lecturer "AI Assistant" tab (materials status + sync + trends + ask + before-class + source); new student "Study tools" screen (summary/study guide/flashcards/practice). Lecturer app gained `MarkdownText` + `markdown.js` (copied from the student app) and `services/openSource.js`.
+- **Live AI:** 2 recorded fixtures added to `qa.json` (`lecturer:boundary value analysis`, `before-class`); the full live suite (28) passes on DeepSeek. `llm.fake_chat` now also answers study-tools JSON and "before next class" prompts so the E2E flows run with `LLM_FAKE=1`.
+- **E2E:** Maestro `lecturer assistant`, `lecturer ask-before-class`, `student study-tools` all PASS; Playwright `assistant.spec.js` + full lecturer web suite 27 PASS. check.sh 628 passed.
+- **For the reviewer:**
+  - CORS now allows `http://localhost:8093` (the second worktree's Playwright origin from `E2E_WEB_PORT`); without it this worktree's `npm run e2e:web` fails on login.
+  - The terminal's `DATABASE_URL` points at a stale native postgres (`localhost:5432`, wrong password); all tests/check.sh/E2E here were run against the docker postgres (`localhost:5433`, `smartclass_m8` / `smartclass_m8_test`). The worktree branch + `smartclass_m8` DB-name check passed, but the port is worth fixing for future sessions.
+  - A student-facing material-list endpoint still doesn't exist, so T90's study tools take a typed topic (no material picker); a `GET /student/assistant/materials` could enable it later.
+  - T92 is off until Yew Sing adds `YOUTUBE_API_KEY` to `.env` (no UI uses it yet).
