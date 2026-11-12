@@ -32,6 +32,7 @@ import FaceVerification from '../screens/FaceVerification'
 import AdminAccounts from '../screens/AdminAccounts'
 import AdminAudit from '../screens/AdminAudit'
 import AdminMoodleSync from '../screens/AdminMoodleSync'
+import LecturerAssistant from '../screens/LecturerAssistant'
 
 const Stack = createNativeStackNavigator()
 const Tab   = createBottomTabNavigator()
@@ -88,12 +89,21 @@ function AnalyticsStack() {
   )
 }
 
+function AssistantStack() {
+  return (
+    <Stack.Navigator screenOptions={useStackOptions()}>
+      <Stack.Screen name="LecturerAssistant" component={LecturerAssistant} />
+    </Stack.Navigator>
+  )
+}
+
 // ─── Main tabs ────────────────────────────────────────────────────────────────
 
 const TAB_ICONS = {
   Home:        { active: 'home',             inactive: 'home-outline' },
   Attendance:  { active: 'people',           inactive: 'people-outline' },
   Quiz:        { active: 'help-circle',      inactive: 'help-circle-outline' },
+  Assistant:   { active: 'sparkles',         inactive: 'sparkles-outline' },
   Analytics:   { active: 'bar-chart',        inactive: 'bar-chart-outline' },
 }
 
@@ -102,6 +112,7 @@ const TAB_ROOTS = {
   Home:       'Dashboard',
   Attendance: 'AttendanceSessions',
   Quiz:       'QuizList',
+  Assistant:  'LecturerAssistant',
   Analytics:  'AnalyticsScreen',
 }
 
@@ -143,6 +154,7 @@ function MainTabs() {
       <Tab.Screen name="Home"        component={HomeStack}       options={{ title: 'Home' }} />
       <Tab.Screen name="Attendance"  component={AttendanceStack} options={{ title: 'Attendance' }} />
       <Tab.Screen name="Quiz"        component={QuizStack}       options={{ title: 'Quiz' }} />
+      <Tab.Screen name="Assistant"   component={AssistantStack}  options={{ title: 'AI Assistant' }} />
       <Tab.Screen name="Analytics"   component={AnalyticsStack}  options={{ title: 'Analytics' }} />
     </Tab.Navigator>
   )

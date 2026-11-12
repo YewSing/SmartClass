@@ -321,6 +321,47 @@ export const adminLastSync = async () => apiCall('GET', '/admin/moodle/sync')
 
 export const adminSyncNow = async () => apiCall('POST', '/admin/moodle/sync')
 
+// ─── AI Learning Assistant (Module 8) ────────────────────────────────────────
+
+// Courses the lecturer teaches, with how many materials are indexed (FR-815)
+export const getAssistantCourses = async () => {
+  const list = await apiCall('GET', '/lecturer/assistant/courses')
+  return list.map(c => ({
+    id: c.course_id,
+    code: c.code,
+    name: courseName(c.code, c.name),
+    indexedMaterials: c.indexed_materials ?? 0,
+  }))
+}
+
+// Each material's processing status (FR-804)
+export const getMaterials = async (courseId) => {
+  const list = await apiCall('GET', `/kb/courses/${courseId}/materials`)
+  return list.map(m => ({
+    id: m.id,
+    title: m.title,
+    fileName: m.file_name,
+    section: m.section_name ?? null,
+    status: m.status,
+    errorText: m.error_text ?? null,
+    units: m.unit_count ?? null,
+    chunks: m.chunk_count ?? 0,
+  }))
+}
+
+// "Sync now": pull changes from Moodle immediately (FR-803)
+export const syncMaterials = async (courseId) => apiCall('POST', `/kb/courses/${courseId}/sync`)
+
+// Anonymised question trends (FR-813, NFR-09)
+export const getQuestionTrends = async (courseId) => {
+  const t = await apiCall('GET', `/lecturer/assistant/trends/${courseId}`)
+  return {
+    mostAsked: t.most_asked_topics ?? [],
+    mostCited: t.most_cited_materials ?? [],
+    uncovered: t.topics_materials_dont_cover ?? [],
+  }
+}
+
 // ─── Mocked (Module 3/4 — quiz) ────────────────────────
 
 const delay = (ms) => new Promise(res => setTimeout(res, ms))

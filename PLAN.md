@@ -148,7 +148,7 @@ These M8 tasks run before everything else after the T04 checkpoint, so the stude
   Done when: `app/services/kb/retrieval_api.py` (`search(course_id, query, k)` → passages with source) is documented in `docs/interfaces.md`; tests.
 - [ ] **T90 [UI] Student app: summaries + flashcards/practice.** Depends on: T85, T86, T89.
   Done when: screens for generate summary, flip flashcards, answer practice questions; Maestro flow with the fake LLM.
-- [ ] **T91 [UI] Lecturer app: materials status + sync button + question trends.** Depends on: T81, T87, T03.
+- [x] **T91 [UI] Lecturer app: materials status + sync button + question trends.** Depends on: T81, T87, T03.
   Done when: Maestro flow triggers a sync and sees the statuses and all three trends lists.
 - [x] **T100 [API] Lecturer asks their own materials (FR-815).** Depends on: T82, T87.
   Done when: a lecturer can create, list, rename and delete chats and ask questions for courses they teach (other lecturers and students get 403), through the same answer code as students, with the same citations and labels; chats have one owner, a student or a lecturer (migration); a lecturer's chats are visible only to that lecturer and are never counted in question trends (test); replay/mock tests + live cases in the T82 suite with recorded fixtures.

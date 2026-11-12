@@ -443,6 +443,13 @@ TEST-CHANGE: tests/test_seed_courses.py (test_materials_course_exists_in_the_see
 - Tests: `test_question_trends.py` (7 db: topic tagging for course/general, ≥3 filter, most-cited materials, uncovered topics, anonymisation, access control). check.sh 515 passed; live suite skips LLM_QUOTA.
 - Next: T88.
 
+### T91 — Lecturer app: materials status + sync + question trends — 2026-11-13
+- Changed: new lecturer screen `LecturerAssistant.jsx` (course picker, "Sync materials" → `POST /kb/courses/{id}/sync`, materials list with status badges, and the three anonymised trend lists) on a new "AI Assistant" bottom tab; `api.js` gains `getAssistantCourses`, `getMaterials`, `syncMaterials`, `getQuestionTrends`; new `scripts/e2e_assistant.py` (seed/teardown: one synthetic indexed material + 3 students' question history for WIF3001) + `mobile/lecturer/e2e/assistant.yaml` and `assistant.setup.sh`.
+- Decisions: "AI Assistant" is a 5th tab (sparkles icon), so the lecturer's M8 tools sit together; materials/trends use the endpoints from T80/T81/T87 unchanged.
+- Interface/schema: no backend change (the screen only calls existing endpoints). Applied T100's migration `e2f3a4b5c6d7` to the dev DB so the E2E backend has the `ai_chat_sessions.lecturer_id` column.
+- Tests: `test_e2e_assistant_seed.py` (2 db: seeded material + all three trends; idempotent seed + teardown removes everything); lecturer `npm test` 35 passed; Maestro `lecturer assistant` PASS (sync toast, "Indexed" status, all three trend lists); check.sh 618 passed.
+- Next: T90.
+
 ### T101 — "Before next class" summary (FR-816, NFR-09) — 2026-11-13
 - Changed: new `services/kb/before_class.py` (`before_class_summary(db, course)` builds a two-part note "## Revisit" (citing real material sections) + "## Not covered by the materials" purely from the T87 aggregates; empty aggregates → a fixed "not enough questions yet" message with no LLM call; sections resolved to still-existing materials so a deleted material is never cited; result cached in memory per course until the trends fingerprint changes, `reset_cache()` for tests); `GET /lecturer/assistant/before-class/{course_id}` + `BeforeClassOut` schema.
 - Decisions: prompt is built only from `trends.question_trends` output (topics ≥3 students), so it can never carry names, chat text or below-minimum topics; access = course lecturer or admin (`_course_for_staff`); LLM down → 503.
