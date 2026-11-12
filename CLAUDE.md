@@ -150,7 +150,7 @@ Long jobs run as one task per fresh session. Start everything with `/run-plan [r
 Shino builds on `main` or her own branches, so only finished, checked work goes there.
 1. Yew Sing says "prepare the merge" or runs `/prepare-merge`, or Claude suggests it at a milestone.
 2. Claude runs the checks in `.claude/commands/prepare-merge.md`, fixes problems on the work branch, and resolves conflicts there if `main` has changed.
-3. Claude gives Yew Sing the GitHub link and a note for Shino. Yew Sing clicks Merge.
+3. Claude opens the pull request from the Claude desktop app (its Create PR button), with a note for Shino as the description, then offers the app's Merge button. Yew Sing clicks Merge; Claude never merges or enables auto-merge. Outside the app, Claude gives the GitHub compare link instead.
 
 Claude commits and pushes work branches freely, but never pushes to `main` or force-pushes (blocked in `.claude/settings.json`).
 
