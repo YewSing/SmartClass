@@ -15,11 +15,12 @@ from app.models.knowledge import MAT_INDEXED, KbMaterial
 from app.models.user import Lecturer, Student, User
 from app.schemas.assistant import (
     AssistantCourseOut, MaterialOut, MessageCreate, MessageOut, SessionCreate, SessionOut,
-    SessionRename, SummaryCreate, SummaryOut, SyncOut,
+    SessionRename, StudyToolsCreate, StudyToolsOut, SummaryCreate, SummaryOut, SyncOut,
 )
 from app.services.kb.assistant import answer_question
 from app.services.kb.llm import LLMUnavailable
 from app.services.kb.moodle_client import MoodleClient, MoodleError
+from app.services.kb.study_tools import generate_study_tools
 from app.services.kb.summarize import summarize
 from app.services.kb.sync import sync_course
 
@@ -201,6 +202,27 @@ async def generate_summary(body: SummaryCreate, db: AsyncSession = Depends(get_d
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc))
     return SummaryOut(content=content, citations=citations, source_type=source,
                       kind=body.kind, material_id=body.material_id, topic=body.topic)
+
+
+@router.post("/student/assistant/study-tools", response_model=StudyToolsOut)
+async def study_tools(body: StudyToolsCreate, db: AsyncSession = Depends(get_db),
+                      user: User = Depends(_student_only)):
+    """Generate flashcards or practice questions for a material or topic (FR-811)."""
+    student = await _student(db, user)
+    course = await _enrolled_course(db, student.id, body.course_id)
+    if (body.material_id is None) == (body.topic is None):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            "Provide exactly one of material_id or topic")
+    if body.material_id is not None:
+        material = (await db.execute(select(KbMaterial).where(KbMaterial.id == body.material_id))).scalar_one_or_none()
+        if not material or material.course_id != course.id:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Material not found")
+    try:
+        cards, questions, source = await generate_study_tools(
+            db, course, material_id=body.material_id, topic=body.topic, kind=body.kind)
+    except LLMUnavailable as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc))
+    return StudyToolsOut(kind=body.kind, source_type=source, cards=cards, questions=questions)
 
 
 # ── lecturer / admin: knowledge base status and sync ──────────────────────────

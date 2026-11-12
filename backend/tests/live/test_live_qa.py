@@ -53,6 +53,7 @@ async def course(synthetic_kb, db_session):
 @pytest.fixture
 def capture(monkeypatch):
     """Wraps llm.chat + retrieval so a test can record raw answer + passages."""
+    import app.services.kb.study_tools as study_tools_mod
     import app.services.kb.summarize as summarize_mod
     from app.services.kb.llm import chat as real_chat
     from app.services.kb.search import material_passages as real_material
@@ -78,8 +79,9 @@ def capture(monkeypatch):
 
     monkeypatch.setattr(llm_mod, "chat", chat)
     monkeypatch.setattr(assistant_mod, "search_materials", search)
-    monkeypatch.setattr(summarize_mod, "search_materials", search)
-    monkeypatch.setattr(summarize_mod, "material_passages", material)
+    for mod in (summarize_mod, study_tools_mod):
+        monkeypatch.setattr(mod, "search_materials", search)
+        monkeypatch.setattr(mod, "material_passages", material)
     return state
 
 
@@ -118,6 +120,22 @@ async def _summarize_stable(db, course, *, material_id=None, topic=None, kind, w
         if want_course and source == SOURCE_COURSE and citations:
             return last
         if not want_course and source == SOURCE_GENERAL:
+            return last
+    return last
+
+
+async def _study_tools_stable(db, course, *, material_id=None, topic=None, kind, want_course=True):
+    from app.services.kb.study_tools import generate_study_tools
+
+    last = None
+    for _ in range(2):
+        cards, questions, source = await generate_study_tools(
+            db, course, material_id=material_id, topic=topic, kind=kind)
+        items = cards or questions
+        last = (cards, questions, source)
+        if want_course and source == "course" and items:
+            return last
+        if not want_course and source == "general":
             return last
     return last
 
@@ -246,3 +264,25 @@ async def test_study_guide_live_off_topic_is_general(synthetic_kb, course, captu
            SOURCE_GENERAL)
 
     assert source == SOURCE_GENERAL and citations == []
+
+
+# ── flashcards / practice questions (FR-811, T86) ─────────────────────────────
+
+@pytest.mark.parametrize("stem,kind", [
+    ("boundary-value-analysis", "flashcards"),
+    ("equivalence-partitioning", "flashcards"),
+    ("boundary-value-analysis", "practice_questions"),
+    ("equivalence-partitioning", "practice_questions"),
+])
+async def test_study_tools_live_valid_and_grounded(synthetic_kb, course, capture, record, db_session,
+                                                   stem, kind):
+    material_id = synthetic_kb["material_ids"][stem]
+    cards, questions, source = await _study_tools_stable(
+        db_session, course, material_id=material_id, kind=kind, want_course=True)
+    record(f"{kind}:{stem}", capture["raw"], capture["passages"], SOURCE_COURSE, kind=kind)
+
+    items = cards or questions
+    assert source == "course" and items, f"expected {kind} for {stem} to cite the material"
+    for item in items:
+        assert item.citation is not None, "every item must carry a real citation"
+        assert item.citation.material_id == material_id

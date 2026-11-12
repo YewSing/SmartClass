@@ -36,16 +36,17 @@ def pytest_runtest_makereport(item, call):
 
 @pytest.fixture
 def record(request):
-    """Returns a `save(question, raw, passages, source)` callable, active only with --record-llm."""
+    """Returns a `save(question, raw, passages, source, kind=None)` callable, active only with --record-llm."""
     enabled = request.config.getoption("--record-llm")
 
-    def save(question: str, raw: str, passages: list, source: str) -> None:
+    def save(question: str, raw: str, passages: list, source: str, kind: str | None = None) -> None:
         if not enabled:
             return
         from tests.fixtures.synthetic import passage_to_dict
 
         _records[question] = {
-            "raw": raw, "source": source, "passages": [passage_to_dict(p) for p in passages],
+            "raw": raw, "source": source, "kind": kind,
+            "passages": [passage_to_dict(p) for p in passages],
         }
 
     return save

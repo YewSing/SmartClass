@@ -138,7 +138,7 @@ These M8 tasks run before everything else after the T04 checkpoint, so the stude
 - [ ] **T83 [HUMAN] Review and finalise the Q&A evaluation set** (correct answers, remove `draft`).
 - [~] **T85 [API] Summary / study guide (FR-810).** Depends on: T82.
   Done when: `POST /student/assistant/summaries {course_id, material_id | topic, kind: summary|study_guide}` returns structured markdown with citations; replay/mock tests + live cases added to the T82 suite (≥3: material summary, topic study guide, topic not in materials) with recorded fixtures.
-- [ ] **T86 [API] Flashcards + practice questions (FR-811).** Depends on: T82.
+- [~] **T86 [API] Flashcards + practice questions (FR-811).** Depends on: T82.
   Done when: endpoint returns validated JSON (cards: front/back/citation; questions: stem/options/answer/explanation/citation); malformed LLM output is retried once, then 502; replay/mock tests + live cases in the T82 suite (≥4: flashcards and practice questions for 2 materials each, JSON schema-valid, every citation real) with recorded fixtures.
 - [ ] **T87 [API] Anonymised question trends for lecturers (FR-813, NFR-09).** Depends on: T80.
   Done when: each student question is tagged with a topic (from the cited materials/sections or a cheap LLM label); the lecturer endpoint returns three lists, most-asked topics, most-cited materials, and most-asked topics the materials don't cover (answers labelled general knowledge), each with ≥3 distinct students only and no names or text; tests prove that k<3 topics are hidden and that no endpoint exposes another student's chat.

@@ -108,3 +108,57 @@ class SummaryOut(BaseModel):
     kind: str
     material_id: Optional[int] = None
     topic: Optional[str] = None
+
+
+class StudyToolsCreate(BaseModel):
+    course_id: int
+    material_id: Optional[int] = None   # exactly one of material_id / topic
+    topic: Optional[str] = Field(default=None, max_length=200)
+    kind: Literal["flashcards", "practice_questions"]
+
+
+# ── LLM JSON output validation (internal; the endpoint validates the LLM's JSON) ──
+
+class LLMCard(BaseModel):
+    front: str
+    back: str
+    citation: Optional[int] = None
+
+
+class LLMQuestion(BaseModel):
+    stem: str
+    options: list[str]
+    answer: str
+    explanation: str
+    citation: Optional[int] = None
+
+
+class LLMCards(BaseModel):
+    cards: list[LLMCard] = []
+
+
+class LLMQuestions(BaseModel):
+    questions: list[LLMQuestion] = []
+
+
+# ── API response ──────────────────────────────────────────────────────────────
+
+class FlashcardOut(BaseModel):
+    front: str
+    back: str
+    citation: Optional[Citation] = None
+
+
+class PracticeQuestionOut(BaseModel):
+    stem: str
+    options: list[str]
+    answer: str
+    explanation: str
+    citation: Optional[Citation] = None
+
+
+class StudyToolsOut(BaseModel):
+    kind: str                   # flashcards | practice_questions
+    source_type: str            # course | general
+    cards: list[FlashcardOut] = []
+    questions: list[PracticeQuestionOut] = []

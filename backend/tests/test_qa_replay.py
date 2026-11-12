@@ -11,8 +11,11 @@ from pathlib import Path
 
 import pytest
 
+from app.schemas.assistant import LLMCards, LLMQuestions
+from app.services.kb import llm
 from app.services.kb.answer_format import clean_latex
 from app.services.kb.assistant import SOURCE_COURSE, parse_answer
+from app.services.kb.study_tools import _citation
 from tests.fixtures.synthetic import passage_from_dict
 
 RECORDING = Path(__file__).resolve().parent / "fixtures" / "llm" / "qa.json"
@@ -28,6 +31,9 @@ def _cases():
 
 
 def _check(question, case):
+    if case.get("kind"):
+        _check_study_tools(question, case)
+        return
     raw = case["raw"]
     passages = [passage_from_dict(p) for p in case["passages"]]
     content, citations, source = parse_answer(clean_latex(raw), passages)
@@ -40,6 +46,20 @@ def _check(question, case):
         assert citations == [], f"{question!r}: a general answer must not carry citations"
     # the stored answer is plain text the phone can render (T93)
     assert "$$" not in content and "\\frac" not in content, f"{question!r}: LaTeX leaked through"
+
+
+def _check_study_tools(question, case):
+    """Replay a flashcards / practice-questions recording: JSON parses, validates, cites real passages."""
+    passages = [passage_from_dict(p) for p in case["passages"]]
+    data = llm._json.loads(llm._extract_json(case["raw"]))
+    if case["kind"] == "flashcards":
+        items = LLMCards.model_validate(data).cards
+    else:
+        items = LLMQuestions.model_validate(data).questions
+    assert items, f"{question!r}: recorded {case['kind']} output is empty"
+    for item in items:
+        assert _citation(item.citation, passages) is not None, \
+            f"{question!r}: citation {item.citation!r} does not point at a retrieved passage"
 
 
 def test_recorded_answers_replay():

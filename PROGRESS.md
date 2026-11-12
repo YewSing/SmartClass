@@ -359,3 +359,11 @@ TEST-CHANGE: tests/test_seed_courses.py (test_materials_course_exists_in_the_see
 - Tests: `test_summary.py` (7 db: material/topic/off-topic/validation/403/404/503); 3 live cases added to `test_live_qa.py` (material summary, topic study guide, off-topic). check.sh 500 passed; live suite skips LLM_QUOTA.
 - [~] Manual: quota (see T82) — re-run `pytest -m live --record-llm` to record the 3 summary fixtures.
 - Next: T86.
+
+### T86 — Flashcards + practice questions — 2026-11-12 [~]
+- Changed: `llm.chat_json` (asks for a JSON object, retries malformed output once with a "reply with valid JSON only" nudge, then raises `LLMUnavailable` → 502; an optional `validator` counts pydantic `ValidationError` as malformed) + `llm._extract_json` (strips markdown fences); new `services/kb/study_tools.py` (`generate_study_tools` — a material's chunks via `material_passages` or a topic's top-k, prompted for JSON, validated against `LLMCards`/`LLMQuestions`, each item's `citation` number mapped to a real `Citation`); `POST /student/assistant/study-tools {course_id, material_id|topic, kind: flashcards|practice_questions}`.
+- Decisions: source_type is "course" when any item cites a passage, else "general"; invalid citation numbers are dropped (like parse_answer). No chat save (the app's job, T90).
+- Interface/schema changes: new endpoint; `StudyToolsCreate`/`StudyToolsOut`, `FlashcardOut`/`PracticeQuestionOut`, `LLMCards`/`LLMQuestions` (additive). No DB schema change.
+- Tests: `test_study_tools.py` (8 db: flashcards/questions, malformed-retry-then-502, retry-recovers, off-topic general, validation, 403/503); 4 live cases added (flashcards + practice questions × 2 materials); `test_qa_replay.py` now also replays JSON recordings (schema-valid + real citations). check.sh 508 passed; live suite skips LLM_QUOTA.
+- [~] Manual: quota (see T82) — re-run `pytest -m live --record-llm` to record the 4 study-tools fixtures.
+- Next: T87.

@@ -13,6 +13,7 @@ Resilience (NFR-21, T82):
   so the live test suite can skip with `LLM_QUOTA` instead of failing.
 """
 import asyncio
+import json as _json
 import time
 from collections import deque
 
@@ -163,3 +164,40 @@ async def chat(messages: list[dict], max_tokens: int | None = None, temperature:
             raise LLMUnavailable(f"AI provider error: {type(exc).__name__}") from exc
         return (resp.choices[0].message.content or "").strip()
     raise LLMUnavailable("AI provider error: retries exhausted")  # pragma: no cover
+
+
+def _extract_json(text: str) -> str:
+    """Pull the JSON object out of a reply that may be wrapped in markdown fences."""
+    text = text.strip()
+    if text.startswith("```"):
+        text = text.split("\n", 1)[-1]  # drop the opening fence
+        if text.rstrip().endswith("```"):
+            text = text.rsplit("```", 1)[0]
+    start, end = text.find("{"), text.rfind("}")
+    if start == -1 or end == -1 or end <= start:
+        raise ValueError("no JSON object found")
+    return text[start:end + 1]
+
+
+async def chat_json(messages: list[dict], *, max_tokens: int | None = None,
+                    temperature: float = 0.2, retries: int = 1, validator=None) -> object:
+    """Ask the LLM for a JSON object. Malformed output is retried once, then fails.
+
+    `validator` (optional) is applied to the parsed object; a `ValueError` from it (e.g. a
+    pydantic `ValidationError`) counts as malformed too. Raises `LLMUnavailable` when the
+    provider errors or the JSON stays malformed (routers turn that into a 502).
+    `LLMQuotaExhausted` propagates unchanged.
+    """
+    for attempt in range(retries + 1):
+        raw = await chat(messages, max_tokens=max_tokens, temperature=temperature)
+        try:
+            data = _json.loads(_extract_json(raw))
+            return validator(data) if validator else data
+        except ValueError:
+            if attempt >= retries:
+                raise LLMUnavailable("The AI returned malformed JSON.") from None
+            messages = messages + [
+                {"role": "assistant", "content": raw},
+                {"role": "user", "content": "That was not valid JSON. Reply with a single valid JSON object only."},
+            ]
+    raise LLMUnavailable("The AI returned malformed JSON.")  # pragma: no cover
