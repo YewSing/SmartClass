@@ -11,6 +11,8 @@ from app.models.ai_chat import ChatMessage, ChatSession
 from app.models.knowledge import EMBEDDING_DIM
 from app.services.kb import llm
 from app.services.kb.assistant import SOURCE_COURSE, SOURCE_GENERAL
+from tests.test_assistant_open_source import PDF, _moodle_material  # noqa: F401
+from tests.test_assistant_open_source import fake_moodle  # noqa: F401, F811  (shared fixture)
 
 pytestmark = pytest.mark.db
 
@@ -148,3 +150,16 @@ async def test_lecturer_llm_down_is_503(lecturer_client, synthetic_kb, fake_llm)
     resp = await lecturer_client.post(f"/lecturer/assistant/sessions/{chat['id']}/messages",
                                       json={"content": "What is BVA?"})
     assert resp.status_code == 503
+
+
+async def test_lecturer_can_open_a_cited_source(lecturer_client, other_lecturer_client,
+                                                student_client, classroom, db_session, fake_moodle):  # noqa: F811
+    mat = await _moodle_material(db_session, classroom["course_id"])
+    fake_moodle.data = {mat.file_url: PDF}
+    url = f"/lecturer/assistant/materials/{mat.id}/file"
+    resp = await lecturer_client.get(url)
+    assert resp.status_code == 200, resp.text
+    assert resp.content == PDF
+    # other lecturer (doesn't teach CS101) and students are refused
+    assert (await other_lecturer_client.get(url)).status_code == 403
+    assert (await student_client.get(url)).status_code == 403

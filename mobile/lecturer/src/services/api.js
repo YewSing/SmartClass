@@ -362,6 +362,23 @@ export const getQuestionTrends = async (courseId) => {
   }
 }
 
+// "Ask my materials" (FR-815): the lecturer's own chat sessions for a course
+export const getLecturerSessions = async (courseId) =>
+  apiCall('GET', `/lecturer/assistant/sessions?course_id=${courseId}`)
+
+export const createLecturerSession = async (courseId) =>
+  apiCall('POST', '/lecturer/assistant/sessions', { course_id: courseId })
+
+export const getLecturerMessages = async (sessionId) =>
+  apiCall('GET', `/lecturer/assistant/sessions/${sessionId}/messages`)
+
+export const sendLecturerMessage = async (sessionId, content) =>
+  apiCall('POST', `/lecturer/assistant/sessions/${sessionId}/messages`, { content })
+
+// "Before next class" summary (FR-816)
+export const getBeforeClass = async (courseId) =>
+  apiCall('GET', `/lecturer/assistant/before-class/${courseId}`)
+
 // ─── Mocked (Module 3/4 — quiz) ────────────────────────
 
 const delay = (ms) => new Promise(res => setTimeout(res, ms))

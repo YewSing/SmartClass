@@ -443,6 +443,13 @@ TEST-CHANGE: tests/test_seed_courses.py (test_materials_course_exists_in_the_see
 - Tests: `test_question_trends.py` (7 db: topic tagging for course/general, ≥3 filter, most-cited materials, uncovered topics, anonymisation, access control). check.sh 515 passed; live suite skips LLM_QUOTA.
 - Next: T88.
 
+### T102 — Lecturer app: ask my materials + before next class summary — 2026-11-13
+- Changed: new lecturer screens `LecturerAsk` (chat over `/lecturer/assistant/sessions`), `BeforeClass` (the T101 summary) and `LecturerSource` (passage + "Open file"), reached from two buttons on the T91 AI Assistant tab; `GET /lecturer/assistant/materials/{id}/file` (factored `_stream_material`, shared with the student opener) so a lecturer citation opens the source; `MarkdownText` + `markdown.js` copied from the student app; `services/openSource.js` (lecturer URL, web blob / phone share sheet); `llm.fake_chat` answers the "before next class" prompt.
+- Decisions: the citation's `file_url` is the student path, so the app builds the lecturer URL from `material_id`; the lecturer app has no `expo-intent-launcher`, so phone opens use the share sheet; CORS now allows `localhost:8093` (the second worktree's Playwright origin from `E2E_WEB_PORT`).
+- Interface/schema: new lecturer endpoint above (additive); CORS origin added. No migration.
+- Tests: `test_lecturer_assistant.py::test_lecturer_can_open_a_cited_source`; `test_cors.py` +:8093; lecturer `npm test` 43 passed (markdown copied); Maestro `lecturer ask-before-class` PASS (ask → citation → source → before-class summary); Playwright `assistant.spec.js` + full suite 27 PASS; check.sh 621 passed.
+- Next: T92.
+
 ### T90 — Student app: summaries + flashcards/practice — 2026-11-13
 - Changed: new student `StudyTools` screen (kind picker — Summarise / Study guide / Flashcards / Practice —, topic input, and results: Markdown summary with citation chips, flip cards, answerable practice questions with an explanation) reached from a "Study tools" button on the Assistant screen; `api.js` gains `generateSummary`/`generateStudyTools`; `llm.fake_chat` now answers the study-tools JSON prompts with a deterministic valid JSON object (flashcards / practice questions) so `LLM_FAKE=1` E2E works (was 502 before).
 - Decisions: the input is a typed topic (no student-facing material list endpoint exists yet — see Next); summaries show the "General knowledge" tag for off-syllabus topics.

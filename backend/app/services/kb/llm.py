@@ -94,6 +94,9 @@ def fake_chat(messages: list[dict]) -> str:
         return ('{"questions": [{"stem": "Which structural coverage criterion is stronger?", '
                 '"options": ["statement", "branch", "neither", "both"], "answer": "branch", '
                 '"explanation": "Branch coverage subsumes statement coverage.", "citation": 1}]}')
+    if "before next class" in system:
+        return ("## Revisit\n\nBoundary value analysis is covered in the notes [1].\n\n"
+                "## Not covered by the materials\n\nQuantum entanglement.")
     if "\n[1] " in last:
         return FAKE_COURSE_ANSWER
     return FAKE_GENERAL_ANSWER

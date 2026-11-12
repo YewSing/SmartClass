@@ -261,18 +261,8 @@ async def send_lecturer_message(session_id: int, body: MessageCreate, db: AsyncS
 
 # ── student: open a cited source (FR-809) ─────────────────────────────────────
 
-@router.get("/student/assistant/materials/{material_id}/file")
-async def open_material_file(material_id: int, db: AsyncSession = Depends(get_db),
-                             user: User = Depends(_student_only)):
-    """Stream a course file from Moodle, so the app can show it at the cited page or slide."""
-    student = await _student(db, user)
-    material = (await db.execute(select(KbMaterial).where(KbMaterial.id == material_id))).scalar_one_or_none()
-    if not material:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Material not found")
-    await _enrolled_course(db, student.id, material.course_id)
-    if material.source != "moodle" or not material.file_url:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "This material has no file to open")
-
+async def _stream_material(material: KbMaterial) -> StreamingResponse:
+    """Stream a Moodle-backed material file (shared by the student and lecturer openers)."""
     # Not `async with`: the client must stay open until the response body has been sent
     client = None
     try:
@@ -296,6 +286,33 @@ async def open_material_file(material_id: int, db: AsyncSession = Depends(get_db
         "Content-Disposition": f"inline; filename*=UTF-8''{quote(material.file_name)}",
         "Cache-Control": "private, max-age=300",
     })
+
+
+@router.get("/student/assistant/materials/{material_id}/file")
+async def open_material_file(material_id: int, db: AsyncSession = Depends(get_db),
+                             user: User = Depends(_student_only)):
+    """Stream a course file from Moodle, so the app can show it at the cited page or slide."""
+    student = await _student(db, user)
+    material = (await db.execute(select(KbMaterial).where(KbMaterial.id == material_id))).scalar_one_or_none()
+    if not material:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Material not found")
+    await _enrolled_course(db, student.id, material.course_id)
+    if material.source != "moodle" or not material.file_url:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "This material has no file to open")
+    return await _stream_material(material)
+
+
+@router.get("/lecturer/assistant/materials/{material_id}/file")
+async def open_lecturer_material_file(material_id: int, db: AsyncSession = Depends(get_db),
+                                      user: User = Depends(_lecturer_or_admin)):
+    """A lecturer opens a source cited in their own "ask my materials" answer (FR-815)."""
+    material = (await db.execute(select(KbMaterial).where(KbMaterial.id == material_id))).scalar_one_or_none()
+    if not material:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Material not found")
+    await _course_for_staff(db, user, material.course_id)
+    if material.source != "moodle" or not material.file_url:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "This material has no file to open")
+    return await _stream_material(material)
 
 
 @router.post("/student/assistant/summaries", response_model=SummaryOut)

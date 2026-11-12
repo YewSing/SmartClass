@@ -177,6 +177,31 @@ export default function LecturerAssistant({ navigation }) {
         <CoursePicker value={courseId} items={courseItems} onChange={setCourseId} />
       </View>
 
+      {courseId ? (
+        <View style={styles.actionsRow}>
+          <TouchableOpacity
+            style={styles.actionBtn}
+            testID="assistant-ask"
+            onPress={() => navigation.navigate('LecturerAsk', {
+              courseId, courseCode: courses.find(c => c.id === courseId)?.code ?? '',
+            })}
+          >
+            <Ionicons name="chatbubble-ellipses-outline" size={16} color={C.primary} />
+            <Text style={styles.actionText}>Ask my materials</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionBtn}
+            testID="assistant-before-class"
+            onPress={() => navigation.navigate('BeforeClass', {
+              courseId, courseCode: courses.find(c => c.id === courseId)?.code ?? '',
+            })}
+          >
+            <Ionicons name="bulb-outline" size={16} color={C.primary} />
+            <Text style={styles.actionText}>Before next class</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
       <ScrollView
         style={styles.flex}
         showsVerticalScrollIndicator={false}
@@ -262,6 +287,25 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: C.border,
   },
+  actionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    padding: 10,
+    backgroundColor: C.bg,
+  },
+  actionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: C.card,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: C.primary,
+    paddingVertical: 11,
+  },
+  actionText: { fontSize: 13, fontWeight: '600', color: C.primary },
   sectionLabel: {
     fontSize: 11,
     fontWeight: '600',
