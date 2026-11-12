@@ -15,7 +15,7 @@ async def _preflight(origin: str) -> httpx.Response:
         )
 
 
-@pytest.mark.parametrize("origin", ["http://localhost:8081", "http://localhost:8082", "http://localhost:8092", "http://localhost:5173"])
+@pytest.mark.parametrize("origin", ["http://localhost:8081", "http://localhost:8082", "http://localhost:8092", "http://localhost:8093", "http://localhost:5173"])
 async def test_preflight_allowed_for_dev_origins(origin):
     res = await _preflight(origin)
     assert res.status_code == 200

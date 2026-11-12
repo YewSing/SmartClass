@@ -46,7 +46,7 @@ Short log, newest entry at the bottom of "Log". Each entry is at most 5 lines:
 - REVIEW: T42×T43 (medium) - two recognition paths still live: `face_worker/` + `/internal/face-match|active-session|face-review` alongside `device_client/` + `/device/faces`. Only the new path stores unmatched crops for flags, so a class run with the old worker gives the lecturer no crop evidence. CLAUDE.md still says `face_worker/` is "kept until T43"; T43 is done. Add a task to retire the old worker and its internal endpoints before T48.
 - REVIEW: T42 (low) - FR-411 offline buffering is not built (Done-when said "optionally"); needs `captured_at` on `/device/faces` so Late is computed from capture time. Decide whether FR-411 is Should/Could and record it.
 - REVIEW: T45 (low) - lecturer flag alerts arrive only for the one session the socket follows; a flag in a second open class shows no toast. Needs a lecturer-wide channel (like T44's `/ws/me`) if a lecturer can have two classes open.
-- REVIEW: T43 (merge) - migration `e2f3a4b5c6d7` hangs off `d1e2f3a4b5c6`; if `fyp2-m8` adds a migration on the same parent, re-point one of them when merging so Alembic has one head.
+- RESOLVED at the fyp2-m8 merge (T100's migration is now `f3a4b5c6d7e8` after T43's): migration `e2f3a4b5c6d7` hangs off `d1e2f3a4b5c6`; if `fyp2-m8` adds a migration on the same parent, re-point one of them when merging so Alembic has one head.
 - Checkpoint review b06470b..480a8d1 (T42-T46): check.sh 659 passed; `pytest -m db` 518 passed, 1 failed = live LLM test `test_live_qa.py::test_study_tools_live_valid_and_grounded[boundary-value-analysis-practice_questions]` (LLMMalformedOutput from the real model, M8, not touched by this loop; it is selected by `-m db` because it also carries the db marker). No finished task reopened.
 
 ## Log
@@ -448,6 +448,48 @@ TEST-CHANGE: tests/test_seed_courses.py (test_materials_course_exists_in_the_see
 - Tests: `test_question_trends.py` (7 db: topic tagging for course/general, ≥3 filter, most-cited materials, uncovered topics, anonymisation, access control). check.sh 515 passed; live suite skips LLM_QUOTA.
 - Next: T88.
 
+### T92 — YouTube suggestions (FR-812, Could Have) — 2026-11-13
+- Changed: new `services/kb/youtube.py` (`search_videos(topic)` → YouTube Data API search.list behind `YOUTUBE_API_KEY`, `keywords_for` helper, off with no key, degrades to empty videos on error); `POST /student/assistant/youtube {course_id, topic}` (enrolled student) + `YoutubeVideo`/`YoutubeCreate`/`YoutubeOut`; config `YOUTUBE_API_KEY` (default "") and `YOUTUBE_MAX_RESULTS` (5).
+- Decisions: a "Could Have" extra that never fails the request (empty videos on provider error); keywords are the topic plus "… tutorial"/"… explained"; access mirrors summaries (`_student_only` + `_enrolled_course`).
+- Interface/schema: new endpoint + schemas (additive); new config keys. No migration.
+- Tests: `test_youtube.py` (7: respx-mocked parse, no-key off with no call, 403/bad-JSON degrade, keywords helper, endpoint off + enrollment 403, student-only); check.sh 628 passed.
+- Next: Yew Sing adds `YOUTUBE_API_KEY` to `.env` to turn the feature on (no UI task uses it yet).
+
+### T102 — Lecturer app: ask my materials + before next class summary — 2026-11-13
+- Changed: new lecturer screens `LecturerAsk` (chat over `/lecturer/assistant/sessions`), `BeforeClass` (the T101 summary) and `LecturerSource` (passage + "Open file"), reached from two buttons on the T91 AI Assistant tab; `GET /lecturer/assistant/materials/{id}/file` (factored `_stream_material`, shared with the student opener) so a lecturer citation opens the source; `MarkdownText` + `markdown.js` copied from the student app; `services/openSource.js` (lecturer URL, web blob / phone share sheet); `llm.fake_chat` answers the "before next class" prompt.
+- Decisions: the citation's `file_url` is the student path, so the app builds the lecturer URL from `material_id`; the lecturer app has no `expo-intent-launcher`, so phone opens use the share sheet; CORS now allows `localhost:8093` (the second worktree's Playwright origin from `E2E_WEB_PORT`).
+- Interface/schema: new lecturer endpoint above (additive); CORS origin added. No migration.
+- Tests: `test_lecturer_assistant.py::test_lecturer_can_open_a_cited_source`; `test_cors.py` +:8093; lecturer `npm test` 43 passed (markdown copied); Maestro `lecturer ask-before-class` PASS (ask → citation → source → before-class summary); Playwright `assistant.spec.js` + full suite 27 PASS; check.sh 621 passed.
+- Next: T92.
+
+### T90 — Student app: summaries + flashcards/practice — 2026-11-13
+- Changed: new student `StudyTools` screen (kind picker — Summarise / Study guide / Flashcards / Practice —, topic input, and results: Markdown summary with citation chips, flip cards, answerable practice questions with an explanation) reached from a "Study tools" button on the Assistant screen; `api.js` gains `generateSummary`/`generateStudyTools`; `llm.fake_chat` now answers the study-tools JSON prompts with a deterministic valid JSON object (flashcards / practice questions) so `LLM_FAKE=1` E2E works (was 502 before).
+- Decisions: the input is a typed topic (no student-facing material list endpoint exists yet — see Next); summaries show the "General knowledge" tag for off-syllabus topics.
+- Interface/schema: no API/schema change (the fake-LLM JSON reply is E2E-only). No migration.
+- Tests: `test_llm_fake.py::test_fake_mode_summary_and_study_tools_are_cited` (through the API: summary cited + flashcards + practice questions with a real citation); student `npm test` 37 passed; Maestro `student study-tools` PASS (summary, flip a card, answer a question); check.sh 619 passed.
+- Next: T102.
+
+### T91 — Lecturer app: materials status + sync + question trends — 2026-11-13
+- Changed: new lecturer screen `LecturerAssistant.jsx` (course picker, "Sync materials" → `POST /kb/courses/{id}/sync`, materials list with status badges, and the three anonymised trend lists) on a new "AI Assistant" bottom tab; `api.js` gains `getAssistantCourses`, `getMaterials`, `syncMaterials`, `getQuestionTrends`; new `scripts/e2e_assistant.py` (seed/teardown: one synthetic indexed material + 3 students' question history for WIF3001) + `mobile/lecturer/e2e/assistant.yaml` and `assistant.setup.sh`.
+- Decisions: "AI Assistant" is a 5th tab (sparkles icon), so the lecturer's M8 tools sit together; materials/trends use the endpoints from T80/T81/T87 unchanged.
+- Interface/schema: no backend change (the screen only calls existing endpoints). Applied T100's migration `f3a4b5c6d7e8` (renamed at merge) to the dev DB so the E2E backend has the `ai_chat_sessions.lecturer_id` column.
+- Tests: `test_e2e_assistant_seed.py` (2 db: seeded material + all three trends; idempotent seed + teardown removes everything); lecturer `npm test` 35 passed; Maestro `lecturer assistant` PASS (sync toast, "Indexed" status, all three trend lists); check.sh 618 passed.
+- Next: T90.
+
+### T101 — "Before next class" summary (FR-816, NFR-09) — 2026-11-13
+- Changed: new `services/kb/before_class.py` (`before_class_summary(db, course)` builds a two-part note "## Revisit" (citing real material sections) + "## Not covered by the materials" purely from the T87 aggregates; empty aggregates → a fixed "not enough questions yet" message with no LLM call; sections resolved to still-existing materials so a deleted material is never cited; result cached in memory per course until the trends fingerprint changes, `reset_cache()` for tests); `GET /lecturer/assistant/before-class/{course_id}` + `BeforeClassOut` schema.
+- Decisions: prompt is built only from `trends.question_trends` output (topics ≥3 students), so it can never carry names, chat text or below-minimum topics; access = course lecturer or admin (`_course_for_staff`); LLM down → 503.
+- Interface/schema: new endpoint + `BeforeClassOut` (additive). No migration.
+- Tests: new `test_before_class.py` (6 db: no-data no-LLM, prompt anonymisation + real citations, caching until trends change, deleted-material skip, access control, 503); 1 live case `test_before_class_summary_is_grounded` recorded into `qa.json` (`before-class`); `capture` fixture now wraps `before_class._sections_for_materials`. Live suite 28 passed; check.sh 616 passed.
+- Next: T91.
+
+### T100 — Lecturer asks their own materials (FR-815) — 2026-11-13
+- Changed: `ChatSession` now has one owner — `student_id` (nullable) or a new `lecturer_id` (nullable FK → lecturers, CASCADE) with a CHECK `(student_id IS NOT NULL) <> (lecturer_id IS NOT NULL)`; migration `e2f3a4b5c6d7`. New lecturer chat endpoints in `routers/assistant.py` (`GET/POST /lecturer/assistant/sessions`, `PATCH/DELETE .../{id}`, `GET/POST .../{id}/messages`, `GET /lecturer/assistant/courses`) that reuse `answer_question` unchanged, so citations/labels match the student flow; the quiz lock is skipped for lecturer sessions. `trends.py` now filters `s.student_id IS NOT NULL` so a lecturer's own chat is never counted in question trends.
+- Decisions: lecturer-only (`require_role("lecturer")`), teaching = assigned to any `ClassOccurrence` of the course; other lecturers/students/admins get 403. A lecturer's chat is private and never aggregated.
+- Interface/schema: new endpoints above (additive); `SessionOut`/`MessageOut` unchanged (no ownership field exposed). Migration `f3a4b5c6d7e8` (renamed at merge from `e2f3a4b5c6d7`) (down_revision `d1e2f3a4b5c6`).
+- Tests: new `test_lecturer_assistant.py` (8 db: CRUD + ask, general label, other lecturer 403, student/admin 403, student chat not reachable, trends exclusion, LLM down 503); 1 live case `test_lecturer_ask_materials_is_cited` recorded into `qa.json` (`lecturer:boundary value analysis`). Live suite 27 passed; check.sh 610 passed.
+- Next: T101.
+
 ### T88 — Retrieval interface for Module 6 — 2026-11-12
 - Changed: new `services/kb/retrieval_api.py` (`search(course_id, query, k)` → top-k `Passage`s, each carrying its source file + page/slide/section); documented in new `docs/interfaces.md` (the M8→M6 interface).
 - Decisions: a thin wrapper over `search_materials` that owns its own DB session, so Module 6 (Shino) passes no session and never parses materials itself (FR-814).
@@ -502,3 +544,17 @@ TEST-CHANGE: tests/test_seed_courses.py (test_materials_course_exists_in_the_see
 - Interface/schema changes: none — uses T40's `/admin/devices` endpoints; no `backend/app/` change, no migration.
 - Tests: `adminHelpers.test.js` 4 new tests (42 pass); new Playwright `devices.spec.js` (2 tests) and `admin.spec.js` now also checks the Devices tab (added, not weakened); `ruff check .` clean, `e2e_devices.py clean` prints 0 removed, targeted Playwright 9/9, full `npm run e2e:web` 28/28; reviewer PASS.
 - Next: T96 can now go ahead (T22, T46 and T95 are done); NFR-23 device status on the lecturer's session screen is still open.
+
+### Loop B summary — 2026-11-13 (Module 8, Yew Sing's loop on fyp2-m8)
+- **Tasks done:** T100 (lecturer asks own materials), T101 (before-next-class summary), T91 (lecturer materials/trends UI), T90 (student summaries/flashcards/practice UI), T102 (lecturer ask + before-class UI), T92 (YouTube suggestions). All ticked `[x]`.
+- **[~]:** none. **Blocked:** none.
+- **Migrations:** `f3a4b5c6d7e8` (down_revision `e2f3a4b5c6d7`, T43's; renamed at merge from a clashing `e2f3a4b5c6d7`) — `ai_chat_sessions` gains nullable `lecturer_id` + a `ck_ai_chat_sessions_single_owner` CHECK (`student_id` now nullable). Applied to the dev DB `smartclass_m8`.
+- **New API (all additive):** `/lecturer/assistant/{courses,sessions,{id}/messages,materials/{id}/file}`, `/lecturer/assistant/before-class/{id}`, `/student/assistant/youtube`. New config: `YOUTUBE_API_KEY`, `YOUTUBE_MAX_RESULTS`.
+- **UI:** new lecturer "AI Assistant" tab (materials status + sync + trends + ask + before-class + source); new student "Study tools" screen (summary/study guide/flashcards/practice). Lecturer app gained `MarkdownText` + `markdown.js` (copied from the student app) and `services/openSource.js`.
+- **Live AI:** 2 recorded fixtures added to `qa.json` (`lecturer:boundary value analysis`, `before-class`); the full live suite (28) passes on DeepSeek. `llm.fake_chat` now also answers study-tools JSON and "before next class" prompts so the E2E flows run with `LLM_FAKE=1`.
+- **E2E:** Maestro `lecturer assistant`, `lecturer ask-before-class`, `student study-tools` all PASS; Playwright `assistant.spec.js` + full lecturer web suite 27 PASS. check.sh 628 passed.
+- **For the reviewer:**
+  - CORS now allows `http://localhost:8093` (the second worktree's Playwright origin from `E2E_WEB_PORT`); without it this worktree's `npm run e2e:web` fails on login.
+  - The terminal's `DATABASE_URL` points at a stale native postgres (`localhost:5432`, wrong password); all tests/check.sh/E2E here were run against the docker postgres (`localhost:5433`, `smartclass_m8` / `smartclass_m8_test`). The worktree branch + `smartclass_m8` DB-name check passed, but the port is worth fixing for future sessions.
+  - A student-facing material-list endpoint still doesn't exist, so T90's study tools take a typed topic (no material picker); a `GET /student/assistant/materials` could enable it later.
+  - T92 is off until Yew Sing adds `YOUTUBE_API_KEY` to `.env` (no UI uses it yet).

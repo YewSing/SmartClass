@@ -151,7 +151,7 @@ async def answer_question(db: AsyncSession, session: ChatSession, course: Course
     user_msg = ChatMessage(session_id=session.id, role="user", content=question)
     db.add(user_msg)
 
-    if await get_active_attempt(session.student_id, course.id) is not None:
+    if session.student_id is not None and await get_active_attempt(session.student_id, course.id) is not None:
         user_msg.source_type = SOURCE_REFUSED
         reply = ChatMessage(session_id=session.id, role="assistant", content=QUIZ_LOCK_MESSAGE,
                                  citations=[], source_type=SOURCE_REFUSED)

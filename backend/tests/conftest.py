@@ -329,6 +329,7 @@ async def synthetic_kb(classroom, db_session):
         "course_code": "CS101",
         "student_id": classroom["student_ids"][0],
         "student_user_id": classroom["student_user_ids"][0],
+        "lecturer_id": classroom["lecturer_id"],
         "material_ids": material_ids,
     }
 

@@ -63,6 +63,7 @@ app.add_middleware(
         "http://localhost:8081",
         "http://localhost:8082",
         "http://localhost:8092",  # lecturer app on Expo web in the Playwright E2E
+        "http://localhost:8093",  # ...second worktree's Playwright E2E (E2E_WEB_PORT)
         "http://localhost:19006",
     ],
     allow_credentials=True,

@@ -172,6 +172,16 @@ export default function Assistant({ navigation }) {
                   <Ionicons name="add" size={18} color="#fff" style={{ marginRight: 6 }} />
                   <Text style={styles.newBtnText}>New chat</Text>
                 </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.studyBtn}
+                  testID="assistant-study-tools"
+                  onPress={() => navigation.navigate('StudyTools', {
+                    courseId: course.course_id, courseCode: course.code,
+                  })}
+                >
+                  <Ionicons name="sparkles-outline" size={16} color={C.primary} style={{ marginRight: 6 }} />
+                  <Text style={styles.studyBtnText}>Study tools · summarise, flashcards, practice</Text>
+                </TouchableOpacity>
               </View>
             ) : null}
 
@@ -258,6 +268,11 @@ const styles = StyleSheet.create({
     backgroundColor: C.primary, borderRadius: 10, paddingVertical: 11,
   },
   newBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  studyBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: C.primary, borderRadius: 10, paddingVertical: 11, marginTop: 8,
+  },
+  studyBtnText: { color: C.primary, fontSize: 14, fontWeight: '600' },
   noChats: { fontSize: 13, color: C.textHint, marginTop: 4 },
   sessionRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
