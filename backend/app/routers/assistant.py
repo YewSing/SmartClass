@@ -16,7 +16,7 @@ from app.models.user import Lecturer, Student, User
 from app.schemas.assistant import (
     AssistantCourseOut, BeforeClassOut, MaterialOut, MessageCreate, MessageOut, SessionCreate,
     SessionOut, SessionRename, StudyToolsCreate, StudyToolsOut, SummaryCreate, SummaryOut,
-    SyncOut, TrendsOut,
+    SyncOut, TrendsOut, YoutubeCreate, YoutubeOut,
 )
 from app.services.kb import trends
 from app.services.kb.assistant import answer_question
@@ -26,6 +26,7 @@ from app.services.kb.moodle_client import MoodleClient, MoodleError
 from app.services.kb.study_tools import generate_study_tools
 from app.services.kb.summarize import summarize
 from app.services.kb.sync import sync_course
+from app.services.kb.youtube import search_videos
 
 router = APIRouter(tags=["assistant"])
 
@@ -358,6 +359,15 @@ async def study_tools(body: StudyToolsCreate, db: AsyncSession = Depends(get_db)
     except LLMUnavailable as exc:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc))
     return StudyToolsOut(kind=body.kind, source_type=source, cards=cards, questions=questions)
+
+
+@router.post("/student/assistant/youtube", response_model=YoutubeOut)
+async def youtube_suggestions(body: YoutubeCreate, db: AsyncSession = Depends(get_db),
+                              user: User = Depends(_student_only)):
+    """Suggested YouTube videos and search keywords for a topic (FR-812, Could Have)."""
+    student = await _student(db, user)
+    await _enrolled_course(db, student.id, body.course_id)
+    return await search_videos(body.topic)
 
 
 # ── lecturer / admin: knowledge base status and sync ──────────────────────────

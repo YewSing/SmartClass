@@ -443,6 +443,13 @@ TEST-CHANGE: tests/test_seed_courses.py (test_materials_course_exists_in_the_see
 - Tests: `test_question_trends.py` (7 db: topic tagging for course/general, ≥3 filter, most-cited materials, uncovered topics, anonymisation, access control). check.sh 515 passed; live suite skips LLM_QUOTA.
 - Next: T88.
 
+### T92 — YouTube suggestions (FR-812, Could Have) — 2026-11-13
+- Changed: new `services/kb/youtube.py` (`search_videos(topic)` → YouTube Data API search.list behind `YOUTUBE_API_KEY`, `keywords_for` helper, off with no key, degrades to empty videos on error); `POST /student/assistant/youtube {course_id, topic}` (enrolled student) + `YoutubeVideo`/`YoutubeCreate`/`YoutubeOut`; config `YOUTUBE_API_KEY` (default "") and `YOUTUBE_MAX_RESULTS` (5).
+- Decisions: a "Could Have" extra that never fails the request (empty videos on provider error); keywords are the topic plus "… tutorial"/"… explained"; access mirrors summaries (`_student_only` + `_enrolled_course`).
+- Interface/schema: new endpoint + schemas (additive); new config keys. No migration.
+- Tests: `test_youtube.py` (7: respx-mocked parse, no-key off with no call, 403/bad-JSON degrade, keywords helper, endpoint off + enrollment 403, student-only); check.sh 628 passed.
+- Next: Yew Sing adds `YOUTUBE_API_KEY` to `.env` to turn the feature on (no UI task uses it yet).
+
 ### T102 — Lecturer app: ask my materials + before next class summary — 2026-11-13
 - Changed: new lecturer screens `LecturerAsk` (chat over `/lecturer/assistant/sessions`), `BeforeClass` (the T101 summary) and `LecturerSource` (passage + "Open file"), reached from two buttons on the T91 AI Assistant tab; `GET /lecturer/assistant/materials/{id}/file` (factored `_stream_material`, shared with the student opener) so a lecturer citation opens the source; `MarkdownText` + `markdown.js` copied from the student app; `services/openSource.js` (lecturer URL, web blob / phone share sheet); `llm.fake_chat` answers the "before next class" prompt.
 - Decisions: the citation's `file_url` is the student path, so the app builds the lecturer URL from `material_id`; the lecturer app has no `expo-intent-launcher`, so phone opens use the share sheet; CORS now allows `localhost:8093` (the second worktree's Playwright origin from `E2E_WEB_PORT`).

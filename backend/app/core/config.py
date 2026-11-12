@@ -63,6 +63,10 @@ class Settings(BaseSettings):
     ASSISTANT_REWRITE_FOLLOWUPS: bool = True  # rewrite follow-ups into standalone retrieval queries
     ASSISTANT_TOP_K: int = 8
 
+    # YouTube suggestions (FR-812, Could Have). Empty key → the feature is off.
+    YOUTUBE_API_KEY: str = ""
+    YOUTUBE_MAX_RESULTS: int = 5
+
     # Local embeddings (fastembed / ONNX). Dimension must match kb_chunks.embedding.
     KB_EMBED_MODEL: str = "BAAI/bge-small-en-v1.5"
     KB_EMBED_CACHE_DIR: str = ""              # empty → ~/.cache/smartclass/fastembed

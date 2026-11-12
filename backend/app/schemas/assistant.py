@@ -185,3 +185,22 @@ class BeforeClassOut(BaseModel):
     content: str                  # markdown note, or the "not enough questions yet" message
     citations: list[Citation] = []
     not_enough_data: bool = False
+
+
+class YoutubeVideo(BaseModel):
+    video_id: str
+    title: str
+    channel: str
+    url: str
+    thumbnail_url: Optional[str] = None
+
+
+class YoutubeCreate(BaseModel):
+    course_id: int
+    topic: str = Field(min_length=1, max_length=200)
+
+
+class YoutubeOut(BaseModel):
+    enabled: bool                 # False when YOUTUBE_API_KEY is not configured
+    videos: list[YoutubeVideo] = []
+    keywords: list[str] = []

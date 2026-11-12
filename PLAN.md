@@ -156,7 +156,7 @@ These M8 tasks run before everything else after the T04 checkpoint, so the stude
   Done when: `GET` for a course returns a short summary built only from the T87 aggregates, with what to revisit (citing material sections that exist) and what the materials don't cover; a test proves the LLM prompt holds no names, chat text or topics below the 3-student minimum; with too little data it returns "not enough questions yet" and makes no LLM call; the result is cached until the trends change; only the course's lecturer can read it; replay/mock tests + live cases in the T82 suite with recorded fixtures.
 - [x] **T102 [UI] Lecturer app: ask my materials + before next class summary.** Depends on: T05, T91, T100, T101.
   Done when: the lecturer app has both screens on phone and in the browser; citations open the source; Maestro and Playwright flows with the fake LLM ask a question and see a citation, and read a seeded summary.
-- [ ] **T92 [API] YouTube suggestions (FR-812, Could Have).** Depends on: T85.
+- [x] **T92 [API] YouTube suggestions (FR-812, Could Have).** Depends on: T85.
   Done when: YouTube Data API search behind config (`YOUTUBE_API_KEY`; feature off when empty); mocked tests. Needs Yew Sing to add the key to `.env`.
 
 ## 5. Wrap-up
