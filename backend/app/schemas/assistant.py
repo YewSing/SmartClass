@@ -162,3 +162,20 @@ class StudyToolsOut(BaseModel):
     source_type: str            # course | general
     cards: list[FlashcardOut] = []
     questions: list[PracticeQuestionOut] = []
+
+
+class TopicCount(BaseModel):
+    topic: str
+    students: int
+
+
+class MaterialCount(BaseModel):
+    material_id: int
+    title: str
+    students: int
+
+
+class TrendsOut(BaseModel):
+    most_asked_topics: list[TopicCount]
+    most_cited_materials: list[MaterialCount]
+    topics_materials_dont_cover: list[TopicCount]

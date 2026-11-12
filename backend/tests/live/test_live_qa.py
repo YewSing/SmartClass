@@ -63,8 +63,10 @@ def capture(monkeypatch):
 
     async def chat(messages, **kw):
         resp = await real_chat(messages, **kw)
-        if "standalone search query" not in messages[0]["content"]:
-            state["raw"] = resp  # the answer call, not the follow-up rewrite
+        # capture only the content-generating call (answer/summary/study tools), not the
+        # follow-up rewrite or the T87 topic-label call
+        if "SmartClass learning assistant" in messages[0]["content"]:
+            state["raw"] = resp
         return resp
 
     async def search(db, course_id, query, k=8):

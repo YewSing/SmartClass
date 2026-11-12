@@ -49,6 +49,9 @@ Rules:
 _REWRITE_PROMPT = """Rewrite the student's latest question as a standalone search query for their course
 materials, resolving words like "it" or "that" from the conversation. Reply with the query only."""
 
+_TOPIC_LABEL_PROMPT = ("Label the student's question with a short topic of 2-5 words, so a lecturer "
+                       "can see what students ask about. Reply with the topic only.")
+
 _CITE_RE = re.compile(r"\[(\d{1,2})\]")
 
 
@@ -118,6 +121,23 @@ async def _standalone_query(question: str, history: list[dict]) -> str:
         return question
 
 
+async def _label_topic(question: str) -> str | None:
+    """A short, anonymised topic for a general-knowledge question (FR-813).
+
+    Best-effort: if the LLM is down or the quota is gone, the question is left untagged
+    (it simply won't appear in the lecturer's "topics the materials don't cover" list).
+    """
+    try:
+        label = await llm.chat(
+            [{"role": "system", "content": _TOPIC_LABEL_PROMPT},
+             {"role": "user", "content": question}],
+            max_tokens=20, temperature=0,
+        )
+        return label.strip().strip('"').strip() or None
+    except llm.LLMUnavailable:
+        return None
+
+
 async def answer_question(db: AsyncSession, session: ChatSession, course: Course, question: str) -> ChatMessage:
     """Save the student's question and the assistant's answer; return the answer message."""
     history = await _history(db, session.id)
@@ -144,8 +164,15 @@ async def answer_question(db: AsyncSession, session: ChatSession, course: Course
     raw = await llm.chat(messages)  # LLMUnavailable propagates -> 503, nothing is saved
     content, citations, source = parse_answer(clean_latex(raw), passages)
 
+    if source == SOURCE_COURSE and citations:
+        topic = citations[0]["title"]
+    elif source == SOURCE_GENERAL:
+        topic = await _label_topic(question)
+    else:
+        topic = None
+
     reply = ChatMessage(session_id=session.id, role="assistant", content=content,
-                             citations=citations, source_type=source)
+                             citations=citations, source_type=source, topic=topic)
     db.add(reply)
     if not session.title:
         session.title = question[:60]

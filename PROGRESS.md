@@ -367,3 +367,10 @@ TEST-CHANGE: tests/test_seed_courses.py (test_materials_course_exists_in_the_see
 - Tests: `test_study_tools.py` (8 db: flashcards/questions, malformed-retry-then-502, retry-recovers, off-topic general, validation, 403/503); 4 live cases added (flashcards + practice questions × 2 materials); `test_qa_replay.py` now also replays JSON recordings (schema-valid + real citations). check.sh 508 passed; live suite skips LLM_QUOTA.
 - [~] Manual: quota (see T82) — re-run `pytest -m live --record-llm` to record the 4 study-tools fixtures.
 - Next: T87.
+
+### T87 — Anonymised question trends for lecturers — 2026-11-12
+- Changed: migration `d1e2f3a4b5c6` adds `ai_chat_messages.topic`; `answer_question` tags each answer's topic (course → the first citation's material title; general → a short LLM label via `_label_topic`, best-effort and never the raw question text); new `services/kb/trends.py` (`question_trends`) and `GET /lecturer/assistant/trends/{course_id}` (the course's lecturer, or admin).
+- Decisions: the three lists aggregate assistant messages, each filtered to ≥3 distinct students, with no names and no question text (NFR-09); the topic label is cheap (`max_tokens=20`, temperature 0) and is swallowed on LLM failure so the answer is still saved. Topics below 3 students are hidden.
+- Interface/schema changes: new endpoint + `TrendsOut`/`TopicCount`/`MaterialCount`; migration above. `test_char_assistant.test_no_materials_tells_the_llm_so` now locates the answer prompt by content (a general answer also makes a topic-label call after it).
+- Tests: `test_question_trends.py` (7 db: topic tagging for course/general, ≥3 filter, most-cited materials, uncovered topics, anonymisation, access control). check.sh 515 passed; live suite skips LLM_QUOTA.
+- Next: T88.

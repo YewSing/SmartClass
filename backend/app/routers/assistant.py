@@ -16,7 +16,9 @@ from app.models.user import Lecturer, Student, User
 from app.schemas.assistant import (
     AssistantCourseOut, MaterialOut, MessageCreate, MessageOut, SessionCreate, SessionOut,
     SessionRename, StudyToolsCreate, StudyToolsOut, SummaryCreate, SummaryOut, SyncOut,
+    TrendsOut,
 )
+from app.services.kb import trends
 from app.services.kb.assistant import answer_question
 from app.services.kb.llm import LLMUnavailable
 from app.services.kb.moodle_client import MoodleClient, MoodleError
@@ -258,3 +260,11 @@ async def sync_now(course_id: int, db: AsyncSession = Depends(get_db), user: Use
     except MoodleError as exc:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Moodle sync failed: {exc}")
     return SyncOut(**asdict(report))
+
+
+@router.get("/lecturer/assistant/trends/{course_id}", response_model=TrendsOut)
+async def question_trends(course_id: int, db: AsyncSession = Depends(get_db),
+                          user: User = Depends(_lecturer_or_admin)):
+    """Anonymised question trends for the course's lecturer (FR-813, NFR-09)."""
+    course = await _course_for_staff(db, user, course_id)
+    return await trends.question_trends(db, course.id)
