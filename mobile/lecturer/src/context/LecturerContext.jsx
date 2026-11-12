@@ -2,9 +2,13 @@ import { createContext, useContext, useReducer, useCallback, useEffect, useRef }
 import * as api from '../services/api'
 import { getToken, getRefreshToken, onAuthExpired, BASE } from '../services/client'
 import { restoreSession } from '../services/session'
-import { hhmm, statusLabel } from '../services/attendance'
+import { hhmm, statusLabel, followsLive } from '../services/attendance'
 
 const LecturerContext = createContext(null)
+
+const COUNT_KEYS = ['present', 'late', 'excused', 'absent', 'not_recorded', 'unid']
+const pickCounts = (counts) =>
+  Object.fromEntries(COUNT_KEYS.filter(k => counts?.[k] != null).map(k => [k, counts[k]]))
 
 const initialState = {
   isLoggedIn: false,
@@ -222,13 +226,6 @@ export function LecturerProvider({ children }) {
     sessionAction(() => api.resolveMoodleConflict(sessionId, recordId, keep),
       keep === 'moodle' ? "Took SPeCTRUM's value" : "Kept SmartClass's value"), [sessionAction])
 
-  const doChangeClassTime = useCallback((classId, isoDate, start, end) =>
-    sessionAction(() => api.changeClassTime(classId, isoDate, start, end), `Class moved to ${start}–${end}`),
-  [sessionAction])
-
-  const doCancelClass = useCallback((classId, isoDate) =>
-    sessionAction(() => api.cancelClass(classId, isoDate), 'Class cancelled'), [sessionAction])
-
   const doSetWeeklySchedule = useCallback(async (classId, slot) => {
     try {
       const saved = await api.setWeeklySchedule(classId, slot)
@@ -302,8 +299,9 @@ export function LecturerProvider({ children }) {
     return cleanup
   }, [])
 
-  // WebSocket: follow the open session on screen, else the first open one
-  const selectedOpenId = state.selectedSession?.open ? state.selectedSession.id : null
+  // WebSocket: follow the session on screen while it is open or still on its way to SPeCTRUM
+  // (its sync status arrives as a `moodle_sync` event, T38b), else the first open one
+  const selectedOpenId = followsLive(state.selectedSession) ? state.selectedSession.id : null
   const liveSessionId = selectedOpenId ?? state.sessions.find(s => s.open)?.id ?? null
   const selectedIdRef = useRef(null)
   selectedIdRef.current = state.selectedSession?.id ?? null
@@ -339,8 +337,10 @@ export function LecturerProvider({ children }) {
           })
         }
         if (data.counts) {
-          const { present, late, excused, absent, unid } = data.counts
-          dispatch({ type: 'PATCH_SESSION', payload: { id: sessionId, present, late, excused, absent, unid } })
+          dispatch({ type: 'PATCH_SESSION', payload: { id: sessionId, ...pickCounts(data.counts) } })
+        }
+        if (data.moodle_sync_status) {   // an override on a closed class re-queues the sync (FR-312)
+          dispatch({ type: 'PATCH_SESSION', payload: { id: sessionId, moodle_sync_status: data.moodle_sync_status } })
         }
         // A face matched after an unidentified entry was resolved: the event has counts only
         if (!data.student && selectedIdRef.current === sessionId) {
@@ -350,22 +350,28 @@ export function LecturerProvider({ children }) {
         }
       }
       if (data.event === 'session_closed') {
-        // Ended by the lecturer (maybe on another device) or by the schedule. The server sends this
-        // before it commits, so take the status from the event; a re-read that still says "open"
-        // is that not-yet-committed row and is ignored.
+        // Ended by the lecturer (maybe on another device) or by the schedule. Sent after the
+        // close commits, so a re-read already sees it closed.
         const status = data.status ?? 'closed'
-        dispatch({ type: 'PATCH_SESSION', payload: { id: sessionId, status, open: false, ...(data.counts ?? {}) } })
-        setTimeout(() => {
-          api.getSessions().then(list => {
-            const s = list.find(x => x.id === sessionId)
-            if (s && s.status !== 'open') dispatch({ type: 'UPDATE_SESSION', payload: s })
-          }).catch(() => {})
-        }, 1500)
+        dispatch({ type: 'PATCH_SESSION', payload: { id: sessionId, status, open: false, ...pickCounts(data.counts) } })
+        rereadSession(sessionId)
         if (selectedIdRef.current === sessionId) {
           api.getStudents(sessionId, { sessionOpen: false })
             .then(list => dispatch({ type: 'SET_STUDENTS', payload: list, sessionId }))
             .catch(() => {})
         }
+      }
+      if (data.event === 'moodle_sync') {
+        // The background sync finished (synced / failed / conflict): show it without Retry, then
+        // re-read for the conflict list and the error text
+        dispatch({ type: 'PATCH_SESSION', payload: {
+          id: sessionId,
+          moodle_sync_status: data.moodle_sync_status,
+          moodle_synced_at: data.moodle_synced_at ?? null,
+          moodle_sync_next_at: data.moodle_sync_next_at ?? null,
+          moodle_sync_error: data.moodle_sync_error ?? null,
+        } })
+        rereadSession(sessionId)
       }
       if (data.event === 'attendance_alert' && data.type === 'low_attendance') {
         showToast(
@@ -374,6 +380,15 @@ export function LecturerProvider({ children }) {
         )
       }
     }
+    function rereadSession(id) {
+      api.getSessions().then(list => {
+        const s = list.find(x => x.id === id)
+        if (s) dispatch({ type: 'UPDATE_SESSION', payload: s })
+      }).catch(() => {})
+    }
+    // An event sent before this socket connected (e.g. a quick sync after an override) is
+    // caught by one re-read once it is open
+    ws.onopen = () => rereadSession(sessionId)
     ws.onerror = () => showToast('Live updates disconnected', 'error')
     wsRef.current = ws
   }, [liveSessionId, state.isLoggedIn, showToast])
@@ -395,8 +410,6 @@ export function LecturerProvider({ children }) {
     doConfirmSession,
     doRetrySync,
     doResolveConflict,
-    doChangeClassTime,
-    doCancelClass,
     doSetWeeklySchedule,
     loadStudents,
     overrideStudent,

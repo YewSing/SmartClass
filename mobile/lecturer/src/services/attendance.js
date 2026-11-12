@@ -49,12 +49,29 @@ export function countStatuses(students) {
   return counts
 }
 
+// The five counts of a session from its API counts (Home pane), the same numbers the live roster
+// gives (countStatuses): the server's `absent` includes students not recorded yet (T38b).
+export function sessionCounts(session) {
+  const notYet = session?.not_recorded ?? 0
+  return {
+    present: session?.present ?? 0,
+    late: session?.late ?? 0,
+    excused: session?.excused ?? 0,
+    absent: Math.max(0, (session?.absent ?? 0) - notYet),
+    not_recorded: notYet,
+  }
+}
+
+// The websocket stays on a session while it runs, and after it ends until SPeCTRUM has it
+// (the sync's outcome arrives as a `moodle_sync` event, T38b)
+export const followsLive = (session) =>
+  Boolean(session && (session.open || ['pending', 'failed'].includes(session.moodle_sync_status)))
+
 // ─── Times ────────────────────────────────────────────────────────────────────
 // The server sends Malaysia time without a zone ("2026-11-16T08:00:00"), so read the
 // digits as they are instead of letting the phone's own time zone shift them.
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 export function parseLocal(iso) {
   const m = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/.exec(iso ?? '')
@@ -90,24 +107,9 @@ export function minutesBetween(fromIso, toIso) {
   return Math.round(ms / 60000)
 }
 
-// Today's date in Malaysia as YYYY-MM-DD, whatever the phone's own zone
-export function todayMYT(now = new Date()) {
-  const t = new Date(now.getTime() + 8 * 3600 * 1000)
-  return t.toISOString().slice(0, 10)
-}
-
-export function dateLabel(isoDate) {
-  const p = parseLocal(isoDate)
-  if (!p) return ''
-  const wd = DAYS[new Date(Date.UTC(p.y, p.mo - 1, p.d)).getUTCDay()]
-  return `${wd} ${p.d} ${MONTHS[p.mo - 1]}`
-}
-
 export const isHHMM = (v) => /^([01]\d|2[0-3]):[0-5]\d$/.test(v ?? '')
 
-export const isIsoDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v ?? '') && parseLocal(v) != null
-
-// Checks one class's new times (FR-315); null when fine
+// Checks a start/end pair (the weekly schedule); null when fine
 export function timeRangeError(start, end) {
   if (!isHHMM(start) || !isHHMM(end)) return 'Use 24-hour times like 08:00.'
   if (end <= start) return 'The end time must be after the start time.'

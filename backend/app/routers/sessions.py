@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import selectinload
 
-from app.core.database import get_db
+from app.core.database import after_commit, get_db
 from app.core.deps import ensure_teaches_occurrence, require_role
 from app.models.attendance import ATTENDANCE_STATUSES, AttendanceRecord
 from app.models.user import User, Lecturer, Student
@@ -174,12 +174,18 @@ async def close_session(
     await db.flush()
 
     counts = await session_service.get_session_counts(session_id, db)
-
-    await manager.broadcast(session_id, {
+    payload = {
         "event": "session_closed",
+        "status": "closed",
         "counts": counts,
         "final": True,
-    })
+        "moodle_sync_status": session.moodle_sync_status,
+    }
+
+    async def _announce() -> None:   # after commit, so a screen that re-reads sees it closed
+        await manager.broadcast(session_id, payload)
+
+    after_commit(db, _announce)
 
     result = await db.execute(
         select(AttendanceSession)

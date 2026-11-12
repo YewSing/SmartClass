@@ -14,7 +14,7 @@ import { C } from '../theme'
 import Badge from './Badge'
 import {
   STATUSES, WEEK_DAYS, OVERRIDE_REASON_MAX, statusLabel, statusBadge, overrideReasonError,
-  timeRangeError, weeklyScheduleError, isIsoDate, dateLabel, todayMYT,
+  weeklyScheduleError,
 } from '../services/attendance'
 
 // ─── Sheet wrapper ─────────────────────────────────────────────────────────────
@@ -289,84 +289,6 @@ function StudentModal({ visible, onClose, data, overrideStudent }) {
   )
 }
 
-// ─── ClassTimeModal: move one class date (FR-315) ──────────────────────────────
-
-function ClassTimeModal({ visible, onClose, data }) {
-  const { doChangeClassTime, doCancelClass, closeModal } = useLecturer()
-  const [date, setDate] = useState('')
-  const [start, setStart] = useState('')
-  const [end, setEnd] = useState('')
-  const [err, setErr] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [confirmCancel, setConfirmCancel] = useState(false)
-
-  useEffect(() => {
-    if (!visible || !data) return
-    setDate(data.date ?? todayMYT()); setStart(data.start ?? ''); setEnd(data.end ?? '')
-    setErr(''); setBusy(false); setConfirmCancel(false)
-  }, [visible, data])
-
-  if (!data) return null
-
-  const run = async (fn) => {
-    if (!isIsoDate(date)) { setErr('Use a date like 2026-11-16.'); return }
-    setBusy(true)
-    try {
-      await fn()
-      closeModal()
-    } catch (e) {
-      setErr(e.message || 'Something went wrong.')
-      setBusy(false)
-    }
-  }
-
-  const save = () => {
-    const e = timeRangeError(start.trim(), end.trim())
-    if (e) { setErr(e); return }
-    run(() => doChangeClassTime(data.classId, date, start.trim(), end.trim()))
-  }
-
-  return (
-    <Sheet visible={visible} onClose={onClose}>
-      <ModalTitle>Change one class</ModalTitle>
-      <ModalSub>{data.title} · the weekly schedule stays the same</ModalSub>
-      {err ? <Text style={styles.errText}>{err}</Text> : null}
-      <Text style={styles.inputLabel}>Date</Text>
-      <TextInput testID="class-date" style={styles.input} value={date} onChangeText={setDate}
-        placeholder="YYYY-MM-DD" placeholderTextColor={C.textHint} autoCorrect={false} />
-      {isIsoDate(date) ? <Text style={styles.hintText}>{dateLabel(date)}</Text> : null}
-      <View style={styles.btnRow}>
-        <View style={styles.flex1}>
-          <Text style={styles.inputLabel}>Start</Text>
-          <TextInput testID="class-start" style={styles.input} value={start} onChangeText={setStart}
-            placeholder="08:00" placeholderTextColor={C.textHint} autoCorrect={false} />
-        </View>
-        <View style={styles.flex1}>
-          <Text style={styles.inputLabel}>End</Text>
-          <TextInput testID="class-end" style={styles.input} value={end} onChangeText={setEnd}
-            placeholder="10:00" placeholderTextColor={C.textHint} autoCorrect={false} />
-        </View>
-      </View>
-      <BtnPrimary label={busy ? 'Saving…' : 'Save new time'} icon="time-outline" disabled={busy} onPress={save} />
-      <Divider />
-      {confirmCancel ? (
-        <>
-          <Text style={styles.bodyText}>Cancel the class on {dateLabel(date) || date}? Students are not marked.</Text>
-          <BtnRow>
-            <BtnOutline label="Keep it" onPress={() => setConfirmCancel(false)} />
-            <BtnDanger label="Cancel class" icon="close-circle-outline" onPress={() => run(() => doCancelClass(data.classId, date))} />
-          </BtnRow>
-        </>
-      ) : (
-        <BtnRow>
-          <BtnOutline label="Close" onPress={onClose} />
-          <BtnDanger label="Cancel this class" icon="close-circle-outline" onPress={() => setConfirmCancel(true)} />
-        </BtnRow>
-      )}
-    </Sheet>
-  )
-}
-
 // ─── WeeklyScheduleModal (FR-301) ──────────────────────────────────────────────
 
 function WeeklyScheduleModal({ visible, onClose, data }) {
@@ -428,6 +350,9 @@ function WeeklyScheduleModal({ visible, onClose, data }) {
       <Text style={styles.inputLabel}>Room (optional)</Text>
       <TextInput style={styles.input} value={room} onChangeText={setRoom}
         placeholder="e.g. DK 2 FSKTM" placeholderTextColor={C.textHint} />
+      <Text style={styles.hintText} testID="schedule-hint">
+        Changes apply from the next class. Use Start now for an extra class today.
+      </Text>
       <BtnPrimary label={busy ? 'Saving…' : 'Save schedule'} icon="checkmark" disabled={busy}
         onPress={() => save({ day, start: start.trim(), end: end.trim(), room })} />
       <Divider />
@@ -624,7 +549,6 @@ export default function ModalRouter() {
       <ConfusionResetModal visible={type === 'confusion-reset'} onClose={closeModal} />
       <QuizModal visible={type === 'quiz'} onClose={closeModal} quiz={type === 'quiz' ? data : null} />
       <StudentModal visible={type === 'student'} onClose={closeModal} data={type === 'student' ? data : null} overrideStudent={overrideStudent} />
-      <ClassTimeModal visible={type === 'class-time'} onClose={closeModal} data={type === 'class-time' ? data : null} />
       <WeeklyScheduleModal visible={type === 'weekly-schedule'} onClose={closeModal} data={type === 'weekly-schedule' ? data : null} />
       <ExportModal visible={type === 'export'} onClose={closeModal} data={data} />
       <ChangePasswordModal visible={type === 'change-password'} onClose={closeModal} />

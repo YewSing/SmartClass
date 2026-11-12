@@ -1,11 +1,12 @@
-# Live session (T38): start a class now, override a student to Excused with a reason, end the class.
+# Live session (T38, T38b): start a class now, override a student to Excused with a reason, check Home
+# shows the same counts and leads back to it, end the class.
 # Run: bash scripts/e2e-mobile.sh lecturer live-session
 # Needs the local Moodle up (lecturer1 / Lecturer123!) and the backend's MOODLE_URL pointing at it.
 # live-session.setup.sh checks WIF3001's lecture is free and deletes the test session afterwards.
 appId: host.exp.exponent
 ---
 - extendedWaitUntil:
-    visible: "Welcome back|Continue|.*(Open|Close) Session"
+    visible: "Welcome back|Continue|.*(Start now|Live session)"
     timeout: 180000
 - runFlow:
     when:
@@ -25,7 +26,7 @@ appId: host.exp.exponent
       - hideKeyboard
       - tapOn: "Sign In"
 - extendedWaitUntil:
-    visible: ".*(Open|Close) Session"
+    visible: ".*(Start now|Live session)"
     timeout: 60000
 
 # Home lists every class taught; open WIF3001's lecture
@@ -38,6 +39,21 @@ appId: host.exp.exponent
     visible:
       id: "weekly-schedule"
     timeout: 15000
+
+# T38b: no one-class change/cancel; the schedule editor says when a change applies
+- assertNotVisible: "Change or cancel a class"
+- tapOn:
+    id: "edit-weekly-schedule"
+- extendedWaitUntil:
+    visible:
+      id: "schedule-hint"
+    timeout: 10000
+- assertVisible: "Changes apply from the next class. Use Start now for an extra class today."
+- tapOn: "Cancel"
+- extendedWaitUntil:
+    notVisible:
+      id: "schedule-hint"
+    timeout: 10000
 
 # Start now opens the live session screen
 - tapOn:
@@ -66,6 +82,36 @@ appId: host.exp.exponent
 - extendedWaitUntil:
     visible: "Marked Excused"
     timeout: 15000
+- assertVisible:
+    id: "count-excused"
+    text: "1"
+
+# Home shows the same five counts (no "Unidentified") and its button goes back to the live class
+- back
+- back
+- extendedWaitUntil:
+    visible:
+      id: "home-attendance"
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: "home-count-not-yet"
+    direction: DOWN
+    timeout: 10000
+- assertVisible:
+    id: "home-count-excused"
+    text: "1"
+- assertNotVisible: "Unidentified"
+- scrollUntilVisible:
+    element:
+      id: "home-live-session"
+    direction: UP
+    timeout: 10000
+- tapOn:
+    id: "home-live-session"
+- extendedWaitUntil:
+    visible: "Live — updates as students are recognised"
+    timeout: 20000
 - assertVisible:
     id: "count-excused"
     text: "1"

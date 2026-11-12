@@ -25,6 +25,15 @@ T36 (FR-312, FR-320):
   time if Moodle hasn't changed again) or takes Moodle's (resolve_conflict).
 - `synced`/`conflict` sessions closed in the last CHECK_DAYS are re-read every CHECK_INTERVAL; a
   check that can't reach Moodle leaves the status as it was.
+
+T38b (instant sync, live status):
+- Whoever queues a session (close, confirm held, override, conflict choice) also calls `sync_soon`:
+  once that transaction commits, the session is sent at once in a background task instead of
+  waiting for the loop. The queue + backoff stays the retry path when Moodle is down (NFR-20).
+- Every sync outcome (background task, loop, Retry) is broadcast on the session's websocket channel
+  as `{"event": "moodle_sync", ...}` so the lecturer's badge changes by itself.
+- The sync is "on" when MOODLE_TOKEN is set and MOODLE_ATTENDANCE_SYNC_INTERVAL_SECONDS > 0 (E2E
+  and the test suite turn it off with interval 0).
 """
 import asyncio
 import logging
@@ -35,7 +44,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.database import AsyncSessionLocal
+from app.core.database import AsyncSessionLocal, after_commit
 from app.core.timezone import MYT, now_myt
 from app.models.attendance import AttendanceRecord
 from app.models.class_ import ClassOccurrence, Course
@@ -43,6 +52,7 @@ from app.models.session import AttendanceSession
 from app.models.user import Lecturer, Student, User
 from app.services.audit_service import write_log
 from app.services.kb.moodle_client import MoodleClient, MoodleError
+from app.websocket.manager import manager
 
 log = logging.getLogger(__name__)
 
@@ -52,6 +62,7 @@ DUE_STATUSES = ("pending", "failed")
 CHECKED_STATUSES = ("synced", "conflict")   # re-read on a schedule (FR-320)
 
 _run_lock = asyncio.Lock()
+_background: set[asyncio.Task] = set()   # keeps background syncs alive until they finish
 
 
 class SyncError(Exception):
@@ -298,6 +309,7 @@ async def resolve_conflict(db: AsyncSession, session: AttendanceSession, record:
     await write_log(db, actor_id, "MOODLE_CONFLICT_RESOLVED", "attendance_record", record.id,
                     old_val=old, new_val={"keep": keep, "status": record.status})
     queue_resync(session, now)
+    sync_soon(db, session.id)
     await db.flush()
 
 
@@ -308,6 +320,7 @@ async def sync_now(db: AsyncSession, session_id: int, now: datetime | None = Non
         async with MoodleClient(timeout=30.0) as client:
             result = await sync_session(db, session_id, client, now)
         await db.commit()
+    await announce(session_id)
     return result
 
 
@@ -359,12 +372,96 @@ async def _run_ids(client: MoodleClient, ids: list[int], now: datetime) -> dict[
             except Exception:
                 await db.rollback()
                 raise
+        await announce(session_id)
     return results
+
+
+def sync_enabled() -> bool:
+    """The Moodle attendance sync runs only with a token and a positive loop interval."""
+    return bool(settings.MOODLE_TOKEN) and settings.MOODLE_ATTENDANCE_SYNC_INTERVAL_SECONDS > 0
+
+
+def status_event(session: AttendanceSession) -> dict:
+    """The websocket event that tells a lecturer screen the session's Moodle sync status."""
+    return {
+        "event": "moodle_sync",
+        "session_id": session.id,
+        "moodle_sync_status": session.moodle_sync_status,
+        "moodle_synced_at": session.moodle_synced_at.isoformat() if session.moodle_synced_at else None,
+        "moodle_sync_next_at": session.moodle_sync_next_at.isoformat() if session.moodle_sync_next_at else None,
+        "moodle_sync_error": session.moodle_sync_error,
+    }
+
+
+async def announce(session_id: int) -> None:
+    """Broadcast the session's current sync status (read after the sync committed)."""
+    async with AsyncSessionLocal() as db:
+        session = await db.get(AttendanceSession, session_id)
+        if session is not None:
+            await manager.broadcast(session_id, status_event(session))
+
+
+async def sync_in_background(session_id: int, client: MoodleClient | None = None,
+                             now: datetime | None = None) -> str | None:
+    """Send one queued session now, commit, and announce the outcome. Returns the new status, or
+    None when there was nothing to do (another run already sent it) or the attempt crashed; the
+    queue then keeps the session for the loop. Never raises."""
+    try:
+        async with _run_lock:   # never alongside the loop or a Retry (they could send the same records)
+            async with AsyncSessionLocal() as db:
+                status = await db.scalar(select(AttendanceSession.moodle_sync_status)
+                                         .where(AttendanceSession.id == session_id))
+                if status not in DUE_STATUSES:
+                    return None
+                try:
+                    if client is None:
+                        async with MoodleClient(timeout=30.0) as own:
+                            result = await sync_session(db, session_id, own, now)
+                    else:
+                        result = await sync_session(db, session_id, client, now)
+                    await db.commit()
+                except Exception:
+                    await db.rollback()
+                    raise
+        await announce(session_id)
+        return result
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        log.warning("Background Moodle sync of session %s failed: %s", session_id, exc.__class__.__name__)
+        return None
+
+
+def start_background_sync(session_id: int) -> asyncio.Task | None:
+    """Start `sync_in_background` for a session whose queueing has committed."""
+    if not sync_enabled():
+        return None
+    task = asyncio.create_task(sync_in_background(session_id))
+    _background.add(task)
+    task.add_done_callback(_background.discard)
+    return task
+
+
+def sync_soon(db: AsyncSession, session_id: int) -> None:
+    """Send a queued session to Moodle right after `db` commits (T38b). No-op when the sync is off."""
+    if not sync_enabled():
+        return
+
+    async def _start() -> None:
+        start_background_sync(session_id)
+
+    after_commit(db, _start)
+
+
+async def wait_for_background_syncs() -> None:
+    """Wait for the background syncs started so far (tests, shutdown)."""
+    while _background:
+        await asyncio.gather(*list(_background), return_exceptions=True)
 
 
 async def attendance_moodle_sync_loop() -> None:
     """Background task started in main.py; disabled without a Moodle token."""
-    if not settings.MOODLE_TOKEN or settings.MOODLE_ATTENDANCE_SYNC_INTERVAL_SECONDS <= 0:
+    if not sync_enabled():
         return
     while True:
         try:

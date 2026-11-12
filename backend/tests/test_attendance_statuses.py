@@ -11,7 +11,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 import pytest
-from sqlalchemy import func, select, text
+from sqlalchemy import func, insert, select, text
 from sqlalchemy.exc import IntegrityError
 
 from app.core.config import settings
@@ -188,12 +188,13 @@ async def test_only_first_recognition_counts(client, classroom, db_session, fixe
 async def test_late_uses_effective_start_after_time_change(
     client, lecturer_client, classroom, db_session, fixed_clock
 ):
-    fixed_clock(at(7, 0))
-    resp = await lecturer_client.put(
-        f"/lecturer/classes/{classroom['occurrence_id']}/dates/{MON.isoformat()}",
-        json={"start_time": "09:00", "end_time": "11:00"},
-    )
-    assert resp.status_code == 200, resp.text
+    # A `scheduled` row moved to 09:00, as the one-class time change (removed in T38b) left it.
+    await db_session.execute(insert(AttendanceSession).values(
+        occurrence_id=classroom["occurrence_id"], lecturer_id=classroom["lecturer_id"],
+        source="schedule", class_date=MON, status="scheduled",
+        starts_at=at(9, 0), ends_at=at(11, 0), opened_at=None,
+    ))
+    await db_session.commit()
 
     await run_tick(at(8, 45))
     [row] = await rows_for(db_session, classroom["occurrence_id"])
@@ -343,7 +344,26 @@ async def test_counts_include_late_and_excused(lecturer_client, classroom, db_se
     await db_session.commit()
 
     counts = await get_session_counts(session_id, db_session)
-    assert counts == {"present": 1, "late": 1, "excused": 1, "absent": 0, "unid": 0}
+    assert counts == {"present": 1, "late": 1, "excused": 1, "absent": 0, "not_recorded": 0, "unid": 0}
+
+
+async def test_counts_split_absent_from_not_yet_recorded(lecturer_client, classroom, db_session):
+    """T38b: an open session's Absent (overridden) and Not yet (no record) are told apart."""
+    resp = await lecturer_client.post(
+        "/lecturer/sessions", json={"occurrence_id": classroom["occurrence_id"]}
+    )
+    session_id = resp.json()["id"]
+    first_student, second_student, _ = classroom["student_ids"]
+    db_session.add_all([
+        AttendanceRecord(session_id=session_id, student_id=first_student, status="present"),
+        AttendanceRecord(session_id=session_id, student_id=second_student, status="absent"),
+    ])
+    await db_session.commit()
+
+    counts = await get_session_counts(session_id, db_session)
+    assert counts["absent"] == 2 and counts["not_recorded"] == 1   # absent includes not-yet (unchanged)
+    listed = next(s for s in (await lecturer_client.get("/lecturer/sessions")).json() if s["id"] == session_id)
+    assert (listed["present"], listed["absent"], listed["not_recorded"]) == (1, 2, 1)
 
 
 async def test_occurrence_export_letters_and_rate(lecturer_client, classroom, db_session):

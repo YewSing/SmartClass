@@ -60,19 +60,6 @@ class WeeklyScheduleRequest(BaseModel):
         return self
 
 
-class ClassTimeRequest(BaseModel):
-    """New times for one class date (FR-315)."""
-
-    start_time: str = Field(pattern=_HHMM)
-    end_time: str = Field(pattern=_HHMM)
-
-    @model_validator(mode="after")
-    def _check(self) -> "ClassTimeRequest":
-        if self.end_time <= self.start_time:
-            raise ValueError("The end time must be after the start time")
-        return self
-
-
 class OccurrenceStudentOut(BaseModel):
     id: int
     user_id: int

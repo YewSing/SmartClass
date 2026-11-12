@@ -2,8 +2,9 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   statusLabel, statusBadge, overrideReasonError, cleanReason, rosterStatus, groupRoster, countStatuses,
-  hhmm, timeRange, dayMonth, minutesBetween, todayMYT, dateLabel, timeRangeError, weeklyScheduleError, isIsoDate,
+  hhmm, timeRange, dayMonth, minutesBetween, timeRangeError, weeklyScheduleError,
   sessionStateLabel, syncInfo, moodleValueLabel, canTakeMoodle, OVERRIDE_REASON_MAX, STATUSES,
+  sessionCounts, followsLive,
 } from './attendance.js'
 
 test('all four statuses have a label and a colour; no record shows "Not yet"', () => {
@@ -50,24 +51,16 @@ test('server times are Malaysia time and read without the phone zone', () => {
   assert.equal(minutesBetween('2026-11-16T08:00:00', '2026-11-16T09:45:00'), 105)
   assert.equal(minutesBetween('2026-11-16T23:30:00', '2026-11-17T00:15:00'), 45)
   assert.equal(minutesBetween(null, '2026-11-16T09:45:00'), null)
-  assert.equal(dateLabel('2026-11-16'), 'Mon 16 Nov')
   assert.equal(timeRange('2026-11-16T08:00:00', '2026-11-16T10:00:00'), '08:00–10:00')
   assert.equal(timeRange('2026-11-16T13:09:00', '2026-11-17T13:08:00'), '13:09–13:08 (next day)')
   assert.equal(timeRange(null, '2026-11-16T10:00:00'), '')
 })
 
-test("today's date is taken in Malaysia (UTC+8)", () => {
-  assert.equal(todayMYT(new Date('2026-11-15T15:59:00Z')), '2026-11-15')
-  assert.equal(todayMYT(new Date('2026-11-15T16:00:00Z')), '2026-11-16')
-})
-
-test('one class time change needs two 24-hour times in order', () => {
+test('a start and end need two 24-hour times in order', () => {
   assert.equal(timeRangeError('08:00', '10:00'), null)
   assert.match(timeRangeError('8:00', '10:00'), /24-hour/)
   assert.match(timeRangeError('10:00', '10:00'), /after the start/)
   assert.match(timeRangeError('11:00', '10:00'), /after the start/)
-  assert.ok(isIsoDate('2026-11-16'))
-  assert.ok(!isIsoDate('16/11/2026'))
 })
 
 test('the weekly schedule is all three fields or none', () => {
@@ -104,4 +97,24 @@ test("a conflict shows Moodle's value; only one of the four statuses can be take
   assert.equal(canTakeMoodle({ moodle_status: 'late' }), true)
   assert.equal(canTakeMoodle({ moodle_status: 'none' }), false)
   assert.equal(canTakeMoodle({ moodle_status: 'other' }), false)
+})
+
+test('Home shows the same five counts as the live roster (T38b)', () => {
+  // 6 enrolled: 2 present, 1 late, 0 excused, 1 overridden absent, 2 not recorded yet.
+  // The API's `absent` counts everyone not attended (3); `not_recorded` (2) splits it.
+  const session = { present: 2, late: 1, excused: 0, absent: 3, not_recorded: 2, unid: 4 }
+  const roster = ['present', 'present', 'late', 'absent', 'not_recorded', 'not_recorded'].map(status => ({ status }))
+  assert.deepEqual(sessionCounts(session), countStatuses(roster))
+  assert.deepEqual(sessionCounts({ present: 1, absent: 2 }), { present: 1, late: 0, excused: 0, absent: 2, not_recorded: 0 })
+  assert.deepEqual(sessionCounts(null), { present: 0, late: 0, excused: 0, absent: 0, not_recorded: 0 })
+})
+
+test('live updates follow a session until SPeCTRUM has it (T38b)', () => {
+  assert.equal(followsLive({ open: true, moodle_sync_status: null }), true)
+  assert.equal(followsLive({ open: false, moodle_sync_status: 'pending' }), true)
+  assert.equal(followsLive({ open: false, moodle_sync_status: 'failed' }), true)
+  assert.equal(followsLive({ open: false, moodle_sync_status: 'synced' }), false)
+  assert.equal(followsLive({ open: false, moodle_sync_status: 'conflict' }), false)
+  assert.equal(followsLive({ open: false, moodle_sync_status: null }), false)
+  assert.equal(followsLive(null), false)
 })

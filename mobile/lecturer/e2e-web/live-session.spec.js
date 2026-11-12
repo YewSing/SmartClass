@@ -1,5 +1,5 @@
-// Live session in the browser (T38, FR-305, FR-315, FR-316): start a class now, override a student to
-// Excused with a reason, end the class. Uses a WIA0000 lecture two days ahead, so it isn't the one the
+// Live session in the browser (T38, T38b, FR-305, FR-315, FR-316): start a class now, override a student to
+// Excused with a reason, see the same counts on Home, go back through Home's button, end the class. Uses a WIA0000 lecture two days ahead, so it isn't the one the
 // dev backend's schedule keeps open today; the session it makes is deleted afterwards.
 const path = require('path')
 const { execFileSync } = require('child_process')
@@ -30,6 +30,14 @@ test('lecturer starts a class, excuses a student with a reason and ends it', asy
 
   await visible(page.getByTestId('home-my-class').filter({ hasText: `${DAY} 00:00` })).click()
   await expect(visible(page.getByTestId('weekly-schedule'))).toHaveText(new RegExp(`^${DAY} 00:00–23:59`))
+  // T38b: one class can no longer be moved or cancelled; the schedule editor explains what to do instead
+  await expect(page.getByText('Change or cancel a class')).toHaveCount(0)
+  await expect(page.getByTestId('class-change-one')).toHaveCount(0)
+  await visible(page.getByTestId('edit-weekly-schedule')).click()
+  await expect(visible(page.getByTestId('schedule-hint')))
+    .toHaveText('Changes apply from the next class. Use Start now for an extra class today.')
+  await visible(page.getByText('Cancel', { exact: true })).click()
+  await expect(page.getByTestId('schedule-hint')).toHaveCount(0)
   await visible(page.getByTestId('class-start-now')).click()
 
   await expect(visible(page.getByText('Live — updates as students are recognised'))).toBeVisible()
@@ -48,6 +56,22 @@ test('lecturer starts a class, excuses a student with a reason and ends it', asy
   await expect(visible(page.getByTestId('count-excused'))).toHaveText('1')
   const row = visible(page.getByTestId('attendance-student').filter({ hasText: name }))
   await expect(row).toContainText('Excused')
+  const live = {}
+  for (const k of ['present', 'late', 'excused', 'absent', 'not-yet']) {
+    live[k] = await visible(page.getByTestId(`count-${k}`)).innerText()
+  }
+
+  // Home shows the same five counts as the live screen (no "Unidentified"), and its button goes to
+  // the running class instead of starting another one (the old 409)
+  await page.getByTestId('sidenav-Home').click()
+  await expect(visible(page.getByTestId('home-attendance'))).toBeVisible()
+  for (const k of Object.keys(live)) {
+    await expect(visible(page.getByTestId(`home-count-${k}`))).toHaveText(live[k])
+  }
+  await expect(page.getByText('Unidentified', { exact: true })).toHaveCount(0)
+  await visible(page.getByTestId('home-live-session')).click()
+  await expect(visible(page.getByText('Live — updates as students are recognised'))).toBeVisible()
+  await expect(visible(page.getByTestId('count-excused'))).toHaveText('1')
 
   await visible(page.getByTestId('session-end')).click()
   await visible(page.getByTestId('session-end-confirm')).click()
@@ -56,7 +80,7 @@ test('lecturer starts a class, excuses a student with a reason and ends it', asy
   await expect(visible(page.getByText('Waiting to sync', { exact: true }))).toBeVisible()
   await expect(visible(page.getByTestId('count-excused'))).toHaveText('1')
   await expect(visible(page.getByTestId('sync-retry'))).toBeVisible()
-  // Still closed once the app has re-read the session (the close event comes before the commit)
+  // Still closed once the app has re-read the session after the close event
   await page.waitForTimeout(3000)
   await expect(visible(page.getByText('Closed', { exact: true }))).toBeVisible()
   await expect(page.getByTestId('session-end')).toHaveCount(0)

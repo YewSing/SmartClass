@@ -12,6 +12,7 @@ from app.models.session import AttendanceSession
 from app.models.attendance import AttendanceRecord
 from app.models.class_ import Enrollment
 from app.models.face_review import FaceReviewEntry
+from app.services import attendance_moodle_sync
 
 
 async def close_session(session_id: int, db: AsyncSession, now: datetime | None = None) -> AttendanceSession:
@@ -26,6 +27,7 @@ async def close_session(session_id: int, db: AsyncSession, now: datetime | None 
         session.moodle_sync_attempts = 0
         session.moodle_sync_next_at = session.closed_at
         session.moodle_sync_error = None
+        attendance_moodle_sync.sync_soon(db, session.id)   # sent as soon as this commits (T38b)
 
     # Find all enrolled students for this occurrence
     enrolled = await db.execute(
@@ -72,11 +74,15 @@ async def get_session_counts(session_id: int, db: AsyncSession) -> dict:
     unid_result = await db.execute(
         select(func.count()).select_from(FaceReviewEntry).where(FaceReviewEntry.session_id == session_id)
     )
+    recorded = sum(by_status.values())
     return {
         "present": present,
         "late": late,
         "excused": excused,
         # Enrolled students not counted as present/late/excused (including not yet recorded).
         "absent": max(0, enrolled - present - late - excused),
+        # Enrolled students with no record yet: only an open session has any (T38b). The lecturer
+        # app shows Absent as `absent - not_recorded` and Not yet as this, like the live roster.
+        "not_recorded": max(0, enrolled - recorded),
         "unid": unid_result.scalar_one(),
     }

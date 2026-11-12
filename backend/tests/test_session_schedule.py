@@ -1,5 +1,8 @@
 """T29: sessions open from the class schedule (FR-301, FR-315–FR-317).
 
+T38b removed changing or cancelling one class; rows those endpoints left behind (`scheduled`,
+`cancelled`) are inserted directly by `legacy_row` and must still load and behave.
+
 Every time-dependent case uses a controlled clock: the job gets `now` as an argument and the
 routers read `session_schedule.clock()`, which the `fixed_clock` fixture patches.
 """
@@ -8,7 +11,7 @@ import json
 from datetime import date, datetime, timedelta
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import insert, select
 
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
@@ -74,6 +77,18 @@ def schedule_url(occurrence_id: int) -> str:
 
 def date_url(occurrence_id: int, d: date = MON) -> str:
     return f"/lecturer/classes/{occurrence_id}/dates/{d.isoformat()}"
+
+
+async def legacy_row(db, classroom, status: str, start: datetime, end: datetime,
+                     opened_at: datetime | None = None) -> int:
+    """A schedule row as the removed one-class change (`scheduled`) or cancel (`cancelled`) left it."""
+    session_id = (await db.execute(insert(AttendanceSession).values(
+        occurrence_id=classroom["occurrence_id"], lecturer_id=classroom["lecturer_id"],
+        source="schedule", class_date=start.date(), status=status,
+        starts_at=start, ends_at=end, opened_at=opened_at,
+    ).returning(AttendanceSession.id))).scalar_one()
+    await db.commit()
+    return session_id
 
 
 # ── The job (R2/R3) ───────────────────────────────────────────────────────────
@@ -306,7 +321,7 @@ async def test_weekly_schedule_validation(lecturer_client, classroom):
         assert resp.status_code == 422, (body, resp.text)
 
 
-async def test_schedule_and_one_class_endpoints_are_lecturer_only(
+async def test_schedule_and_session_endpoints_are_lecturer_only(
     lecturer_client, other_lecturer_client, admin_client, student_client, classroom
 ):
     resp = await lecturer_client.post("/lecturer/sessions",
@@ -317,9 +332,6 @@ async def test_schedule_and_one_class_endpoints_are_lecturer_only(
     endpoints = [
         ("PUT", schedule_url(classroom["occurrence_id"]),
          {"day_of_week": "Wed", "start_time": "14:00", "end_time": "16:00"}),
-        ("PUT", date_url(classroom["occurrence_id"], MON + timedelta(days=2)),
-         {"start_time": "09:00", "end_time": "10:00"}),
-        ("POST", f"{date_url(classroom['occurrence_id'], MON + timedelta(days=2))}/cancel", None),
         ("POST", f"/lecturer/sessions/{session_id}/extend", {"minutes": 15}),
         ("POST", f"/lecturer/sessions/{session_id}/confirm", {"held": True}),
     ]
@@ -328,7 +340,7 @@ async def test_schedule_and_one_class_endpoints_are_lecturer_only(
             resp = await client.request(method, url, json=body)
             assert resp.status_code == 403, (method, url, resp.text)
 
-    for method, url, body in endpoints[:3]:
+    for method, url, body in endpoints[:1]:
         unknown = url.replace(str(classroom["occurrence_id"]), "999999", 1)
         resp = await lecturer_client.request(method, unknown, json=body)
         assert resp.status_code == 404, (method, unknown, resp.text)
@@ -349,92 +361,6 @@ async def test_moodle_sync_keeps_schedule(lecturer_client, classroom, db_session
     occ = await db_session.get(ClassOccurrence, classroom["occurrence_id"])
     assert (occ.day_of_week, occ.start_time, occ.end_time, occ.room) \
         == ("Wed", "14:00", "16:00", "DK3")
-
-
-async def test_change_time_before_class(lecturer_client, classroom, db_session, fixed_clock):
-    fixed_clock(at(7, 0))
-    resp = await lecturer_client.put(date_url(classroom["occurrence_id"]), json={
-        "start_time": "09:00", "end_time": "11:00",
-    })
-    assert resp.status_code == 200, resp.text
-    body = resp.json()
-    assert body["status"] == "scheduled"
-    assert datetime.fromisoformat(body["starts_at"]) == at(9, 0)
-    session_id = body["id"]
-
-    classes = (await lecturer_client.get("/classes?full=true")).json()
-    occ = next(o for o in classes if o["id"] == classroom["occurrence_id"])
-    assert (occ["day_of_week"], occ["start_time"], occ["end_time"]) == ("Mon", "08:00", "10:00")
-
-    assert await run_tick(at(7, 45)) == session_schedule.TickReport()
-    [row] = await rows_for(db_session, classroom["occurrence_id"])
-    assert row.status == "scheduled"
-
-    report = await run_tick(at(8, 45))
-    assert report.opened == [session_id]
-    [row] = await rows_for(db_session, classroom["occurrence_id"])
-    assert row.id == session_id and row.status == "open"
-    assert row.opened_at == at(8, 45)
-
-    report = await run_tick(at(11, 0))
-    assert report.needs_confirmation == [session_id]
-    [row] = await rows_for(db_session, classroom["occurrence_id"])
-    assert row.status == "needs_confirmation"
-    assert row.lecturer_action_at is None
-
-    [log] = await audit(db_session, "SESSION_TIME_CHANGED")
-    assert json.loads(log.old_val) == {"starts_at": at(8, 0).isoformat(),
-                                      "ends_at": at(10, 0).isoformat()}
-    assert json.loads(log.new_val) == {"starts_at": at(9, 0).isoformat(),
-                                       "ends_at": at(11, 0).isoformat()}
-
-
-async def test_change_time_during_class(lecturer_client, classroom, db_session, fixed_clock):
-    await run_tick(at(7, 45))
-    [row] = await rows_for(db_session, classroom["occurrence_id"])
-
-    fixed_clock(at(8, 30))
-    resp = await lecturer_client.put(date_url(classroom["occurrence_id"]), json={
-        "start_time": "08:00", "end_time": "10:30",
-    })
-    assert resp.status_code == 200, resp.text
-    assert resp.json()["status"] == "open"
-
-    [row] = await rows_for(db_session, classroom["occurrence_id"])
-    assert row.ends_at == at(10, 30)
-    assert row.lecturer_action_at == at(8, 30)
-
-    assert await run_tick(at(10, 0)) == session_schedule.TickReport()
-    await run_tick(at(10, 30))
-    [row] = await rows_for(db_session, classroom["occurrence_id"])
-    assert row.status == "closed"
-    assert len(await records_for(db_session, row.id)) == 3
-
-
-async def test_change_time_rejections(lecturer_client, classroom, db_session, fixed_clock):
-    fixed_clock(at(7, 0))
-    past = MON - timedelta(days=1)
-    resp = await lecturer_client.put(date_url(classroom["occurrence_id"], past),
-                                     json={"start_time": "09:00", "end_time": "10:00"})
-    assert resp.status_code == 422, resp.text
-
-    resp = await lecturer_client.put(date_url(classroom["occurrence_id"], TUE),
-                                     json={"start_time": "09:00", "end_time": "10:00"})
-    assert resp.status_code == 422, resp.text
-
-    await run_tick(at(7, 45))
-    [row] = await rows_for(db_session, classroom["occurrence_id"])
-
-    fixed_clock(at(9, 30))
-    resp = await lecturer_client.put(date_url(classroom["occurrence_id"]),
-                                     json={"start_time": "08:30", "end_time": "09:00"})
-    assert resp.status_code == 422, resp.text
-
-    fixed_clock(at(9, 45))
-    assert (await lecturer_client.put(f"/lecturer/sessions/{row.id}/close")).status_code == 200
-    resp = await lecturer_client.put(date_url(classroom["occurrence_id"]),
-                                     json={"start_time": "08:00", "end_time": "10:00"})
-    assert resp.status_code == 409, resp.text
 
 
 async def test_start_now_before_scheduled_time_uses_todays_slot(
@@ -477,13 +403,8 @@ async def test_start_now_with_duration(lecturer_client, classroom, db_session, f
     assert json.loads(log.new_val)["source"] == "manual"
 
 
-async def test_start_now_opens_a_scheduled_row(lecturer_client, classroom, fixed_clock):
-    fixed_clock(at(7, 0))
-    resp = await lecturer_client.put(date_url(classroom["occurrence_id"]), json={
-        "start_time": "09:00", "end_time": "11:00",
-    })
-    assert resp.status_code == 200, resp.text
-    session_id = resp.json()["id"]
+async def test_start_now_opens_a_scheduled_row(lecturer_client, classroom, db_session, fixed_clock):
+    session_id = await legacy_row(db_session, classroom, "scheduled", at(9, 0), at(11, 0))
 
     fixed_clock(at(8, 0))
     resp = await lecturer_client.post("/lecturer/sessions",
@@ -538,59 +459,6 @@ async def test_end_early(lecturer_client, classroom, db_session, fixed_clock):
     assert json.loads(log.new_val) == {"status": "closed", "ends_at": at(8, 40).isoformat()}
 
 
-async def test_cancel_before_class(lecturer_client, classroom, db_session, fixed_clock):
-    fixed_clock(at(7, 0))
-    resp = await lecturer_client.post(f"{date_url(classroom['occurrence_id'])}/cancel")
-    assert resp.status_code == 200, resp.text
-    body = resp.json()
-    assert body["status"] == "cancelled"
-    assert body["opened_at"] is None
-
-    await run_tick(at(7, 45))
-    await run_tick(at(9, 0))
-    [row] = await rows_for(db_session, classroom["occurrence_id"])
-    assert row.status == "cancelled"
-    assert row.opened_at is None
-    assert await records_for(db_session, row.id) == []
-
-    assert (await lecturer_client.get("/lecturer/sessions")).json() == []
-
-    classes = (await lecturer_client.get("/classes?full=true")).json()
-    occ = next(o for o in classes if o["id"] == classroom["occurrence_id"])
-    assert (occ["day_of_week"], occ["start_time"], occ["end_time"]) == ("Mon", "08:00", "10:00")
-
-    [log] = await audit(db_session, "SESSION_CANCELLED")
-    assert json.loads(log.new_val) == {"status": "cancelled"}
-
-
-async def test_cancel_during_class(lecturer_client, classroom, db_session, fixed_clock):
-    await run_tick(at(7, 45))
-    [row] = await rows_for(db_session, classroom["occurrence_id"])
-
-    fixed_clock(at(8, 0))
-    resp = await lecturer_client.put(
-        f"/lecturer/sessions/{row.id}/attendance/override",
-        json={"student_id": classroom["student_ids"][0], "status": "present", "reason": "test"},
-    )
-    assert resp.status_code == 200, resp.text
-    resp = await lecturer_client.post(f"{date_url(classroom['occurrence_id'])}/cancel")
-    assert resp.status_code == 409, resp.text
-
-    [record] = await records_for(db_session, row.id)
-    await db_session.delete(record)
-    await db_session.commit()
-
-    fixed_clock(at(8, 10))
-    resp = await lecturer_client.post(f"{date_url(classroom['occurrence_id'])}/cancel")
-    assert resp.status_code == 200, resp.text
-    assert resp.json()["status"] == "cancelled"
-
-    [row] = await rows_for(db_session, classroom["occurrence_id"])
-    assert row.status == "cancelled"
-    assert row.closed_at == at(8, 10)
-    assert await records_for(db_session, row.id) == []
-
-
 async def test_confirm_held_marks_absent(lecturer_client, classroom, db_session, fixed_clock):
     await run_tick(at(7, 45))
     [row] = await rows_for(db_session, classroom["occurrence_id"])
@@ -636,12 +504,8 @@ async def test_confirm_not_held(lecturer_client, classroom, db_session, fixed_cl
     assert resp.status_code == 409, resp.text
 
 
-async def test_scheduled_rows_hidden_from_list(lecturer_client, classroom, fixed_clock):
-    fixed_clock(at(7, 0))
-    resp = await lecturer_client.put(date_url(classroom["occurrence_id"]), json={
-        "start_time": "09:00", "end_time": "11:00",
-    })
-    session_id = resp.json()["id"]
+async def test_scheduled_rows_hidden_from_list(lecturer_client, classroom, db_session, fixed_clock):
+    session_id = await legacy_row(db_session, classroom, "scheduled", at(9, 0), at(11, 0))
 
     fixed_clock(at(7, 30))
     assert (await lecturer_client.get("/lecturer/sessions")).json() == []
@@ -652,22 +516,39 @@ async def test_scheduled_rows_hidden_from_list(lecturer_client, classroom, fixed
     assert resp.status_code == 201, resp.text
     assert resp.json()["id"] == session_id
 
-    fixed_clock(at(8, 30))
-    assert (await lecturer_client.post(
-        f"{date_url(classroom['occurrence_id'])}/cancel")).status_code == 200
-
     listed = (await lecturer_client.get("/lecturer/sessions")).json()
-    assert [(s["id"], s["status"]) for s in listed] == [(session_id, "cancelled")]
+    assert [(s["id"], s["status"]) for s in listed] == [(session_id, "open")]
+
+
+async def test_legacy_cancelled_rows_still_load(lecturer_client, classroom, db_session, fixed_clock):
+    """`cancelled` rows from the removed cancel endpoint stay readable (T38b); the job ignores them."""
+    hidden = await legacy_row(db_session, classroom, "cancelled", at(8, 0), at(10, 0))
+    shown = await legacy_row(db_session, classroom, "cancelled", at(8, 0, MON - timedelta(days=7)),
+                             at(10, 0, MON - timedelta(days=7)), opened_at=at(7, 45, MON - timedelta(days=7)))
+
+    assert await run_tick(at(8, 30)) == session_schedule.TickReport()   # cancelled today: nothing opens
+    listed = (await lecturer_client.get("/lecturer/sessions")).json()
+    assert [(s["id"], s["status"]) for s in listed] == [(shown, "cancelled")]
+    assert hidden not in [s["id"] for s in listed]
+
+    fixed_clock(at(8, 30))
+    resp = await lecturer_client.post(f"/lecturer/sessions/{shown}/confirm", json={"held": True})
+    assert resp.status_code == 409, resp.text
+
+
+async def test_one_class_change_and_cancel_are_gone(lecturer_client, classroom):
+    """FR-316 (T38b): no endpoint changes or cancels a single class any more."""
+    resp = await lecturer_client.put(date_url(classroom["occurrence_id"]),
+                                     json={"start_time": "09:00", "end_time": "11:00"})
+    assert resp.status_code in (404, 405), resp.text
+    resp = await lecturer_client.post(f"{date_url(classroom['occurrence_id'])}/cancel")
+    assert resp.status_code in (404, 405), resp.text
 
 
 async def test_missed_class_waiting_for_confirmation_is_listed(lecturer_client, classroom, db_session,
                                                                fixed_clock):
     """A moved class the job never opened still reaches the lecturer's list to confirm (T38)."""
-    fixed_clock(at(7, 0))
-    resp = await lecturer_client.put(date_url(classroom["occurrence_id"]), json={
-        "start_time": "09:00", "end_time": "11:00",
-    })
-    missed_id = resp.json()["id"]
+    missed_id = await legacy_row(db_session, classroom, "scheduled", at(9, 0), at(11, 0))
     await run_tick(at(11, 0))   # the job was down while the class should have run
     [row] = await rows_for(db_session, classroom["occurrence_id"])
     assert (row.status, row.opened_at) == ("needs_confirmation", None)

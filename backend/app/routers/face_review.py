@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text
 
-from app.core.database import get_db
+from app.core.database import after_commit, get_db
 from app.core.deps import require_role
 from app.models.camera import Camera
 from app.models.face_review import FaceReviewEntry
@@ -150,11 +150,12 @@ async def report_unrecognised_face(
     if should_broadcast and body.session_id:
         await db.flush()
         counts = await get_session_counts(body.session_id, db)
-        await manager.broadcast(body.session_id, {
-            "event": "attendance_update",
-            "session_id": body.session_id,
-            "counts": counts,
-        })
+        payload = {"event": "attendance_update", "session_id": body.session_id, "counts": counts}
+
+        async def _announce() -> None:
+            await manager.broadcast(payload["session_id"], payload)
+
+        after_commit(db, _announce)
 
 
 # ── Admin endpoints ───────────────────────────────────────────────────────────
@@ -278,6 +279,8 @@ async def promote_review_entry(
         session = await db.get(AttendanceSession, entry.session_id)
         if session:
             attendance_moodle_sync.queue_resync(session, now)  # FR-312
+            if session.moodle_sync_status == "pending":
+                attendance_moodle_sync.sync_soon(db, session.id)
 
     await db.delete(entry)
     await write_log(

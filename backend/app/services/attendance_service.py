@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
 from app.core.config import settings
-from app.core.database import AsyncSessionLocal
+from app.core.database import AsyncSessionLocal, after_commit
 from app.core.timezone import now_myt
 from app.models.attendance import AttendanceRecord
 from app.models.class_ import Enrollment
@@ -111,8 +111,9 @@ async def broadcast_attendance_update(
     matric_no: str,
     db: AsyncSession,
 ) -> None:
+    """Announce a new record once `db` commits (a screen that re-reads must see it)."""
     counts = await get_session_counts(session_id, db)
-    await manager.broadcast(session_id, {
+    payload = {
         "event": "attendance_update",
         "session_id": session_id,
         "counts": counts,
@@ -124,9 +125,14 @@ async def broadcast_attendance_update(
             "detected_at": record.detected_at.isoformat() if record.detected_at else None,
             "record_id": record.id,
         },
-    })
-    # The alert payload key "present" now means attended (Present + Late).
-    await check_low_attendance_alert(session_id, counts["present"] + counts["late"], db)
+    }
+
+    async def _announce() -> None:
+        await manager.broadcast(session_id, payload)
+        # The alert payload key "present" now means attended (Present + Late).
+        await check_low_attendance_alert(session_id, counts["present"] + counts["late"], db)
+
+    after_commit(db, _announce)
 
 
 async def sweep_low_attendance_alerts(db: AsyncSession) -> None:

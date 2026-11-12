@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.core.database import get_db
+from app.core.database import after_commit, get_db
 from app.core.deps import ensure_teaches_occurrence, require_role
 from app.models.user import User, Student
 from app.models.class_ import Enrollment, ClassOccurrence
@@ -82,6 +82,22 @@ async def get_session_attendance(
     return out
 
 
+def _announce_override(db: AsyncSession, session_id: int, counts: dict, student: dict,
+                       session: AttendanceSession) -> None:
+    """After the override commits: tell the session's screens, and re-send a closed session to
+    Moodle at once (FR-312, T38b)."""
+    payload = {"event": "attendance_override", "session_id": session_id, "counts": counts, "student": student}
+    if session.moodle_sync_status is not None:
+        payload["moodle_sync_status"] = session.moodle_sync_status
+
+    async def _broadcast() -> None:
+        await manager.broadcast(session_id, payload)
+
+    after_commit(db, _broadcast)
+    if session.moodle_sync_status == "pending":
+        attendance_moodle_sync.sync_soon(db, session_id)
+
+
 @router.put("/attendance/{record_id}/override", response_model=AttendanceStudentOut)
 async def override_attendance(
     record_id: int,
@@ -118,18 +134,13 @@ async def override_attendance(
     await db.flush()
 
     counts = await get_session_counts(record.session_id, db)
-    await manager.broadcast(record.session_id, {
-        "event": "attendance_override",
-        "session_id": record.session_id,
-        "counts": counts,
-        "student": {
-            "id": record.student_id,
-            "name": record.student.user.name,
-            "matric_no": record.student.matric_no,
-            "status": record.status,
-            "record_id": record.id,
-        },
-    })
+    _announce_override(db, record.session_id, counts, {
+        "id": record.student_id,
+        "name": record.student.user.name,
+        "matric_no": record.student.matric_no,
+        "status": record.status,
+        "record_id": record.id,
+    }, session)
 
     return AttendanceStudentOut(
         record_id=record.id,
@@ -198,18 +209,13 @@ async def override_session_attendance(
     await db.flush()
 
     counts = await get_session_counts(session_id, db)
-    await manager.broadcast(session_id, {
-        "event": "attendance_override",
-        "session_id": session_id,
-        "counts": counts,
-        "student": {
-            "id": record.student_id,
-            "name": student.user.name,
-            "matric_no": student.matric_no,
-            "status": record.status,
-            "record_id": record.id,
-        },
-    })
+    _announce_override(db, session_id, counts, {
+        "id": record.student_id,
+        "name": student.user.name,
+        "matric_no": student.matric_no,
+        "status": record.status,
+        "record_id": record.id,
+    }, session)
 
     return AttendanceStudentOut(
         record_id=record.id,

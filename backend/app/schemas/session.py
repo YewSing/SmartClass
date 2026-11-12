@@ -49,6 +49,7 @@ class SessionOut(BaseModel):
     absent: int = 0
     late: int = 0
     excused: int = 0
+    not_recorded: int = 0               # enrolled students with no record yet (open session)
     unid: int = 0
     # Moodle Attendance sync (FR-312, FR-320); status None = never queued (not closed yet)
     moodle_sync_status: Optional[str] = None   # pending | synced | failed | conflict

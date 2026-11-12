@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useLecturer } from '../context/LecturerContext'
 import Topbar from '../components/Topbar'
 import Badge from '../components/Badge'
+import AttendanceCounts from '../components/AttendanceCounts'
 import {
   statusLabel, statusBadge, groupRoster, countStatuses, timeRange, sessionStateLabel, sessionStateBadge,
   syncInfo, moodleValueLabel, canTakeMoodle,
@@ -15,15 +16,6 @@ import { C } from '../theme'
 const AVATAR_BG_CYCLE = [C.blueLt, C.greenLt, C.orangeLt]
 const AVATAR_CLR_CYCLE = [C.blueDk, C.greenDk, C.orangeDk]
 const EXTEND_MINUTES = 15
-
-function Count({ n, label, color, testID }) {
-  return (
-    <View style={styles.count}>
-      <Text style={[styles.countNum, { color }]} testID={testID}>{n}</Text>
-      <Text style={styles.countLbl}>{label}</Text>
-    </View>
-  )
-}
 
 function SmallBtn({ label, icon, onPress, variant = 'outline', disabled, testID }) {
   const v = {
@@ -214,13 +206,7 @@ export default function AttendanceDetail({ navigation }) {
           <Text style={styles.summaryTitle} numberOfLines={1}>{session.class_name}</Text>
           <Badge variant={sessionStateBadge(status)} dot>{sessionStateLabel(status)}</Badge>
         </View>
-        <View style={styles.counts}>
-          <Count n={counts.present} label="Present" color={C.green} testID="count-present" />
-          <Count n={counts.late} label="Late" color={C.orange} testID="count-late" />
-          <Count n={counts.excused} label="Excused" color={C.primary} testID="count-excused" />
-          <Count n={counts.absent} label="Absent" color={C.red} testID="count-absent" />
-          {open ? <Count n={counts.not_recorded} label="Not yet" color={C.gray500} testID="count-not-yet" /> : null}
-        </View>
+        <AttendanceCounts counts={counts} open={open} />
         {open ? (
           <View style={styles.liveRow}>
             <View style={styles.liveDot} />
@@ -322,10 +308,6 @@ const styles = StyleSheet.create({
   },
   summaryTitle: { flex: 1, fontSize: 15, fontWeight: '700', color: C.text, marginRight: 8 },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  counts: { flexDirection: 'row', justifyContent: 'space-around' },
-  count: { alignItems: 'center', minWidth: 52 },
-  countNum: { fontSize: 22, fontWeight: '800' },
-  countLbl: { fontSize: 11, color: C.textSub, marginTop: 1 },
   liveRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.green },
   liveText: { fontSize: 12, color: C.textSub },

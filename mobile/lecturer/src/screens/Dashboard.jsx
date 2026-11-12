@@ -7,7 +7,9 @@ import { Ionicons } from '@expo/vector-icons'
 import { useFocusEffect } from '@react-navigation/native'
 import { useLecturer } from '../context/LecturerContext'
 import Badge from '../components/Badge'
+import AttendanceCounts from '../components/AttendanceCounts'
 import * as api from '../services/api'
+import { sessionCounts } from '../services/attendance'
 import { pendingLabel } from '../services/faceReview'
 import { C } from '../theme'
 
@@ -45,17 +47,18 @@ function nextLabel(c) {
 
 export default function Dashboard({ navigation }) {
   const {
-    state, loadClasses, loadAllClasses, loadSessions, doOpenSession, doCloseSession, selectSession,
+    state, loadClasses, loadAllClasses, loadSessions, doOpenSession, selectSession,
   } = useLecturer()
   const { sessions, classes, allClasses, lecturer } = state
   const insets = useSafeAreaInsets()
-  const [toggling, setToggling] = useState(false)
+  const [starting, setStarting] = useState(false)
 
   useEffect(() => {
     loadClasses()
-    loadSessions()
     loadAllClasses()
   }, [])
+  // The schedule opens and closes classes by itself, so re-read the sessions on every visit
+  useFocusEffect(useCallback(() => { loadSessions() }, [loadSessions]))
 
   // Face enrolments waiting for this lecturer (FR-113); a failed count just hides the banner
   const [pendingFaces, setPendingFaces] = useState(0)
@@ -77,17 +80,24 @@ export default function Dashboard({ navigation }) {
   const nextClasses   = useMemo(() => computeNextClasses(allClasses), [allClasses])
   const nextClass     = nextClasses[0] ?? null
 
-  const handleToggleSession = async () => {
-    if (toggling) return
-    setToggling(true)
+  const openLive = (session) => {
+    selectSession(session)
+    navigation.navigate('AttendanceDetail')
+  }
+
+  // Go to the class that is running; start the current class only when nothing is open yet
+  // (the schedule may have opened it since this screen loaded, which used to give a 409)
+  const handleSessionButton = async () => {
+    if (starting) return
+    if (sessionOpen) { openLive(activeSession); return }
+    if (!firstClass) return
+    setStarting(true)
     try {
-      if (sessionOpen) {
-        await doCloseSession(activeSession.id)
-      } else if (firstClass) {
-        await doOpenSession(firstClass.id)
-      }
+      const running = (await api.getSessions()).find(s => s.open && s.class_id === firstClass.id)
+      openLive(running ?? await doOpenSession(firstClass.id))
+      if (running) loadSessions()
     } catch { /* toast shown in context */ } finally {
-      setToggling(false)
+      setStarting(false)
     }
   }
 
@@ -164,15 +174,16 @@ export default function Dashboard({ navigation }) {
           <TouchableOpacity
             style={[
               styles.sessionToggleBtn,
-              sessionOpen ? styles.toggleClose : styles.toggleOpen,
-              (toggling || (!sessionOpen && !firstClass)) && styles.btnDisabled,
+              styles.toggleOpen,
+              (starting || (!sessionOpen && !firstClass)) && styles.btnDisabled,
             ]}
-            onPress={handleToggleSession}
-            disabled={toggling || (!sessionOpen && !firstClass)}
+            testID={sessionOpen ? 'home-live-session' : 'home-start-now'}
+            onPress={handleSessionButton}
+            disabled={starting || (!sessionOpen && !firstClass)}
           >
-            <Ionicons name={sessionOpen ? 'stop-circle-outline' : 'play-circle-outline'} size={16} color="#fff" />
+            <Ionicons name={sessionOpen ? 'radio-outline' : 'play-circle-outline'} size={16} color="#fff" />
             <Text style={styles.toggleText}>
-              {toggling ? ' …' : sessionOpen ? ' Close Session' : ' Open Session'}
+              {starting ? ' …' : sessionOpen ? ' Live session' : ' Start now'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -184,7 +195,7 @@ export default function Dashboard({ navigation }) {
               <View style={styles.cardExtra}>
                 <Ionicons name="school" size={14} color={C.green} style={{ marginTop: 1 }} />
                 <Text style={styles.cardExtraText}>
-                  {firstClass.code} is ongoing — open a session above to start tracking attendance.
+                  {firstClass.code} is ongoing — tap Start now to take attendance.
                 </Text>
               </View>
             ) : nextClasses.length ? (
@@ -240,21 +251,12 @@ export default function Dashboard({ navigation }) {
           </View>
           <TouchableOpacity
             style={styles.card}
-            onPress={() => { selectSession(activeSession); navigation.navigate('AttendanceDetail') }}
+            testID="home-attendance"
+            onPress={() => openLive(activeSession)}
           >
-            <View style={styles.attendStats}>
-              <View style={styles.attendStat}>
-                <Text style={[styles.attendNum, { color: C.green }]}>{activeSession.present}</Text>
-                <Text style={styles.attendLbl}>Present</Text>
-              </View>
-              <View style={styles.attendStat}>
-                <Text style={[styles.attendNum, { color: C.orange }]}>{activeSession.late}</Text>
-                <Text style={styles.attendLbl}>Late</Text>
-              </View>
-              <View style={styles.attendStat}>
-                <Text style={[styles.attendNum, { color: C.gray500 }]}>{activeSession.unid}</Text>
-                <Text style={styles.attendLbl}>Unidentified</Text>
-              </View>
+            <Text style={styles.cardExtraMeta}>{activeSession.class_code} · live</Text>
+            <View style={styles.attendCounts}>
+              <AttendanceCounts counts={sessionCounts(activeSession)} open testIDPrefix="home-count" />
             </View>
             <View style={styles.cardFooter}>
               <Ionicons name="chevron-forward" size={12} color={C.textHint} />
@@ -430,9 +432,6 @@ const styles = StyleSheet.create({
   toggleOpen: {
     backgroundColor: C.green,
   },
-  toggleClose: {
-    backgroundColor: C.red,
-  },
   toggleText: {
     fontSize: 13,
     fontWeight: '700',
@@ -463,22 +462,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: C.border,
   },
-  attendStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
+  attendCounts: {
+    marginTop: 8,
     marginBottom: 12,
-  },
-  attendStat: {
-    alignItems: 'center',
-  },
-  attendNum: {
-    fontSize: 28,
-    fontWeight: '800',
-  },
-  attendLbl: {
-    fontSize: 11,
-    color: C.textSub,
-    marginTop: 2,
   },
   cardFooter: {
     flexDirection: 'row',

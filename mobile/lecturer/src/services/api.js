@@ -35,6 +35,7 @@ function sessionAdapter(s) {
     late: s.late ?? 0,
     excused: s.excused ?? 0,
     absent: s.absent ?? 0,
+    not_recorded: s.not_recorded ?? 0,
     unid: s.unid ?? 0,
     moodle_sync_status: s.moodle_sync_status ?? null,
     moodle_synced_at: s.moodle_synced_at ?? null,
@@ -212,7 +213,7 @@ export const retryMoodleSync = async (sessionId) =>
 export const resolveMoodleConflict = async (sessionId, recordId, keep) =>
   sessionAdapter(await apiCall('POST', `/lecturer/sessions/${sessionId}/moodle-conflicts/${recordId}`, { keep }))
 
-// ─── Class schedule (FR-301, FR-315) ──────────────────────────────────────────
+// ─── Class schedule (FR-301) ──────────────────────────────────────────
 
 // All of day/start/end, or all null to clear the weekly slot. Moodle sync never overwrites it.
 export const setWeeklySchedule = async (classId, { day, start, end, room }) => {
@@ -224,13 +225,6 @@ export const setWeeklySchedule = async (classId, { day, start, end, room }) => {
   })
   return { day_of_week: c.day_of_week, start_time: c.start_time, end_time: c.end_time, room: c.room }
 }
-
-// One class date only; the weekly schedule stays as it is
-export const changeClassTime = async (classId, isoDate, start, end) =>
-  sessionAdapter(await apiCall('PUT', `/lecturer/classes/${classId}/dates/${isoDate}`, { start_time: start, end_time: end }))
-
-export const cancelClass = async (classId, isoDate) =>
-  sessionAdapter(await apiCall('POST', `/lecturer/classes/${classId}/dates/${isoDate}/cancel`))
 
 // ─── Attendance ───────────────────────────────────────────────────────────────
 

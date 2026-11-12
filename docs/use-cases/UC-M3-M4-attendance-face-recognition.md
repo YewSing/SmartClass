@@ -16,9 +16,9 @@
 2. Lecturer can open the live session view at any time (UC-303).
 
 **Alternative Flows:**
-- *Time changed or forgot to update:* before or during the class, lecturer changes the time for this class only; the Late clock follows the new start (FR-316).
+- *Class starts at another time today:* lecturer taps "Start now" when it begins; the Late clock follows that start (FR-316). Editing the weekly schedule applies from the next class.
 - *Unscheduled or make-up class:* lecturer taps "Start now".
-- *Class cancelled:* lecturer cancels it, and no attendance is recorded.
+- *Class cancelled:* nothing is recognised, so at the end the session waits for the lecturer, who confirms "Not held"; nobody is marked Absent and nothing goes to Moodle (FR-317).
 
 **Exception Flows:**
 - *Room's device offline:* session opens anyway; warn the lecturer and suggest the backup webcam (FR-409, NFR-23).

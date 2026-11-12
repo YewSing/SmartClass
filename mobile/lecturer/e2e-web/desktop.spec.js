@@ -65,7 +65,7 @@ test('desktop: login reaches the dashboard with side navigation and no sideways 
 
   await signInLocal(page)
   await expect(page.getByTestId('sidenav-Home')).toBeVisible()
-  await expect(visible(page.getByText('Open Session').or(page.getByText('Close Session')))).toBeVisible()
+  await expect(visible(page.getByTestId('home-start-now').or(page.getByTestId('home-live-session')))).toBeVisible()
   expect(await horizontalOverflow(page)).toEqual([])
 
   // Side navigation instead of bottom tabs; content in a centred column.
@@ -161,7 +161,7 @@ test('phone width keeps the bottom tabs', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/')
   await signInLocal(page)
-  await expect(visible(page.getByText('Open Session').or(page.getByText('Close Session')))).toBeVisible()
+  await expect(visible(page.getByTestId('home-start-now').or(page.getByTestId('home-live-session')))).toBeVisible()
   await expect(page.getByTestId('sidenav-Home')).toHaveCount(0)
   await expect(visible(page.getByText('Analytics', { exact: true }))).toBeVisible()   // bottom tab label
   expect(await horizontalOverflow(page)).toEqual([])

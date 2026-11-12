@@ -26,7 +26,7 @@ function StudentRow({ student }) {
   )
 }
 
-// Weekly schedule, start now and one-class changes (FR-301, FR-315, FR-316)
+// Weekly schedule and start now (FR-301, FR-316)
 function ClassControls({ cls, navigation }) {
   const { state, openModal, doOpenSession, selectSession, loadSessions } = useLecturer()
   const [busy, setBusy] = useState(false)
@@ -85,16 +85,6 @@ function ClassControls({ cls, navigation }) {
             <Text style={styles.ctrlBtnTextFilled}>{busy ? 'Starting…' : 'Start now'}</Text>
           </TouchableOpacity>
         )}
-        <TouchableOpacity
-          style={[styles.ctrlBtn, styles.ctrlOutline]}
-          testID="class-change-one"
-          onPress={() => openModal('class-time', {
-            classId: cls.id, title, start: cls.start_time ?? '', end: cls.end_time ?? '',
-          })}
-        >
-          <Ionicons name="calendar-outline" size={16} color={C.text} />
-          <Text style={styles.ctrlBtnText}>Change or cancel a class</Text>
-        </TouchableOpacity>
       </View>
     </View>
   )

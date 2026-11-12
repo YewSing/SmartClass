@@ -6,17 +6,20 @@ Rules:
 - R2 – the job opens. For every occurrence with a schedule and a lecturer, for today and
   tomorrow (a class may start just after midnight), if the class is within the early-open
   window and it has no schedule row for that date and no open session, it inserts one.
-  A `scheduled` row (created by a time change) opens the same way.
+  So at most one scheduled session per class per day: editing the weekly time after today's
+  class ran opens nothing more today (Start now does). A `scheduled` row (left by the one-class
+  time change removed in T38b) still opens the same way.
 - R3 – the job closes. An open row whose `ends_at` has passed becomes `closed` when it has
   at least one attendance record or the lecturer acted during the class; otherwise it becomes
   `needs_confirmation` (nobody is marked Absent without the lecturer confirming, FR-317).
   A `scheduled` row whose whole slot was missed becomes `needs_confirmation` too.
-- R4 – a lecturer action (`lecturer_action_at`) is start now, extend, or a time change while
-  the session is open. A change or cancel before the class is not an action. Overrides already
-  create an attendance record, so they count through the record check. Unidentified faces are
-  not recognitions.
+- R4 – a lecturer action (`lecturer_action_at`) is start now or extend while the session is
+  open. Overrides already create an attendance record, so they count through the record check.
+  Unidentified faces are not recognitions.
 - R5 – a class without a schedule is never opened by the job; Start now works.
-- R6 – the job never touches `ClassOccurrence` columns; one-class changes only edit the session.
+- R6 – the job never touches `ClassOccurrence` columns.
+- T38b removed changing or cancelling one class (FR-316): a class that didn't happen is
+  confirmed "Not held" (FR-317). Old `scheduled`/`cancelled` rows still load and behave as before.
 """
 import asyncio
 import logging
@@ -24,11 +27,11 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
 
 from fastapi import HTTPException, status as http_status
-from sqlalchemy import insert, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.database import AsyncSessionLocal
+from app.core.database import AsyncSessionLocal, run_after_commit
 from app.core.timezone import now_myt
 from app.models.attendance import AttendanceRecord
 from app.models.camera import Camera
@@ -95,19 +98,6 @@ async def _has_records(db: AsyncSession, session_id: int) -> bool:
     return (await db.scalar(
         select(AttendanceRecord.id).where(AttendanceRecord.session_id == session_id).limit(1)
     )) is not None
-
-
-async def _insert_unopened(db: AsyncSession, **values) -> AttendanceSession:
-    """Insert a session that has never opened (scheduled or cancelled ahead).
-
-    The ORM leaves `None` out of an INSERT for a column with a server default, so an explicit
-    INSERT is needed to keep `opened_at` NULL instead of letting the database fill it in.
-    """
-    values["opened_at"] = None
-    session_id = (await db.execute(
-        insert(AttendanceSession).values(**values).returning(AttendanceSession.id)
-    )).scalar_one()
-    return await db.get(AttendanceSession, session_id)
 
 
 @dataclass
@@ -230,14 +220,18 @@ async def session_scheduler_loop() -> None:
                 except Exception:
                     await db.rollback()
                     raise
+                await run_after_commit(db)   # closed sessions go to Moodle now (T38b)
             for sid in report.closed + report.needs_confirmation:
                 async with AsyncSessionLocal() as db:
                     counts = await session_service.get_session_counts(sid, db)
+                    sync_status = await db.scalar(select(AttendanceSession.moodle_sync_status)
+                                                  .where(AttendanceSession.id == sid))
                 await manager.broadcast(sid, {
                     "event": "session_closed",
                     "status": "closed" if sid in report.closed else "needs_confirmation",
                     "counts": counts,
                     "final": True,
+                    "moodle_sync_status": sync_status,
                 })
         except asyncio.CancelledError:
             raise
@@ -337,106 +331,6 @@ async def start_now(db: AsyncSession, occ: ClassOccurrence, lec: Lecturer,
     })
     await db.flush()
     return session
-
-
-async def change_time(db: AsyncSession, occ: ClassOccurrence, class_date: date,
-                      start: time, end: time, now: datetime, actor_id: int) -> AttendanceSession:
-    """Move one class date's start/end (FR-315). The job applies it on its next tick."""
-    if end <= start:
-        raise HTTPException(status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail="The end time must be after the start time")
-    if class_date < now.date():
-        raise HTTPException(status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail="That class has already passed")
-
-    starts_at = datetime.combine(class_date, start)
-    ends_at = datetime.combine(class_date, end)
-    row = await _schedule_row(db, occ.id, class_date)
-
-    if row is None:
-        times = scheduled_times(occ, class_date)
-        if times is None:
-            raise HTTPException(status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                detail="No class is scheduled on that date; use Start now")
-        old = {"starts_at": _iso(times[0]), "ends_at": _iso(times[1])}
-        row = await _insert_unopened(
-            db,
-            occurrence_id=occ.id,
-            lecturer_id=occ.lecturer_id,
-            source="schedule",
-            class_date=class_date,
-            status="scheduled",
-            starts_at=starts_at,
-            ends_at=ends_at,
-        )
-    elif row.status == "scheduled":
-        old = {"starts_at": _iso(row.starts_at), "ends_at": _iso(row.ends_at)}
-        row.starts_at = starts_at
-        row.ends_at = ends_at
-    elif row.status == "open":
-        if ends_at <= now:
-            raise HTTPException(status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                detail="Use End now instead")
-        old = {"starts_at": _iso(row.starts_at), "ends_at": _iso(row.ends_at)}
-        row.starts_at = starts_at
-        row.ends_at = ends_at
-        row.lecturer_action_at = now
-    else:
-        raise HTTPException(status_code=http_status.HTTP_409_CONFLICT,
-                            detail="This class has already ended")
-
-    await db.flush()
-    await write_log(db, actor_id, "SESSION_TIME_CHANGED",
-                    "attendance_session", row.id,
-                    old, {"starts_at": _iso(row.starts_at), "ends_at": _iso(row.ends_at)})
-    await db.flush()
-    return row
-
-
-async def cancel_class(db: AsyncSession, occ: ClassOccurrence, class_date: date,
-                       now: datetime, actor_id: int) -> AttendanceSession:
-    """Cancel one class date, ahead of or during it (FR-315)."""
-    if class_date < now.date():
-        raise HTTPException(status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail="That class has already passed")
-
-    row = await _schedule_row(db, occ.id, class_date)
-    if row is None:
-        times = scheduled_times(occ, class_date)
-        if times is None:
-            raise HTTPException(status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                detail="No class is scheduled on that date")
-        row = await _insert_unopened(
-            db,
-            occurrence_id=occ.id,
-            lecturer_id=occ.lecturer_id,
-            source="schedule",
-            class_date=class_date,
-            status="cancelled",
-            starts_at=times[0],
-            ends_at=times[1],
-            closed_at=now,
-        )
-        old = {"status": None}
-    elif row.status == "scheduled":
-        old = {"status": row.status}
-        row.status = "cancelled"
-    elif row.status == "open":
-        if await _has_records(db, row.id):
-            raise HTTPException(status_code=http_status.HTTP_409_CONFLICT,
-                                detail="Attendance is already recorded; end the class instead")
-        old = {"status": row.status}
-        row.status = "cancelled"
-        row.closed_at = now
-    else:
-        raise HTTPException(status_code=http_status.HTTP_409_CONFLICT,
-                            detail="This class has already ended")
-
-    await db.flush()
-    await write_log(db, actor_id, "SESSION_CANCELLED",
-                    "attendance_session", row.id, old, {"status": row.status})
-    await db.flush()
-    return row
 
 
 async def extend(db: AsyncSession, session: AttendanceSession, minutes: int,
