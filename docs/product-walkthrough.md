@@ -54,12 +54,12 @@ A plain-language picture of the finished plan for Yew Sing's modules (M1, M3, M4
 
 **Attendance in class**
 1. Sets each class's weekly day, time and room once. The session then opens by itself, 15 minutes before class.
-2. Can change the time for one class, before or during it, without touching the weekly schedule. Can also start now, end early, extend or cancel.
+2. Can start a class now (an extra or make-up class), extend it or end it early. Editing the weekly time applies from the next class. A class that didn't happen is confirmed as "Not held".
 3. Watches a live list of Present, Late and not yet recognised, without refreshing.
 4. Gets an in-app alert when a student flags "I'm here but wasn't recognised". The alert shows the student's name and matric number, plus the closest unmatched camera photo if there is one. The lecturer checks in the room, by asking for a raised hand or the matric card, then confirms or rejects. Lecturers are never asked to recognise a face from memory.
 5. Can change any student's status at any time, and must give a reason. Every change is logged.
 6. The session closes at the scheduled end, or when the lecturer ends it. Everyone without a record becomes Absent. If nothing was recorded and the lecturer did nothing, for example on a public holiday, nobody is marked Absent until the lecturer says whether the class was held.
-7. Attendance is copied to Moodle automatically, with a synced, pending or failed label and a Retry button. If Moodle is down, nothing is lost.
+7. Attendance is copied to Moodle automatically as soon as the class ends, and the label turns from pending to synced (or failed) by itself, with a Retry button. If Moodle is down, nothing is lost.
 8. If someone changed a status directly in Moodle, it's never overwritten silently. The lecturer sees both values and chooses. Students can't mark themselves in Moodle for these sessions.
 9. Can export a CSV for a session or a date range.
 

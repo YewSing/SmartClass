@@ -6,21 +6,22 @@ Standalone script — run in a separate terminal during development:
 
 Environment variables (copy from .env and set in shell, or create face_worker/.env):
     API_BASE_URL          http://localhost:8000
-    INTERNAL_API_KEY      worker-shared-secret
+    DEVICE_KEY            this camera's own key (admin registers the device or regenerates its key;
+                          for a seeded camera: python scripts/device_key.py CAM-TEST)
     FACE_MATCH_THRESHOLD  0.40
     FACE_VOTE_THRESHOLD   3     (consecutive frames confirming same person before POSTing)
     FACE_COOLDOWN_SECONDS 30    (seconds before re-posting the same student)
     INSIGHTFACE_MODEL     buffalo_sc
     CAMERA_INDEX          0     (cv2.VideoCapture index; 0 = laptop webcam)
     FRAME_SKIP            5     (process every Nth frame, ~6 effective fps at 30fps camera)
-    DEVICE_ID             CAM-TEST  (must match a device_id in the cameras table)
+    DEVICE_ID             CAM-TEST  (for log messages; the server knows the device from its key)
 """
 import os
 import signal
 import time
 from pathlib import Path
 
-# Load backend/.env so INTERNAL_API_KEY and other vars are available without manual export
+# Load backend/.env so DEVICE_KEY and other vars are available without manual export
 _env_file = Path(__file__).parent.parent / ".env"
 if _env_file.exists():
     for _line in _env_file.read_text().splitlines():
@@ -38,7 +39,7 @@ from insightface.app import FaceAnalysis
 # Config from environment
 # ---------------------------------------------------------------------------
 API_BASE_URL          = os.environ.get("API_BASE_URL", "http://localhost:8000")
-INTERNAL_API_KEY      = os.environ.get("INTERNAL_API_KEY", "worker-shared-secret")
+DEVICE_KEY            = os.environ.get("DEVICE_KEY", "")
 FACE_MATCH_THRESHOLD  = float(os.environ.get("FACE_MATCH_THRESHOLD", "0.40"))
 FACE_VOTE_THRESHOLD   = int(os.environ.get("FACE_VOTE_THRESHOLD", "3"))
 FACE_COOLDOWN_SECONDS = int(os.environ.get("FACE_COOLDOWN_SECONDS", "30"))
@@ -47,7 +48,7 @@ CAMERA_INDEX          = int(os.environ.get("CAMERA_INDEX", "0"))
 FRAME_SKIP            = int(os.environ.get("FRAME_SKIP", "5"))
 DEVICE_ID             = os.environ.get("DEVICE_ID", "CAM-TEST")
 
-HEADERS = {"X-Internal-Key": INTERNAL_API_KEY, "Content-Type": "application/json"}
+HEADERS = {"X-Device-Key": DEVICE_KEY, "Content-Type": "application/json"}
 
 _running = True
 
@@ -82,7 +83,6 @@ def wait_for_active_session() -> int:
             resp = requests.get(
                 f"{API_BASE_URL}/internal/active-session",
                 headers=HEADERS,
-                params={"device_id": DEVICE_ID},
                 timeout=5,
             )
             if resp.status_code == 200:

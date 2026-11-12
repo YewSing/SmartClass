@@ -54,7 +54,9 @@ async def test_override_record_updates_status_and_writes_audit(
     session_id = await _open_session(lecturer_client, classroom)
     record_id = await _add_record(db_session, session_id, classroom["student_ids"][0], "absent")
 
-    resp = await lecturer_client.put(f"/attendance/{record_id}/override", json={"status": "present"})
+    resp = await lecturer_client.put(
+        f"/attendance/{record_id}/override", json={"status": "present", "reason": "Seen in class"}
+    )
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["status"] == "present"
@@ -66,26 +68,32 @@ async def test_override_record_updates_status_and_writes_audit(
     assert rec.override_by == users["lecturer"].id
     assert rec.override_at is not None
 
-    log = (await db_session.execute(select(AuditLog))).scalar_one()
+    log = (await db_session.execute(select(AuditLog).where(AuditLog.action == "ATTENDANCE_OVERRIDE"))).scalar_one()
     assert log.action == "ATTENDANCE_OVERRIDE"
     assert log.actor_id == users["lecturer"].id
     assert (log.target_type, log.target_id) == ("attendance_record", str(record_id))
     assert json.loads(log.old_val) == {"status": "absent"}
-    assert json.loads(log.new_val) == {"status": "present"}
+    assert json.loads(log.new_val) == {"status": "present", "reason": "Seen in class"}
 
 
 async def test_override_rejects_other_statuses(lecturer_client, classroom, db_session):
     session_id = await _open_session(lecturer_client, classroom)
     record_id = await _add_record(db_session, session_id, classroom["student_ids"][0], "absent")
-    resp = await lecturer_client.put(f"/attendance/{record_id}/override", json={"status": "late"})
+    resp = await lecturer_client.put(
+        f"/attendance/{record_id}/override", json={"status": "unidentified", "reason": "test"}
+    )
     assert resp.status_code == 400
-    assert (await lecturer_client.put("/attendance/999999/override", json={"status": "present"})).status_code == 404
+    assert (await lecturer_client.put(
+        "/attendance/999999/override", json={"status": "present", "reason": "test"}
+    )).status_code == 404
 
 
 async def test_student_cannot_override(student_client, lecturer_client, classroom, db_session):
     session_id = await _open_session(lecturer_client, classroom)
     record_id = await _add_record(db_session, session_id, classroom["student_ids"][0], "absent")
-    resp = await student_client.put(f"/attendance/{record_id}/override", json={"status": "present"})
+    resp = await student_client.put(
+        f"/attendance/{record_id}/override", json={"status": "present", "reason": "test"}
+    )
     assert resp.status_code == 403
 
 
@@ -95,7 +103,7 @@ async def test_session_override_creates_missing_record(lecturer_client, classroo
 
     resp = await lecturer_client.put(
         f"/lecturer/sessions/{session_id}/attendance/override",
-        json={"student_id": student_id, "status": "present"},
+        json={"student_id": student_id, "status": "present", "reason": "test"},
     )
     assert resp.status_code == 200, resp.text
     assert resp.json()["record_id"] is not None
@@ -106,12 +114,12 @@ async def test_session_override_creates_missing_record(lecturer_client, classroo
     ))).scalar_one()
     assert rec.status == "present"
 
-    log = (await db_session.execute(select(AuditLog))).scalar_one()
+    log = (await db_session.execute(select(AuditLog).where(AuditLog.action == "ATTENDANCE_OVERRIDE"))).scalar_one()
     assert json.loads(log.old_val) == {"status": "not_recorded"}
 
     resp = await lecturer_client.put(
         f"/lecturer/sessions/{session_id}/attendance/override",
-        json={"student_id": 999_999, "status": "present"},
+        json={"student_id": 999_999, "status": "present", "reason": "test"},
     )
     assert resp.status_code == 404
 
@@ -121,7 +129,7 @@ async def test_session_csv_export(lecturer_client, classroom, db_session):
     await _add_record(db_session, session_id, classroom["student_ids"][0], "present")
     await lecturer_client.put(
         f"/lecturer/sessions/{session_id}/attendance/override",
-        json={"student_id": classroom["student_ids"][1], "status": "present"},
+        json={"student_id": classroom["student_ids"][1], "status": "present", "reason": "test"},
     )
 
     resp = await lecturer_client.get(f"/lecturer/sessions/{session_id}/export")
@@ -133,7 +141,7 @@ async def test_session_csv_export(lecturer_client, classroom, db_session):
     assert [(r[0], r[1], r[2], r[4]) for r in rows[1:]] == [
         ("S0000001", "Test Student", "present", "No"),
         ("S0000002", "Student 2", "present", "Yes"),
-        ("S0000003", "Student 3", "absent", "No"),  # no record yet → exported as absent
+        ("S0000003", "Student 3", "not_recorded", "No"),  # no record in an open session
     ]
 
 
@@ -152,16 +160,20 @@ async def test_occurrence_csv_export_with_date_range(lecturer_client, classroom,
     assert resp.status_code == 200, resp.text
     assert "attendance_report_CS101_" in resp.headers["content-disposition"]
     rows = _csv_rows(resp)
-    assert rows[0][:2] == ["Matric No", "Name"] and rows[0][-2:] == ["Total", "Rate"]
-    assert len(rows[0]) == 2 + 2 + 2  # two closed sessions
-    assert rows[1][2:] == ["P", "P", "2/2", "100.0%"]
-    assert rows[2][2:] == ["A", "P", "1/2", "50.0%"]
-    assert rows[3][2:] == ["A", "A", "0/2", "0.0%"]
+    assert rows[0][:2] == ["Matric No", "Name"] and rows[0][-6:] == [
+        "Present", "Late", "Excused", "Absent", "Total", "Rate",
+    ]
+    assert len(rows[0]) == 2 + 2 + 6  # two closed sessions
+    assert rows[1][2:] == ["P", "P", "2", "0", "0", "0", "2/2", "100.0%"]
+    assert rows[2][2:] == ["A", "P", "1", "0", "0", "1", "1/2", "50.0%"]
+    assert rows[3][2:] == ["A", "A", "0", "0", "0", "2", "0/2", "0.0%"]
 
     # A date range that excludes today leaves only the header + students with 0 sessions.
     future = (date.today() + timedelta(days=30)).isoformat()
     rows = _csv_rows(await lecturer_client.get(url, params={"from_date": future}))
-    assert rows[0] == ["Matric No", "Name", "Total", "Rate"]
-    assert rows[1][2:] == ["0/0", "0.0%"]
+    assert rows[0] == [
+        "Matric No", "Name", "Present", "Late", "Excused", "Absent", "Total", "Rate",
+    ]
+    assert rows[1][2:] == ["0", "0", "0", "0", "0/0", ""]
 
     assert (await lecturer_client.get("/lecturer/occurrences/999999/attendance/export")).status_code == 404

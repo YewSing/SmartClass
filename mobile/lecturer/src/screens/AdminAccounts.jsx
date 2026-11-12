@@ -3,11 +3,11 @@ import {
   View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet, ActivityIndicator,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { useFocusEffect } from '@react-navigation/native'
+import { useFocusEffect, useNavigation } from '@react-navigation/native'
 import { useLecturer } from '../context/LecturerContext'
 import Topbar from '../components/Topbar'
 import * as api from '../services/api'
-import { accountSubtitle, newAdminError } from '../services/adminHelpers'
+import { accountSubtitle, faceStatus, newAdminError } from '../services/adminHelpers'
 import { C } from '../theme'
 
 const PAGE = 50
@@ -104,9 +104,11 @@ const CONFIRM = {
 
 function AccountRow({ user, isSelf, onChanged }) {
   const { showToast } = useLecturer()
+  const navigation = useNavigation()
   const [confirm, setConfirm] = useState(null)   // null | 'deactivate' | 'reactivate' | 'reset'
   const [busy, setBusy] = useState(false)
   const active = user.status === 'active'
+  const face = faceStatus(user)
 
   const run = async () => {
     setBusy(true)
@@ -145,9 +147,19 @@ function AccountRow({ user, isSelf, onChanged }) {
               {active ? 'Active' : 'Deactivated'}
             </Text>
           </View>
-          {user.role === 'student' && (
-            <Text style={styles.meta}>{user.face_enrolled ? 'Face enrolled' : 'No face data'}</Text>
-          )}
+          {face?.key === 'pending_review' ? (
+            <>
+              <View style={[styles.badge, styles.badgeWarn]}>
+                <Text style={[styles.badgeText, { color: C.yellowDk }]} testID="account-face">Pending review</Text>
+              </View>
+              <TouchableOpacity onPress={() => navigation.navigate('Verification')} testID="account-face-review"
+                accessibilityRole="link" accessibilityLabel={`Review ${user.name}'s face submission`}>
+                <Text style={styles.link}>Review in Face verification</Text>
+              </TouchableOpacity>
+            </>
+          ) : face ? (
+            <Text style={styles.meta} testID="account-face">{face.label}</Text>
+          ) : null}
         </View>
       </View>
 
@@ -168,7 +180,7 @@ function AccountRow({ user, isSelf, onChanged }) {
         </View>
       ) : (
         <View style={styles.rowActions}>
-          {user.role === 'student' && user.face_enrolled && (
+          {user.role === 'student' && (face?.key === 'active' || face?.key === 'pending_review') && (
             <TouchableOpacity style={[styles.btnSm, styles.btnOutline]} onPress={() => setConfirm('reset')}>
               <Ionicons name="scan-outline" size={14} color={C.text} />
               <Text style={styles.btnOutlineText}>Reset face data</Text>
@@ -335,7 +347,9 @@ const styles = StyleSheet.create({
   badge: { borderRadius: 10, paddingVertical: 3, paddingHorizontal: 8 },
   badgeGood: { backgroundColor: C.greenLt },
   badgeBad: { backgroundColor: C.redLt },
+  badgeWarn: { backgroundColor: C.yellowLt },
   badgeText: { fontSize: 11, fontWeight: '700' },
+  link: { fontSize: 12, fontWeight: '600', color: C.primary, textDecorationLine: 'underline' },
   rowActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap' },
   confirmBox: { backgroundColor: C.gray50, borderRadius: 8, padding: 10, gap: 10 },
   confirmText: { fontSize: 13, color: C.text, lineHeight: 19 },

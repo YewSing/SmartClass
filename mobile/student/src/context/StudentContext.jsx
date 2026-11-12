@@ -8,8 +8,8 @@ const initialState = {
   isLoggedIn: false,
   student: null,
   classes: [],
-  attendanceSummary: null,
-  attendanceGroups: [],
+  attendanceCourses: null,
+  attendanceError: null,
   modal: null,
   toasts: [],
   loading: false,
@@ -26,10 +26,10 @@ function reducer(state, action) {
       return { ...state, student: action.payload }
     case 'SET_CLASSES':
       return { ...state, classes: action.payload }
-    case 'SET_ATTENDANCE_SUMMARY':
-      return { ...state, attendanceSummary: action.payload }
-    case 'SET_ATTENDANCE_GROUPS':
-      return { ...state, attendanceGroups: action.payload }
+    case 'SET_ATTENDANCE_COURSES':
+      return { ...state, attendanceCourses: action.payload, attendanceError: null }
+    case 'SET_ATTENDANCE_ERROR':
+      return { ...state, attendanceError: action.payload }
     case 'OPEN_MODAL':
       return { ...state, modal: action.payload }
     case 'CLOSE_MODAL':
@@ -89,18 +89,14 @@ export function StudentProvider({ children }) {
     } catch (e) { showToast(e.message, 'error') }
   }, [showToast])
 
-  const loadAttendanceSummary = useCallback(async () => {
+  const loadAttendanceCourses = useCallback(async () => {
     try {
-      const summary = await api.getAttendanceSummary()
-      dispatch({ type: 'SET_ATTENDANCE_SUMMARY', payload: summary })
-    } catch (e) { showToast(e.message, 'error') }
-  }, [showToast])
-
-  const loadAttendanceGroups = useCallback(async () => {
-    try {
-      const groups = await api.getAttendanceGroups()
-      dispatch({ type: 'SET_ATTENDANCE_GROUPS', payload: groups })
-    } catch (e) { showToast(e.message, 'error') }
+      const courses = await api.getAttendanceCourses()
+      dispatch({ type: 'SET_ATTENDANCE_COURSES', payload: courses })
+    } catch (e) {
+      showToast(e.message, 'error')
+      dispatch({ type: 'SET_ATTENDANCE_ERROR', payload: e.message })
+    }
   }, [showToast])
 
   const value = {
@@ -112,8 +108,7 @@ export function StudentProvider({ children }) {
     login,
     logout,
     loadClasses,
-    loadAttendanceSummary,
-    loadAttendanceGroups,
+    loadAttendanceCourses,
   }
 
   return (

@@ -10,9 +10,9 @@ class OccurrenceEnrollmentOut(BaseModel):
     course_name: str
     type: str
     label: Optional[str] = None
-    day_of_week: str
-    start_time: str
-    end_time: str
+    day_of_week: Optional[str] = None
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -44,6 +44,7 @@ class UserDetailOut(BaseModel):
     moodle_linked: bool = False   # signs in through SPeCTRUM; its name and password belong to Moodle
     face_enrolled: bool = False
     face_enrolled_at: Optional[datetime] = None
+    face_status: Optional[str] = None   # students: not_enrolled | pending_review | active | rejected
     student: Optional[StudentProfileOut] = None
     lecturer: Optional[LecturerProfileOut] = None
     enrolled_classes: list[OccurrenceEnrollmentOut] = []

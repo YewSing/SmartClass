@@ -28,9 +28,10 @@ def _requests(setup: dict, classroom: dict) -> dict[str, tuple[str, str, dict | 
     return {
         "close": ("PUT", f"/lecturer/sessions/{sid}/close", None),
         "roster": ("GET", f"/lecturer/sessions/{sid}/attendance", None),
-        "record_override": ("PUT", f"/attendance/{setup['record_id']}/override", {"status": "present"}),
+        "record_override": ("PUT", f"/attendance/{setup['record_id']}/override",
+                            {"status": "present", "reason": "test"}),
         "session_override": ("PUT", f"/lecturer/sessions/{sid}/attendance/override",
-                             {"student_id": setup["student_id"], "status": "present"}),
+                             {"student_id": setup["student_id"], "status": "present", "reason": "test"}),
         "session_export": ("GET", f"/lecturer/sessions/{sid}/export", None),
         "occurrence_export": ("GET", f"/lecturer/occurrences/{classroom['occurrence_id']}/attendance/export", None),
     }

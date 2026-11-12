@@ -1,6 +1,6 @@
 <?php
 // Configures Moodle as a SPeCTRUM simulation: web services, REST, "smartclass" service,
-// token capabilities, service account + token, branding. Idempotent.
+// token capabilities, service account + token, mod_attendance web services, branding. Idempotent.
 // Run: docker exec smartclass-moodle-moodle-1 php /scripts/configure_moodle.php
 define('CLI_SCRIPT', true);
 require('/bitnami/moodle/config.php');
@@ -23,7 +23,13 @@ set_config('maxbytes', 536870912);        // 512MB uploads
 $functions = [
     'core_webservice_get_site_info', 'core_enrol_get_users_courses', 'core_enrol_get_enrolled_users',
     'core_course_get_contents', 'core_course_get_courses_by_field', 'core_user_get_users_by_field',
+    'mod_attendance_add_session', 'mod_attendance_remove_session', 'mod_attendance_get_session',
+    'mod_attendance_get_sessions', 'mod_attendance_update_user_status',
 ];
+if (!$DB->record_exists('modules', ['name' => 'attendance'])) {
+    fwrite(STDERR, "mod_attendance is not installed; run setup.sh\n");
+    exit(1);
+}
 $wsman = new webservice();
 $service = $DB->get_record('external_services', ['shortname' => 'smartclass']);
 if (!$service) {
@@ -44,6 +50,10 @@ foreach ($functions as $fn) {
         echo "  + $fn\n";
     }
 }
+
+// 2b. Attendance plugin: students never mark themselves (SmartClass marks attendance)
+set_config('studentscanmark', 0, 'attendance');
+set_config('studentscanmark_default', 0, 'attendance');
 
 // 3. Let ordinary users create tokens and use REST
 $authrole = $DB->get_field('role', 'id', ['shortname' => 'user'], MUST_EXIST);

@@ -31,9 +31,9 @@ class ClassOccurrence(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     course_id: Mapped[int] = mapped_column(ForeignKey("courses.id"), nullable=False, index=True)
     type: Mapped[str] = mapped_column(String(20), nullable=False)        # LECTURE | TUTORIAL
-    day_of_week: Mapped[str] = mapped_column(String(10), nullable=False) # Mon | Tue | Wed | Thu | Fri
-    start_time: Mapped[str] = mapped_column(String(10), nullable=False)  # "08:00"
-    end_time: Mapped[str] = mapped_column(String(10), nullable=False)    # "10:00"
+    day_of_week: Mapped[Optional[str]] = mapped_column(String(10))       # Mon | Tue | Wed | Thu | Fri
+    start_time: Mapped[Optional[str]] = mapped_column(String(10))        # "08:00"
+    end_time: Mapped[Optional[str]] = mapped_column(String(10))          # "10:00"
     room: Mapped[Optional[str]] = mapped_column(String(255))
     lecturer_id: Mapped[Optional[int]] = mapped_column(ForeignKey("lecturers.id"), nullable=True, index=True)
     label: Mapped[Optional[str]] = mapped_column(String(100))            # "Tutorial Group 1"
@@ -44,6 +44,10 @@ class ClassOccurrence(Base):
         back_populates="occurrence", cascade="all, delete-orphan"
     )
     sessions: Mapped[list["AttendanceSession"]] = relationship(back_populates="occurrence")
+
+    @property
+    def has_schedule(self) -> bool:
+        return bool(self.day_of_week and self.start_time and self.end_time)
 
 
 class Enrollment(Base):

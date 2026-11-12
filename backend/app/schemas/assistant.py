@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, computed_field
 
@@ -92,3 +92,90 @@ class SyncOut(BaseModel):
     deleted: int
     failed: list[str]
     statuses: dict[str, int]
+
+
+class SummaryCreate(BaseModel):
+    course_id: int
+    material_id: Optional[int] = None   # exactly one of material_id / topic
+    topic: Optional[str] = Field(default=None, max_length=200)
+    kind: Literal["summary", "study_guide"] = "summary"
+
+
+class SummaryOut(BaseModel):
+    content: str
+    citations: list[Citation] = []
+    source_type: str            # course | general
+    kind: str
+    material_id: Optional[int] = None
+    topic: Optional[str] = None
+
+
+class StudyToolsCreate(BaseModel):
+    course_id: int
+    material_id: Optional[int] = None   # exactly one of material_id / topic
+    topic: Optional[str] = Field(default=None, max_length=200)
+    kind: Literal["flashcards", "practice_questions"]
+
+
+# ── LLM JSON output validation (internal; the endpoint validates the LLM's JSON) ──
+
+class LLMCard(BaseModel):
+    front: str
+    back: str
+    citation: Optional[int] = None
+
+
+class LLMQuestion(BaseModel):
+    stem: str
+    options: list[str]
+    answer: str
+    explanation: str
+    citation: Optional[int] = None
+
+
+class LLMCards(BaseModel):
+    cards: list[LLMCard] = []
+
+
+class LLMQuestions(BaseModel):
+    questions: list[LLMQuestion] = []
+
+
+# ── API response ──────────────────────────────────────────────────────────────
+
+class FlashcardOut(BaseModel):
+    front: str
+    back: str
+    citation: Optional[Citation] = None
+
+
+class PracticeQuestionOut(BaseModel):
+    stem: str
+    options: list[str]
+    answer: str
+    explanation: str
+    citation: Optional[Citation] = None
+
+
+class StudyToolsOut(BaseModel):
+    kind: str                   # flashcards | practice_questions
+    source_type: str            # course | general
+    cards: list[FlashcardOut] = []
+    questions: list[PracticeQuestionOut] = []
+
+
+class TopicCount(BaseModel):
+    topic: str
+    students: int
+
+
+class MaterialCount(BaseModel):
+    material_id: int
+    title: str
+    students: int
+
+
+class TrendsOut(BaseModel):
+    most_asked_topics: list[TopicCount]
+    most_cited_materials: list[MaterialCount]
+    topics_materials_dont_cover: list[TopicCount]

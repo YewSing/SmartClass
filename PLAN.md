@@ -75,40 +75,42 @@ These M8 tasks run before everything else after the T04 checkpoint, so the stude
 - [x] **T23b [UI] Lecturer web app fixes from Yew Sing's T23 device test.** Depends on: T22.
   Partly built in the `WIP T23a` commit (session restore, Accounts refresh, Login message); check it, finish, test, review.
   Done when: (1) **lecturer web app keeps you signed in**: on start, restore the session from the stored token (`/auth/me`, refresh on 401) instead of always showing Login, on web and phone. (2) **admin Accounts refreshes** when the screen regains focus (approving a face in the Face verification tab and returning shows the new face status without signing in again). (3) the admin sign-in shows "Enter your email address" for a non-email instead of a raw 422. Unit tests; Playwright `admin.spec.js` (add: approve then Accounts shows it; reload stays signed in) passes.
-- [ ] **T23c [API+UI] Admin Accounts shows a pending face submission.** Depends on: T22, T17.
+- [x] **T23c [API+UI] Admin Accounts shows a pending face submission.** Depends on: T22, T17.
   Done when: `GET /admin/users` (and the user detail) adds each student's face enrolment status (`none` / `pending_review` / `active` / `rejected`, from `face_enrolment_service.enrolment_status`, one query for the page, not one per user); the admin Accounts screen shows "Pending review" (amber) instead of "No face data" while a submission waits, and it links to the Face verification tab. Found in Yew Sing's T23 retest 2026-11-12: a transport-card submission sat in review while Accounts said "No face data". Tests: API test for each status and no N+1 queries; Playwright `admin.spec.js` case: a seeded pending submission shows "Pending review".
 - [x] **T23 [HUMAN] Checkpoint: M1 and admin screens on real devices.** Yew Sing tries Moodle login, face enrolment and lecturer review on a phone, and the admin area in a browser. A Claude session reviews the work so far.
 
 ## 2. Module 3 — Attendance Management
 
-- [ ] **T29 [API] Sessions open from the class schedule (FR-301, FR-315–FR-317).** Depends on: T02, T04.
+- [x] **T29 [API] Sessions open from the class schedule (FR-301, FR-315–FR-317).** Depends on: T02, T04.
   Done when: a background job opens each class's session `SESSION_EARLY_OPEN_MINUTES` (config, default 15) before its scheduled start and closes it at the scheduled end, once per class date, in Malaysia time; sessions store their effective start and end; a lecturer can set the weekly schedule (day, time, room) of classes they teach, which Moodle sync never overwrites; for one class a lecturer can change the time (before or during it), start now, end early, extend or cancel, each audited and without changing the weekly schedule; a class with no schedule never opens by itself but can be started manually; a session reaching its end with no recognitions and no lecturer action becomes `needs_confirmation`, with no Absent marks and no Moodle sync until the lecturer confirms it was held or not held; tests use a controlled clock for each case.
-- [ ] **T30 [API] Four attendance statuses (FR-302–FR-304).** Depends on: T29.
+- [x] **T30 [API] Four attendance statuses (FR-302–FR-304).** Depends on: T29.
   Done when: attendance status is limited to `present | late | excused | absent`; a first recognition more than `ATTENDANCE_LATE_AFTER_MINUTES` (config, default 15) after the session's effective start records `late`; `excused` is only ever set by a lecturer override (data migration: existing `unidentified` records → `absent`, and unidentified faces live only in the face-review table); the API, seed and tests are updated; CHECK constraint in the DB.
-- [ ] **T31 [API] Override with mandatory reason + full audit (FR-305, NFR-06).** Depends on: T30.
-  Done when: both override endpoints require a non-empty reason (422 otherwise) and audit actor, old, new, reason, time; only the class's lecturer may override (already enforced, with the NFR-04 checks on open, close, roster and exports, in `tests/test_lecturer_access.py`; keep those tests passing). The T02 tests that override without a reason are updated to send one, with a `TEST-CHANGE:` line.
-- [ ] **T32 [API] Attendance rate + history (FR-307–FR-309).** Depends on: T30.
+- [x] **T31 [API] Override with optional reason + full audit (FR-305, NFR-06).** Depends on: T30.
+  Done when: both override endpoints accept an optional reason (trimmed, at most 500 chars, 422 if longer; blank counts as none; made optional by Yew Sing 2026-11-12, it was mandatory) and audit actor, old, new, reason, time; only the class's lecturer may override (already enforced, with the NFR-04 checks on open, close, roster and exports, in `tests/test_lecturer_access.py`; keep those tests passing). The T02 tests that override without a reason are updated to send one, with a `TEST-CHANGE:` line.
+- [x] **T32 [API] Attendance rate + history (FR-307–FR-309).** Depends on: T30.
   Done when: rate = (present + late) ÷ (closed sessions − excused) per student per course, with status counts returned too; student endpoint returns per-course rate + session history; lecturer endpoint returns per-student rates for a course; tests including zero closed sessions and every session excused.
-- [ ] **T33 [API] Reports + CSV export for course/date range (FR-310).** Depends on: T32.
+- [x] **T33 [API] Reports + CSV export for course/date range (FR-310).** Depends on: T32.
   Done when: CSV for a session and for a course over `from`/`to` (students × sessions showing all four statuses + rate); tests check headers and rows.
-- [ ] **T34 [INFRA] Moodle Attendance plugin in the simulated SPeCTRUM.** Depends on: T01, T04.
+- [x] **T34 [INFRA] Moodle Attendance plugin in the simulated SPeCTRUM.** Depends on: T01, T04.
   Done when: `backend/moodle/scripts/setup.sh` installs `mod_attendance` (version matching Moodle 4.5) idempotently, adds its web-service functions (`mod_attendance_add_session`, `mod_attendance_get_sessions`, `mod_attendance_update_user_status`, …) to the `smartclass` service, and `seed.sh` adds an Attendance activity to each seeded course; the plugin's student self-marking stays off for these sessions; a `moodle` test calls `mod_attendance_get_sessions` successfully.
-- [ ] **T35 [API] Sync closed sessions to Moodle Attendance (FR-311, NFR-20, NFR-22).** Depends on: T34, T30.
+- [x] **T35 [API] Sync closed sessions to Moodle Attendance (FR-311, NFR-20, NFR-22).** Depends on: T34, T30.
   Done when: closing a session queues a sync that finds or creates the matching Moodle attendance session and sets each student's status (all four statuses mapped one-to-one to the plugin's status ids); the last status sent for each student is stored; the sync status (`pending | synced | failed | conflict`) is stored on the session; failures retry with backoff; idempotent; unit tests with respx + one `moodle` test end-to-end.
-- [ ] **T36 [API] Re-sync after override, Moodle mismatch check + retry endpoint (FR-312, FR-320).** Depends on: T35, T31.
+- [x] **T36 [API] Re-sync after override, Moodle mismatch check + retry endpoint (FR-312, FR-320).** Depends on: T35, T31.
   Done when: an override on a synced session sets it back to `pending` and re-syncs; before changing a session already in Moodle, and on each scheduled check of synced sessions, the sync reads Moodle's statuses; a student whose Moodle status differs from the last one sent is never overwritten, and the session becomes `conflict` with both values; the lecturer keeps SmartClass's value or takes Moodle's through an endpoint (audited, then re-synced); `POST /lecturer/sessions/{id}/moodle-sync` retries now; sync status in the session API; tests.
-- [ ] **T37 [API] Read interface for Module 7 (FR-313).** Depends on: T32.
+- [x] **T37 [API] Read interface for Module 7 (FR-313).** Depends on: T32.
   Done when: `app/services/attendance_read.py` exposes documented functions (records per course/student, rates, consecutive absences); `docs/interfaces.md` describes them for Shino; tests.
-- [ ] **T38 [UI] Lecturer app: live session, class controls, override with reason, sync status.** Depends on: T29, T31, T36, T03.
-  Done when: lecturers can set a class's weekly schedule, and for one class change the time, start now, end early, extend, cancel, or confirm a `needs_confirmation` session; the session screen updates live over the websocket, late students are shown separately, override offers all four statuses and asks for a reason, sync status is shown with a Retry button, and a conflict shows both values with a choice; Maestro flow starts a session now, overrides a student to Excused with a reason and ends it.
-- [ ] **T39 [UI] Student app: attendance rate + history per course.** Depends on: T32, T03.
+- [x] **T38 [UI] Lecturer app: live session, class controls, override with optional reason, sync status.** Depends on: T29, T31, T36, T03.
+  Done when: lecturers can set a class's weekly schedule, and for one class change the time, start now, end early, extend, cancel, or confirm a `needs_confirmation` session; the session screen updates live over the websocket, late students are shown separately, override offers all four statuses with an optional reason box, sync status is shown with a Retry button, and a conflict shows both values with a choice; Maestro flow starts a session now, overrides a student to Excused with a reason and ends it.
+- [x] **T38b [UI] Simpler class controls, Home counts, instant SPeCTRUM sync (FR-316, FR-312).** Depends on: T38. (Yew Sing, 2026-11-12, after testing T38.)
+  Done when: changing or cancelling one class is gone from the app, API (`PUT /lecturer/classes/{id}/dates/{date}`, `POST …/cancel`) and docs (FR-316, walkthrough, UC-301 "Class cancelled" → Not held), while old `cancelled`/`scheduled` rows still load; the weekly schedule editor says when a new time applies ("Changes apply to upcoming classes. A class already in progress is not affected. For an extra class, use Start now."), has Save beside Cancel and no "No fixed time" button (Yew Sing 2026-11-12); Home and the live screen show the same five counts (Present / Late / Excused / Absent / Not yet) from one shared component, and Home's button goes to the running session (no 409); websocket events are sent only after their change commits; ending a class (or an override after close) sends it to Moodle at once in the background and a `moodle_sync` event turns the badge Synced/Failed/Conflict without Retry (verified against the local Moodle), the queue + backoff staying the retry path; check.sh + `pytest -m db` pass; lecturer Maestro `live-session` and the Playwright suite pass; reviewer PASS.
+- [x] **T39 [UI] Student app: attendance rate + history per course.** Depends on: T32, T03.
   Done when: the Attendance screen shows per-course rate, status counts and session list (all four statuses) from the real API; Maestro flow checks a seeded rate.
 
 ## 3. Module 4 — Face Recognition Verification
 
-- [ ] **T40 [API] Camera device registry + per-device keys + heartbeat (FR-408, NFR-07, NFR-23).** Depends on: T02, T04.
+- [x] **T40 [API] Camera device registry + per-device keys + heartbeat (FR-408, NFR-07, NFR-23).** Depends on: T02, T04.
   Done when: admins can register a device (name, room) and get its key once (stored hashed), regenerate a key (old one revoked); device endpoints authenticate with `X-Device-Key` instead of the shared internal key; `POST /device/heartbeat`; online = heartbeat within 60 s; tests.
-- [ ] **T41 [API] Server-side recognition from face crops (FR-402–FR-405, NFR-10, NFR-22).** Depends on: T40, T30.
+- [x] **T41 [API] Server-side recognition from face crops (FR-402–FR-405, NFR-10, NFR-22).** Depends on: T40, T30.
   Done when: `POST /device/faces` (multipart crop(s)) embeds on the server, matches only students enrolled in the open session's course above the threshold, keeps per-device consecutive-match votes (default 3) and records Present or Late through the attendance service; non-enrolled matches are logged, not recorded; tests with InsightFace sample images (match, late arrival, below threshold, not enrolled, vote counting, duplicate).
 - [ ] **T42 [API] Device client for Pi and webcam (FR-401, FR-409, FR-411).** Depends on: T41.
   Done when: `device_client/` (replaces `face_worker/`'s role) polls for an open session for its room, detects faces locally (light model suitable for a Pi), POSTs crops with its key, sends heartbeats, optionally buffers while offline; runs on the laptop with a USB webcam via `python -m device_client --camera 0`; unit tests for the detection → crop → post logic with a fake camera.
@@ -125,9 +127,9 @@ These M8 tasks run before everything else after the T04 checkpoint, so the stude
 
 ## 4. Module 8 — AI Learning Assistant
 
-- [ ] **T81 [API] Scheduled material sync + lecturer materials status (FR-803, FR-804).** Depends on: T80.
+- [x] **T81 [API] Scheduled material sync + lecturer materials status (FR-803, FR-804).** Depends on: T80.
   Done when: sync runs on a configurable schedule for all courses; only the course's lecturer (or admin) can trigger a sync or list status; tests.
-- [ ] **T82 [INFRA] Live Gemini test suite + record/replay + Q&A evaluation harness (NFR-18, NFR-19, NFR-21).** Depends on: T80.
+- [x] **T82 [INFRA] Live Gemini test suite + record/replay + Q&A evaluation harness (NFR-18, NFR-19, NFR-21).** Depends on: T80.
   Done when:
   - **Synthetic test course:** `backend/tests/fixtures/course/` holds 3 short teaching documents written for testing (e.g. software-testing notes; no real course material), indexed into the test DB by a fixture. Live tests use only this, so they are stable and copyright-free.
   - **LLM adapter hardening (production code):** client-side rate limiter (`LLM_RPM`, default 10), retry with backoff on 429/5xx (max 3), and a distinct `LLMQuotaExhausted` error for daily-quota exhaustion.
@@ -136,13 +138,13 @@ These M8 tasks run before everything else after the T04 checkpoint, so the stude
   - **Automatic trigger:** `scripts/check.sh` runs `pytest -m live` itself when the round changed `app/services/kb/` or any prompt file (diff vs `SMARTCLASS_BASE`). It runs **at most once per code state**: a hash of `app/services/kb/` + prompts is stored in `.claude/.live-pass` (git-ignored) after a pass, and check.sh skips the live suite when the hash is unchanged. Otherwise the Stop hook and the loop script calling check.sh several times per round would burn the daily quota. If Gemini's daily quota is exhausted, the live tests skip with reason `LLM_QUOTA` and check.sh prints `LIVE TESTS PENDING (quota)`; the task is then marked `[~]` with "re-run live tests" instead of blocking the loop.
   - **Eval harness:** `backend/eval/qa_set.jsonl` (draft ~20 in-syllabus + 5 off-syllabus questions over the seeded courses, `draft: true`) and `scripts/eval_assistant.py`, which runs them throttled and reports citation-support, off-syllabus labelling, latency (NFR-14) and an LLM-judged correctness score, for the report.
 - [ ] **T83 [HUMAN] Review and finalise the Q&A evaluation set** (correct answers, remove `draft`).
-- [ ] **T85 [API] Summary / study guide (FR-810).** Depends on: T82.
+- [x] **T85 [API] Summary / study guide (FR-810).** Depends on: T82.
   Done when: `POST /student/assistant/summaries {course_id, material_id | topic, kind: summary|study_guide}` returns structured markdown with citations; replay/mock tests + live cases added to the T82 suite (≥3: material summary, topic study guide, topic not in materials) with recorded fixtures.
-- [ ] **T86 [API] Flashcards + practice questions (FR-811).** Depends on: T82.
+- [x] **T86 [API] Flashcards + practice questions (FR-811).** Depends on: T82.
   Done when: endpoint returns validated JSON (cards: front/back/citation; questions: stem/options/answer/explanation/citation); malformed LLM output is retried once, then 502; replay/mock tests + live cases in the T82 suite (≥4: flashcards and practice questions for 2 materials each, JSON schema-valid, every citation real) with recorded fixtures.
-- [ ] **T87 [API] Anonymised question trends for lecturers (FR-813, NFR-09).** Depends on: T80.
+- [x] **T87 [API] Anonymised question trends for lecturers (FR-813, NFR-09).** Depends on: T80.
   Done when: each student question is tagged with a topic (from the cited materials/sections or a cheap LLM label); the lecturer endpoint returns three lists, most-asked topics, most-cited materials, and most-asked topics the materials don't cover (answers labelled general knowledge), each with ≥3 distinct students only and no names or text; tests prove that k<3 topics are hidden and that no endpoint exposes another student's chat.
-- [ ] **T88 [API] Retrieval interface for Module 6 (FR-814).** Depends on: T80.
+- [x] **T88 [API] Retrieval interface for Module 6 (FR-814).** Depends on: T80.
   Done when: `app/services/kb/retrieval_api.py` (`search(course_id, query, k)` → passages with source) is documented in `docs/interfaces.md`; tests.
 - [ ] **T90 [UI] Student app: summaries + flashcards/practice.** Depends on: T85, T86, T89.
   Done when: screens for generate summary, flip flashcards, answer practice questions; Maestro flow with the fake LLM.

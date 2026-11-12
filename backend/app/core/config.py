@@ -9,11 +9,15 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
-    INTERNAL_API_KEY: str = "worker-shared-secret"
+    INTERNAL_API_KEY: str = "worker-shared-secret"   # unused since T40 (devices have their own keys); kept so old .env files load
+    DEVICE_ONLINE_SECONDS: int = 60   # FR-408/NFR-23: a device is online if it sent a heartbeat this recently
 
     FACE_MATCH_THRESHOLD: float = 0.40
     INSIGHTFACE_MODEL: str = "buffalo_sc"
     FACE_VOTE_THRESHOLD: int = 3
+    FACE_VOTE_MAX_GAP_SECONDS: int = 10   # FR-404: frames further apart than this aren't "consecutive"
+    DEVICE_MAX_CROPS: int = 10            # crops per POST /device/faces (one frame)
+    DEVICE_MAX_CROP_BYTES: int = 2 * 1024 * 1024
     FACE_COOLDOWN_SECONDS: int = 30
     # PDPA face-data notice the student app shows (FR-109). Bump it when the wording changes.
     FACE_CONSENT_VERSION: str = "2026-11-v1"
@@ -52,6 +56,9 @@ class Settings(BaseSettings):
     LLM_MAX_OUTPUT_TOKENS: int = 1200
     LLM_REASONING_EFFORT: str = ""   # e.g. "low" for Gemini thinking models; empty = not sent
     LLM_FAKE: bool = False           # E2E only: canned answers, no provider call (see llm.fake_chat)
+    LLM_RPM: int = 10                # client-side requests-per-minute cap (provider free tier)
+    LLM_MAX_RETRIES: int = 3         # retries on 429/5xx before giving up (NFR-21)
+    LLM_RETRY_BASE_SECONDS: float = 1.0   # backoff base; doubles each retry
     ASSISTANT_HISTORY_TURNS: int = 3          # previous Q/A pairs sent for follow-ups
     ASSISTANT_REWRITE_FOLLOWUPS: bool = True  # rewrite follow-ups into standalone retrieval queries
     ASSISTANT_TOP_K: int = 8
@@ -63,11 +70,23 @@ class Settings(BaseSettings):
     KB_CHUNK_MAX_TOKENS: int = 500
     KB_CHUNK_OVERLAP_TOKENS: int = 50
 
+    # Class sessions from the timetable (FR-301, FR-315–FR-317)
+    SESSION_EARLY_OPEN_MINUTES: int = 15          # FR-301: sessions open this long before the scheduled start
+    SESSION_SCHEDULER_INTERVAL_SECONDS: int = 60  # 0 disables the schedule job (the E2E backends turn it off)
+    SESSION_DEFAULT_MINUTES: int = 120            # length of a "start now" class that has no schedule
+    ATTENDANCE_LATE_AFTER_MINUTES: int = 15       # FR-302: a first recognition later than this after the effective start is Late
+
     # Moodle (UM SPeCTRUM simulation) – source of courses and materials
     MOODLE_URL: str = "http://localhost:8080"
     MOODLE_TOKEN: str = ""
     KB_SYNC_INTERVAL_SECONDS: int = 300       # 0 disables; also disabled when MOODLE_TOKEN is empty
     MOODLE_SYNC_INTERVAL_SECONDS: int = 900   # courses + enrolments (FR-104); same rules as above
+    # Closed sessions -> Moodle Attendance (FR-311, NFR-20); same rules as above
+    MOODLE_ATTENDANCE_SYNC_INTERVAL_SECONDS: int = 30
+    MOODLE_ATTENDANCE_RETRY_BASE_SECONDS: int = 60     # first retry after a failure; doubles each time
+    MOODLE_ATTENDANCE_RETRY_MAX_SECONDS: int = 3600    # backoff cap; retries never stop
+    MOODLE_ATTENDANCE_CHECK_INTERVAL_SECONDS: int = 10800  # re-read synced sessions in Moodle this often (FR-320)
+    MOODLE_ATTENDANCE_CHECK_DAYS: int = 30             # ...for sessions closed within this many days
 
 
 settings = Settings()

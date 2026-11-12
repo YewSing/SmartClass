@@ -39,7 +39,9 @@ Thumbs.db
 backend/moodle/.env.moodle
 
 # Real matric card photos for threshold calibration (T21) — never committed (PDPA)
-backend/eval/
+backend/eval/*
+# ... but the Q&A evaluation set (T82) is a committed deliverable
+!backend/eval/qa_set.jsonl
 
 # Local tool installs (Maestro CLI, from scripts/e2e-mobile.sh)
 .tools/

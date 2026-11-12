@@ -1,6 +1,6 @@
 import csv
 import io
-from datetime import date, timedelta
+from datetime import date
 
 from app.core.timezone import now_myt
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -9,13 +9,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.core.database import get_db
+from app.core.database import after_commit, get_db
 from app.core.deps import ensure_teaches_occurrence, require_role
 from app.models.user import User, Student
 from app.models.class_ import Enrollment, ClassOccurrence
 from app.models.session import AttendanceSession
-from app.models.attendance import AttendanceRecord
+from app.models.attendance import AttendanceRecord, ATTENDANCE_STATUSES
 from app.schemas.session import AttendanceStudentOut, OverrideRequest, SessionOverrideRequest
+from app.services import attendance_moodle_sync
+from app.services.attendance_stats import class_report, resolve_date_range, session_date, session_label
 from app.services.audit_service import write_log
 from app.services.session_service import get_session_counts
 from app.websocket.manager import manager
@@ -23,6 +25,8 @@ from app.websocket.manager import manager
 router = APIRouter(tags=["attendance"])
 
 _lecturer = require_role("lecturer")
+
+_LETTER = {"present": "P", "late": "L", "excused": "E", "absent": "A"}
 
 
 async def _get_taught_session(db: AsyncSession, actor: User, session_id: int) -> AttendanceSession:
@@ -78,6 +82,22 @@ async def get_session_attendance(
     return out
 
 
+def _announce_override(db: AsyncSession, session_id: int, counts: dict, student: dict,
+                       session: AttendanceSession) -> None:
+    """After the override commits: tell the session's screens, and re-send a closed session to
+    Moodle at once (FR-312, T38b)."""
+    payload = {"event": "attendance_override", "session_id": session_id, "counts": counts, "student": student}
+    if session.moodle_sync_status is not None:
+        payload["moodle_sync_status"] = session.moodle_sync_status
+
+    async def _broadcast() -> None:
+        await manager.broadcast(session_id, payload)
+
+    after_commit(db, _broadcast)
+    if session.moodle_sync_status == "pending":
+        attendance_moodle_sync.sync_soon(db, session_id)
+
+
 @router.put("/attendance/{record_id}/override", response_model=AttendanceStudentOut)
 async def override_attendance(
     record_id: int,
@@ -85,8 +105,10 @@ async def override_attendance(
     db: AsyncSession = Depends(get_db),
     actor: User = Depends(_lecturer),
 ):
-    if body.status not in ("present", "absent"):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Status must be 'present' or 'absent'")
+    """Override one record's status. An optional reason (FR-305) is audited."""
+    if body.status not in ATTENDANCE_STATUSES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Status must be one of: present, late, excused, absent")
 
     result = await db.execute(
         select(AttendanceRecord)
@@ -96,33 +118,29 @@ async def override_attendance(
     record = result.scalar_one_or_none()
     if not record:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attendance record not found")
-    await _get_taught_session(db, actor, record.session_id)
+    session = await _get_taught_session(db, actor, record.session_id)
 
     old_status = record.status
 
     # Audit log and status update in same flush — rolled back together on error (NFR-05)
     await write_log(
         db, actor.id, "ATTENDANCE_OVERRIDE", "attendance_record", record_id,
-        old_val={"status": old_status}, new_val={"status": body.status},
+        old_val={"status": old_status}, new_val={"status": body.status, "reason": body.reason},
     )
     record.status = body.status
     record.override_by = actor.id
     record.override_at = now_myt()
+    attendance_moodle_sync.queue_resync(session, record.override_at)  # FR-312
     await db.flush()
 
     counts = await get_session_counts(record.session_id, db)
-    await manager.broadcast(record.session_id, {
-        "event": "attendance_override",
-        "session_id": record.session_id,
-        "counts": counts,
-        "student": {
-            "id": record.student_id,
-            "name": record.student.user.name,
-            "matric_no": record.student.matric_no,
-            "status": record.status,
-            "record_id": record.id,
-        },
-    })
+    _announce_override(db, record.session_id, counts, {
+        "id": record.student_id,
+        "name": record.student.user.name,
+        "matric_no": record.student.matric_no,
+        "status": record.status,
+        "record_id": record.id,
+    }, session)
 
     return AttendanceStudentOut(
         record_id=record.id,
@@ -142,10 +160,14 @@ async def override_session_attendance(
     db: AsyncSession = Depends(get_db),
     actor: User = Depends(_lecturer),
 ):
-    """Create-or-update an attendance record for a student who has no existing record (not_recorded → present/absent)."""
-    if body.status not in ("present", "absent"):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Status must be 'present' or 'absent'")
-    await _get_taught_session(db, actor, session_id)
+    """Create-or-update an attendance record for a student who has no existing record (not_recorded → any of the four statuses).
+
+    An optional reason (FR-305) is audited.
+    """
+    if body.status not in ATTENDANCE_STATUSES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Status must be one of: present, late, excused, absent")
+    session = await _get_taught_session(db, actor, session_id)
 
     student_result = await db.execute(
         select(Student)
@@ -182,22 +204,18 @@ async def override_session_attendance(
         old_status = "not_recorded"
 
     await write_log(db, actor.id, "ATTENDANCE_OVERRIDE", "attendance_record", record.id,
-        old_val={"status": old_status}, new_val={"status": body.status})
+        old_val={"status": old_status}, new_val={"status": body.status, "reason": body.reason})
+    attendance_moodle_sync.queue_resync(session, now)  # FR-312
     await db.flush()
 
     counts = await get_session_counts(session_id, db)
-    await manager.broadcast(session_id, {
-        "event": "attendance_override",
-        "session_id": session_id,
-        "counts": counts,
-        "student": {
-            "id": record.student_id,
-            "name": student.user.name,
-            "matric_no": student.matric_no,
-            "status": record.status,
-            "record_id": record.id,
-        },
-    })
+    _announce_override(db, session_id, counts, {
+        "id": record.student_id,
+        "name": student.user.name,
+        "matric_no": student.matric_no,
+        "status": record.status,
+        "record_id": record.id,
+    }, session)
 
     return AttendanceStudentOut(
         record_id=record.id,
@@ -241,12 +259,13 @@ async def export_session(
         writer.writerow([
             stu.matric_no,
             stu.user.name,
-            rec.status if rec else "absent",
+            rec.status if rec else ("absent" if session.status == "closed" else "not_recorded"),
             rec.detected_at.isoformat() if rec and rec.detected_at else "",
             "Yes" if rec and rec.override_by else "No",
         ])
 
-    filename = f"attendance_{session.occurrence.course.code}_{session.opened_at.strftime('%Y%m%d')}.csv"
+    d = session_date(session) or now_myt().date()
+    filename = f"attendance_{session.occurrence.course.code}_{d.strftime('%Y%m%d')}.csv"
     output.seek(0)
     return StreamingResponse(
         iter([output.getvalue()]),
@@ -258,7 +277,9 @@ async def export_session(
 @router.get("/lecturer/occurrences/{occ_id}/attendance/export")
 async def export_occurrence(
     occ_id: int,
-    from_date: date | None = Query(None),
+    from_: date | None = Query(None, alias="from"),
+    to: date | None = Query(None),
+    from_date: date | None = Query(None),   # older name, used by the lecturer app's Analytics screen
     to_date: date | None = Query(None),
     db: AsyncSession = Depends(get_db),
     actor: User = Depends(_lecturer),
@@ -273,62 +294,43 @@ async def export_occurrence(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Occurrence not found")
     await ensure_teaches_occurrence(db, actor, occ_id)
 
-    session_filters = [
-        AttendanceSession.occurrence_id == occ_id,
-        AttendanceSession.status == "closed",
-    ]
-    if from_date:
-        session_filters.append(AttendanceSession.opened_at >= from_date)
-    if to_date:
-        session_filters.append(AttendanceSession.opened_at < to_date + timedelta(days=1))
+    try:
+        start, end = resolve_date_range(from_, to, from_date, to_date)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
 
-    sessions_result = await db.execute(
-        select(AttendanceSession)
-        .where(*session_filters)
-        .order_by(AttendanceSession.opened_at)
-    )
-    sessions = sessions_result.scalars().all()
-
-    enrolled = await db.execute(
-        select(Student)
-        .options(selectinload(Student.user))
-        .join(Enrollment, Enrollment.student_id == Student.id)
-        .where(Enrollment.occurrence_id == occ_id)
-        .order_by(Student.matric_no)
-    )
-    students = enrolled.scalars().all()
-
-    records_by_session: dict[int, dict[int, str]] = {}
-    for sess in sessions:
-        recs = await db.execute(
-            select(AttendanceRecord).where(AttendanceRecord.session_id == sess.id)
-        )
-        records_by_session[sess.id] = {r.student_id: r.status for r in recs.scalars().all()}
+    sessions, rows = await class_report(db, occ_id, start, end)
 
     output = io.StringIO()
     writer = csv.writer(output)
-    session_labels = [s.opened_at.strftime('%d-%b') for s in sessions]
-    writer.writerow(["Matric No", "Name"] + session_labels + ["Total", "Rate"])
+    writer.writerow(
+        ["Matric No", "Name"]
+        + [session_label(s) for s in sessions]
+        + ["Present", "Late", "Excused", "Absent", "Total", "Rate"]
+    )
 
-    for stu in students:
-        row = [stu.matric_no, stu.user.name]
-        present = 0
-        for sess in sessions:
-            att = records_by_session[sess.id].get(stu.id, "absent")
-            if att == "present":
-                row.append("P")
-                present += 1
-            elif att == "unidentified":
-                row.append("U")
-            else:
-                row.append("A")
-        total = len(sessions)
-        rate = round((present / total) * 100, 1) if total > 0 else 0.0
-        row += [f"{present}/{total}", f"{rate}%"]
-        writer.writerow(row)
+    for row in rows:
+        counts = row["counts"]
+        writer.writerow([
+            row["matric_no"],
+            row["name"],
+            *[_LETTER[x] for x in row["statuses"]],
+            counts.present,
+            counts.late,
+            counts.excused,
+            counts.absent,
+            f"{counts.attended}/{counts.counted_sessions}",
+            f"{counts.rate}%" if counts.rate is not None else "",
+        ])
 
-    year = sessions[0].opened_at.year if sessions else now_myt().year
-    filename = f"attendance_report_{occ.course.code}_{year}.csv"
+    today = now_myt().date()
+    first_day = session_date(sessions[0]) if sessions else None
+    last_day = session_date(sessions[-1]) if sessions else None
+    start_day = start or first_day or today
+    end_day = end or last_day or today
+    filename = (
+        f"attendance_report_{occ.course.code}_{start_day:%Y%m%d}_{end_day:%Y%m%d}.csv"
+    )
     output.seek(0)
     return StreamingResponse(
         iter([output.getvalue()]),

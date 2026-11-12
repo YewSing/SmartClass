@@ -12,6 +12,10 @@ import { navigateTo } from '../navigation/navigationRef'
 import { useWideLayout } from '../hooks/useWideLayout'
 import { C } from '../theme'
 import Badge from './Badge'
+import {
+  STATUSES, WEEK_DAYS, timeOptions, OVERRIDE_REASON_MAX, statusLabel, statusBadge, overrideReasonError,
+  weeklyScheduleError,
+} from '../services/attendance'
 
 // ─── Sheet wrapper ─────────────────────────────────────────────────────────────
 
@@ -198,52 +202,185 @@ function QuizModal({ visible, onClose, quiz }) {
 
 // ─── StudentModal ──────────────────────────────────────────────────────────────
 
+// Override to any of the four statuses with an optional reason (FR-305); the reason is audited
 function StudentModal({ visible, onClose, data, overrideStudent }) {
   const [busy, setBusy] = useState(false)
+  const [choice, setChoice] = useState(null)
+  const [reason, setReason] = useState('')
+  const [err, setErr] = useState('')
 
-  useEffect(() => { if (visible) setBusy(false) }, [visible])
+  useEffect(() => {
+    if (visible) { setBusy(false); setChoice(null); setReason(''); setErr('') }
+  }, [visible])
 
   if (!data) return null
 
-  const avatarStyle = data.status === 'present'
-    ? { bg: C.blueLt, color: C.blueDk }
-    : data.status === 'absent'
-    ? { bg: C.redLt, color: C.redDk }
-    : { bg: C.orangeLt, color: C.orangeDk }
-
   const inits = data.initials ?? data.name.split(' ').map(p => p[0]).join('').substring(0, 2).toUpperCase()
+  const picked = choice ?? data.status
 
-  const handleOverride = async (newStatus) => {
+  const handleSave = async () => {
+    const reasonErr = overrideReasonError(reason)
+    if (reasonErr) { setErr(reasonErr); return }
     setBusy(true)
     try {
-      await overrideStudent(data.recordId, newStatus, data.studentId)
+      await overrideStudent(data.recordId, picked, data.studentId, reason)
       onClose()
     } catch {
-      setBusy(false)
+      setBusy(false)   // the error toast is shown by the context
     }
   }
 
-  const statusVariant = data.status === 'present' ? 'green' : data.status === 'absent' ? 'red' : 'orange'
-  const statusLabel = data.status === 'present' ? 'Present' : data.status === 'absent' ? 'Absent' : 'Unidentified'
+  const unchanged = !choice || choice === data.status
 
   return (
     <Sheet visible={visible} onClose={onClose}>
       <View style={styles.studentHeader}>
-        <View style={[styles.avatarLg, { backgroundColor: avatarStyle.bg }]}>
-          <Text style={[styles.avatarLgText, { color: avatarStyle.color }]}>{inits}</Text>
+        <View style={[styles.avatarLg, { backgroundColor: C.blueLt }]}>
+          <Text style={[styles.avatarLgText, { color: C.blueDk }]}>{inits}</Text>
         </View>
         <View style={styles.studentHeaderInfo}>
           <Text style={styles.studentName}>{data.name}</Text>
-          <Text style={styles.studentId}>{data.id}</Text>
+          <Text style={styles.studentId}>{data.id}{data.arrivedAt ? ` · arrived ${data.arrivedAt}` : ''}</Text>
         </View>
-        <Badge variant={statusVariant} dot>{statusLabel}</Badge>
+        <Badge variant={statusBadge(data.status)} dot>{statusLabel(data.status)}</Badge>
       </View>
-      {data.status === 'present'
-        ? <BtnDanger label="Mark Absent" icon="close" disabled={busy} onPress={() => handleOverride('absent')} />
-        : <BtnPrimary label="Mark Present" icon="checkmark" disabled={busy} onPress={() => handleOverride('present')} />
-      }
+
+      <Text style={styles.inputLabel}>Change status to</Text>
+      <View style={styles.statusGrid}>
+        {STATUSES.map(s => {
+          const on = picked === s
+          return (
+            <TouchableOpacity
+              key={s}
+              testID={`status-option-${s}`}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: on }}
+              style={[styles.statusOption, on && styles.statusOptionOn]}
+              onPress={() => setChoice(s)}
+            >
+              <Text style={[styles.statusOptionText, on && styles.statusOptionTextOn]}>{statusLabel(s)}</Text>
+            </TouchableOpacity>
+          )
+        })}
+      </View>
+
+      <Text style={styles.inputLabel}>Reason (optional)</Text>
+      <TextInput
+        testID="override-reason"
+        style={[styles.input, styles.reasonInput]}
+        placeholder="e.g. medical certificate"
+        placeholderTextColor={C.textHint}
+        value={reason}
+        onChangeText={(t) => { setReason(t); setErr('') }}
+        multiline
+        maxLength={OVERRIDE_REASON_MAX + 50}
+      />
+      {err ? <Text style={styles.errText}>{err}</Text> : null}
+
+      <BtnPrimary
+        label={busy ? 'Saving…' : unchanged ? 'Pick a new status' : `Mark ${statusLabel(picked)}`}
+        icon={busy || unchanged ? undefined : 'checkmark'}
+        disabled={busy || unchanged}
+        onPress={handleSave}
+      />
       <Divider />
       <BtnOutline label="Cancel" onPress={onClose} />
+    </Sheet>
+  )
+}
+
+// ─── WeeklyScheduleModal (FR-301) ──────────────────────────────────────────────
+
+// A time field that opens a list of half-hour times instead of free typing
+function TimeSelect({ label, value, onChange, after, testID }) {
+  const [open, setOpen] = useState(false)
+  const options = timeOptions(after)
+  return (
+    <View style={styles.flex1}>
+      <Text style={styles.inputLabel}>{label}</Text>
+      <TouchableOpacity style={[styles.input, styles.timeField, open && styles.statusOptionOn]} testID={testID}
+        onPress={() => setOpen(o => !o)} accessibilityRole="button" accessibilityLabel={`${label} time`}>
+        <Text style={[styles.statusOptionText, !value && { color: C.textHint }]}>{value || 'Choose'}</Text>
+        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color={C.textSub} />
+      </TouchableOpacity>
+      {open ? (
+        <ScrollView style={styles.timeList} nestedScrollEnabled>
+          {options.length === 0 ? <Text style={styles.hintText}>Pick an earlier start first.</Text> : null}
+          {options.map(t => (
+            <TouchableOpacity key={t} testID={`${testID}-${t}`} style={[styles.timeOption, value === t && styles.statusOptionOn]}
+              onPress={() => { onChange(t); setOpen(false) }} accessibilityRole="radio" accessibilityState={{ selected: value === t }}>
+              <Text style={[styles.statusOptionText, value === t && styles.statusOptionTextOn]}>{t}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      ) : null}
+    </View>
+  )
+}
+
+const SCHEDULE_HINT =
+  'Changes apply to upcoming classes. A class already in progress is not affected. For an extra class, use Start now.'
+
+function WeeklyScheduleModal({ visible, onClose, data }) {
+  const { doSetWeeklySchedule, closeModal } = useLecturer()
+  const [day, setDay] = useState(null)
+  const [start, setStart] = useState('')
+  const [end, setEnd] = useState('')
+  const [room, setRoom] = useState('')
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    if (!visible || !data) return
+    setDay(WEEK_DAYS.includes(data.day_of_week) ? data.day_of_week : null);   // a weekend slot must be moved to a weekday setStart(data.start_time ?? ''); setEnd(data.end_time ?? '')
+    setRoom(data.room ?? ''); setErr(''); setBusy(false)
+  }, [visible, data])
+
+  if (!data) return null
+
+  const save = async (slot) => {
+    const e = weeklyScheduleError(slot)
+    if (e) { setErr(e); return }
+    setBusy(true)
+    try {
+      await doSetWeeklySchedule(data.classId, slot)
+      closeModal()
+    } catch (ex) {
+      setErr(ex.message || 'Could not save the schedule.')
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Sheet visible={visible} onClose={onClose}>
+      <ModalTitle>Weekly schedule</ModalTitle>
+      <ModalSub>{data.title} · sessions open {data.earlyMinutes ?? 15} min before the start. SPeCTRUM sync never changes this.</ModalSub>
+      {err ? <Text style={styles.errText}>{err}</Text> : null}
+      <Text style={styles.inputLabel}>Day</Text>
+      <View style={styles.statusGrid}>
+        {WEEK_DAYS.map(d => (
+          <TouchableOpacity key={d} style={[styles.dayChip, day === d && styles.statusOptionOn]}
+            onPress={() => setDay(d)} accessibilityRole="radio" accessibilityState={{ selected: day === d }}>
+            <Text style={[styles.statusOptionText, day === d && styles.statusOptionTextOn]}>{d}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      <View style={[styles.btnRow, styles.timeRow]}>
+        <TimeSelect label="Start" value={start} testID="schedule-start"
+          onChange={t => { setStart(t); if (end && end <= t) setEnd('') }} />
+        <TimeSelect label="End" value={end} after={start || null} testID="schedule-end" onChange={setEnd} />
+      </View>
+      <Text style={styles.inputLabel}>Room (optional)</Text>
+      <TextInput style={styles.input} value={room} onChangeText={setRoom}
+        placeholder="e.g. DK 2 FSKTM" placeholderTextColor={C.textHint} />
+      <Text style={styles.hintText} testID="schedule-hint">
+        {SCHEDULE_HINT}
+      </Text>
+      <BtnRow>
+        <BtnOutline label="Cancel" onPress={onClose} />
+        <BtnPrimary label={busy ? 'Saving…' : 'Save schedule'} icon="checkmark" disabled={busy}
+          onPress={() => save({ day, start: start.trim(), end: end.trim(), room })} />
+      </BtnRow>
     </Sheet>
   )
 }
@@ -432,6 +569,7 @@ export default function ModalRouter() {
       <ConfusionResetModal visible={type === 'confusion-reset'} onClose={closeModal} />
       <QuizModal visible={type === 'quiz'} onClose={closeModal} quiz={type === 'quiz' ? data : null} />
       <StudentModal visible={type === 'student'} onClose={closeModal} data={type === 'student' ? data : null} overrideStudent={overrideStudent} />
+      <WeeklyScheduleModal visible={type === 'weekly-schedule'} onClose={closeModal} data={type === 'weekly-schedule' ? data : null} />
       <ExportModal visible={type === 'export'} onClose={closeModal} data={data} />
       <ChangePasswordModal visible={type === 'change-password'} onClose={closeModal} />
       <SignOutModal visible={type === 'signout'} onClose={closeModal} onConfirm={handleSignOut} />
@@ -550,6 +688,78 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: C.text,
     marginBottom: 4,
+  },
+  statusGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 14,
+  },
+  statusOption: {
+    flexGrow: 1,
+    flexBasis: '45%',
+    alignItems: 'center',
+    paddingVertical: 11,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: C.border,
+    backgroundColor: C.card,
+  },
+  dayChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: C.border,
+    backgroundColor: C.card,
+  },
+  statusOptionOn: {
+    borderColor: C.primary,
+    backgroundColor: C.blueLt,
+  },
+  statusOptionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: C.text,
+  },
+  statusOptionTextOn: {
+    color: C.primary,
+  },
+  reasonInput: {
+    minHeight: 64,
+    textAlignVertical: 'top',
+  },
+  timeRow: {
+    alignItems: 'flex-start',
+  },
+  timeField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  timeList: {
+    maxHeight: 180,
+    marginTop: -6,
+    marginBottom: 12,
+    borderWidth: 1.5,
+    borderColor: C.border,
+    borderRadius: 10,
+    backgroundColor: C.card,
+  },
+  timeOption: {
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+  },
+  hintText: {
+    fontSize: 12,
+    color: C.textSub,
+    marginTop: -8,
+    marginBottom: 12,
+  },
+  flex1: {
+    flex: 1,
   },
   errText: {
     fontSize: 13,

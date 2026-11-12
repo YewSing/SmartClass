@@ -11,6 +11,7 @@ from app.core.config import settings
 from app.core.timezone import now_myt
 from app.models.face import FaceEmbedding
 from app.models.face_enrolment import FaceEnrolment, FaceEnrolmentImage
+from app.models.user import Student
 from app.schemas.face_enrolment import FaceEnrolmentOut
 
 NO_SELFIE_FACE_MESSAGE = "We couldn't see your face in the selfies. Face the camera in good light and retake."
@@ -56,6 +57,33 @@ async def enrolment_status(db: AsyncSession, student_id: int) -> FaceEnrolmentOu
         return FaceEnrolmentOut(status=last.status, reason=last.reason, blocked_attempts=blocked,
                                 can_submit_anyway=can_anyway, **times)
     return FaceEnrolmentOut(status="not_enrolled", blocked_attempts=blocked, can_submit_anyway=can_anyway)
+
+
+def status_word(has_face: bool, last_status: str | None) -> str:
+    """The rule of enrolment_status as a word, for lists (embeddings win, then the latest
+    non-blocked submission if it waits or was rejected)."""
+    if has_face:
+        return "active"
+    if last_status in ("pending_review", "rejected"):
+        return last_status
+    return "not_enrolled"
+
+
+async def enrolment_statuses(db: AsyncSession, student_ids: list[int]) -> dict[int, str]:
+    """Face enrolment status per student (students.id) in one query, for the admin account list."""
+    if not student_ids:
+        return {}
+    has_face = (select(FaceEmbedding.id)
+                .where(FaceEmbedding.student_id == Student.id)
+                .exists())
+    last_status = (select(FaceEnrolment.status)
+                   .where(FaceEnrolment.student_id == Student.id, FaceEnrolment.status != "blocked")
+                   .order_by(FaceEnrolment.id.desc())
+                   .limit(1)
+                   .correlate(Student)
+                   .scalar_subquery())
+    rows = await db.execute(select(Student.id, has_face, last_status).where(Student.id.in_(student_ids)))
+    return {sid: status_word(face, last) for sid, face, last in rows}
 
 
 async def clear_review_data(db: AsyncSession, enrolment: FaceEnrolment) -> int:

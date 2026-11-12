@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useLecturer } from '../context/LecturerContext'
 import Topbar from '../components/Topbar'
 import Badge from '../components/Badge'
+import { sessionStateBadge, sessionStateLabel, syncInfo } from '../services/attendance'
 import { C } from '../theme'
 
 export default function AttendanceSessions({ navigation }) {
@@ -26,41 +27,52 @@ export default function AttendanceSessions({ navigation }) {
     navigation.navigate('AttendanceDetail')
   }
 
-  const renderItem = ({ item: s }) => (
-    <TouchableOpacity style={styles.sessionItem} onPress={() => handleSessionClick(s)}>
-      <View style={[styles.dateBlock, { backgroundColor: s.open ? C.greenLt : C.gray100 }]}>
-        <Text style={[styles.dateDay, { color: s.open ? C.green : C.gray600 }]}>{s.day}</Text>
-        <Text style={[styles.dateMonth, { color: s.open ? C.greenDk : C.gray500 }]}>{s.month}</Text>
-      </View>
-      <View style={styles.sessionInfo}>
-        <Text style={styles.sessionTitle}>{s.class_code} — {s.class_name}</Text>
-        {s.open ? (
-          <View style={styles.rowGap}>
-            <Text style={styles.sessionSub}>{s.time}</Text>
-            <Badge variant="green" dot style={{ paddingVertical: 2, paddingHorizontal: 6 }}>Open now</Badge>
-          </View>
-        ) : (
-          <Text style={styles.sessionSub}>
-            {s.time}{s.duration ? ` · (${s.duration})` : ''}
-          </Text>
-        )}
-        <View style={styles.chipsRow}>
-          <View style={[styles.chip, { backgroundColor: C.greenLt }]}>
-            <Text style={[styles.chipText, { color: C.greenDk }]}>{s.present} Present</Text>
-          </View>
-          <View style={[styles.chip, { backgroundColor: C.redLt }]}>
-            <Text style={[styles.chipText, { color: C.redDk }]}>{s.absent} Absent</Text>
-          </View>
-          {s.unid > 0 && (
-            <View style={[styles.chip, { backgroundColor: C.orangeLt }]}>
-              <Text style={[styles.chipText, { color: C.orangeDk }]}>{s.unid} Unidentified</Text>
-            </View>
-          )}
+  const renderItem = ({ item: s }) => {
+    const sync = syncInfo(s)
+    const badgeStyle = { paddingVertical: 2, paddingHorizontal: 6 }
+    return (
+      <TouchableOpacity style={styles.sessionItem} testID="session-row" onPress={() => handleSessionClick(s)}>
+        <View style={[styles.dateBlock, { backgroundColor: s.open ? C.greenLt : C.gray100 }]}>
+          <Text style={[styles.dateDay, { color: s.open ? C.green : C.gray600 }]}>{s.day}</Text>
+          <Text style={[styles.dateMonth, { color: s.open ? C.greenDk : C.gray500 }]}>{s.month}</Text>
         </View>
-      </View>
-      <Ionicons name="chevron-forward" size={14} color={C.gray300} />
-    </TouchableOpacity>
-  )
+        <View style={styles.sessionInfo}>
+          <Text style={styles.sessionTitle}>{s.class_code} — {s.class_name}</Text>
+          <View style={styles.rowGap}>
+            <Text style={styles.sessionSub}>
+              {s.time}{!s.open && s.duration ? ` · (${s.duration})` : ''}
+            </Text>
+            {s.status !== 'closed' ? (
+              <Badge variant={sessionStateBadge(s.status)} dot style={badgeStyle}>{sessionStateLabel(s.status)}</Badge>
+            ) : sync && sync.badge !== 'green' ? (
+              <Badge variant={sync.badge} dot style={badgeStyle}>{sync.label}</Badge>
+            ) : null}
+          </View>
+          {s.status === 'open' || s.status === 'closed' ? (
+            <View style={styles.chipsRow}>
+              <View style={[styles.chip, { backgroundColor: C.greenLt }]}>
+                <Text style={[styles.chipText, { color: C.greenDk }]}>{s.present} Present</Text>
+              </View>
+              {s.late > 0 && (
+                <View style={[styles.chip, { backgroundColor: C.orangeLt }]}>
+                  <Text style={[styles.chipText, { color: C.orangeDk }]}>{s.late} Late</Text>
+                </View>
+              )}
+              {s.excused > 0 && (
+                <View style={[styles.chip, { backgroundColor: C.blueLt }]}>
+                  <Text style={[styles.chipText, { color: C.blueDk }]}>{s.excused} Excused</Text>
+                </View>
+              )}
+              <View style={[styles.chip, { backgroundColor: C.redLt }]}>
+                <Text style={[styles.chipText, { color: C.redDk }]}>{s.absent} Absent</Text>
+              </View>
+            </View>
+          ) : null}
+        </View>
+        <Ionicons name="chevron-forward" size={14} color={C.gray300} />
+      </TouchableOpacity>
+    )
+  }
 
   return (
     <View style={styles.flex}>
@@ -76,7 +88,7 @@ export default function AttendanceSessions({ navigation }) {
         }
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={styles.emptyText}>No sessions yet. Open a session from the dashboard.</Text>
+            <Text style={styles.emptyText}>No sessions yet. Classes open by themselves at their scheduled time, or start one from a class on Home.</Text>
           </View>
         }
         ListFooterComponent={<View style={{ height: 20 }} />}

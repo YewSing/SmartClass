@@ -16,18 +16,21 @@ from app.schemas.user import (
     AdminPasswordResetRequest, UserListOut, OccurrenceEnrollmentOut,
 )
 from app.services.audit_service import write_log
+from app.services import face_enrolment_service as enrolment_service
 
 router = APIRouter(prefix="/admin/users", tags=["admin-users"])
 
 _admin_only = require_role("admin")
 
 
-async def _build_user_detail(user: User, db: AsyncSession) -> UserDetailOut:
+async def _build_user_detail(user: User, db: AsyncSession, face_status: str | None = None) -> UserDetailOut:
     face_enrolled = False
     face_enrolled_at = None
     enrolled_classes = []
 
     if user.role == "student" and user.student:
+        if face_status is None:
+            face_status = (await enrolment_service.enrolment_statuses(db, [user.student.id])).get(user.student.id)
         fe_result = await db.execute(
             select(FaceEmbedding)
             .where(FaceEmbedding.student_id == user.student.id)
@@ -94,6 +97,7 @@ async def _build_user_detail(user: User, db: AsyncSession) -> UserDetailOut:
         moodle_linked=user.moodle_user_id is not None,
         face_enrolled=face_enrolled,
         face_enrolled_at=face_enrolled_at,
+        face_status=face_status,
         student=user.student,
         lecturer=user.lecturer,
         enrolled_classes=enrolled_classes,
@@ -133,7 +137,10 @@ async def list_users(
     result = await db.execute(q)
     users = result.scalars().all()
 
-    items = [await _build_user_detail(u, db) for u in users]
+    # One query for the page's face statuses (a pending submission has no embeddings yet)
+    faces = await enrolment_service.enrolment_statuses(
+        db, [u.student.id for u in users if u.role == "student" and u.student])
+    items = [await _build_user_detail(u, db, faces.get(u.student.id) if u.student else None) for u in users]
     return UserListOut(items=items, total=total, page=page, limit=limit)
 
 

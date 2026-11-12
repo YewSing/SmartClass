@@ -3,7 +3,8 @@
 # Usage (Git Bash, repo root):  bash scripts/e2e-mobile.sh <student|lecturer> <flow>
 #   runs mobile/<app>/e2e/<flow>.yaml, e.g.  bash scripts/e2e-mobile.sh student smoke
 # Anything this script starts (uvicorn, Expo, the emulator) is stopped again on exit.
-# Env overrides: AVD (default Pixel_4_API_35), E2E_HEADLESS=0 to show the emulator window.
+# Env overrides: AVD (default Pixel_4_API_35), E2E_HEADLESS=0 to show the emulator window,
+# E2E_API_PORT (default 8000) to run the test backend beside a dev backend.
 set -uo pipefail
 
 APP=${1:-}; FLOW=${2:-}
@@ -16,7 +17,7 @@ flow_file="$app_dir/e2e/$FLOW.yaml"
 [ -f "$flow_file" ] || { echo "No flow: $flow_file"; exit 2; }
 
 AVD=${AVD:-Pixel_4_API_35}
-API_PORT=8000
+API_PORT=${E2E_API_PORT:-8000}   # another port when an everyday dev backend already uses 8000
 EXPO_PORT=8081
 EXPO_GO=host.exp.exponent
 logdir="$root/.claude/logs"; mkdir -p "$logdir"
@@ -104,7 +105,12 @@ wait_for() {             # wait_for <seconds> <description> <command...>
   echo "Timed out after ${secs}s waiting for $what"; return 1
 }
 
-# E2E must never call the real LLM. A backend we didn't start may not have LLM_FAKE=1, so stop now.
+# E2E must never call the real LLM. A backend we didn't start may not have LLM_FAKE=1, so ours runs
+# beside an everyday dev backend on :8000 instead of using it.
+if [ -z "${E2E_API_PORT:-}" ] && curl -s --max-time 2 "http://127.0.0.1:$API_PORT/health" >/dev/null; then
+  echo "== a dev backend is using :$API_PORT; the E2E backend runs on :8003"
+  API_PORT=8003
+fi
 if curl -s --max-time 2 "http://127.0.0.1:$API_PORT/health" >/dev/null; then
   echo "A backend is already running on :$API_PORT. E2E needs its own with LLM_FAKE=1. Stop it and retry."; exit 1
 fi
@@ -133,12 +139,19 @@ adb shell input keyevent 82 >/dev/null 2>&1 || true     # unlock screen
 # look at real answers turns this off with E2E_LLM_FAKE=0 (see mobile/student/e2e/assistant-look.yaml).
 echo "== starting backend on :$API_PORT (LLM_FAKE=${E2E_LLM_FAKE:-1})"
 (cd "$root/backend" && docker compose up -d >/dev/null 2>&1) || echo "   (docker compose up failed; continuing)"
-(cd "$root/backend" && LLM_FAKE="${E2E_LLM_FAKE:-1}" exec python -m uvicorn app.main:app --host 0.0.0.0 --port "$API_PORT") \
+# The schedule job and the Moodle Attendance sync are off: flows start classes themselves, and test
+# sessions must never be written into Moodle.
+(cd "$root/backend" && LLM_FAKE="${E2E_LLM_FAKE:-1}" SESSION_SCHEDULER_INTERVAL_SECONDS=0 \
+  MOODLE_ATTENDANCE_SYNC_INTERVAL_SECONDS=0 MOODLE_ATTENDANCE_CHECK_INTERVAL_SECONDS=0 exec python -m uvicorn app.main:app --host 0.0.0.0 --port "$API_PORT") \
   > "$logdir/e2e-backend-$stamp.log" 2>&1 &
 started_pids+=($!)
 wait_for 60 "backend /health" curl -sf "http://127.0.0.1:$API_PORT/health" || { tail -20 "$logdir/e2e-backend-$stamp.log"; exit 1; }
 
 # --- Expo --------------------------------------------------------------------
+if port_busy "$EXPO_PORT"; then
+  echo "== :$EXPO_PORT is in use (an everyday Expo dev server?); E2E Expo runs on :8083"
+  EXPO_PORT=8083
+fi
 if port_busy "$EXPO_PORT"; then
   echo "Port $EXPO_PORT is already in use (another Expo dev server?). Stop it and retry."; exit 1
 fi

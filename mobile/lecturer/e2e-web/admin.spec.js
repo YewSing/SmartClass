@@ -101,8 +101,7 @@ test('admin cannot deactivate themselves', async ({ page }) => {
   await expect(me.getByText('Deactivate', { exact: true })).toHaveCount(0)
 })
 
-// T23a: approving a face in the Verification tab shows up in Accounts on return, without
-// signing in again. Seeds a pending submission by student8 and removes it afterwards.
+// T23a/T23c: a pending submission shows "Pending review" in Accounts, whose link opens Face verification; approving it shows up in Accounts on return, without signing in again.
 test.describe('approve then Accounts', () => {
   const STUDENT = 'student8@example.com'
   const faceData = (action) =>
@@ -110,13 +109,14 @@ test.describe('approve then Accounts', () => {
   test.beforeAll(() => { faceData('seed') })
   test.afterAll(() => { faceData('clean') })
 
-  test('admin approves a face, and Accounts shows it on return', async ({ page }) => {
+  test('admin sees a pending face, reviews it from Accounts, and Accounts shows it on return', async ({ page }) => {
     await signIn(page, 'admin@um.edu.my', 'Admin@1234')
     await visible(page.getByTestId('account-search')).fill(STUDENT)
     const row = visible(page.getByTestId('account-row').filter({ hasText: STUDENT }))
-    await expect(row.getByText('No face data', { exact: true })).toBeVisible()
+    await expect(row.getByText('Pending review', { exact: true })).toBeVisible()
+    await expect(row.getByText('No face data', { exact: true })).toHaveCount(0)
 
-    await page.getByTestId('sidenav-Verification').click()
+    await row.getByTestId('account-face-review').click()
     const card = visible(page.getByTestId('face-submission').filter({ hasText: '23004908' }))
     await expect(card).toBeVisible()
     await card.getByText('Approve', { exact: true }).click()

@@ -69,6 +69,38 @@ oc() {  # one OpenCode turn; SMARTCLASS_NO_PUSH makes the pre-push hook refuse
   done
 }
 
+# Tree hash of the code as it is on disk (tracked + untracked, minus PLAN.md, PROGRESS.md and
+# .claude/), built in a throwaway index so the real one is untouched. Equal hashes = same code.
+code_tree() {
+  local idx; idx=$(mktemp)
+  cp .git/index "$idx" 2>/dev/null || true
+  GIT_INDEX_FILE="$idx" git add -A . > /dev/null 2>&1
+  GIT_INDEX_FILE="$idx" git rm -r -q --cached --ignore-unmatch -- PLAN.md PROGRESS.md .claude > /dev/null 2>&1
+  GIT_INDEX_FILE="$idx" git write-tree
+  rm -f "$idx"
+}
+
+# Opus COACH: reads the failure, the plan and the diff (read-only) and writes exact fix steps for
+# OpenCode. Much cheaper than an Opus takeover. $1 log, $2 task, $3 plan, $4 what went wrong.
+# Prints the hint; returns 1 when the coach gave none (usage limit, error).
+coach() {
+  local log=$1 task=$2 plan=$3 what=$4 out
+  out=$(mktemp)
+  claude -p "You are the COACH in the SmartClass hybrid task loop. A cheaper builder (DeepSeek through OpenCode) is carrying out the plan $plan for task $task and $what. Do NOT edit any file. Read the plan, run git status and git diff, read the code and tests the failure points at, and find the root cause.
+Reply in at most 25 lines: ROOT CAUSE (1-3 lines), then FIX: numbered, exact steps (file, function, the change), then RUN: the commands to rerun. If the plan itself is wrong, say which step and what to do instead. Make your LAST line exactly COACH: $task
+
+What the builder and the checks printed last:
+$(tail -n 80 "$log" | cut -c1-300)
+$( [ -f "$log.check" ] && { echo; echo "check.sh, last lines:"; tail -n 30 "$log.check"; } )
+$( [ -n "${5:-}" ] && { echo; echo "Reviewer:"; echo "$5"; } )" \
+    --model "$MODEL" --max-turns 30 \
+    --allowedTools "Read" "Grep" "Glob" "Bash(git status*)" "Bash(git diff*)" "Bash(git log*)" > "$out" 2>&1
+  cat "$out" >> "$log.coach"
+  if grep -q "COACH: $task" <(tail -n 3 "$out"); then cat "$out"; rm -f "$out"; return 0; fi
+  hit_usage_limit "$out" && tail -n 1 "$out" >> "$log"
+  rm -f "$out"; return 1
+}
+
 opus_build() {  # $1 log, $2 optional extra instruction
   local extra=()
   [ -z "${2:-}" ] || extra=(--append-system-prompt "$2")
@@ -77,7 +109,7 @@ opus_build() {  # $1 log, $2 optional extra instruction
 }
 
 hybrid_round() {
-  local log=$1 last task plan r check_rc passed=0 review=""
+  local log=$1 last task plan r check_rc=1 passed=0 review=""
   claude -p "/plan-task" --model "$MODEL" --max-turns 60 \
     --allowedTools "Read" "Grep" "Glob" "Edit(.claude/plans/**)" "Write(.claude/plans/**)" \
       "Bash(git status*)" "Bash(git diff*)" "Bash(git log*)" > "$log" 2>&1
@@ -104,9 +136,25 @@ PY
   echo "   planned $task; OpenCode building" | tee -a "$log"
   oc --title "SmartClass $task" "$(sed "s|__PLAN__|$plan|" scripts/opencode/build.md)" >> "$log" 2>&1
 
-  for r in 1 2; do
-    if grep -q "TASK: STUCK" <(tail -n 5 "$log"); then break; fi
+  # Stuck or failing: OpenCode fixes once from the review alone; after that (or when it says
+  # STUCK) an Opus coach diagnoses and OpenCode applies its steps, at most 2 coach rounds.
+  # Only then does Opus take over (Yew Sing 2026-11-11: the loop must never stop on a stuck task).
+  local fixed=0 coached=0 hint tree=""
+  r=0
+  while :; do
+    if grep -q "TASK: STUCK" <(tail -n 5 "$log"); then
+      [ "$coached" -lt 2 ] || break
+      coached=$((coached + 1))
+      echo "   OpenCode stuck: Opus coach $coached/2" | tee -a "$log"
+      hint=$(coach "$log" "$task" "$plan" "stopped with TASK: STUCK") \
+        || { echo "   coach gave no hint" | tee -a "$log"; break; }
+      oc -c "$(cat scripts/opencode/coach-fix.md)
+$hint" >> "$log" 2>&1
+      continue
+    fi
+    r=$((r + 1))
     bash scripts/check.sh > "$log.check" 2>&1; check_rc=$?
+    tree=$(code_tree)
     claude --agent reviewer -p "Task $task. Its plan: $plan (read it). Ticking the task in PLAN.md and writing its PROGRESS.md Log entry happen AFTER your review, so their absence is not a finding. PLAN.md entry:
 $(grep -A1 -F "**$task " PLAN.md | head -n 2)
 
@@ -115,20 +163,32 @@ $(tail -n 25 "$log.check")" --model sonnet --max-turns 40 > "$log.review$r" 2>&1
     review=$(cat "$log.review$r")
     echo "   review $r: $(grep -m1 -oE 'VERDICT: [A-Z ]+' "$log.review$r" || echo 'no verdict'), check.sh exit $check_rc" | tee -a "$log"
     if [ "$check_rc" -eq 0 ] && grep -q "VERDICT: PASS" "$log.review$r"; then passed=1; break; fi
-    [ "$r" -lt 2 ] || break
-    oc -c "$(cat scripts/opencode/fix.md)
+    if [ "$fixed" -eq 0 ]; then
+      fixed=1
+      oc -c "$(cat scripts/opencode/fix.md)
 $review
 
 check.sh (exit $check_rc), last lines:
 $(tail -n 25 "$log.check")" >> "$log" 2>&1
+    elif [ "$coached" -lt 2 ]; then
+      coached=$((coached + 1))
+      echo "   still failing: Opus coach $coached/2" | tee -a "$log"
+      hint=$(coach "$log" "$task" "$plan" "still fails the checks or the review after a fix" "$review") \
+        || { echo "   coach gave no hint" | tee -a "$log"; break; }
+      oc -c "$(cat scripts/opencode/coach-fix.md)
+$hint" >> "$log" 2>&1
+    else
+      break
+    fi
   done
 
   if [ "$passed" -eq 1 ]; then
+    checked_tree=$tree   # lets the main loop skip a second check.sh when the commit adds no code
     oc -c "$(sed "s|__MODEL__|$OC_MODEL|" scripts/opencode/finish.md)
 $review" >> "$log" 2>&1
   else
-    echo "   OpenCode could not finish $task: Opus takes over" | tee -a "$log"
-    opus_build "$log" "Task $task was planned in $plan and partly built by another model; its uncommitted work is in this tree. Last reviewer output: $log.review$r and check output: $log.check. Pick $task, read the plan, git status and git diff, continue from that work (fix, do not start over), then run steps 5-9. Add 'built by OpenCode, finished by Opus' to the Log entry."
+    echo "   OpenCode could not finish $task after $coached coach round(s): Opus takes over" | tee -a "$log"
+    opus_build "$log" "Task $task was planned in $plan and partly built by another model; its uncommitted work is in this tree. Last reviewer output (if any): $log.review$r; check output: $log.check; coach notes: $log.coach. Pick $task, read the plan, git status and git diff, continue from that work (fix, do not start over), then run steps 5-9. Add 'built by OpenCode, finished by Opus' to the Log entry."
   fi
 }
 
@@ -139,6 +199,7 @@ while [ "$done_rounds" -lt "$N" ]; do
   before=$(git rev-parse HEAD)
   export SMARTCLASS_BASE="$before"     # test guard compares against the round's starting commit
   rm -f .claude/.stop-blocks
+  checked_tree=""                      # set by hybrid_round when its check.sh passed
   log=".claude/logs/round-$(date +%Y%m%d-%H%M%S).log"
   echo "== Round $((done_rounds + 1))/$N  $(date +%H:%M)  (log: $log)"
   if [ "$BUILDER" = "opencode" ]; then
@@ -165,7 +226,10 @@ while [ "$done_rounds" -lt "$N" ]; do
   if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
     echo "   uncommitted changes left behind - stopping"; break
   fi
-  if ! bash scripts/check.sh > /dev/null 2>&1; then
+  # The pre-review check.sh already passed on this exact code when only PLAN/PROGRESS changed since.
+  if [ -n "$checked_tree" ] && [ "$(code_tree)" = "$checked_tree" ]; then
+    echo "   (code unchanged since its passing check.sh; post-commit run skipped)"
+  elif ! bash scripts/check.sh > /dev/null 2>&1; then
     echo "   check.sh fails after the round - stopping"; break
   fi
   git push -q origin "$branch" 2>/dev/null || echo "   (push failed; continuing)"

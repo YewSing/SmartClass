@@ -28,7 +28,13 @@ module.exports = defineConfig({
       url: `http://localhost:${API_PORT}/health`,
       reuseExistingServer: false,
       timeout: 180_000,
-      env: { LLM_FAKE: '1' },
+      // No schedule job, and test sessions are never written into Moodle
+      env: {
+        LLM_FAKE: '1',
+        SESSION_SCHEDULER_INTERVAL_SECONDS: '0',
+        MOODLE_ATTENDANCE_SYNC_INTERVAL_SECONDS: '0',
+        MOODLE_ATTENDANCE_CHECK_INTERVAL_SECONDS: '0',
+      },
     },
     {
       command: `npx expo start --web --port ${WEB_PORT}`,

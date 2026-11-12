@@ -68,6 +68,7 @@ python scripts/seed.py
 | Administrator | Lecturer app in a browser (http://localhost:8082) → "Administrator sign-in" | `admin@um.edu.my` | `Admin@1234` |
 | Test lecturer | Lecturer app (phone or browser), SPeCTRUM sign-in | `devlecturer` | `DevTest@1234` |
 | Students / other lecturers | Student or lecturer app, SPeCTRUM sign-in | see the table in `backend/moodle/README.md` | same table |
+| Moodle (SPeCTRUM) admin | Local Moodle at http://localhost:8080 | `admin` | `Admin123!` |
 
 An existing database with the old demo data: back up (`bash scripts/backup-data.sh`), then run `python scripts/reset_to_moodle.py` from `backend/` to preview and `--yes` to apply. It keeps AI materials and face enrolments.
 

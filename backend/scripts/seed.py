@@ -74,7 +74,7 @@ async def _ensure_course(db: AsyncSession, code: str, name: str) -> Course:
 
 
 async def _ensure_camera(db: AsyncSession, room: str, device_id: str) -> None:
-    await db.execute(insert(Camera).values(label=room, room=room, device_id=device_id, status="online")
+    await db.execute(insert(Camera).values(label=room, room=room, device_id=device_id)
                      .on_conflict_do_nothing())
 
 
