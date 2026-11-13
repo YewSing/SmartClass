@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>SmartClass - AP2 Progress Report (Yew Sing: Modules 1, 3, 4, 8)</title>
+<style>
+body { font-family: Arial, sans-serif; font-size: 11pt; }
+table { border-collapse: collapse; }
+th, td { border: 1px solid #999; padding: 4px; vertical-align: top; }
+th { background: #e8eef7; }
+.fig { color: #a33; font-style: italic; }
+</style>
+</head>
+<body>
+
+<h1>SmartClass - AP2 Progress Report</h1>
+<p><b>Smart Classroom Management System, Universiti Malaya FYP</b><br>
+Student: Yong Yew Sing (Modules 1, 3, 4, 8) · Partner: Chow Shino (Modules 2, 5, 6, 7)<br>
+Report date: 14 November 2026 · Branch: fyp2-loop · Source of this document: <code>docs/report/ap2-report.html</code> in the repository</p>
+
+<p>This report covers my four modules. Shino reports Modules 2, 5, 6 and 7 herself. Screenshots and diagrams are marked <span class="fig">[Figure: ...]</span> where they are inserted.</p>
+
+<h2>1. Objectives and scope</h2>
+<p>SmartClass helps a UM lecturer run a class: students sign in with their SPeCTRUM (Moodle) account, a camera at the door records attendance by face recognition, attendance is copied to SPeCTRUM, and an AI assistant answers questions from the lecturer's own course materials with citations. Since AP1, IoT environment control and desk projection were dropped from the scope (proposal revision, November 2026).</p>
+<table>
+<tr><th>Module</th><th>Objective</th><th>Progress</th></tr>
+<tr><td>M1 User Management</td><td>Moodle sign-in, accounts and roles, PDPA consent, face self-enrolment checked against the student's matric card</td><td>Built and tested; checked on real phones at the T23 checkpoint</td></tr>
+<tr><td>M3 Attendance Management</td><td>Sessions open from the timetable, four statuses, overrides, reports, sync to the Moodle Attendance plugin</td><td>Built and tested; full class run with the camera still to do (T48)</td></tr>
+<tr><td>M4 Face Recognition</td><td>Camera device at the entrance detects faces, server recognises them, student and lecturer see the result</td><td>Built and tested with a laptop webcam; Raspberry Pi run still to do (T47)</td></tr>
+<tr><td>M8 AI Learning Assistant</td><td>Course knowledge base from Moodle materials, cited chat, summaries, flashcards, practice questions, lecturer trends</td><td>Built and tested; checked by hand three times (13-14 Nov); recommendations from quiz results wait for Shino's M6</td></tr>
+</table>
+
+<h2>2. Requirements status</h2>
+<p>Status words: <b>Done</b> = built, with automated tests; <b>Partly</b> = built except the part named; <b>Deferred on M6</b> = needs Shino's quiz module; <b>Not done</b> = not built (all are Could Have).</p>
+
+<h3>2.1 Functional requirements</h3>
+<table>
+<tr><th>ID</th><th>Requirement (short)</th><th>Priority</th><th>Status</th><th>Evidence / note</th></tr>
+<tr><td>FR-101</td><td>Sign in with SPeCTRUM (Moodle) username and password; password never stored</td><td>Must</td><td>Done</td><td>test_moodle_login.py</td></tr>
+<tr><td>FR-102</td><td>Account created on first Moodle login, role from Moodle course roles</td><td>Must</td><td>Done</td><td>test_moodle_login.py</td></tr>
+<tr><td>FR-103</td><td>Administrators sign in with local email and password, web only</td><td>Must</td><td>Done</td><td>Admin area in the lecturer web app</td></tr>
+<tr><td>FR-104</td><td>Courses, enrolments and lecturer assignments synced from Moodle</td><td>Must</td><td>Done</td><td>test_moodle_sync.py; scheduled every 15 min</td></tr>
+<tr><td>FR-105</td><td>Role-based access control (student, lecturer, admin)</td><td>Must</td><td>Done</td><td>test_lecturer_access.py and per-router 403 tests</td></tr>
+<tr><td>FR-106</td><td>Short-lived access token, refresh token, logout</td><td>Must</td><td>Done</td><td>JWT access + refresh</td></tr>
+<tr><td>FR-107</td><td>Profile with Moodle fields read-only</td><td>Should</td><td>Done</td><td>GET /auth/me</td></tr>
+<tr><td>FR-108</td><td>Admin views accounts, deactivates/reactivates, creates admins</td><td>Should</td><td>Done</td><td>test_admin_accounts.py</td></tr>
+<tr><td>FR-109</td><td>PDPA consent recorded before any face capture</td><td>Must</td><td>Done</td><td>test_face_consent.py</td></tr>
+<tr><td>FR-110</td><td>Face self-enrolment: guided selfies and matric card photo</td><td>Must</td><td>Done</td><td>Student app FaceConsent / FaceEnrolment / FaceCapture</td></tr>
+<tr><td>FR-111</td><td>Automatic check: card face vs selfies, and OCR matric number vs account</td><td>Must</td><td>Done</td><td>test_face_enrolment_checks.py</td></tr>
+<tr><td>FR-112</td><td>Auto-approve when both checks pass</td><td>Must</td><td>Done</td><td>test_face_enrolment.py</td></tr>
+<tr><td>FR-113</td><td>Failed checks go to the lecturer's verification queue (selfie and card side by side)</td><td>Must</td><td>Done</td><td>Lecturer FaceVerification screen; Playwright face-verification.spec.js</td></tr>
+<tr><td>FR-114</td><td>Student told the result and can resubmit</td><td>Should</td><td>Partly</td><td>Result shows on the student's status screen and they can resubmit; no push notification until Shino's M2</td></tr>
+<tr><td>FR-115</td><td>Student sees enrolment status</td><td>Should</td><td>Done</td><td>not enrolled / pending review / active / rejected</td></tr>
+<tr><td>FR-116</td><td>Withdraw consent deletes face embeddings</td><td>Must</td><td>Done</td><td>test_withdraw_deletes_embeddings_at_once_and_audits</td></tr>
+<tr><td>FR-117</td><td>Admin fallback reviewer and reset of face data</td><td>Should</td><td>Done</td><td>Admin Accounts + verification queue</td></tr>
+<tr><td>FR-118</td><td>Audit entry for verification decisions, consent, deactivation, role change</td><td>Should</td><td>Done</td><td>Admin Audit screen</td></tr>
+<tr><td>FR-119</td><td>Lecturer opens a class and sees students with matric number and face status</td><td>Should</td><td>Done</td><td>Lecturer ClassDetail screen</td></tr>
+<tr><td>FR-301</td><td>Sessions open from the schedule (15 min early) and close at the end</td><td>Must</td><td>Done</td><td>Background scheduler</td></tr>
+<tr><td>FR-302</td><td>Present on recognition, Late after the threshold; first recognition counts</td><td>Must</td><td>Done</td><td>test_recognition_after_cutoff_is_late</td></tr>
+<tr><td>FR-303</td><td>Absent for everyone not recognised when the session closes</td><td>Must</td><td>Done</td><td>test_close_marks_absent_never_excused</td></tr>
+<tr><td>FR-304</td><td>Four statuses: Present, Late, Excused, Absent</td><td>Must</td><td>Done</td><td>test_attendance_statuses.py</td></tr>
+<tr><td>FR-305</td><td>Lecturer override with optional reason, logged</td><td>Must</td><td>Done</td><td>Audit log of every override</td></tr>
+<tr><td>FR-306</td><td>Live session view without refresh</td><td>Must</td><td>Done</td><td>WebSocket updates; Playwright live-session.spec.js</td></tr>
+<tr><td>FR-307</td><td>Attendance history kept per student per session</td><td>Must</td><td>Done</td><td>test_attendance_rates.py</td></tr>
+<tr><td>FR-308</td><td>Attendance rate: Late counts as attended, Excused not counted</td><td>Must</td><td>Done</td><td>test_rate_formula_counts_late_and_skips_excused</td></tr>
+<tr><td>FR-309</td><td>Student sees own history and rate per course</td><td>Must</td><td>Done</td><td>Student Attendance screen; Maestro attendance.yaml</td></tr>
+<tr><td>FR-310</td><td>Session or date-range reports, CSV export</td><td>Should</td><td>Done</td><td>Playwright export.spec.js</td></tr>
+<tr><td>FR-311</td><td>Closed sessions copied to Moodle Attendance, retried on failure</td><td>Must</td><td>Done</td><td>test_moodle_down_fails_then_retries_with_backoff_until_synced</td></tr>
+<tr><td>FR-312</td><td>Re-sync after override; sync status shown live</td><td>Should</td><td>Done</td><td>test_attendance_moodle_instant.py</td></tr>
+<tr><td>FR-313</td><td>Read interface for Shino's Module 7</td><td>Must</td><td>Done</td><td>docs/interfaces.md</td></tr>
+<tr><td>FR-314</td><td>PDF export of reports</td><td>Could</td><td>Not done</td><td>CSV only</td></tr>
+<tr><td>FR-315</td><td>Lecturer sets the weekly schedule</td><td>Must</td><td>Done</td><td>PUT /lecturer/classes/{id}/schedule</td></tr>
+<tr><td>FR-316</td><td>Start now, extend, end early (audited)</td><td>Must</td><td>Done</td><td>Lecturer ClassDetail controls</td></tr>
+<tr><td>FR-317</td><td>Empty session waits for the lecturer to confirm "held" or "not held"</td><td>Must</td><td>Done</td><td>needs_confirmation state</td></tr>
+<tr><td>FR-318</td><td>Student flags "I'm here but not recognised"; lecturer alerted</td><td>Must</td><td>Done</td><td>Maestro flag.yaml, flag-alert.yaml</td></tr>
+<tr><td>FR-319</td><td>Lecturer confirms or rejects a flag</td><td>Must</td><td>Done</td><td>test_confirm_after_late_threshold_records_late</td></tr>
+<tr><td>FR-320</td><td>Moodle-side changes never silently overwritten</td><td>Should</td><td>Done</td><td>Conflict check every 3 hours, lecturer chooses</td></tr>
+<tr><td>FR-401</td><td>Raspberry Pi camera at the entrance, only while a session is open</td><td>Must</td><td>Partly</td><td>Device client built and run with a laptop webcam; Pi field run pending (T47)</td></tr>
+<tr><td>FR-402</td><td>Device detects faces and sends crops with its own key</td><td>Must</td><td>Done</td><td>test_device_client.py</td></tr>
+<tr><td>FR-403</td><td>Server matches crops against the course's students above a threshold</td><td>Must</td><td>Done</td><td>test_device_faces_real.py (real InsightFace model)</td></tr>
+<tr><td>FR-404</td><td>Confirm after N consecutive matching frames (default 3)</td><td>Must</td><td>Done</td><td>test_three_consecutive_frames_record_present</td></tr>
+<tr><td>FR-405</td><td>Recognition submitted to Module 3 with time and device</td><td>Must</td><td>Done</td><td>POST /device/faces</td></tr>
+<tr><td>FR-406</td><td>Student told "attendance recorded"; lecturer view updates</td><td>Must</td><td>Done</td><td>test_late_recognition_says_late; student banner</td></tr>
+<tr><td>FR-407</td><td>Unmatched faces kept only as evidence for a student's flag</td><td>Must</td><td>Done</td><td>test_lecturer_sees_flag_with_name_matric_and_closest_crop</td></tr>
+<tr><td>FR-408</td><td>Admin registers devices, rooms, keys; heartbeat status</td><td>Should</td><td>Done</td><td>Admin Devices screen; Playwright devices.spec.js</td></tr>
+<tr><td>FR-409</td><td>USB webcam on a laptop as backup device</td><td>Should</td><td>Done</td><td>python -m device_client --camera 0</td></tr>
+<tr><td>FR-410</td><td>Unrecognised crops deleted when resolved or after retention</td><td>Should</td><td>Done</td><td>test_retention_job_deletes_old_and_finished_sessions_crops</td></tr>
+<tr><td>FR-411</td><td>Pi buffers crops while offline</td><td>Could</td><td>Not done</td><td>Device retries when the server is unreachable, but does not keep the original capture time</td></tr>
+<tr><td>FR-801</td><td>Materials read straight from the course's Moodle page; changes detected</td><td>Must</td><td>Done</td><td>test_plan_sync_detects_new_changed_and_deleted</td></tr>
+<tr><td>FR-802</td><td>Text extracted, split into passages with file and page, embedded</td><td>Must</td><td>Done</td><td>pgvector knowledge base</td></tr>
+<tr><td>FR-803</td><td>Lecturer sync button and scheduled sync</td><td>Must</td><td>Done</td><td>Lecturer assistant screen</td></tr>
+<tr><td>FR-804</td><td>Per-material processing status</td><td>Should</td><td>Done</td><td>indexed / no text / unsupported / error</td></tr>
+<tr><td>FR-805</td><td>Cited answers from the course materials</td><td>Must</td><td>Done</td><td>Live LLM suite; Maestro assistant.yaml</td></tr>
+<tr><td>FR-806</td><td>Off-syllabus answers labelled as general knowledge</td><td>Must</td><td>Done</td><td>Live LLM suite</td></tr>
+<tr><td>FR-807</td><td>Student limited to enrolled courses</td><td>Must</td><td>Done</td><td>test_not_enrolled_student_is_403_and_moodle_not_called</td></tr>
+<tr><td>FR-808</td><td>Saved chats: list, rename, delete, follow-ups</td><td>Must</td><td>Done</td><td>Student Assistant screen</td></tr>
+<tr><td>FR-809</td><td>Citation opens the source (PDF at the page)</td><td>Should</td><td>Done</td><td>AssistantPdf screen</td></tr>
+<tr><td>FR-810</td><td>Summary / study guide with citations</td><td>Should</td><td>Done</td><td>test_summary.py; app offers summary only</td></tr>
+<tr><td>FR-811</td><td>Flashcards and practice questions</td><td>Should</td><td>Done</td><td>Maestro study-tools.yaml</td></tr>
+<tr><td>FR-812</td><td>YouTube suggestions</td><td>Could</td><td>Done</td><td>Off unless YOUTUBE_API_KEY is set</td></tr>
+<tr><td>FR-813</td><td>Anonymised question trends (topic shown only when 3+ students asked)</td><td>Should</td><td>Done</td><td>test_topics_below_three_students_are_hidden</td></tr>
+<tr><td>FR-814</td><td>Retrieval interface for Shino's Module 6</td><td>Should</td><td>Done</td><td>docs/interfaces.md</td></tr>
+<tr><td>FR-815</td><td>Lecturer asks own materials (private chats)</td><td>Should</td><td>Done</td><td>Lecturer LecturerAsk screen; Maestro ask-before-class.yaml</td></tr>
+<tr><td>FR-816</td><td>"Before next class" summary from trends</td><td>Should</td><td>Done</td><td>Lecturer BeforeClass screen</td></tr>
+<tr><td>FR-820</td><td>No course help during an active graded quiz</td><td>Must</td><td>Deferred on M6</td><td>Needs quiz attempt data</td></tr>
+<tr><td>FR-821</td><td>Weak topics from wrong quiz answers</td><td>Must</td><td>Deferred on M6</td><td>Needs quiz results</td></tr>
+<tr><td>FR-822</td><td>Personalised material recommendations per weak topic</td><td>Must</td><td>Deferred on M6</td><td>Needs quiz results</td></tr>
+<tr><td>FR-823</td><td>Explain why a quiz answer was wrong</td><td>Should</td><td>Deferred on M6</td><td>Needs quiz results</td></tr>
+<tr><td>FR-824</td><td>Class-wide weak topics for the lecturer</td><td>Should</td><td>Deferred on M6</td><td>Needs quiz results</td></tr>
+</table>
+<p><b>Summary:</b> 71 functional requirements in my modules. 62 Done, 2 Partly (FR-114, FR-401), 2 Not done (FR-314, FR-411, both Could Have), 5 Deferred on M6 (FR-820 to FR-824). Every Must Have that does not depend on M6 is built.</p>
+
+<h3>2.2 Non-functional requirements</h3>
+<table>
+<tr><th>Group</th><th>NFRs</th><th>Status</th></tr>
+<tr><td>Security and privacy</td><td>NFR-01 to NFR-09</td><td>Met in code and tests: only embeddings kept, photos deleted at decision time, consent before capture, server-side role checks, no Moodle password stored, append-only audit log, per-device keys, secrets only in server .env, chats private. NFR-07 (HTTPS) applies to the UAT server (T99).</td></tr>
+<tr><td>Performance</td><td>NFR-10 to NFR-15</td><td>To be measured: NFR-10/11 on the Pi run (T47), NFR-12 on a phone (T48), NFR-13/14/15 during UAT.</td></tr>
+<tr><td>Accuracy</td><td>NFR-16 to NFR-19</td><td>Q&amp;A evaluation harness built (NFR-18/19); the evaluation set is being finalised (T83). Face and card accuracy measured in the class run (T48) and card calibration (T21).</td></tr>
+<tr><td>Reliability</td><td>NFR-20 to NFR-24</td><td>Met and tested: Moodle outage retried with backoff, LLM outage gives a clear 503, duplicate recognitions and syncs are idempotent, device heartbeat shown, failures isolated per module.</td></tr>
+<tr><td>Usability</td><td>NFR-25 to NFR-27</td><td>Class controls on the class screen (open/close within 3 taps); enrolment is guided step by step. To be confirmed in UAT.</td></tr>
+<tr><td>Maintainability</td><td>NFR-28 to NFR-30</td><td>One LLM adapter set by environment variables (Gemini and DeepSeek both used); tests run without camera, Moodle or LLM; apps run through Expo on Android.</td></tr>
+</table>
+
+<h2>3. System design</h2>
+<p>All diagrams are in one Lucidchart document, generated from the code (the ERD from the SQLAlchemy models that the Alembic migrations build): <a href="https://lucid.app/lucidchart/bb0ce806-e9cb-4362-8f7f-872b4a4ab86c/edit">SmartClass - Design Diagrams (AP2)</a>. PNG exports are in <code>docs/diagrams/</code>.</p>
+<h3>3.1 System architecture</h3>
+<p>Two React Native (Expo) apps (student, lecturer; the lecturer app also runs in a browser and holds the admin area) call a FastAPI backend. The backend uses PostgreSQL with pgvector, a local Moodle 4.5 that simulates SPeCTRUM, an LLM provider through one adapter, and InsightFace for face recognition. A camera device client (Raspberry Pi or laptop webcam) sends face crops to the backend.</p>
+<p class="fig">[Figure 1: docs/diagrams/01-system-architecture.png]</p>
+<h3>3.2 Module diagram</h3>
+<p class="fig">[Figure 2: docs/diagrams/02-module-diagram.png]</p>
+<h3>3.3 Class diagrams</h3>
+<p class="fig">[Figure 3: docs/diagrams/03a-class-diagram-domain.png]</p>
+<p class="fig">[Figure 4: docs/diagrams/03b-class-diagram-services.png]</p>
+<h3>3.4 Entity relationship diagram</h3>
+<p class="fig">[Figure 5: docs/diagrams/04-erd.png]</p>
+<h3>3.5 Activity diagrams</h3>
+<p class="fig">[Figure 6: docs/diagrams/05a-activity-attendance.png]</p>
+<p class="fig">[Figure 7: docs/diagrams/05b-activity-face-enrolment.png]</p>
+<p class="fig">[Figure 8: docs/diagrams/05c-activity-ai-chat.png]</p>
+<h3>3.6 Navigation diagrams</h3>
+<p class="fig">[Figure 9: docs/diagrams/06a-navigation-student.png]</p>
+<p class="fig">[Figure 10: docs/diagrams/06b-navigation-lecturer.png]</p>
+<h3>3.7 Wireframes</h3>
+<p class="fig">[Figure 11: docs/diagrams/07-wireframes.png]</p>
+
+<h2>4. Methodology and development</h2>
+<h3>4.1 Methodology</h3>
+<p>Incremental development in small tasks. Each task in <code>PLAN.md</code> cites the requirements it covers and a "Done when" line. A task is finished only when its code and tests are written, the fast checks pass (lint, backend tests, app unit tests), a separate reviewer checks the change for bugs and weakened tests, and, for screens, its end-to-end flow passes. Human checkpoints after each module (T23, T48, T94) are where I test on a real phone and in a browser before more is built. Progress and decisions are logged in <code>PROGRESS.md</code>.</p>
+<h3>4.2 Technology</h3>
+<table>
+<tr><th>Part</th><th>Technology</th></tr>
+<tr><td>Mobile apps</td><td>React Native, Expo SDK 54, React Navigation 6; lecturer app also on the web through Expo web</td></tr>
+<tr><td>Backend</td><td>FastAPI, SQLAlchemy 2 (async), PostgreSQL + pgvector, Alembic migrations</td></tr>
+<tr><td>Authentication</td><td>Moodle token login; JWT access and refresh tokens; bcrypt for admin passwords</td></tr>
+<tr><td>Face recognition</td><td>InsightFace buffalo_sc on CPU; OCR for the matric card</td></tr>
+<tr><td>AI assistant</td><td>Retrieval over course passages (pgvector) and an LLM through one adapter (Gemini or DeepSeek)</td></tr>
+<tr><td>SPeCTRUM simulation</td><td>Local Moodle 4.5 in Docker with the Attendance plugin (mod_attendance)</td></tr>
+</table>
+<h3>4.3 What was built per module</h3>
+<p><b>Module 1.</b> Students and lecturers sign in with their Moodle account; the account and role are created on first login, and courses and enrolments sync from Moodle every 15 minutes. Students give PDPA consent, take three guided selfies and a photo of their matric card; the server compares the faces and reads the matric number. A clear pass is approved at once; anything else goes to the lecturer's verification queue. Administrators manage accounts, devices, Moodle sync and the audit log in the browser.</p>
+<p class="fig">[Screenshot: student face enrolment status screen (no real face or card visible)]</p>
+<p class="fig">[Screenshot: lecturer web, admin Accounts page with test accounts]</p>
+<p><b>Module 3.</b> Sessions open 15 minutes before each scheduled class and close at its end. Statuses are Present, Late, Excused and Absent; the lecturer can override any status, start a class now, extend it or end it early. Closed sessions are copied to the Moodle Attendance activity and retried when Moodle is down. Students see their rate and history per course.</p>
+<p class="fig">[Screenshot: lecturer live session with counts and sync status]</p>
+<p class="fig">[Screenshot: student attendance rate and history]</p>
+<p><b>Module 4.</b> The device client detects faces locally and sends crops with its device key. The server matches them against the enrolled students of the open session and records attendance after 3 matching frames. The student gets an "attendance recorded" banner; a student who was missed can flag it, and the lecturer confirms or rejects with the closest unmatched face as evidence.</p>
+<p class="fig">[Screenshot: student "I'm here" flag and the lecturer's flag alert]</p>
+<p><b>Module 8.</b> Course materials are read from Moodle, split into passages with file and page, and embedded. Students chat with a cited assistant per course, open a cited PDF at the page, and make summaries, flashcards and practice questions. Lecturers see sync status per material, anonymous question trends, a "before next class" summary, and can ask their own materials.</p>
+<p class="fig">[Screenshot: student assistant answer with citations]</p>
+<p class="fig">[Screenshot: student flashcards / practice questions]</p>
+<p class="fig">[Screenshot: lecturer question trends and "before next class" summary]</p>
+<p>No screenshot shows a real face, a real matric card, course material that is not ours, or any key or password.</p>
+
+<h2>5. Testing</h2>
+<h3>5.1 Test levels</h3>
+<table>
+<tr><th>Level</th><th>What it covers</th><th>Count</th><th>Command</th></tr>
+<tr><td>Unit (backend)</td><td>Pure logic: rate formula, status rules, LLM error handling, prompt rules, card checks, device client, report checks</td><td>212</td><td><code>cd backend &amp;&amp; python -m pytest -q -m "not db and not live and not moodle"</code></td></tr>
+<tr><td>Unit (apps)</td><td>App helpers: markdown, attendance, face enrolment, live updates, admin and assistant helpers</td><td>115 (student 61, lecturer 54)</td><td><code>cd mobile/student &amp;&amp; npm test</code> (same for lecturer)</td></tr>
+<tr><td>Integration (API + database)</td><td>Every endpoint through HTTP with a real PostgreSQL test database; Moodle and the LLM replaced by fakes or recorded responses</td><td>513</td><td><code>python -m pytest -q -m "db and not live and not moodle"</code></td></tr>
+<tr><td>Integration with Moodle</td><td>Against the local Moodle: login, sync, attendance sync</td><td>14</td><td><code>python -m pytest -q -m moodle</code></td></tr>
+<tr><td>Live LLM</td><td>Real model answers checked for structure, citations and grounding on a synthetic course</td><td>28</td><td><code>python -m pytest -q -m live</code></td></tr>
+<tr><td>System / E2E (phone)</td><td>Maestro flows on an Android emulator: login, attendance, face enrolment, flag, assistant, study tools, live session, export, verification queue</td><td>16 flows (student 8, lecturer 8)</td><td><code>bash scripts/e2e-mobile.sh &lt;student|lecturer&gt; &lt;flow&gt;</code></td></tr>
+<tr><td>System / E2E (web)</td><td>Playwright on the lecturer web app, including the admin area</td><td>11 spec files</td><td><code>cd mobile/lecturer &amp;&amp; npm run e2e:web</code></td></tr>
+</table>
+<p>Backend total: 767 tests. The fast checks (<code>bash scripts/check.sh</code>) run lint, all backend tests except live and Moodle, and both apps' unit tests on every task.</p>
+
+<h3>5.2 Latest results</h3>
+<table>
+<tr><th>Run</th><th>Date</th><th>Result</th></tr>
+<tr><td>Fast checks (check.sh)</td><td>14 Nov 2026</td><td>Passed: lint clean, 725 backend tests passed (live and Moodle tests run separately), both apps' unit tests passed</td></tr>
+<tr><td>App unit tests</td><td>14 Nov 2026</td><td>student 61/61, lecturer 54/54 passed</td></tr>
+<tr><td>Live LLM suite</td><td>14 Nov 2026</td><td>28 passed (after the lecturer prompt change)</td></tr>
+<tr><td>Playwright (lecturer web)</td><td>13 Nov 2026</td><td>29 passed (after retiring the old admin dashboard)</td></tr>
+<tr><td>Maestro flows</td><td>9-13 Nov 2026</td><td>each flow passed when its screen was built</td></tr>
+</table>
+
+<h3>5.3 Sample test cases</h3>
+<table>
+<tr><th>No.</th><th>Requirement</th><th>Test case</th><th>Expected result</th><th>Automated test</th><th>Result</th></tr>
+<tr><td>1</td><td>FR-101, NFR-24</td><td>Sign in while Moodle is down</td><td>503 "SPeCTRUM is not reachable right now", no account created</td><td>test_moodle_down_gives_503</td><td>Pass</td></tr>
+<tr><td>2</td><td>FR-108</td><td>Deactivated user tries to log in, refresh or use an old token</td><td>All refused</td><td>test_deactivated_user_cannot_log_in_refresh_or_use_old_token</td><td>Pass</td></tr>
+<tr><td>3</td><td>FR-116, NFR-03</td><td>Student withdraws face consent</td><td>Embeddings deleted at once, audit entry written</td><td>test_withdraw_deletes_embeddings_at_once_and_audits</td><td>Pass</td></tr>
+<tr><td>4</td><td>FR-110</td><td>Selfies with no visible face</td><td>Retake message, nothing stored</td><td>test_no_face_in_selfies_is_a_retake</td><td>Pass</td></tr>
+<tr><td>5</td><td>FR-302</td><td>Recognised after the late threshold</td><td>Status Late</td><td>test_recognition_after_cutoff_is_late</td><td>Pass</td></tr>
+<tr><td>6</td><td>FR-303, FR-304</td><td>Session closes</td><td>Unrecognised students Absent, never Excused</td><td>test_close_marks_absent_never_excused</td><td>Pass</td></tr>
+<tr><td>7</td><td>FR-308</td><td>Rate with Late and Excused sessions</td><td>Late counts as attended, Excused left out</td><td>test_rate_formula_counts_late_and_skips_excused</td><td>Pass</td></tr>
+<tr><td>8</td><td>FR-311, NFR-20</td><td>Moodle down during attendance sync</td><td>Marked failed, retried with backoff until synced</td><td>test_moodle_down_fails_then_retries_with_backoff_until_synced</td><td>Pass</td></tr>
+<tr><td>9</td><td>NFR-22</td><td>Same session synced twice</td><td>No duplicate records in Moodle</td><td>test_sync_is_idempotent</td><td>Pass</td></tr>
+<tr><td>10</td><td>FR-319</td><td>Lecturer confirms a flag after the late threshold</td><td>Status Late from the flag time</td><td>test_confirm_after_late_threshold_records_late</td><td>Pass</td></tr>
+<tr><td>11</td><td>FR-403</td><td>Real face of a student not enrolled in the course</td><td>Not recorded</td><td>test_real_not_enrolled_student_is_not_recorded</td><td>Pass</td></tr>
+<tr><td>12</td><td>FR-807, NFR-04</td><td>Student opens a source from a course they are not in</td><td>403, Moodle not called</td><td>test_not_enrolled_student_is_403_and_moodle_not_called</td><td>Pass</td></tr>
+<tr><td>13</td><td>FR-813, NFR-09</td><td>Topic asked by only 2 students</td><td>Hidden from lecturer trends</td><td>test_topics_below_three_students_are_hidden</td><td>Pass</td></tr>
+<tr><td>14</td><td>NFR-21</td><td>LLM provider fails during a chat</td><td>503 with a clear message, nothing saved</td><td>test_llm_unavailable_is_503_and_nothing_saved</td><td>Pass</td></tr>
+<tr><td>15</td><td>NFR-21</td><td>LLM daily quota used up</td><td>Reported as quota, not retried</td><td>test_quota_error_is_distinct_and_not_retried</td><td>Pass</td></tr>
+</table>
+
+<h3>5.4 AI answer quality</h3>
+<p>The Q&amp;A evaluation harness (NFR-18, NFR-19) scores in-syllabus answers for correctness and citation support, and checks that off-syllabus answers are labelled as general knowledge. The evaluation set is being reviewed (T83); results will be added here.</p>
+
+<h2>6. Error handling</h2>
+<table>
+<tr><th>Failure</th><th>What the user sees</th><th>What the system does</th><th>Test</th></tr>
+<tr><td>Moodle (SPeCTRUM) down at sign-in</td><td>"SPeCTRUM is not reachable right now. Please try again later." (HTTP 503)</td><td>No account is created or changed; users already signed in keep working</td><td>test_moodle_down_gives_503, test_moodle_failing_after_token_gives_503_and_creates_nothing</td></tr>
+<tr><td>Moodle down during attendance sync</td><td>Lecturer sees the session's sync status as failed, then synced</td><td>Attendance is kept in SmartClass; sync retried with backoff</td><td>test_moodle_down_fails_then_retries_with_backoff_until_synced, test_moodle_down_announces_failed_and_keeps_the_retry</td></tr>
+<tr><td>Poor face-enrolment photo</td><td>A specific retake message, e.g. "The photo is blurry. Hold still, let the camera focus, and retake." or "We couldn't see your face in the selfies. Face the camera in good light and retake."</td><td>Nothing is stored; after repeated failures the student may submit for lecturer review</td><td>test_every_reason_has_a_retake_message, test_no_face_in_selfies_is_a_retake, test_fewer_than_three_selfies_with_a_face_is_a_retake</td></tr>
+<tr><td>Face model not loaded</td><td>HTTP 503 "Face recognition model not loaded"</td><td>Login, attendance viewing and the assistant keep working</td><td>test_model_not_loaded_is_503</td></tr>
+<tr><td>LLM down or slow</td><td>A clear error in the chat (HTTP 503)</td><td>Question not saved half-done; other modules unaffected</td><td>test_llm_unavailable_is_503_and_nothing_saved, test_summary_llm_down_is_503, test_lecturer_llm_down_is_503</td></tr>
+<tr><td>LLM daily quota used up</td><td>Same clear error</td><td>Recognised as quota and not retried (per-minute limits are retried); live tests skip with LLM_QUOTA instead of failing</td><td>test_quota_error_is_distinct_and_not_retried, test_per_minute_rate_limit_is_retried_not_reported_as_quota</td></tr>
+<tr><td>Camera device loses the server</td><td>Device status shows offline to the admin and lecturer</td><td>Device logs the error and retries</td><td>test_unreachable_server_while_sending_is_logged_and_retried</td></tr>
+<tr><td>One course's materials fail to sync</td><td>That material shows "error" to the lecturer</td><td>Other courses still sync</td><td>test_sync_all_isolates_a_failing_course</td></tr>
+</table>
+
+<h2>7. User acceptance testing</h2>
+<p>Planned (T107): a few classmates and a lecturer try both apps with a task list on the UAT server (T99). Results and feedback will be recorded in <code>docs/testing/uat.md</code> and summarised here.</p>
+
+<h2>8. Limitations and next steps</h2>
+<ul>
+<li>Sign-in uses the simulated SPeCTRUM's username and password; real SPeCTRUM uses Microsoft 365 SSO and would need UM IT approval.</li>
+<li>No liveness detection (proposal §4.9); the camera is at the entrance under the lecturer's watch.</li>
+<li>To do before the final demo: Raspberry Pi run with fps and latency measured (T47), full class run end to end (T48), Q&amp;A evaluation set (T83), UAT server and APKs (T99), small UAT (T107).</li>
+<li>FR-820 to FR-824 start once Shino's Module 6 provides quiz results.</li>
+</ul>
+
+</body>
+</html>
