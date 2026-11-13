@@ -50,6 +50,10 @@ Short log, newest entry at the bottom of "Log". Each entry is at most 5 lines:
 - RESOLVED at the fyp2-m8 merge (T100's migration is now `f3a4b5c6d7e8` after T43's): migration `e2f3a4b5c6d7` hangs off `d1e2f3a4b5c6`; if `fyp2-m8` adds a migration on the same parent, re-point one of them when merging so Alembic has one head.
 - Checkpoint review b06470b..480a8d1 (T42-T46): check.sh 659 passed; `pytest -m db` 518 passed, 1 failed = live LLM test `test_live_qa.py::test_study_tools_live_valid_and_grounded[boundary-value-analysis-practice_questions]` (LLMMalformedOutput from the real model, M8, not touched by this loop; it is selected by `-m db` because it also carries the db marker). No finished task reopened.
 - RESOLVED (T98, T103-T105 exempted from the T48 gate in PLAN.md's picking rule): No runnable task (2026-11-14): T47 is `[HUMAN]` (Pi run) and T48 `[HUMAN] Checkpoint` (full attendance run) is unticked, which gates every task below it, including T98 and the new AP2 tasks T103–T105. Yew Sing ticks T48 (or moves the AP2 section above it / says T103+ may run) to resume the loop.
+- Checkpoint review 1f43cf2..HEAD (T98, T103-T105): check.sh 734 passed; `pytest -m db` 548 passed. No secrets or emails in the report, slides or diagrams; FR statuses are honest (2 Partly, 2 Not done). No finished task reopened.
+- REVIEW: T104 (low) - `test_docs_report.py` checks `docs/report/ap2-report.html`, but the live report is now the Google Doc; edits made in the Doc are not checked and the HTML will drift. Treat the HTML as the first version only; don't re-upload it.
+- REVIEW: loop (low) - `scripts/run-tasks.sh` stop check `*"no runnable task"*` is case-sensitive, so the `No runnable task: ...` commit did not stop the loop. Also the default 80 turns ran out on T103 after its review passed and before its commit (committed by the run-plan session); doc tasks need ~150.
+- T105 Drive upload done by the run-plan session: `SmartClass - AP2 Slides (Yew Sing).pptx` in folder `18XVzURpJaiZAvPjdW_5QO8l7DRXF9yvz` (https://drive.google.com/file/d/1W_Ty9TzMfNMoXbGfETTRa0KBUW3Qy6kY/view). Still manual: open in PowerPoint once, add screenshots (slide 14).
 
 ## Log
 
