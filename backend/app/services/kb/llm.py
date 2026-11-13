@@ -80,11 +80,26 @@ def fake_chat(messages: list[dict]) -> str:
     """Deterministic reply for E2E runs (LLM_FAKE=1), shaped like the real prompts' answers.
 
     A follow-up rewrite gets the latest question back; an answer cites passage [1] when the
-    prompt carries course passages, otherwise it is a general-knowledge answer.
+    prompt carries course passages, otherwise it is a general-knowledge answer. The study-tools
+    prompts ask for JSON, so those get a small, valid JSON object (flashcards or questions).
     """
     last = messages[-1]["content"]
-    if "standalone search query" in messages[0]["content"]:
+    system = messages[0]["content"]
+    if "standalone search query" in system:
         return last.rsplit("Latest question:", 1)[-1].strip()
+    if "Label the student's question" in system:   # topic label: the question's first words
+        words = last.strip().rstrip("?.!").split()[:5]
+        return " ".join(words).capitalize() or "General question"
+    if "Reply with a single JSON object" in system:
+        if '"cards"' in system:
+            return ('{"cards": [{"front": "What does boundary value analysis test?", '
+                    '"back": "The values at the edges of a range.", "citation": 1}]}')
+        return ('{"questions": [{"stem": "Which structural coverage criterion is stronger?", '
+                '"options": ["statement", "branch", "neither", "both"], "answer": "branch", '
+                '"explanation": "Branch coverage subsumes statement coverage.", "citation": 1}]}')
+    if "before next class" in system:
+        return ("## Revisit\n\nBoundary value analysis is covered in the notes [1].\n\n"
+                "## Not covered by the materials\n\nQuantum entanglement.")
     if "\n[1] " in last:
         return FAKE_COURSE_ANSWER
     return FAKE_GENERAL_ANSWER
@@ -95,14 +110,26 @@ def fake_chat(messages: list[dict]) -> str:
 # that, e.g., the live suite can't burst past the provider's free tier.
 
 _rate_times: deque[float] = deque()
-_rate_lock = asyncio.Lock()
+# One lock per event loop: an asyncio.Lock that two calls ever waited on together is tied to
+# that loop, and the topic label runs alongside the answer (asyncio.gather), so a lock shared
+# across loops (each test, or a script's asyncio.run) would raise "bound to a different event loop".
+_rate_locks: dict[int, asyncio.Lock] = {}
+
+
+def _rate_lock() -> asyncio.Lock:
+    loop_id = id(asyncio.get_running_loop())
+    lock = _rate_locks.get(loop_id)
+    if lock is None:
+        _rate_locks.clear()          # an old loop's lock is never needed again
+        lock = _rate_locks[loop_id] = asyncio.Lock()
+    return lock
 
 
 async def _throttle() -> None:
     """Wait until a request may be sent without exceeding `LLM_RPM` in the last 60 s."""
     if settings.LLM_RPM <= 0:
         return
-    async with _rate_lock:
+    async with _rate_lock():
         now = _monotonic()
         while _rate_times and now - _rate_times[0] >= 60.0:
             _rate_times.popleft()
@@ -161,12 +188,17 @@ def _looks_like_quota(exc: Exception) -> bool:
     return any(k in _error_text(exc) for k in _QUOTA_MARKERS)
 
 
+LLM_MAX_GROWN_TOKENS = 12000  # ceiling for the one "ran out of room" retry
+
+
 async def chat(messages: list[dict], max_tokens: int | None = None, temperature: float = 0.2) -> str:
     if settings.LLM_FAKE:
         return fake_chat(messages)
     client = await _get_client()
     # Thinking models (Gemini 3.x) can spend tens of seconds reasoning; "low" keeps chat snappy
     extra = {"reasoning_effort": settings.LLM_REASONING_EFFORT} if settings.LLM_REASONING_EFFORT else {}
+    budget = max_tokens or settings.LLM_MAX_OUTPUT_TOKENS
+    grown = False
     attempts = settings.LLM_MAX_RETRIES + 1
     for attempt in range(attempts):
         await _throttle()
@@ -174,8 +206,10 @@ async def chat(messages: list[dict], max_tokens: int | None = None, temperature:
             resp = await client.chat.completions.create(
                 model=settings.LLM_MODEL,
                 messages=messages,
-                max_tokens=max_tokens or settings.LLM_MAX_OUTPUT_TOKENS,
+                max_tokens=budget,
                 temperature=temperature,
+                # a long reply from a thinking model needs longer than the default timeout
+                timeout=max(settings.LLM_TIMEOUT_SECONDS, budget / 50),
                 **extra,
             )
         except Exception as exc:  # noqa: BLE001 — callers only need "unavailable"/"quota"
@@ -189,7 +223,18 @@ async def chat(messages: list[dict], max_tokens: int | None = None, temperature:
                 # still rate-limited after every backoff: a used-up quota, not a blip
                 raise LLMQuotaExhausted("The AI provider's quota is exhausted.") from exc
             raise LLMUnavailable(f"AI provider error: {type(exc).__name__}") from exc
-        return (resp.choices[0].message.content or "").strip()
+        choice = resp.choices[0]
+        content = (choice.message.content or "").strip()
+        if not content and getattr(choice, "finish_reason", None) == "length":
+            # Thinking models (deepseek-flash, Gemini 3.x) count hidden reasoning against
+            # max_tokens; a long task can spend it all and return nothing. Retry once with
+            # more room instead of handing the caller an empty answer.
+            if grown:
+                raise LLMUnavailable("The AI ran out of room before answering. Try a narrower topic.")
+            grown = True
+            budget = min(budget * 3, LLM_MAX_GROWN_TOKENS)
+            continue
+        return content
     raise LLMUnavailable("AI provider error: retries exhausted")  # pragma: no cover
 
 

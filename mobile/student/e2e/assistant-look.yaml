@@ -27,10 +27,14 @@ appId: host.exp.exponent
     timeout: 60000
 - tapOn: "Assistant"
 - extendedWaitUntil:
-    visible: "New chat"
+    visible:
+      id: "assistant-course-picker"
     timeout: 30000
-- tapOn: "WIA2005"
-- tapOn: "New chat"
+- takeScreenshot: look-0-start
+- tapOn:
+    id: "assistant-course-picker"
+- tapOn:
+    id: "course-option-WIA2005"
 
 # The input box must sit above the keyboard
 - tapOn:
@@ -86,8 +90,9 @@ appId: host.exp.exponent
 - hideKeyboard
 - takeScreenshot: look-5-general-knowledge
 
-- back
+- tapOn:
+    id: "assistant-history"
 - extendedWaitUntil:
-    visible: "Your chats"
+    visible: "Chats"
     timeout: 15000
-- takeScreenshot: look-6-chat-list
+- takeScreenshot: look-6-chat-history

@@ -192,3 +192,29 @@ export const moodleValueLabel = (v) => MOODLE_VALUE_LABELS[v] ?? statusLabel(v)
 
 // Only a status SmartClass has can be taken from Moodle (the server answers 409 otherwise)
 export const canTakeMoodle = (conflict) => STATUSES.includes(conflict.moodle_status)
+
+// ─── Flags (FR-318, FR-319, FR-407) ──────────────────────────────────────────
+
+// The toast when a student flags from their app (keep it lowercase: the card title differs)
+export function flagAlertText(flag) {
+  return `${flag.name} (${flag.matric_no}) says they're here but wasn't recognised`
+}
+
+// A flag from a websocket event or an action: replace it by id, else prepend; pending first,
+// newest flag first.
+export function upsertFlag(list, flag) {
+  const next = [flag, ...(list ?? []).filter(f => f.id !== flag.id)]
+  return next.sort((a, b) => {
+    const ap = a.status === 'pending' ? 0 : 1
+    const bp = b.status === 'pending' ? 0 : 1
+    if (ap !== bp) return ap - bp
+    return String(b.flagged_at ?? '').localeCompare(String(a.flagged_at ?? ''))
+  })
+}
+
+// The closest unmatched face a device kept for the session, if any (FR-407)
+export function cropText(flag) {
+  return flag?.closest_crop
+    ? `Closest unrecognised face · ${Math.round(flag.closest_crop.similarity * 100)}% similar`
+    : 'No unrecognised face from the camera for this student'
+}

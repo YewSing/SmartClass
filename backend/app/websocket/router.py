@@ -6,7 +6,7 @@ from app.core.database import AsyncSessionLocal
 from app.core.security import decode_token
 from app.models.session import AttendanceSession
 from app.models.attendance import AttendanceRecord
-from app.models.user import Lecturer, Student
+from app.models.user import Lecturer, Student, User
 from app.models.class_ import ClassOccurrence, Enrollment
 from app.services.session_service import get_session_counts
 from app.websocket.manager import manager
@@ -98,3 +98,47 @@ async def attendance_ws(
             pass
         finally:
             manager.disconnect(session_id, websocket)
+
+
+@router.websocket("/ws/me")
+async def student_ws(
+    websocket: WebSocket,
+    token: str = Query(...),
+):
+    """
+    A student's own live events: attendance_recorded (FR-406), attendance_flag_resolved (FR-319).
+    Authenticate via ?token=<JWT>. Only an active student may connect.
+    """
+    payload = decode_token(token)
+    user_id = payload.get("sub")
+    role = payload.get("role")
+    token_type = payload.get("type")
+
+    if not user_id or token_type != "access" or role != "student":
+        await websocket.close(code=1008)
+        return
+    try:
+        user_id = int(user_id)
+    except (TypeError, ValueError):
+        await websocket.close(code=1008)
+        return
+
+    async with AsyncSessionLocal() as db:
+        user = await db.scalar(select(User).where(User.id == user_id))
+        if user is None or user.status != "active":
+            await websocket.close(code=1008)
+            return
+    # No DB session stays open during the receive loop: there is no initial state to send.
+
+    await manager.connect_user(user_id, websocket)
+
+    try:
+        await websocket.send_json({"event": "connected", "user_id": user_id})
+        # Keep connection alive; server drives all pushes
+        while True:
+            await websocket.receive_text()
+
+    except WebSocketDisconnect:
+        pass
+    finally:
+        manager.disconnect_user(user_id, websocket)

@@ -25,6 +25,8 @@ const AUDIT_ACTIONS = {
   FACE_REVIEW_DISMISS:    { label: 'Dismissed face alert',     tone: 'neutral' },
   FACE_PROMOTE:           { label: 'Resolved face alert',      tone: 'info' },
   ATTENDANCE_OVERRIDE:    { label: 'Overrode attendance',      tone: 'warn' },
+  ATTENDANCE_FLAG_CONFIRM: { label: 'Confirmed "not recognised" flag', tone: 'info' },
+  ATTENDANCE_FLAG_REJECT:  { label: 'Rejected "not recognised" flag',  tone: 'warn' },
   CLASS_SCHEDULE_SET:     { label: 'Set class schedule',       tone: 'info' },
   SESSION_START_NOW:      { label: 'Started class now',        tone: 'info' },
   SESSION_TIME_CHANGED:   { label: 'Changed class time',       tone: 'info' },
@@ -33,6 +35,8 @@ const AUDIT_ACTIONS = {
   SESSION_CANCELLED:      { label: 'Cancelled class',          tone: 'warn' },
   SESSION_CONFIRMED_HELD: { label: 'Confirmed class was held', tone: 'good' },
   SESSION_CONFIRMED_NOT_HELD: { label: 'Confirmed class was not held', tone: 'warn' },
+  DEVICE_REGISTER:        { label: 'Registered camera device', tone: 'good' },
+  DEVICE_KEY_REGENERATE:  { label: 'New camera device key',    tone: 'warn' },
 }
 
 const tidy = (code) => {
@@ -123,4 +127,34 @@ const SYNC_ROWS = [
 export function syncRows(report) {
   if (!report) return []
   return SYNC_ROWS.filter(([key]) => key in report).map(([key, label]) => ({ key, label, value: report[key] }))
+}
+
+// Server times are naive Malaysia time (no offset); read them as +08:00 whatever the browser's zone
+export function parseMyt(iso) {
+  if (!iso) return null
+  const s = String(iso)
+  return new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(s) ? s : `${s}+08:00`)
+}
+
+export function formatMyt(iso) {
+  const d = parseMyt(iso)
+  if (!d || isNaN(d)) return ''
+  return d.toLocaleString('en-MY', {
+    day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kuala_Lumpur',
+  })
+}
+
+// "Online" / "Offline · last seen 13 Nov, 10:42 am" / "Never connected" / "No key yet" for a device row (NFR-23)
+export function deviceStatus(d) {
+  if (!d.has_key) return { label: 'No key yet', tone: 'neutral', online: false }
+  if (d.online) return { label: 'Online', tone: 'good', online: true }
+  if (!d.last_heartbeat_at) return { label: 'Never connected', tone: 'neutral', online: false }
+  return { label: `Offline · last seen ${formatMyt(d.last_heartbeat_at)}`, tone: 'bad', online: false }
+}
+
+// Checks the "Register device" form before it is sent. Returns a message or null.
+export function newDeviceError({ name = '', room = '' }) {
+  if (!name.trim() || !room.trim()) return 'Enter a device name and a room.'
+  if (name.trim().length > 255 || room.trim().length > 255) return 'Keep the name and room under 255 characters.'
+  return null
 }

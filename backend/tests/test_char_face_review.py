@@ -1,8 +1,12 @@
-"""Characterisation: unrecognised-face review queue (worker → backend, admin list/dismiss/promote)."""
+"""Characterisation: legacy unrecognised-face review queue (admin list/dismiss/promote, until T96)."""
+import importlib.util
+from pathlib import Path
+
 import pytest
 from sqlalchemy import func, select
 
 from app.core.config import settings
+from app.core.database import AsyncSessionLocal
 from app.models.attendance import AttendanceRecord
 from app.models.audit import AuditLog
 from app.models.consent import FaceConsent
@@ -11,8 +15,8 @@ from app.models.face_review import FaceReviewEntry
 
 pytestmark = pytest.mark.db
 
-# T40: the worker endpoint takes the device's own key (X-Device-Key) instead of the shared internal key
-_DEVICE_HEADERS: dict[str, str] = {}
+# T46b: /internal/face-review is gone and nothing adds rows any more; the admin endpoints stay
+# until T96, so these tests put a legacy row in the table directly.
 
 
 def _vec(*head: float) -> list[float]:
@@ -20,18 +24,11 @@ def _vec(*head: float) -> list[float]:
     return [*head, *([0.0] * (512 - len(head)))]
 
 
-@pytest.fixture(autouse=True)
-def _device_key(device):
-    _DEVICE_HEADERS.clear()
-    _DEVICE_HEADERS.update(device["headers"])
-
-
-async def _report(client, embedding, **extra):
-    return await client.post(
-        "/internal/face-review",
-        json={"embedding": embedding, **extra},
-        headers=_DEVICE_HEADERS,
-    )
+async def _report(embedding, session_id=None, similarity=0.0):
+    async with AsyncSessionLocal() as db:
+        db.add(FaceReviewEntry(embedding=embedding, session_id=session_id, camera_device_id="cam-1",
+                               similarity=similarity, occurrences=1))
+        await db.commit()
 
 
 async def _entries(db):
@@ -39,49 +36,11 @@ async def _entries(db):
     return (await db.execute(select(FaceReviewEntry).order_by(FaceReviewEntry.id))).scalars().all()
 
 
-async def test_internal_endpoint_needs_key_and_512_dims(client, users):
-    resp = await client.post("/internal/face-review", json={"embedding": _vec(1.0)},
-                             headers={"X-Device-Key": "wrong"})
-    assert resp.status_code == 401
-    resp = await client.post("/internal/face-review", json={"embedding": _vec(1.0)})
-    assert resp.status_code == 422  # header missing
-    assert (await _report(client, [1.0, 0.0])).status_code == 400
-
-
-async def test_similar_faces_are_merged_and_closest_match_recorded(
-    client, lecturer_client, classroom, db_session
-):
-    db_session.add(FaceEmbedding(student_id=classroom["student_ids"][1], embedding=_vec(1.0)))
-    await db_session.commit()
-    session_id = (await lecturer_client.post(
-        "/lecturer/sessions", json={"occurrence_id": classroom["occurrence_id"]}
-    )).json()["id"]
-
-    assert (await _report(client, _vec(1.0, 0.1), session_id=session_id, similarity=0.2,
-                          camera_device_id="cam-1")).status_code == 204
-    assert (await _report(client, _vec(1.0, 0.2), session_id=session_id, similarity=0.3)).status_code == 204
-    assert (await _report(client, _vec(0.0, 1.0), session_id=session_id, similarity=0.1)).status_code == 204
-
-    entries = await _entries(db_session)
-    assert len(entries) == 2
-    merged, separate = entries
-    assert merged.occurrences == 2
-    assert merged.similarity == pytest.approx(0.3)  # keeps the best reading
-    assert merged.camera_device_id == "cam-1"
-    assert merged.closest_match_student_id == classroom["student_user_ids"][1]  # users.id, not students.id
-    assert merged.closest_match_confidence == pytest.approx(0.98, abs=0.01)
-    assert separate.occurrences == 1
-
-    # Unidentified count in the session reflects the queue.
-    sessions = (await lecturer_client.get("/lecturer/sessions")).json()
-    assert sessions[0]["unid"] == 2
-
-
 async def test_admin_list_queue(client, admin_client, lecturer_client, classroom):
     session_id = (await lecturer_client.post(
         "/lecturer/sessions", json={"occurrence_id": classroom["occurrence_id"]}
     )).json()["id"]
-    await _report(client, _vec(1.0), session_id=session_id, similarity=0.2)
+    await _report(_vec(1.0), session_id=session_id, similarity=0.2)
 
     resp = await admin_client.get("/admin/face-review")
     assert resp.status_code == 200, resp.text
@@ -96,7 +55,7 @@ async def test_admin_list_queue(client, admin_client, lecturer_client, classroom
 
 
 async def test_admin_dismiss_entry(client, admin_client, users, db_session):
-    await _report(client, _vec(1.0))
+    await _report(_vec(1.0))
     [entry] = await _entries(db_session)
     entry_id = entry.id
 
@@ -114,7 +73,7 @@ async def test_admin_promote_sets_embedding_and_marks_present(
     session_id = (await lecturer_client.post(
         "/lecturer/sessions", json={"occurrence_id": classroom["occurrence_id"]}
     )).json()["id"]
-    await _report(client, _vec(0.0, 1.0), session_id=session_id, similarity=0.2)
+    await _report(_vec(0.0, 1.0), session_id=session_id, similarity=0.2)
     [entry] = await _entries(db_session)
     entry_id = entry.id
     student_user_id, student_id = classroom["student_user_ids"][2], classroom["student_ids"][2]
@@ -144,9 +103,35 @@ async def test_admin_promote_sets_embedding_and_marks_present(
 
 
 async def test_promote_unknown_student_is_404_and_keeps_entry(client, admin_client, users, db_session):
-    await _report(client, _vec(1.0))
+    await _report(_vec(1.0))
     [entry] = await _entries(db_session)
     resp = await admin_client.post(f"/admin/face-review/{entry.id}/promote", json={"student_user_id": 999_999})
     assert resp.status_code == 404
     assert len(await _entries(db_session)) == 1
     assert await db_session.scalar(select(func.count()).select_from(FaceEmbedding)) == 0
+
+
+# ── T46b: the legacy rows are deleted (NFR-02) ───────────────────────────────
+
+def _migration():
+    path = Path(__file__).parents[1] / "alembic" / "versions" / "b5c6d7e8f9a0_empty_legacy_face_review_queue.py"
+    spec = importlib.util.spec_from_file_location("t46b_migration", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+async def test_migration_deletes_every_legacy_review_row(users, db_session):
+    await _report(_vec(1.0))
+    await _report(_vec(0.0, 1.0))
+    assert len(await _entries(db_session)) == 2
+
+    await db_session.execute(_migration().DELETE_LEGACY_ROWS)
+    await db_session.commit()
+
+    assert await _entries(db_session) == []
+
+
+def test_migration_follows_the_current_head():
+    m = _migration()
+    assert (m.revision, m.down_revision) == ("b5c6d7e8f9a0", "a4b5c6d7e8f9")

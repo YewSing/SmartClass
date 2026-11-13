@@ -6,8 +6,10 @@
 const path = require('path')
 const { defineConfig, devices } = require('@playwright/test')
 
-const WEB_PORT = 8092
-const API_PORT = 8001
+// E2E_WEB_PORT / E2E_WEB_API_PORT move both servers, so a loop in a second worktree can run
+// its own Playwright tests at the same time (e.g. 8093 / 8011).
+const WEB_PORT = Number(process.env.E2E_WEB_PORT || 8092)
+const API_PORT = Number(process.env.E2E_WEB_API_PORT || 8001)
 
 module.exports = defineConfig({
   testDir: './e2e-web',
@@ -31,6 +33,7 @@ module.exports = defineConfig({
       // No schedule job, and test sessions are never written into Moodle
       env: {
         LLM_FAKE: '1',
+        YOUTUBE_API_KEY: '',        // never the real YouTube API in E2E
         SESSION_SCHEDULER_INTERVAL_SECONDS: '0',
         MOODLE_ATTENDANCE_SYNC_INTERVAL_SECONDS: '0',
         MOODLE_ATTENDANCE_CHECK_INTERVAL_SECONDS: '0',

@@ -9,7 +9,8 @@ does). A frame missing a student resets that student's count, as does a gap long
 FACE_VOTE_MAX_GAP_SECONDS or a change of session.
 
 A backup laptop webcam (FR-409) runs with the room's own device key, so it is the same device
-to the server. Nothing is written to disk: crops live in memory for this request only (NFR-01).
+to the server. Matched crops are never stored (NFR-01); a crop that matches no enrolled student is
+kept in `unmatched_faces` as evidence for a flag until it is resolved or expires (FR-407, NFR-02).
 """
 import asyncio
 import logging
@@ -28,7 +29,7 @@ from app.models.camera import Camera
 from app.models.class_ import ClassOccurrence
 from app.models.session import AttendanceSession
 from app.models.user import Student
-from app.services import attendance_service, session_schedule
+from app.services import attendance_flags, attendance_service, session_schedule
 
 logger = logging.getLogger(__name__)
 
@@ -199,6 +200,9 @@ async def recognise_frame(
             results[index] = {"index": index, "outcome": "not_enrolled",
                               "similarity": found.similarity}
         elif found.outcome == "below_threshold":
+            # Kept only as evidence for a student's "not recognised" flag (FR-407, T43)
+            await attendance_flags.store_unmatched(db, session.id, camera.id, embedding, crops[index],
+                                                   found.similarity, now)
             results[index] = {"index": index, "outcome": "below_threshold",
                               "similarity": found.similarity}
         elif found.student_id in recorded:

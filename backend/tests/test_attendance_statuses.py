@@ -10,16 +10,18 @@ import io
 from datetime import date, datetime
 from pathlib import Path
 
+import numpy as np
 import pytest
 from sqlalchemy import func, insert, select, text
 from sqlalchemy.exc import IntegrityError
 
 from app.core.config import settings
-from app.core.database import AsyncSessionLocal
+from app.core.database import AsyncSessionLocal, run_after_commit
 from app.models.attendance import AttendanceRecord
+from app.models.camera import Camera
 from app.models.face import FaceEmbedding
 from app.models.session import AttendanceSession
-from app.services import attendance_service, session_schedule
+from app.services import attendance_service, recognition_service, session_schedule
 from app.services.session_service import get_session_counts
 
 pytestmark = pytest.mark.db
@@ -36,14 +38,22 @@ def at(h: int, m: int, d: date = MON) -> datetime:
     return datetime(d.year, d.month, d.day, h, m)
 
 
-# T40: face-match takes the room's device key (X-Device-Key) instead of the shared internal key
-_DEVICE_HEADERS: dict[str, str] = {}
+# T46b: recognition goes through the device path (recognition_service.recognise_frame, what
+# POST /device/faces runs) instead of the removed /internal/face-match. The InsightFace model is
+# faked: each student's crop bytes map to their stored embedding.
+_CAMERA_ID: list[int] = []
+_VECS: dict[bytes, list[float]] = {}
 
 
 @pytest.fixture(autouse=True)
-def _device_key(device):
-    _DEVICE_HEADERS.clear()
-    _DEVICE_HEADERS.update(device["headers"])
+def _device_path(device, monkeypatch):
+    _CAMERA_ID[:] = [device["id"]]
+    _VECS.clear()
+    recognition_service.reset_votes()
+    monkeypatch.setattr(recognition_service, "embed_crop",
+                        lambda face_app, data: np.array(_VECS[data], dtype=np.float32) if data in _VECS else None)
+    yield
+    recognition_service.reset_votes()
 
 
 @pytest.fixture
@@ -79,7 +89,11 @@ async def records_for(db, session_id: int) -> list[AttendanceRecord]:
 
 async def recognise(client, db, session_id: int, student_id: int, now: datetime,
                     fixed_clock, dry_run: bool = False) -> dict:
-    """Give the student a unique face embedding, then call the internal face-match endpoint."""
+    """Give the student a unique face embedding, then send camera frames of them.
+
+    Sends FACE_VOTE_THRESHOLD frames (enough to record), or a single frame for `dry_run`, which
+    reports whether they are already recorded without counting towards a record.
+    """
     result = await db.execute(select(FaceEmbedding).where(FaceEmbedding.student_id == student_id))
     emb = result.scalar_one_or_none()
     if emb is None:
@@ -89,18 +103,24 @@ async def recognise(client, db, session_id: int, student_id: int, now: datetime,
         emb = FaceEmbedding(student_id=student_id, embedding=vec)
         db.add(emb)
         await db.commit()
-    vec = [float(x) for x in emb.embedding]
+    crop = f"student-{student_id}".encode()
+    _VECS[crop] = [float(x) for x in emb.embedding]
 
     fixed_clock(now)
-    resp = await client.post(
-        "/internal/face-match",
-        json={"embedding": vec, "session_id": session_id, "dry_run": dry_run},
-        headers=_DEVICE_HEADERS,
-    )
-    assert resp.status_code == 200, resp.text
-    body = resp.json()
-    assert body["matched"] is True
-    return body
+    frames = 1 if dry_run else settings.FACE_VOTE_THRESHOLD
+    outcome: dict = {}
+    for _ in range(frames):
+        async with AsyncSessionLocal() as frame_db:
+            camera = await frame_db.get(Camera, _CAMERA_ID[0])
+            session = await frame_db.get(AttendanceSession, session_id)
+            (outcome,) = await recognition_service.recognise_frame(
+                frame_db, object(), camera, session, [crop])
+            await frame_db.commit()
+            await run_after_commit(frame_db)
+    assert outcome.get("student_id") == student_id, outcome
+    assert outcome["outcome"] in ("recorded", "already_recorded", "voting"), outcome
+    return {**outcome, "matched": True,
+            "already_present": outcome["outcome"] == "already_recorded"}
 
 
 # ── The clock rule (FR-302) ──────────────────────────────────────────────────

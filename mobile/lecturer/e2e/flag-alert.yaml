@@ -1,0 +1,77 @@
+# Lecturer flag alert (T45, FR-318, FR-319, FR-407): a student flags on the live session screen,
+# the lecturer sees the toast and the "Says they're here" card, then confirms it.
+# Run: bash scripts/e2e-mobile.sh lecturer flag-alert
+# Needs the local Moodle up (lecturer1 / Lecturer123!) and lecturer1/student4 already in SmartClass.
+# flag-alert.setup.sh seeds the open E2E045 class and starts the actor, which flags it as the
+# student 3 s after the lecturer taps "+15 min" (the flow's trigger).
+appId: host.exp.exponent
+---
+- extendedWaitUntil:
+    visible: "Welcome back|Continue|.*(Start now|Live session)"
+    timeout: 180000
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+- runFlow:
+    when:
+      visible: "Welcome back"
+    commands:
+      - tapOn:
+          id: "login-username"
+      - inputText: "lecturer1"
+      - tapOn:
+          id: "login-password"
+      - inputText: "Lecturer123!"
+      - hideKeyboard
+      - tapOn: "Sign In"
+- extendedWaitUntil:
+    visible: ".*(Start now|Live session)"
+    timeout: 60000
+
+# Open the seeded open class on the live session screen
+- scrollUntilVisible:
+    element: "E2E045 Lecture"
+    direction: DOWN
+    timeout: 30000
+- tapOn: "E2E045 Lecture"
+- extendedWaitUntil:
+    visible:
+      id: "class-open-live"
+    timeout: 15000
+- tapOn:
+    id: "class-open-live"
+- extendedWaitUntil:
+    visible: "Live — updates as students are recognised"
+    timeout: 20000
+- assertNotVisible:
+    id: "flag-card"
+
+# "+15 min" is the actor's trigger: the flag arrives over the session websocket
+- tapOn:
+    id: "session-extend"
+- extendedWaitUntil:
+    visible: ".*says they're here but wasn't recognised.*"
+    timeout: 30000
+- takeScreenshot: flag-alert
+- extendedWaitUntil:
+    visible:
+      id: "flag-card"
+    timeout: 15000
+- assertVisible: ".*No unrecognised face from the camera.*"
+
+# Confirm: the card becomes one resolved line and the counts go up
+- tapOn:
+    id: "flag-confirm"
+- extendedWaitUntil:
+    visible:
+      id: "flag-resolved"
+    timeout: 15000
+- assertVisible: ".*Confirmed \\(Present\\).*"
+- assertVisible:
+    id: "count-present"
+    text: "1"
+- assertNotVisible:
+    id: "flag-card"
+- takeScreenshot: flag-confirmed

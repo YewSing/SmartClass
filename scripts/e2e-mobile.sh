@@ -94,9 +94,27 @@ cleanup() {
     adb -s "$booted_emulator" emu kill >/dev/null 2>&1 || true
     [ -n "${emu_pid:-}" ] && kill_tree "$emu_pid"
   fi
+  [ -n "${lock_held:-}" ] && rm -rf "$lock_dir"
   exit "$code"
 }
 trap cleanup EXIT INT TERM
+
+# One Maestro run at a time across all worktrees of this repo: there is one emulator, and Expo
+# (:8081) and the API port are shared. The lock lives in the shared .git dir, so a loop in another
+# worktree waits here instead of fighting over the emulator. A lock whose owner is gone, or older
+# than 40 minutes, is stale and taken over.
+lock_dir="$(cd "$root" && cd "$(git rev-parse --git-common-dir)" && pwd)/e2e-mobile.lock"
+lock_wait_until=$(( $(date +%s) + 45*60 ))
+until mkdir "$lock_dir" 2>/dev/null; do
+  owner=$(cat "$lock_dir/pid" 2>/dev/null || true)
+  age=$(( $(date +%s) - $(cat "$lock_dir/since" 2>/dev/null || date +%s) ))
+  if { [ -n "$owner" ] && ! kill -0 "$owner" 2>/dev/null; } || [ "$age" -gt $((40*60)) ]; then
+    echo "== removing a stale E2E lock (pid ${owner:-?}, ${age}s old)"; rm -rf "$lock_dir"; continue
+  fi
+  [ "$(date +%s)" -lt "$lock_wait_until" ] || { echo "Gave up waiting for the E2E lock held by pid $owner"; exit 1; }
+  echo "== another worktree is running a Maestro flow (pid $owner); waiting"; sleep 20
+done
+lock_held=1; echo $$ > "$lock_dir/pid"; date +%s > "$lock_dir/since"
 
 port_busy() { curl -s -o /dev/null --max-time 2 "http://127.0.0.1:$1/" ; }
 wait_for() {             # wait_for <seconds> <description> <command...>
@@ -140,8 +158,9 @@ adb shell input keyevent 82 >/dev/null 2>&1 || true     # unlock screen
 echo "== starting backend on :$API_PORT (LLM_FAKE=${E2E_LLM_FAKE:-1})"
 (cd "$root/backend" && docker compose up -d >/dev/null 2>&1) || echo "   (docker compose up failed; continuing)"
 # The schedule job and the Moodle Attendance sync are off: flows start classes themselves, and test
-# sessions must never be written into Moodle.
-(cd "$root/backend" && LLM_FAKE="${E2E_LLM_FAKE:-1}" SESSION_SCHEDULER_INTERVAL_SECONDS=0 \
+# sessions must never be written into Moodle. YouTube is off too (no key), so "Find related videos"
+# shows search keywords instead of calling the real API.
+(cd "$root/backend" && LLM_FAKE="${E2E_LLM_FAKE:-1}" YOUTUBE_API_KEY="" SESSION_SCHEDULER_INTERVAL_SECONDS=0 \
   MOODLE_ATTENDANCE_SYNC_INTERVAL_SECONDS=0 MOODLE_ATTENDANCE_CHECK_INTERVAL_SECONDS=0 exec python -m uvicorn app.main:app --host 0.0.0.0 --port "$API_PORT") \
   > "$logdir/e2e-backend-$stamp.log" 2>&1 &
 started_pids+=($!)
@@ -176,6 +195,8 @@ adb shell am force-stop "$EXPO_GO" >/dev/null 2>&1 || true
 adb shell am start -a android.intent.action.VIEW -d "exp://127.0.0.1:$EXPO_PORT" "$EXPO_GO" >/dev/null
 
 if [ -f "$flow_setup" ]; then
+  # flow setup scripts that call the API in the background read this
+  export E2E_API_URL="http://127.0.0.1:$API_PORT"
   echo "== flow setup $(basename "$flow_setup")"
   flow_setup_ran=1
   bash "$flow_setup" setup || { echo "Flow setup failed"; exit 1; }

@@ -32,6 +32,11 @@ import FaceVerification from '../screens/FaceVerification'
 import AdminAccounts from '../screens/AdminAccounts'
 import AdminAudit from '../screens/AdminAudit'
 import AdminMoodleSync from '../screens/AdminMoodleSync'
+import AdminDevices from '../screens/AdminDevices'
+
+import LecturerAssistant from '../screens/LecturerAssistant'
+import LecturerAsk from '../screens/LecturerAsk'
+import BeforeClass from '../screens/BeforeClass'
 
 const Stack = createNativeStackNavigator()
 const Tab   = createBottomTabNavigator()
@@ -88,12 +93,23 @@ function AnalyticsStack() {
   )
 }
 
+function AssistantStack() {
+  return (
+    <Stack.Navigator screenOptions={useStackOptions()}>
+      <Stack.Screen name="LecturerAssistant" component={LecturerAssistant} />
+      <Stack.Screen name="LecturerAsk" component={LecturerAsk} />
+      <Stack.Screen name="BeforeClass" component={BeforeClass} />
+    </Stack.Navigator>
+  )
+}
+
 // ─── Main tabs ────────────────────────────────────────────────────────────────
 
 const TAB_ICONS = {
   Home:        { active: 'home',             inactive: 'home-outline' },
   Attendance:  { active: 'people',           inactive: 'people-outline' },
   Quiz:        { active: 'help-circle',      inactive: 'help-circle-outline' },
+  Assistant:   { active: 'sparkles',         inactive: 'sparkles-outline' },
   Analytics:   { active: 'bar-chart',        inactive: 'bar-chart-outline' },
 }
 
@@ -102,6 +118,7 @@ const TAB_ROOTS = {
   Home:       'Dashboard',
   Attendance: 'AttendanceSessions',
   Quiz:       'QuizList',
+  Assistant:  'LecturerAssistant',
   Analytics:  'AnalyticsScreen',
 }
 
@@ -143,6 +160,7 @@ function MainTabs() {
       <Tab.Screen name="Home"        component={HomeStack}       options={{ title: 'Home' }} />
       <Tab.Screen name="Attendance"  component={AttendanceStack} options={{ title: 'Attendance' }} />
       <Tab.Screen name="Quiz"        component={QuizStack}       options={{ title: 'Quiz' }} />
+      <Tab.Screen name="Assistant"   component={AssistantStack}  options={{ title: 'AI Assistant' }} />
       <Tab.Screen name="Analytics"   component={AnalyticsStack}  options={{ title: 'Analytics' }} />
     </Tab.Navigator>
   )
@@ -157,6 +175,7 @@ const ADMIN_ICONS = {
   Verification: { active: 'scan-circle',      inactive: 'scan-circle-outline' },
   AuditLog:     { active: 'document-text',    inactive: 'document-text-outline' },
   MoodleSync:   { active: 'sync-circle',      inactive: 'sync-circle-outline' },
+  Devices:      { active: 'videocam',         inactive: 'videocam-outline' },
 }
 
 const ADMIN_SCREENS = {
@@ -164,6 +183,7 @@ const ADMIN_SCREENS = {
   Verification: FaceVerification,
   AuditLog:     AdminAudit,
   MoodleSync:   AdminMoodleSync,
+  Devices:      AdminDevices,
 }
 
 // One screen per tab, in a stack so wide screens get the same centred column
@@ -207,6 +227,7 @@ function AdminTabs() {
       <Tab.Screen name="Verification" component={ADMIN_STACKS.Verification} options={{ title: 'Face verification' }} />
       <Tab.Screen name="AuditLog"     component={ADMIN_STACKS.AuditLog}     options={{ title: 'Audit log' }} />
       <Tab.Screen name="MoodleSync"   component={ADMIN_STACKS.MoodleSync}   options={{ title: 'SPeCTRUM sync' }} />
+      <Tab.Screen name="Devices"      component={ADMIN_STACKS.Devices}      options={{ title: 'Devices' }} />
     </Tab.Navigator>
   )
 }
@@ -220,7 +241,7 @@ function AdminBrowserOnly() {
     <View style={[adminStyles.center, { paddingTop: insets.top }]}>
       <Ionicons name="desktop-outline" size={40} color={C.primary} />
       <Text style={adminStyles.title}>Administration is in the browser</Text>
-      <Text style={adminStyles.text}>Open SmartClass in a web browser to manage accounts, face data and the SPeCTRUM sync.</Text>
+      <Text style={adminStyles.text}>Open SmartClass in a web browser to manage accounts, face data, camera devices and the SPeCTRUM sync.</Text>
       <TouchableOpacity style={adminStyles.btn} onPress={() => openModal('signout')}>
         <Text style={adminStyles.btnText}>Sign out</Text>
       </TouchableOpacity>

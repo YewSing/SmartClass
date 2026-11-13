@@ -238,8 +238,8 @@ Module 8 turns each course's lecturer materials into a course knowledge base. St
 | FR-806 | When the materials do not cover a question, the system shall answer from general knowledge and clearly label the answer as not from the course materials. | Must Have | Student |
 | FR-807 | The system shall restrict each student to the knowledge bases of the courses they are enrolled in. | Must Have | System |
 | FR-808 | The system shall save chat sessions per student, let the student list, rename and delete them, and use the conversation history for follow-up questions. | Must Have | Student |
-| FR-809 | The system shall let a student open a cited PDF in the app, at the cited page. Other cited files (PowerPoint, Word) open in another app, with the cited passage and its slide or section number shown first. | Should Have | Student |
-| FR-810 | The system shall generate a summary or study guide for a selected material or topic, with citations. | Should Have | Student |
+| FR-809 | The system shall let a student open a cited source straight from the citation: a cited PDF opens in the app at the cited page; other cited files (PowerPoint, Word) open in another app, with the citation showing the slide or section number. (Changed 2026-11-13: no passage screen in between.) | Should Have | Student |
+| FR-810 | The system shall generate a summary or study guide for a selected material or topic, with citations. (The student app offers the summary only; study guide left its menu on 2026-11-14 because it read like a normal answer. The API still accepts it.) | Should Have | Student |
 | FR-811 | The system shall generate non-graded flashcards and practice questions, with answers and citations, from a selected material or topic. | Should Have | Student |
 | FR-812 | The system shall suggest external learning resources (YouTube videos and search keywords) for a topic the student is studying. | Could Have | Student |
 
