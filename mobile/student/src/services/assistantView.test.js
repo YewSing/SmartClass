@@ -1,14 +1,34 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
-  TOOLS, toolFor, inputPlaceholder, scoreLabel, countCorrect, canFindVideos, videoTopic,
-  youtubeSearchUrl, courseLabel, timeAgo,
+  TOOLS, toolFor, inputPlaceholder, scoreLabel, countCorrect, answerIndex, isNearBottom, canFindVideos,
+  videoTopic, youtubeSearchUrl, courseLabel, timeAgo,
 } from './assistantView.js'
 
-test('the study tools menu has the four tools the API knows', () => {
-  assert.deepEqual(TOOLS.map(t => t.kind), ['summary', 'study_guide', 'flashcards', 'practice_questions'])
+test('the study tools menu has summary, flashcards and practice', () => {
+  // Study guide left the menu on 2026-11-14; older chats that hold one still get its label
+  assert.deepEqual(TOOLS.map(t => t.kind), ['summary', 'flashcards', 'practice_questions'])
   assert.equal(toolFor('flashcards').label, 'Flashcards')
+  assert.equal(toolFor('study_guide').label, 'Study guide')
   assert.equal(toolFor('nope'), null)
+})
+
+test('the right option is found from its text, its case, or an old letter answer', () => {
+  const options = ['statement', 'branch', 'neither', 'both']
+  assert.equal(answerIndex({ options, answer: 'branch' }), 1)
+  assert.equal(answerIndex({ options, answer: 'Both ' }), 3)
+  assert.equal(answerIndex({ options, answer: 'B' }), 1)
+  assert.equal(answerIndex({ options, answer: 'c)' }), 2)
+  assert.equal(answerIndex({ options, answer: 'path' }), -1)
+  // A letter answer counts the matching pick as right (the 2026-11-14 bug: every pick was wrong)
+  assert.equal(countCorrect([{ options, answer: 'B' }], { 0: 1 }), 1)
+})
+
+test('the jump-to-latest button shows only when scrolled up', () => {
+  const at = y => ({ contentOffset: { y }, contentSize: { height: 2000 }, layoutMeasurement: { height: 600 } })
+  assert.equal(isNearBottom(at(1400)), true)
+  assert.equal(isNearBottom(at(1300)), true)
+  assert.equal(isNearBottom(at(900)), false)
 })
 
 test('a chosen tool changes the message box placeholder', () => {

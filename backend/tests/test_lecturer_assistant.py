@@ -174,3 +174,29 @@ async def test_a_new_chat_is_listed_first(lecturer_client, synthetic_kb, fake_ll
     new = (await lecturer_client.post("/lecturer/assistant/sessions", json={"course_id": course_id})).json()
     listed = (await lecturer_client.get(f"/lecturer/assistant/sessions?course_id={course_id}")).json()
     assert [s["id"] for s in listed] == [new["id"], old["id"]]
+
+
+async def test_the_answer_prompt_knows_the_asker_is_the_lecturer(lecturer_client, student_client, synthetic_kb,
+                                                                 monkeypatch):
+    # Found in the 2026-11-14 check: asked "is my materials up to date", the assistant told the
+    # lecturer to "ask your lecturer". A lecturer's chat now says who is asking; a student's doesn't.
+    systems = []
+
+    async def chat(messages, **kw):
+        if "Label the student's question" not in messages[0]["content"]:
+            systems.append(messages[0]["content"])
+        return COURSE_ANSWER
+
+    monkeypatch.setattr(llm, "chat", chat)
+    chat_l = await _new_chat(lecturer_client, synthetic_kb["course_id"])
+    resp = await lecturer_client.post(f"/lecturer/assistant/sessions/{chat_l['id']}/messages",
+                                      json={"content": "Are my materials up to date?"})
+    assert resp.status_code == 200, resp.text
+    assert "The person asking is the lecturer who teaches" in systems[-1]
+    assert "{course_code}" not in systems[-1]
+
+    resp = await student_client.post("/student/assistant/sessions", json={"course_id": synthetic_kb["course_id"]})
+    sid = resp.json()["id"]
+    resp = await student_client.post(f"/student/assistant/sessions/{sid}/messages", json={"content": "What is BVA?"})
+    assert resp.status_code == 200, resp.text
+    assert "lecturer who teaches" not in systems[-1]

@@ -49,6 +49,15 @@ Rules:
 6. Students read your answer as plain text on a phone. Never use LaTeX, $ signs or backslash
    commands. Write formulas in plain text, like (a + b) / c, x^2, sqrt(n), 3 × 4 or 50%."""
 
+# Added for a lecturer's own chat (FR-815): the same rules and citations, but the asker is
+# the lecturer whose materials these are, not a student.
+_LECTURER_NOTE = """
+
+The person asking is the lecturer who teaches {course_code} and uploaded these materials, not a
+student. Address them as the lecturer: say "your materials" or "your slides", and never tell them to
+ask their lecturer or check with the course page. When they ask about the materials themselves
+(what they cover, gaps, how current they look), answer from what the passages show and cite them."""
+
 _REWRITE_PROMPT = """Rewrite the student's latest question as a standalone search query for their course
 materials, resolving words like "it" or "that" from the conversation. Reply with the query only."""
 
@@ -189,7 +198,10 @@ async def answer_question(db: AsyncSession, session: ChatSession, course: Course
     user_msg.retrieval_query = query
     passages = await search_materials(db, course.id, query, k=settings.ASSISTANT_TOP_K)
 
-    messages = [{"role": "system", "content": _SYSTEM_PROMPT.format(course=f"{course.code} {course.name}")}]
+    system = _SYSTEM_PROMPT.format(course=f"{course.code} {course.name}")
+    if session.lecturer_id is not None:
+        system += _LECTURER_NOTE.format(course_code=course.code)
+    messages = [{"role": "system", "content": system}]
     messages += history
     materials = format_passages(passages) if passages else "(No course materials are indexed for this course yet.)"
     messages.append({"role": "user", "content": f"Course material passages:\n\n{materials}\n\nQuestion: {question}"})

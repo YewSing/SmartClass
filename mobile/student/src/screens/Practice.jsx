@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useStudent } from '../context/StudentContext'
 import { savePracticeScore } from '../services/api'
-import { countCorrect } from '../services/assistantView'
+import { answerIndex, countCorrect } from '../services/assistantView'
 import { openAtLabel, openCitation } from '../services/openSource'
 import { C } from '../theme'
 
@@ -20,6 +20,7 @@ export default function Practice({ route, navigation }) {
   const q = questions[i]
   const picked = picks[i]
   const answered = picked !== undefined
+  const right = q ? answerIndex(q) : -1
   const correct = countCorrect(questions, picks)
 
   const finish = async () => {
@@ -73,7 +74,7 @@ export default function Practice({ route, navigation }) {
         <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 24 }]}>
           <Text style={styles.stem}>{q.stem}</Text>
           {q.options.map((opt, k) => {
-            const isAnswer = opt === q.answer
+            const isAnswer = k === right
             const isPicked = picked === k
             const tone = answered && isAnswer ? styles.optRight : answered && isPicked ? styles.optWrong : null
             return (
@@ -92,7 +93,7 @@ export default function Practice({ route, navigation }) {
           })}
           {answered ? (
             <View style={styles.explain}>
-              <Text style={styles.explainHead}>{q.options[picked] === q.answer ? 'Correct' : 'Not quite'}</Text>
+              <Text style={styles.explainHead}>{picked === right ? 'Correct' : 'Not quite'}</Text>
               <Text style={styles.explainText}>{q.explanation}</Text>
               {q.citation ? (
                 <TouchableOpacity onPress={() => openCitation(q.citation, navigation).catch(e => showToast(e.message, 'error'))}>

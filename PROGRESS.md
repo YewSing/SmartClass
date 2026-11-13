@@ -601,3 +601,10 @@ TEST-CHANGE: tests/test_seed_courses.py (test_materials_course_exists_in_the_see
 - **Chat rename/delete** use the app's own bottom sheets (same style as Sign Out), which also work on web, instead of `Alert` and a custom dialog.
 - **Lecturer New chat** now creates the empty chat at once, so going back and reopening shows it, not the old chat; test `test_a_new_chat_is_listed_first`.
 - Student E2E flows close the emulator's "Bluetooth keeps stopping" dialog when it appears (it blocked two runs).
+
+### Module 8 third check — 2026-11-14 (Yew Sing)
+- **Practice marked every pick wrong:** the model answered with a letter ("B") although the app compares the pick with the option text. The prompt now asks for the option text, the server maps letters, "B) text" and case to the option and leaves out a question whose answer matches no option (`test_a_letter_answer_becomes_the_option_text`); the app also reads letters, so practice saved earlier works (`answerIndex`). With that, a wrong pick now shows the right option in green.
+- **Lecturer "Ask my materials" treated the lecturer as a student** ("ask your lecturer"): a lecturer's chat adds a note to the answer prompt saying the asker is the course lecturer (`test_the_answer_prompt_knows_the_asker_is_the_lecturer`). Prompt change, so the live suite ran (28 passed).
+- **Study guide left the student tools menu** (too close to a normal answer). The API, its tests and old messages are unchanged; FR-810 notes it.
+- **Jump-to-latest button** in the student chat (bottom right, above the message box) when scrolled up; the chat only follows new content while at the bottom.
+- **Narrow answer bubble on Yew Sing's phone** after using a study tool: assistant bubbles now have a fixed 88% width instead of shrink-to-fit. It only showed on the real phone, so it is not reproduced here; check it there.

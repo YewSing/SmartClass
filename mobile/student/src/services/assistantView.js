@@ -1,15 +1,18 @@
 // Pure helpers for the AI Assistant screen (redesign 2026-11-13), kept here so they can be unit tested.
 
-// The study tools menu (top right). `kind` is what the API calls each tool.
+// The study tools menu (top right). `kind` is what the API calls each tool. "Study guide" was taken
+// out of the menu on 2026-11-14 (too close to a normal answer); older chats can still hold one.
 export const TOOLS = [
   { kind: 'summary', label: 'Summarise', icon: 'document-text-outline', placeholder: 'Topic to summarise…' },
-  { kind: 'study_guide', label: 'Study guide', icon: 'book-outline', placeholder: 'Topic for a study guide…' },
   { kind: 'flashcards', label: 'Flashcards', icon: 'albums-outline', placeholder: 'Topic for flashcards…' },
   { kind: 'practice_questions', label: 'Practice', icon: 'help-circle-outline', placeholder: 'Topic to practise…' },
 ]
+const OLD_TOOLS = [
+  { kind: 'study_guide', label: 'Study guide', icon: 'book-outline', placeholder: 'Topic for a study guide…' },
+]
 
 export function toolFor(kind) {
-  return TOOLS.find(t => t.kind === kind) ?? null
+  return TOOLS.find(t => t.kind === kind) ?? OLD_TOOLS.find(t => t.kind === kind) ?? null
 }
 
 // What the message box says: a question, or the topic for the chosen tool
@@ -23,9 +26,31 @@ export function scoreLabel(payload) {
   return s ? `Last score ${s.correct} / ${s.total}` : null
 }
 
+// Which option is right. The server stores the option text, but practice saved before 2026-11-14
+// can hold a letter ("B"), which made every pick look wrong, so letters still work here.
+export function answerIndex(q) {
+  const options = q?.options ?? []
+  const answer = String(q?.answer ?? '').trim()
+  let i = options.indexOf(answer)
+  if (i >= 0) return i
+  i = options.findIndex(o => o.trim().toLowerCase() === answer.toLowerCase())
+  if (i >= 0) return i
+  const m = /^\(?([A-Ha-h])[).:]?$/.exec(answer)
+  if (m) {
+    i = m[1].toUpperCase().charCodeAt(0) - 65
+    if (i < options.length) return i
+  }
+  return -1
+}
+
 // How many of the student's picks were right ({questionIndex: optionIndex})
 export function countCorrect(questions, picks) {
-  return questions.reduce((n, q, i) => (picks[i] !== undefined && q.options[picks[i]] === q.answer ? n + 1 : n), 0)
+  return questions.reduce((n, q, i) => (picks[i] !== undefined && picks[i] === answerIndex(q) ? n + 1 : n), 0)
+}
+
+// The chat shows a "jump to latest" button once the student has scrolled this far up
+export function isNearBottom({ contentOffset, contentSize, layoutMeasurement }, slack = 120) {
+  return contentSize.height - layoutMeasurement.height - contentOffset.y <= slack
 }
 
 // Videos are offered under answers that come from the course materials (FR-812)

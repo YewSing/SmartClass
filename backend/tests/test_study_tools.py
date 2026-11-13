@@ -81,6 +81,25 @@ async def test_practice_questions_for_topic(student_client, synthetic_kb, fake_l
     assert "cards" not in body["payload"]
 
 
+async def test_a_letter_answer_becomes_the_option_text(student_client, synthetic_kb, fake_llm):
+    # The model often answers "B" although the app marks picks against the option text, which made
+    # every pick look wrong (found in the 2026-11-14 check). Letters, "B) text" and case are mapped;
+    # a question whose answer matches no option is left out, since it can't be marked.
+    fake_llm.responses = ['{"questions": ['
+                          '{"stem": "One", "options": ["statement", "branch", "neither", "both"], "answer": "B", '
+                          '"explanation": "x", "citation": 1},'
+                          '{"stem": "Two", "options": ["statement", "branch", "neither", "both"], "answer": "D) both", '
+                          '"explanation": "x", "citation": 1},'
+                          '{"stem": "Three", "options": ["statement", "branch", "neither", "both"], "answer": "Neither", '
+                          '"explanation": "x", "citation": 1},'
+                          '{"stem": "Four", "options": ["statement", "branch", "neither", "both"], "answer": "path", '
+                          '"explanation": "x", "citation": 1}]}']
+    resp = await _tools(student_client, synthetic_kb, "coverage", "practice_questions")
+    assert resp.status_code == 200, resp.text
+    questions = resp.json()["payload"]["questions"]
+    assert [(q["stem"], q["answer"]) for q in questions] == [("One", "branch"), ("Two", "both"), ("Three", "neither")]
+
+
 async def test_malformed_json_is_retried_once_then_502(student_client, synthetic_kb, fake_llm):
     fake_llm.responses = ["not json at all", "still not json"]
     resp = await _tools(student_client, synthetic_kb, "bva", "flashcards")

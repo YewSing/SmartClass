@@ -21,7 +21,7 @@ import {
 } from '../services/api'
 import {
   TOOLS, toolFor, inputPlaceholder, scoreLabel, canFindVideos, videoTopic, youtubeSearchUrl,
-  courseLabel, timeAgo,
+  courseLabel, timeAgo, isNearBottom,
 } from '../services/assistantView'
 import { bubbleTextWidth } from '../services/bubbleWidth'
 import { openAtLabel, openCitation as openCitationFile } from '../services/openSource'
@@ -280,7 +280,9 @@ export default function Assistant({ navigation }) {
   const [pickerOpen, setPickerOpen] = useState(false)
   const [chatSheet, setChatSheet] = useState(null)   // { mode: 'options' | 'rename' | 'delete', session }
   const [newTitle, setNewTitle] = useState('')
+  const [atBottom, setAtBottom] = useState(true)     // false shows the jump-to-latest button
   const listRef = useRef(null)
+  const nearBottomRef = useRef(true)
   const inputRef = useRef(null)
 
   const course = courses?.find(c => c.course_id === courseId) ?? null
@@ -306,6 +308,12 @@ export default function Assistant({ navigation }) {
     return () => sub.remove()
   }, [])
 
+  const scrollToLatest = () => {
+    nearBottomRef.current = true
+    setAtBottom(true)
+    listRef.current?.scrollToEnd({ animated: true })
+  }
+
   const loadSessions = async () => {
     setLoadingSessions(true)
     try { setSessions(await getChatSessions()) } catch (e) { showToast(e.message, 'error') } finally { setLoadingSessions(false) }
@@ -318,6 +326,8 @@ export default function Assistant({ navigation }) {
     setTool(null)
     setDraft('')
     setHistoryOpen(false)
+    nearBottomRef.current = true
+    setAtBottom(true)
   }
 
   const openSession = async (s) => {
@@ -328,6 +338,8 @@ export default function Assistant({ navigation }) {
     setVideos({})
     setTool(null)
     setLoadingChat(true)
+    nearBottomRef.current = true
+    setAtBottom(true)
     try { setMessages(await getChatMessages(s.id)) } catch (e) { showToast(e.message, 'error') } finally { setLoadingChat(false) }
   }
 
@@ -356,6 +368,8 @@ export default function Assistant({ navigation }) {
       content: usedTool ? `${toolFor(usedTool).label}: ${text}` : text,
     }
     setMessages(list => [...list, pending])
+    nearBottomRef.current = true      // show the new question and its answer
+    setAtBottom(true)
     try {
       let id = sessionId
       if (!id) {                       // a chat is only created once something is sent
@@ -489,9 +503,26 @@ export default function Assistant({ navigation }) {
               ))}
             contentContainerStyle={[styles.list, sending && styles.listWhileSending]}
             keyboardShouldPersistTaps="handled"
-            onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
+            onScroll={e => {
+              const near = isNearBottom(e.nativeEvent)
+              nearBottomRef.current = near
+              if (near !== atBottom) setAtBottom(near)
+            }}
+            scrollEventThrottle={100}
+            // Follow new content only while at the bottom, so reading an older answer isn't interrupted
+            onContentSizeChange={() => { if (nearBottomRef.current) listRef.current?.scrollToEnd({ animated: true }) }}
           />
         )}
+        {started && !loadingChat && !atBottom ? (
+          <TouchableOpacity
+            style={styles.toBottom}
+            onPress={scrollToLatest}
+            accessibilityLabel="Jump to latest"
+            testID="assistant-to-bottom"
+          >
+            <Ionicons name="arrow-down" size={20} color={C.text} />
+          </TouchableOpacity>
+        ) : null}
         {sending ? (
           <View style={styles.thinking} testID="assistant-thinking" pointerEvents="none">
             <ActivityIndicator size="small" color={C.primary} />
@@ -637,8 +668,10 @@ const styles = StyleSheet.create({
   userText: { color: '#fff', fontSize: 15, lineHeight: 21 },
   userToolRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2, opacity: 0.9 },
   userToolText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  // A fixed width, not shrink-to-fit: on some Android phones a shrink-to-fit bubble was measured
+  // too narrow after the tool tag changed the layout, and the answer spilled out of it (2026-11-14)
   botBubble: {
-    alignSelf: 'flex-start', backgroundColor: C.card, borderBottomLeftRadius: 4,
+    alignSelf: 'flex-start', width: '88%', backgroundColor: C.card, borderBottomLeftRadius: 4,
     borderWidth: 1, borderColor: C.border,
   },
   generalTag: {
@@ -688,6 +721,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: C.card, borderRadius: 20, borderWidth: 1, borderColor: C.border,
     paddingHorizontal: 16, paddingVertical: 9, elevation: 4,
+    shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 2 },
+  },
+  toBottom: {
+    position: 'absolute', right: 14, bottom: 12, width: 40, height: 40, borderRadius: 20,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: C.card, borderWidth: 1, borderColor: C.border, elevation: 4,
     shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 2 },
   },
   thinkingText: { fontSize: 14, fontWeight: '600', color: C.text },
