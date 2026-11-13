@@ -163,3 +163,14 @@ async def test_lecturer_can_open_a_cited_source(lecturer_client, other_lecturer_
     # other lecturer (doesn't teach CS101) and students are refused
     assert (await other_lecturer_client.get(url)).status_code == 403
     assert (await student_client.get(url)).status_code == 403
+
+
+async def test_a_new_chat_is_listed_first(lecturer_client, synthetic_kb, fake_llm):
+    # "New chat" makes an empty chat at once, and coming back reopens the latest chat, so the new
+    # empty chat must be listed first.
+    course_id = synthetic_kb["course_id"]
+    old = (await lecturer_client.post("/lecturer/assistant/sessions", json={"course_id": course_id})).json()
+    await lecturer_client.post(f"/lecturer/assistant/sessions/{old['id']}/messages", json={"content": "What is BVA?"})
+    new = (await lecturer_client.post("/lecturer/assistant/sessions", json={"course_id": course_id})).json()
+    listed = (await lecturer_client.get(f"/lecturer/assistant/sessions?course_id={course_id}")).json()
+    assert [s["id"] for s in listed] == [new["id"], old["id"]]

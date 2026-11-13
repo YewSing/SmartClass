@@ -7,9 +7,21 @@
 # real LLM is called.
 appId: host.exp.exponent
 ---
+# The test emulator's Bluetooth service sometimes crashes at boot and its dialog covers the app
+- runFlow:
+    when:
+      visible: ".*keeps stopping"
+    commands:
+      - tapOn: "Close app"
 - extendedWaitUntil:
-    visible: "Welcome back|Continue"
+    visible: "Welcome back|Continue|.*keeps stopping"
     timeout: 180000
+# The test emulator's Bluetooth service sometimes crashes at boot and its dialog covers the app
+- runFlow:
+    when:
+      visible: ".*keeps stopping"
+    commands:
+      - tapOn: "Close app"
 - runFlow:
     when:
       visible: "Continue"
@@ -138,8 +150,10 @@ appId: host.exp.exponent
     timeout: 15000
 - takeScreenshot: tools-5-history
 - longPressOn: "Summary: greedy algorithm"
-- tapOn: "Delete"
-- tapOn: "Delete"
+- tapOn:
+    id: "chat-delete"
+- tapOn:
+    id: "chat-delete-confirm"
 - extendedWaitUntil:
     notVisible: "Summary: greedy algorithm"
     timeout: 15000

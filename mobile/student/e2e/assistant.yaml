@@ -7,9 +7,21 @@
 # passage [1], "Find related videos" offers search keywords, and nothing external is called.
 appId: host.exp.exponent
 ---
+# The test emulator's Bluetooth service sometimes crashes at boot and its dialog covers the app
+- runFlow:
+    when:
+      visible: ".*keeps stopping"
+    commands:
+      - tapOn: "Close app"
 - extendedWaitUntil:
-    visible: "Welcome back|Continue"
+    visible: "Welcome back|Continue|.*keeps stopping"
     timeout: 180000
+# The test emulator's Bluetooth service sometimes crashes at boot and its dialog covers the app
+- runFlow:
+    when:
+      visible: ".*keeps stopping"
+    commands:
+      - tapOn: "Close app"
 - runFlow:
     when:
       visible: "Continue"
@@ -61,29 +73,23 @@ appId: host.exp.exponent
     visible: "Search YouTube for:"
     timeout: 20000
 
-# The citation opens the source screen first (FR-809)
-- tapOn: "\\[1\\]"
-- extendedWaitUntil:
-    visible: "Source \\[1\\]"
-    timeout: 15000
-- assertVisible: "Cited passage"
-- assertVisible: "Open file at (page|slide|section) [0-9]+"
-- takeScreenshot: source-screen
-# A cited PDF opens in the app at its page
+# Tapping a citation opens the file itself, no passage screen in between (FR-809, changed
+# 2026-11-13). A cited PDF opens in the app at its page; slides and Word files would open in another
+# app, which Maestro can't follow, so this only taps a citation that points at a PDF page.
 - runFlow:
     when:
-      visible: "Open file at page [0-9]+"
+      visible: ".*· page [0-9]+"
     commands:
-      - tapOn: "Open file at page [0-9]+"
+      - tapOn: ".*· page [0-9]+"
       - extendedWaitUntil:
           visible: "Page [0-9]+ of [0-9]+"
           timeout: 60000
+      - assertNotVisible: "Cited passage"
       - assertNotVisible: "This PDF could not be opened."
       - waitForAnimationToEnd:
           timeout: 5000
       - takeScreenshot: pdf-at-cited-page
       - back
-- back
 
 # The chat is in the history panel (top left), under its question
 - tapOn:
@@ -110,8 +116,11 @@ appId: host.exp.exponent
     visible: "Greedy notes"
     timeout: 15000
 - longPressOn: "Greedy notes"
-- tapOn: "Delete"
-- tapOn: "Delete"
+- tapOn:
+    id: "chat-delete"
+- assertVisible: "Delete chat\\?"
+- tapOn:
+    id: "chat-delete-confirm"
 - extendedWaitUntil:
     notVisible: "Greedy notes"
     timeout: 15000

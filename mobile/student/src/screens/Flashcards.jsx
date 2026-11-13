@@ -3,12 +3,14 @@ import { useState } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
-import { openAtLabel } from '../services/openSource'
+import { useStudent } from '../context/StudentContext'
+import { openAtLabel, openCitation } from '../services/openSource'
 import { C } from '../theme'
 
 export default function Flashcards({ route, navigation }) {
   const { cards = [], topic, courseCode } = route.params
   const insets = useSafeAreaInsets()
+  const { showToast } = useStudent()
   const [i, setI] = useState(0)
   const [flipped, setFlipped] = useState(false)
   const card = cards[i]
@@ -45,7 +47,7 @@ export default function Flashcards({ route, navigation }) {
       {card?.citation ? (
         <TouchableOpacity
           style={styles.source}
-          onPress={() => navigation.navigate('AssistantSource', { citation: card.citation, courseCode })}
+          onPress={() => openCitation(card.citation, navigation).catch(e => showToast(e.message, 'error'))}
         >
           <Ionicons name="document-text-outline" size={14} color={C.primary} />
           <Text style={styles.sourceText} numberOfLines={1}>{card.citation.title} · {openAtLabel(card.citation)}</Text>

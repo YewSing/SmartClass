@@ -32,6 +32,9 @@ MATERIAL_TITLE = "Testing notes (E2E)"
 
 # Three Moodle-seeded students (from backend/moodle/seed_config.json) enrolled in WIF3001.
 STUDENT_EMAILS = ["student1@example.com", "student2@example.com", "student3@example.com"]
+# Every chat this script seeds carries this title, and teardown deletes only those: these are real
+# dev accounts, and their own chats must survive an E2E run (2026-11-13: teardown wiped them).
+SEED_TITLE = "[e2e] seeded trends"
 
 TOPICS = [
     # (topic, source_type, cited_material_title or None)
@@ -85,7 +88,7 @@ async def seed(db, code: str) -> None:
     )).scalars().all()
     for student in students:
         for topic, source, cited_title in TOPICS:
-            session = ChatSession(student_id=student.id, course_id=course.id)
+            session = ChatSession(student_id=student.id, course_id=course.id, title=SEED_TITLE)
             db.add(session)
             await db.flush()
             db.add(ChatMessage(session_id=session.id, role="user", content=f"question about {topic}"))
@@ -100,12 +103,9 @@ async def teardown(db, code: str) -> None:
     course = await _course(db, code)
     await db.execute(delete(KbMaterial).where(
         KbMaterial.course_id == course.id, KbMaterial.source_key == MATERIAL_SOURCE_KEY))
-    student_ids = (await db.execute(
-        select(Student.id).join(User, User.id == Student.user_id).where(User.email.in_(STUDENT_EMAILS))
-    )).scalars().all()
-    if student_ids:
-        await db.execute(delete(ChatSession).where(
-            ChatSession.course_id == course.id, ChatSession.student_id.in_(student_ids)))
+    # only the chats seed() made, never the students' own
+    await db.execute(delete(ChatSession).where(
+        ChatSession.course_id == course.id, ChatSession.title == SEED_TITLE))
     await db.commit()
     print(f"removed E2E material + chats for {code}")
 

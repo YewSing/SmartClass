@@ -5,12 +5,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity, FlatList, ScrollView, StyleSheet, ActivityIndicator,
-  KeyboardAvoidingView, Keyboard, Modal, Alert, Image, Linking, useWindowDimensions,
+  KeyboardAvoidingView, Keyboard, Modal, Image, Linking, useWindowDimensions,
 } from 'react-native'
 import { useFocusEffect } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import MarkdownText from '../components/MarkdownText'
+import {
+  Sheet, ModalTitle, BtnOutline, BtnDanger, BtnPrimary, BtnRow, SheetOption, modalStyles,
+} from '../components/Modals'
 import { useStudent } from '../context/StudentContext'
 import {
   getAssistantCourses, getChatSessions, getChatMessages, createChatSession, sendChatMessage,
@@ -21,7 +24,7 @@ import {
   courseLabel, timeAgo,
 } from '../services/assistantView'
 import { bubbleTextWidth } from '../services/bubbleWidth'
-import { openAtLabel } from '../services/openSource'
+import { openAtLabel, openCitation as openCitationFile } from '../services/openSource'
 import { C } from '../theme'
 
 // ── messages ────────────────────────────────────────────────────────────────
@@ -275,7 +278,7 @@ export default function Assistant({ navigation }) {
   const [historyOpen, setHistoryOpen] = useState(false)
   const [toolsOpen, setToolsOpen] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
-  const [renaming, setRenaming] = useState(null)
+  const [chatSheet, setChatSheet] = useState(null)   // { mode: 'options' | 'rename' | 'delete', session }
   const [newTitle, setNewTitle] = useState('')
   const listRef = useRef(null)
   const inputRef = useRef(null)
@@ -383,42 +386,34 @@ export default function Assistant({ navigation }) {
     }
   }
 
-  const openCitation = (citation) => navigation.navigate('AssistantSource', { citation, courseCode: course?.code })
+  const openCitation = (citation) => openCitationFile(citation, navigation).catch(e => showToast(e.message, 'error'))
   const openTool = (msg) => navigation.navigate(msg.kind === 'flashcards' ? 'Flashcards' : 'Practice', {
     messageId: msg.id, topic: msg.payload?.topic, courseCode: course?.code,
     cards: msg.payload?.cards ?? [], questions: msg.payload?.questions ?? [],
   })
 
-  const chatOptions = (s) => {
-    Alert.alert(s.title || 'Untitled chat', undefined, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => confirmDelete(s) },
-      { text: 'Rename', onPress: () => { setNewTitle(s.title ?? ''); setRenaming(s) } },
-    ])
-  }
-  const confirmDelete = (s) => {
-    Alert.alert('Delete chat?', s.title || 'Untitled chat', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete', style: 'destructive', onPress: async () => {
-          try {
-            await deleteChatSession(s.id)
-            setSessions(list => list.filter(x => x.id !== s.id))
-            if (s.id === sessionId) newChat()
-          } catch (e) { showToast(e.message, 'error') }
-        },
-      },
-    ])
+  // Long-press a chat: the app's own sheets (same style as Sign Out) for options, rename and delete
+  const chatOptions = (session) => setChatSheet({ mode: 'options', session })
+  const closeSheet = () => setChatSheet(null)
+  const deleteChat = async () => {
+    const s = chatSheet.session
+    try {
+      await deleteChatSession(s.id)
+      setSessions(list => list.filter(x => x.id !== s.id))
+      if (s.id === sessionId) newChat()
+      closeSheet()
+    } catch (e) { showToast(e.message, 'error') }
   }
   const saveRename = async () => {
     const title = newTitle.trim()
     if (!title) return
     try {
-      const updated = await renameChatSession(renaming.id, title)
+      const updated = await renameChatSession(chatSheet.session.id, title)
       setSessions(list => list.map(s => (s.id === updated.id ? { ...s, title: updated.title } : s)))
-      setRenaming(null)
+      closeSheet()
     } catch (e) { showToast(e.message, 'error') }
   }
+
 
   const started = messages.length > 0 || loadingChat
   const topBarTop = insets.top + 6
@@ -557,13 +552,26 @@ export default function Assistant({ navigation }) {
         onOptions={chatOptions}
         onClose={() => setHistoryOpen(false)}
       />
-      <Modal visible={!!renaming} transparent animationType="fade" onRequestClose={() => setRenaming(null)}>
-        <View style={styles.backdropCenter}>
-          <View style={styles.sheet}>
-            <Text style={styles.sheetTitle}>Rename chat</Text>
+      <Sheet visible={!!chatSheet} onClose={closeSheet}>
+        {chatSheet?.mode === 'options' ? (
+          <>
+            <ModalTitle>{chatSheet.session.title || 'Untitled chat'}</ModalTitle>
+            <SheetOption
+              label="Rename" icon="create-outline" testID="chat-rename"
+              onPress={() => { setNewTitle(chatSheet.session.title ?? ''); setChatSheet({ ...chatSheet, mode: 'rename' }) }}
+            />
+            <SheetOption
+              label="Delete" icon="trash-outline" danger testID="chat-delete"
+              onPress={() => setChatSheet({ ...chatSheet, mode: 'delete' })}
+            />
+            <View style={{ height: 8 }} />
+          </>
+        ) : chatSheet?.mode === 'rename' ? (
+          <>
+            <ModalTitle>Rename chat</ModalTitle>
             <TextInput
               testID="rename-input"
-              style={styles.renameInput}
+              style={[modalStyles.input, { marginTop: 8 }]}
               value={newTitle}
               onChangeText={setNewTitle}
               maxLength={255}
@@ -571,14 +579,26 @@ export default function Assistant({ navigation }) {
               selectTextOnFocus
               placeholder="Chat name"
               placeholderTextColor={C.textHint}
+              onSubmitEditing={saveRename}
             />
-            <View style={styles.renameActions}>
-              <TouchableOpacity onPress={() => setRenaming(null)}><Text style={styles.renameCancel}>Cancel</Text></TouchableOpacity>
-              <TouchableOpacity onPress={saveRename} testID="rename-save"><Text style={styles.renameSave}>Save</Text></TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+            <BtnRow>
+              <BtnOutline label="Cancel" onPress={closeSheet} />
+              <BtnPrimary label="Save" onPress={saveRename} disabled={!newTitle.trim()} testID="rename-save" />
+            </BtnRow>
+          </>
+        ) : chatSheet?.mode === 'delete' ? (
+          <>
+            <ModalTitle>Delete chat?</ModalTitle>
+            <Text style={[modalStyles.bodyText, { marginBottom: 18 }]}>
+              "{chatSheet.session.title || 'Untitled chat'}" and everything in it will be deleted.
+            </Text>
+            <BtnRow>
+              <BtnOutline label="Cancel" onPress={closeSheet} />
+              <BtnDanger label="Delete" icon="trash-outline" onPress={deleteChat} testID="chat-delete-confirm" />
+            </BtnRow>
+          </>
+        ) : null}
+      </Sheet>
     </KeyboardAvoidingView>
   )
 }
@@ -721,11 +741,4 @@ const styles = StyleSheet.create({
   panelRowTitle: { fontSize: 14, fontWeight: '600', color: C.text },
   panelRowMeta: { fontSize: 12, color: C.textSub, marginTop: 2 },
   panelHint: { fontSize: 11, color: C.textHint, textAlign: 'center', marginVertical: 12 },
-  renameInput: {
-    borderWidth: 1, borderColor: C.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9,
-    fontSize: 15, color: C.text,
-  },
-  renameActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 22, marginTop: 14 },
-  renameCancel: { fontSize: 15, color: C.textSub },
-  renameSave: { fontSize: 15, fontWeight: '700', color: C.primary },
 })

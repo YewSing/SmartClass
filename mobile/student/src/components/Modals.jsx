@@ -9,7 +9,7 @@ import { C } from '../theme'
 
 // ─── Sheet wrapper ─────────────────────────────────────────────────────────────
 
-function Sheet({ visible, onClose, children }) {
+export function Sheet({ visible, onClose, children }) {
   const { bottom } = useSafeAreaInsets()
   return (
     <Modal transparent animationType="slide" visible={visible} onRequestClose={onClose}>
@@ -28,30 +28,56 @@ function Sheet({ visible, onClose, children }) {
   )
 }
 
-function ModalTitle({ children }) {
+export function ModalTitle({ children }) {
   return <Text style={styles.modalTitle}>{children}</Text>
 }
 
-function BtnOutline({ label, onPress }) {
+export function BtnOutline({ label, onPress, testID }) {
   return (
-    <TouchableOpacity style={[styles.btn, styles.btnOutline]} onPress={onPress}>
+    <TouchableOpacity style={[styles.btn, styles.btnOutline]} onPress={onPress} testID={testID}>
       <Text style={styles.btnOutlineText}>{label}</Text>
     </TouchableOpacity>
   )
 }
 
-function BtnDanger({ label, onPress, icon }) {
+export function BtnDanger({ label, onPress, icon, testID }) {
   return (
-    <TouchableOpacity style={[styles.btn, styles.btnDanger]} onPress={onPress}>
+    <TouchableOpacity style={[styles.btn, styles.btnDanger]} onPress={onPress} testID={testID}>
       {icon && <Ionicons name={icon} size={16} color="#fff" style={{ marginRight: 6 }} />}
       <Text style={styles.btnPrimaryText}>{label}</Text>
     </TouchableOpacity>
   )
 }
 
-function BtnRow({ children }) {
+export function BtnRow({ children }) {
   return <View style={styles.btnRow}>{children}</View>
 }
+
+export function BtnPrimary({ label, onPress, icon, disabled, testID }) {
+  return (
+    <TouchableOpacity
+      style={[styles.btn, styles.btnPrimary, disabled && styles.btnDisabled]}
+      onPress={onPress}
+      disabled={disabled}
+      testID={testID}
+    >
+      {icon && <Ionicons name={icon} size={16} color="#fff" style={{ marginRight: 6 }} />}
+      <Text style={styles.btnPrimaryText}>{label}</Text>
+    </TouchableOpacity>
+  )
+}
+
+// A plain row in an options sheet ("Rename", "Delete")
+export function SheetOption({ label, icon, onPress, danger, testID }) {
+  return (
+    <TouchableOpacity style={styles.option} onPress={onPress} testID={testID}>
+      <Ionicons name={icon} size={20} color={danger ? C.red : C.text} />
+      <Text style={[styles.optionText, danger && { color: C.red }]}>{label}</Text>
+    </TouchableOpacity>
+  )
+}
+
+export const modalStyles = { bodyText: null, input: null }
 
 // ─── SignOutModal ──────────────────────────────────────────────────────────────
 
@@ -173,6 +199,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
   },
+  option: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingVertical: 14,
+  },
+  optionText: {
+    fontSize: 16,
+    color: C.text,
+  },
   input: {
     borderWidth: 1.5,
     borderColor: C.border,
@@ -198,3 +234,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
 })
+
+modalStyles.bodyText = styles.bodyText
+modalStyles.input = styles.input

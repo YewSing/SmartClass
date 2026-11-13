@@ -20,7 +20,6 @@ import Participation from '../screens/Participation'
 import PartSessionPerf from '../screens/PartSessionPerf'
 import Profile from '../screens/Profile'
 import Assistant from '../screens/Assistant'
-import AssistantSource from '../screens/AssistantSource'
 import AssistantPdf from '../screens/AssistantPdf'
 import Flashcards from '../screens/Flashcards'
 import Practice from '../screens/Practice'
@@ -64,7 +63,6 @@ function AssistantStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="AssistantScreen" component={Assistant} />
-      <Stack.Screen name="AssistantSource" component={AssistantSource} />
       <Stack.Screen name="AssistantPdf"    component={AssistantPdf} />
       <Stack.Screen name="Flashcards"      component={Flashcards} />
       <Stack.Screen name="Practice"        component={Practice} />

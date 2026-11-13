@@ -133,11 +133,13 @@ async def _standalone_query(question: str, history: list[dict]) -> str:
 
 
 async def _existing_topics(db: AsyncSession, course_id: int, limit: int = 40) -> list[str]:
-    """The course's most recent distinct topic labels, so a new label can reuse one."""
+    """The course's most recent distinct topic labels from student chats (the ones the trends
+    count), so a new label can reuse one."""
     rows = (await db.execute(
         select(ChatMessage.topic)
         .join(ChatSession, ChatSession.id == ChatMessage.session_id)
-        .where(ChatSession.course_id == course_id, ChatMessage.topic.is_not(None))
+        .where(ChatSession.course_id == course_id, ChatMessage.topic.is_not(None),
+               ChatSession.student_id.is_not(None))
         .group_by(ChatMessage.topic)
         .order_by(func.max(ChatMessage.id).desc())
         .limit(limit)

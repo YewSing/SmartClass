@@ -78,11 +78,17 @@ export default function LecturerAsk({ route, navigation }) {
     return () => { alive = false }
   }, [courseId])
 
-  const newChat = () => {
+  // A real (empty) chat right away, so it is the latest one and coming back opens it, not the old chat
+  const newChat = async () => {
     if (sending) return
-    setSessionId(null)
-    setMessages([])
-    setDraft('')
+    try {
+      const fresh = await createLecturerSession(courseId)
+      setSessionId(fresh.id)
+      setMessages([])
+      setDraft('')
+    } catch (e) {
+      showToast(e.message, 'error')
+    }
   }
 
   useEffect(() => {

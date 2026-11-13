@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useStudent } from '../context/StudentContext'
 import { savePracticeScore } from '../services/api'
 import { countCorrect } from '../services/assistantView'
-import { openAtLabel } from '../services/openSource'
+import { openAtLabel, openCitation } from '../services/openSource'
 import { C } from '../theme'
 
 export default function Practice({ route, navigation }) {
@@ -95,7 +95,7 @@ export default function Practice({ route, navigation }) {
               <Text style={styles.explainHead}>{q.options[picked] === q.answer ? 'Correct' : 'Not quite'}</Text>
               <Text style={styles.explainText}>{q.explanation}</Text>
               {q.citation ? (
-                <TouchableOpacity onPress={() => navigation.navigate('AssistantSource', { citation: q.citation, courseCode })}>
+                <TouchableOpacity onPress={() => openCitation(q.citation, navigation).catch(e => showToast(e.message, 'error'))}>
                   <Text style={styles.source}>{q.citation.title} · {openAtLabel(q.citation)}</Text>
                 </TouchableOpacity>
               ) : null}

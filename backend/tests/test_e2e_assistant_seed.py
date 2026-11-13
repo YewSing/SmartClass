@@ -71,3 +71,21 @@ async def test_seed_is_idempotent_and_teardown_removes_everything(lecturer_clien
     sessions = (await db_session.execute(
         select(ChatSession).where(ChatSession.course_id == course_id))).scalars().all()
     assert sessions == []
+
+
+async def test_teardown_keeps_the_students_own_chats(lecturer_client, users, db_session):
+    # 2026-11-13: teardown deleted every WIF3001 chat of student1-3, wiping Yew Sing's own test
+    # chats on the dev DB. Only the chats the seed made may go.
+    course_id = await _setup_course_and_students(db_session, users)
+    student_id = await db_session.scalar(
+        select(Student.id).join(User, User.id == Student.user_id).where(User.email == STUDENT_EMAILS[0]))
+    db_session.add(ChatSession(student_id=student_id, course_id=course_id, title="my own chat"))
+    await db_session.commit()
+
+    await seed(db_session, "WIF3001")
+    await teardown(db_session, "WIF3001")
+
+    db_session.expire_all()
+    titles = (await db_session.execute(
+        select(ChatSession.title).where(ChatSession.course_id == course_id))).scalars().all()
+    assert titles == ["my own chat"]
