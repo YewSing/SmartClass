@@ -49,7 +49,7 @@ Short log, newest entry at the bottom of "Log". Each entry is at most 5 lines:
 - REVIEW: T45 (low) - lecturer flag alerts arrive only for the one session the socket follows; a flag in a second open class shows no toast. Needs a lecturer-wide channel (like T44's `/ws/me`) if a lecturer can have two classes open.
 - RESOLVED at the fyp2-m8 merge (T100's migration is now `f3a4b5c6d7e8` after T43's): migration `e2f3a4b5c6d7` hangs off `d1e2f3a4b5c6`; if `fyp2-m8` adds a migration on the same parent, re-point one of them when merging so Alembic has one head.
 - Checkpoint review b06470b..480a8d1 (T42-T46): check.sh 659 passed; `pytest -m db` 518 passed, 1 failed = live LLM test `test_live_qa.py::test_study_tools_live_valid_and_grounded[boundary-value-analysis-practice_questions]` (LLMMalformedOutput from the real model, M8, not touched by this loop; it is selected by `-m db` because it also carries the db marker). No finished task reopened.
-- No runnable task (2026-11-14): T47 is `[HUMAN]` (Pi run) and T48 `[HUMAN] Checkpoint` (full attendance run) is unticked, which gates every task below it, including T98 and the new AP2 tasks T103–T105. Yew Sing ticks T48 (or moves the AP2 section above it / says T103+ may run) to resume the loop.
+- RESOLVED (T98, T103-T105 exempted from the T48 gate in PLAN.md's picking rule): No runnable task (2026-11-14): T47 is `[HUMAN]` (Pi run) and T48 `[HUMAN] Checkpoint` (full attendance run) is unticked, which gates every task below it, including T98 and the new AP2 tasks T103–T105. Yew Sing ticks T48 (or moves the AP2 section above it / says T103+ may run) to resume the loop.
 
 ## Log
 

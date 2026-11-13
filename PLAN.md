@@ -6,7 +6,7 @@ Spec: `docs/requirements/*.md`, `docs/use-cases/UC-M*.md`. Rules: `CLAUDE.md` 鈫
 
 **Tags:** `[API]` backend 路 `[UI]` mobile/web, done only when its E2E flow passes 路 `[INFRA]` tooling 路 `[HUMAN]` the loop skips it; Yew Sing does it 路 `[OPUS]` in the hybrid loop (OpenCode builds), Claude Opus builds this one fully: hard design or computer-vision work
 
-**Picking rule:** the first `[ ]` task, top to bottom, whose `Depends on` tasks are all `[x]` or `[~]` and which isn't `[HUMAN]`. **A `[HUMAN] Checkpoint` stops the loop:** no task below an unticked checkpoint may start. Other `[HUMAN]` tasks are simply skipped.
+**Picking rule:** the first `[ ]` task, top to bottom, whose `Depends on` tasks are all `[x]` or `[~]` and which isn't `[HUMAN]`. **A `[HUMAN] Checkpoint` stops the loop:** no task below an unticked checkpoint may start. Other `[HUMAN]` tasks are simply skipped. **Exception (Yew Sing, 2026-11-14):** T98, T103, T104 and T105 do not depend on the T48 attendance run and may start while T48 is unticked; every other task below T48 still waits for it.
 
 ---
 
