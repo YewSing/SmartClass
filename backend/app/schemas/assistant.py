@@ -97,22 +97,6 @@ class SyncOut(BaseModel):
     statuses: dict[str, int]
 
 
-class SummaryCreate(BaseModel):
-    course_id: int
-    material_id: Optional[int] = None   # exactly one of material_id / topic
-    topic: Optional[str] = Field(default=None, max_length=200)
-    kind: Literal["summary", "study_guide"] = "summary"
-
-
-class SummaryOut(BaseModel):
-    content: str
-    citations: list[Citation] = []
-    source_type: str            # course | general
-    kind: str
-    material_id: Optional[int] = None
-    topic: Optional[str] = None
-
-
 class ChatToolCreate(BaseModel):
     """A study tool run inside a chat; the result is saved as a chat message."""
     kind: Literal["summary", "study_guide", "flashcards", "practice_questions"]
@@ -122,13 +106,6 @@ class ChatToolCreate(BaseModel):
 class PracticeScore(BaseModel):
     correct: int = Field(ge=0)
     total: int = Field(ge=1)
-
-
-class StudyToolsCreate(BaseModel):
-    course_id: int
-    material_id: Optional[int] = None   # exactly one of material_id / topic
-    topic: Optional[str] = Field(default=None, max_length=200)
-    kind: Literal["flashcards", "practice_questions"]
 
 
 # ── LLM JSON output validation (internal; the endpoint validates the LLM's JSON) ──
@@ -169,13 +146,6 @@ class PracticeQuestionOut(BaseModel):
     answer: str
     explanation: str
     citation: Optional[Citation] = None
-
-
-class StudyToolsOut(BaseModel):
-    kind: str                   # flashcards | practice_questions
-    source_type: str            # course | general
-    cards: list[FlashcardOut] = []
-    questions: list[PracticeQuestionOut] = []
 
 
 class TopicCount(BaseModel):

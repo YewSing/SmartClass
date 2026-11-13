@@ -105,10 +105,11 @@ async def test_fake_mode_summary_and_study_tools_are_cited(student_client, class
     mat = await _add_material(db_session, classroom["course_id"], "Black-box testing",
                               chunks=[("Boundary value analysis tests values at the edges.", 4, 6)])
 
+    # Study tools run inside a chat (the old /summaries and /study-tools endpoints were removed)
+    url = f"/student/assistant/sessions/{(await _new_chat(student_client, classroom['course_id']))['id']}/tools"
+
     # summary (FR-810): the canned answer cites passage [1]
-    resp = await student_client.post("/student/assistant/summaries", json={
-        "course_id": classroom["course_id"], "topic": "boundary value analysis", "kind": "summary",
-    })
+    resp = await student_client.post(url, json={"topic": "boundary value analysis", "kind": "summary"})
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["source_type"] == SOURCE_COURSE
@@ -117,24 +118,20 @@ async def test_fake_mode_summary_and_study_tools_are_cited(student_client, class
     assert cite["material_id"] == mat.id
 
     # flashcards (FR-811): the fake returns valid JSON, parsed into a real cited card
-    resp = await student_client.post("/student/assistant/study-tools", json={
-        "course_id": classroom["course_id"], "topic": "boundary value analysis", "kind": "flashcards",
-    })
+    resp = await student_client.post(url, json={"topic": "boundary value analysis", "kind": "flashcards"})
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["kind"] == "flashcards" and body["source_type"] == "course"
-    [card] = body["cards"]
+    [card] = body["payload"]["cards"]
     assert card["front"] and card["back"] and card["citation"]["material_id"] == mat.id
 
     # practice questions: same, one question with four options
-    resp = await student_client.post("/student/assistant/study-tools", json={
-        "course_id": classroom["course_id"], "topic": "boundary value analysis",
-        "kind": "practice_questions",
-    })
+    resp = await student_client.post(url, json={"topic": "boundary value analysis",
+                                                "kind": "practice_questions"})
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["kind"] == "practice_questions" and body["source_type"] == "course"
-    [q] = body["questions"]
+    [q] = body["payload"]["questions"]
     assert q["stem"] and len(q["options"]) == 4 and q["answer"] == "branch"
     assert q["citation"]["material_id"] == mat.id
 

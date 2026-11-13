@@ -16,7 +16,7 @@ from app.models.user import Lecturer, Student, User
 from app.schemas.assistant import (
     AssistantCourseOut, BeforeClassOut, ChatToolCreate, MaterialOut, MessageCreate, MessageOut,
     PracticeScore, SessionCreate,
-    SessionOut, SessionRename, StudyToolsCreate, StudyToolsOut, SummaryCreate, SummaryOut,
+    SessionOut, SessionRename,
     SyncOut, TrendsOut, YoutubeCreate, YoutubeOut,
 )
 from app.services.kb import trends
@@ -25,8 +25,6 @@ from app.services.kb.before_class import before_class_summary
 from app.services.kb.chat_tools import run_chat_tool
 from app.services.kb.llm import LLMMalformedOutput, LLMUnavailable
 from app.services.kb.moodle_client import MoodleClient, MoodleError
-from app.services.kb.study_tools import generate_study_tools
-from app.services.kb.summarize import summarize
 from app.services.kb.sync import sync_course
 from app.services.kb.youtube import search_videos
 
@@ -356,51 +354,6 @@ async def save_practice_score(message_id: int, body: PracticeScore, db: AsyncSes
     await db.flush()
     await db.refresh(msg)
     return _message_out(msg)
-
-
-@router.post("/student/assistant/summaries", response_model=SummaryOut)
-async def generate_summary(body: SummaryCreate, db: AsyncSession = Depends(get_db),
-                           user: User = Depends(_student_only)):
-    """Generate a summary or study guide for a material or topic (FR-810)."""
-    student = await _student(db, user)
-    course = await _enrolled_course(db, student.id, body.course_id)
-    if (body.material_id is None) == (body.topic is None):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            "Provide exactly one of material_id or topic")
-    if body.material_id is not None:
-        material = (await db.execute(select(KbMaterial).where(KbMaterial.id == body.material_id))).scalar_one_or_none()
-        if not material or material.course_id != course.id:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "Material not found")
-    try:
-        content, citations, source = await summarize(
-            db, course, material_id=body.material_id, topic=body.topic, kind=body.kind)
-    except LLMUnavailable as exc:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc))
-    return SummaryOut(content=content, citations=citations, source_type=source,
-                      kind=body.kind, material_id=body.material_id, topic=body.topic)
-
-
-@router.post("/student/assistant/study-tools", response_model=StudyToolsOut)
-async def study_tools(body: StudyToolsCreate, db: AsyncSession = Depends(get_db),
-                      user: User = Depends(_student_only)):
-    """Generate flashcards or practice questions for a material or topic (FR-811)."""
-    student = await _student(db, user)
-    course = await _enrolled_course(db, student.id, body.course_id)
-    if (body.material_id is None) == (body.topic is None):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            "Provide exactly one of material_id or topic")
-    if body.material_id is not None:
-        material = (await db.execute(select(KbMaterial).where(KbMaterial.id == body.material_id))).scalar_one_or_none()
-        if not material or material.course_id != course.id:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "Material not found")
-    try:
-        cards, questions, source = await generate_study_tools(
-            db, course, material_id=body.material_id, topic=body.topic, kind=body.kind)
-    except LLMMalformedOutput as exc:
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc))
-    except LLMUnavailable as exc:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc))
-    return StudyToolsOut(kind=body.kind, source_type=source, cards=cards, questions=questions)
 
 
 @router.post("/student/assistant/youtube", response_model=YoutubeOut)
