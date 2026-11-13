@@ -137,3 +137,12 @@ async def test_fake_mode_summary_and_study_tools_are_cited(student_client, class
     [q] = body["questions"]
     assert q["stem"] and len(q["options"]) == 4 and q["answer"] == "branch"
     assert q["citation"]["material_id"] == mat.id
+
+
+async def test_fake_topic_label_is_short_and_not_a_file_name(fake_mode):
+    from app.services.kb.assistant import _TOPIC_LABEL_PROMPT
+    out = await llm.chat([
+        {"role": "system", "content": f"{_TOPIC_LABEL_PROMPT}\n\nExisting topics:\n(none yet)"},
+        {"role": "user", "content": "what is boundary value analysis?"},
+    ])
+    assert out == "What is boundary value analysis"

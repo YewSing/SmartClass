@@ -26,10 +26,10 @@ Use **WIF3001** for most checks. Its materials are software testing notes, so qu
 
 Lecturer web app → bottom tab **Assistant** (sparkles icon).
 
-- [ ] The course list shows only **WIF3001** and **WIF3004**, the courses lecturer1 teaches. WIA2005 must **not** appear.
-- [ ] Open WIF3001. The **Materials** section lists the files with a status (indexed / failed / no text).
-- [ ] Press **Sync now**. It finishes without an error, and the list refreshes. Nothing new should appear unless you changed Moodle.
-- [ ] **What students ask** shows three lists: *Most asked topics*, *Most cited materials*, *Topics the materials don't cover*.
+- [x] The course list shows only **WIF3001** and **WIF3004**, the courses lecturer1 teaches. WIA2005 must **not** appear.
+- [x] Open WIF3001. The **Materials** section lists the files with a status (indexed / failed / no text).
+- [x] Press **Sync now**. It finishes without an error, and the list refreshes. Nothing new should appear unless you changed Moodle.
+- [x] **What students ask** shows three lists: *Most asked topics*, *Most cited materials*, *Topics the materials don't cover*.
       These lists are probably empty or short. That is correct: a topic only appears once **3 different students** have asked about it (NFR-09 privacy rule).
 
 > **Optional, to see real trends:** log in as 3 different WIF3001 students in the student app and ask each one
@@ -39,24 +39,24 @@ Lecturer web app → bottom tab **Assistant** (sparkles icon).
 
 On the WIF3001 assistant screen, tap **Ask my materials**.
 
-- [ ] Ask: `What is boundary value analysis?`
+- [x] Ask: `What is boundary value analysis?`
       Expected: an answer with numbered citations [1], [2] pointing to WIF3001 files.
-- [ ] Tap a citation. The source file opens (T102 `LecturerSource`), at the right page or slide where the format allows.
-- [ ] Ask something off-topic: `What is the capital of France?`
+- [x] Tap a citation. The source file opens (T102 `LecturerSource`), at the right page or slide where the format allows.
+- [x] Ask something off-topic: `What is the capital of France?`
       Expected: an answer clearly labelled as **general knowledge**, with **no** citations.
-- [ ] Ask a follow-up: `Give me an example of it` (after a testing question).
+- [x] Ask a follow-up: `Give me an example of it` (after a testing question).
       Expected: it stays on the same topic.
 - [ ] Go back and open the chat again. Your earlier questions are still there.
-- [ ] **Privacy check:** your lecturer questions must **not** appear under *What students ask*. Only student chats count.
+- [x] **Privacy check:** your lecturer questions must **not** appear under *What students ask*. Only student chats count.
 
 ## 3. Lecturer: Before next class (T101, T102)
 
 On the WIF3001 assistant screen, tap **Before next class**.
 
-- [ ] With few student questions, you see a polite "not enough questions yet" message instead of an invented summary. This is correct behaviour.
-- [ ] If you did the optional 3-student step above, you see a short note with a **Revisit** section and possibly a **Not covered by the materials** section.
+- [x] With few student questions, you see a polite "not enough questions yet" message instead of an invented summary. This is correct behaviour.
+- [x] If you did the optional 3-student step above, you see a short note with a **Revisit** section and possibly a **Not covered by the materials** section.
       It must not contain any student names, question texts or counts.
-- [ ] Open it twice in a row. The second time is instant, because the result is cached until the trends change.
+- [x] Open it twice in a row. The second time is instant, because the result is cached until the trends change.
 
 ## 4. Student: Study tools (T90)
 
@@ -83,8 +83,8 @@ T92 is a *Could Have* feature with **no screen yet**, and it stays **off** until
 
 ## 6. Access checks (quick)
 
-- [ ] As **lecturer2** (teaches WIA2005 only), the Assistant tab shows WIA2005 only, not WIF3001.
-- [ ] As **student1**, Study tools for WIA2005 should not be reachable, because student1 isn't enrolled in it.
+- [x] As **lecturer2** (teaches WIA2005 only), the Assistant tab shows WIA2005 only, not WIF3001.
+- [x] As **student1**, Study tools for WIA2005 should not be reachable, because student1 isn't enrolled in it.
 
 ---
 

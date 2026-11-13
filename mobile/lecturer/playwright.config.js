@@ -33,6 +33,7 @@ module.exports = defineConfig({
       // No schedule job, and test sessions are never written into Moodle
       env: {
         LLM_FAKE: '1',
+        YOUTUBE_API_KEY: '',        // never the real YouTube API in E2E
         SESSION_SCHEDULER_INTERVAL_SECONDS: '0',
         MOODLE_ATTENDANCE_SYNC_INTERVAL_SECONDS: '0',
         MOODLE_ATTENDANCE_CHECK_INTERVAL_SECONDS: '0',

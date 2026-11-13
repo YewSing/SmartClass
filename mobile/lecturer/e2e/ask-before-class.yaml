@@ -52,17 +52,20 @@ appId: host.exp.exponent
     visible: "This is a test answer from your course materials \\[1\\]\\."
     timeout: 60000
 
-# The citation opens the source
-- tapOn:
+# The answer shows its citation (tapping it hands the file to another app, which Maestro can't follow)
+- assertVisible:
     id: "lecturer-citation"
+
+# Leaving and coming back continues the same chat
+- back
+- tapOn:
+    id: "assistant-ask"
 - extendedWaitUntil:
-    visible: "Cited passage"
+    visible: "What is boundary value analysis\\?"
     timeout: 15000
-- assertVisible: "Open file at (slide|page|section) [0-9]+"
 - back
 
-# Back to the assistant screen, then read the before-next-class summary (FR-816)
-- back
+# Then read the before-next-class summary (FR-816)
 - extendedWaitUntil:
     visible:
       id: "assistant-before-class"

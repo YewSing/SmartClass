@@ -28,8 +28,13 @@ def _fake_embeddings(monkeypatch):
 def fake_llm(monkeypatch):
     class FakeLLM:
         answer = "Boundary value analysis tests the edges [1]."
+        label = "Boundary value analysis"
+        label_prompts: list[str] = []
 
         async def chat(self, messages, **kw):
+            if "Label the student's question" in messages[0]["content"]:
+                self.label_prompts.append(messages[0]["content"])
+                return self.label
             if isinstance(self.answer, Exception):
                 raise self.answer
             return self.answer
@@ -59,17 +64,36 @@ async def _seed_answer(db, course_id, student_id, *, topic, source="course",
 
 # ── topic tagging at answer time ──────────────────────────────────────────────
 
-async def test_course_answer_is_tagged_with_the_cited_material(student_client, synthetic_kb,
-                                                               fake_llm, db_session):
+async def test_course_answer_is_tagged_with_a_concept_not_a_file(student_client, synthetic_kb,
+                                                                 fake_llm, db_session):
+    # Yew Sing 2026-11-13: a file name ("CTFL-Chapter 4-Black-Box.pdf") as the topic confused
+    # lecturers, so course answers get the same short concept label as general answers.
     chat = await _new_chat(student_client, synthetic_kb["course_id"])
     resp = await student_client.post(f"/student/assistant/sessions/{chat['id']}/messages",
                                      json={"content": "What is BVA?"})
     assert resp.status_code == 200, resp.text
     msg = (await db_session.execute(
         select(ChatMessage).where(ChatMessage.role == "assistant"))).scalar_one()
-    assert msg.source_type == "course" and msg.topic in {
-        "Boundary Value Analysis", "Equivalence Partitioning", "Statement and Branch Coverage",
-    }
+    assert msg.source_type == "course" and msg.citations
+    assert msg.topic == "Boundary value analysis"
+    assert msg.topic != msg.citations[0]["title"]
+
+
+async def test_new_label_reuses_an_existing_topic(student_client, synthetic_kb, fake_llm, db_session):
+    course_id = synthetic_kb["course_id"]
+    first = await _new_chat(student_client, course_id)
+    await student_client.post(f"/student/assistant/sessions/{first['id']}/messages",
+                              json={"content": "What is BVA?"})
+    # the next label comes back in different capitalisation: it is stored as the existing topic
+    fake_llm.label = "boundary VALUE analysis."
+    second = await _new_chat(student_client, course_id)
+    await student_client.post(f"/student/assistant/sessions/{second['id']}/messages",
+                              json={"content": "Explain boundary values"})
+    topics = (await db_session.execute(
+        select(ChatMessage.topic).where(ChatMessage.role == "assistant"))).scalars().all()
+    assert topics == ["Boundary value analysis", "Boundary value analysis"]
+    # and the label prompt listed the course's existing topics
+    assert "- Boundary value analysis" in fake_llm.label_prompts[-1]
 
 
 async def test_general_answer_is_tagged_with_a_label(student_client, synthetic_kb,

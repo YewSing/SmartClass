@@ -54,9 +54,14 @@ class ChatMessage(Base):
     # Standalone query used for retrieval (user messages). Kept for later
     # features: confusion topics and material-gap detection.
     retrieval_query: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    # Topic of the question (assistant messages): the cited material title for a course
-    # answer, or a short LLM label for a general-knowledge answer (FR-813).
+    # Topic of the question (assistant messages): a short LLM label such as "Boundary value
+    # analysis", for course and general-knowledge answers alike (FR-813).
     topic: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # "chat" for a question/answer, or the study tool that made it: summary | study_guide |
+    # flashcards | practice_questions (FR-810/811, kept in the chat history).
+    kind: Mapped[str] = mapped_column(String(20), nullable=False, server_default="chat", default="chat")
+    # Study tool data: {"topic", "cards"} or {"topic", "questions", "last_score"}
+    payload: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
 
     session: Mapped["ChatSession"] = relationship(back_populates="messages")

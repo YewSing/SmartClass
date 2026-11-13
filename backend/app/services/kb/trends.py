@@ -3,7 +3,8 @@
 Aggregates the assistant answers of a course into three lists, each showing only topics
 asked by at least `MIN_STUDENTS` distinct students, with no student names and no question
 text:
-  - most-asked topics (course answers, grouped by the cited material title)
+  - most-asked topics (course answers, grouped by the short topic label stored at answer
+    time, e.g. "Boundary value analysis"; capitalisation is ignored)
   - most-cited materials (course answers, grouped by the cited material id)
   - most-asked topics the materials don't cover (general-knowledge answers, grouped by
     the short LLM label stored at answer time)
@@ -14,12 +15,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 MIN_STUDENTS = 3
 
 _MOST_ASKED_SQL = text("""
-    SELECT m.topic AS topic, COUNT(DISTINCT s.student_id) AS students
+    SELECT MIN(m.topic) AS topic, COUNT(DISTINCT s.student_id) AS students
     FROM ai_chat_messages m
     JOIN ai_chat_sessions s ON s.id = m.session_id
     WHERE s.course_id = :course_id AND m.role = 'assistant' AND m.source_type = 'course'
       AND m.topic IS NOT NULL AND s.student_id IS NOT NULL
-    GROUP BY m.topic
+    GROUP BY LOWER(m.topic)
     HAVING COUNT(DISTINCT s.student_id) >= :min_students
     ORDER BY students DESC, topic
 """)
@@ -39,12 +40,12 @@ _MOST_CITED_SQL = text("""
 """)
 
 _UNCOVERED_SQL = text("""
-    SELECT m.topic AS topic, COUNT(DISTINCT s.student_id) AS students
+    SELECT MIN(m.topic) AS topic, COUNT(DISTINCT s.student_id) AS students
     FROM ai_chat_messages m
     JOIN ai_chat_sessions s ON s.id = m.session_id
     WHERE s.course_id = :course_id AND m.role = 'assistant' AND m.source_type = 'general'
       AND m.topic IS NOT NULL AND s.student_id IS NOT NULL
-    GROUP BY m.topic
+    GROUP BY LOWER(m.topic)
     HAVING COUNT(DISTINCT s.student_id) >= :min_students
     ORDER BY students DESC, topic
 """)

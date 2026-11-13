@@ -101,8 +101,9 @@ export const getMyFlags = (sessionId) =>
 
 export const getAssistantCourses = () => apiCall('GET', '/student/assistant/courses')
 
-export const getChatSessions = (courseId) =>
-  apiCall('GET', `/student/assistant/sessions?course_id=${courseId}`)
+// All chats (history panel), or one course's
+export const getChatSessions = (courseId = null) =>
+  apiCall('GET', courseId != null ? `/student/assistant/sessions?course_id=${courseId}` : '/student/assistant/sessions')
 
 export const createChatSession = (courseId) =>
   apiCall('POST', '/student/assistant/sessions', { course_id: courseId })
@@ -119,17 +120,17 @@ export const getChatMessages = (sessionId) =>
 export const sendChatMessage = (sessionId, content) =>
   apiCall('POST', `/student/assistant/sessions/${sessionId}/messages`, { content })
 
-// Summary / study guide (FR-810): exactly one of material_id / topic
-export const generateSummary = (courseId, { materialId = null, topic = null, kind = 'summary' } = {}) =>
-  apiCall('POST', '/student/assistant/summaries', {
-    course_id: courseId, material_id: materialId, topic: topic, kind,
-  })
+// A study tool inside a chat (FR-810/811): the request and the result are saved as chat messages
+export const runChatTool = (sessionId, kind, topic) =>
+  apiCall('POST', `/student/assistant/sessions/${sessionId}/tools`, { kind, topic })
 
-// Flashcards / practice questions (FR-811)
-export const generateStudyTools = (courseId, { materialId = null, topic = null, kind } = {}) =>
-  apiCall('POST', '/student/assistant/study-tools', {
-    course_id: courseId, material_id: materialId, topic: topic, kind,
-  })
+// Remember the last score on a practice set
+export const savePracticeScore = (messageId, correct, total) =>
+  apiCall('PATCH', `/student/assistant/messages/${messageId}/score`, { correct, total })
+
+// Related YouTube videos and search keywords for a topic (FR-812)
+export const getRelatedVideos = (courseId, topic) =>
+  apiCall('POST', '/student/assistant/youtube', { course_id: courseId, topic })
 
 // ─── Face enrolment (FR-109, FR-110, FR-115, FR-116) ──────────────────────────
 

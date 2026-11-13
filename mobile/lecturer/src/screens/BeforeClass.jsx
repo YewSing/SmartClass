@@ -5,7 +5,7 @@ import MarkdownText from '../components/MarkdownText'
 import Topbar from '../components/Topbar'
 import { useLecturer } from '../context/LecturerContext'
 import { getBeforeClass } from '../services/api'
-import { openAtLabel } from '../services/openSource'
+import { openAtLabel, openLecturerSource } from '../services/openSource'
 import { C } from '../theme'
 
 export default function BeforeClass({ route, navigation }) {
@@ -54,7 +54,7 @@ export default function BeforeClass({ route, navigation }) {
                       key={c.n}
                       style={styles.chip}
                       testID="before-class-citation"
-                      onPress={() => navigation.navigate('LecturerSource', { citation: c, courseCode })}
+                      onPress={() => openLecturerSource(c).catch(e => showToast(e.message, 'error'))}
                     >
                       <Text style={styles.chipNum}>[{c.n}]</Text>
                       <Text style={styles.chipText} numberOfLines={1}>{c.title} · {openAtLabel(c)}</Text>

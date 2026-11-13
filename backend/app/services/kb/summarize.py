@@ -44,6 +44,6 @@ async def summarize(db, course, *, material_id: int | None, topic: str | None,
         {"role": "system", "content": _SYSTEM_PROMPT.format(course=f"{course.code} {course.name}", kind=label)},
         {"role": "user", "content": f"Course material passages:\n\n{materials}\n\nTask: {task}"},
     ]
-    raw = await llm.chat(messages)
+    raw = await llm.chat(messages, max_tokens=settings.LLM_LONG_OUTPUT_TOKENS)
     content, citations, source = parse_answer(clean_latex(raw), passages)
     return content, citations, source

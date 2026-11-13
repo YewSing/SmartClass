@@ -14,6 +14,7 @@ import json
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.services.kb import llm, trends
 from app.services.kb.answer_format import clean_latex
 from app.services.kb.assistant import format_passages, parse_answer
@@ -103,7 +104,7 @@ def _build_prompt(course, data: dict, sections: list[Passage]) -> list[dict]:
 async def _generate(db: AsyncSession, course, data: dict) -> dict:
     material_ids = [m["material_id"] for m in data["most_cited_materials"]]
     sections = await _sections_for_materials(db, material_ids)
-    raw = await llm.chat(_build_prompt(course, data, sections))
+    raw = await llm.chat(_build_prompt(course, data, sections), max_tokens=settings.LLM_LONG_OUTPUT_TOKENS)
     content, citations, _ = parse_answer(clean_latex(raw), sections)
     return {"content": content, "citations": citations, "not_enough_data": False}
 

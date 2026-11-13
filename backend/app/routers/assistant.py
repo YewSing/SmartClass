@@ -14,13 +14,15 @@ from app.models.class_ import ClassOccurrence, Course, Enrollment
 from app.models.knowledge import MAT_INDEXED, KbMaterial
 from app.models.user import Lecturer, Student, User
 from app.schemas.assistant import (
-    AssistantCourseOut, BeforeClassOut, MaterialOut, MessageCreate, MessageOut, SessionCreate,
+    AssistantCourseOut, BeforeClassOut, ChatToolCreate, MaterialOut, MessageCreate, MessageOut,
+    PracticeScore, SessionCreate,
     SessionOut, SessionRename, StudyToolsCreate, StudyToolsOut, SummaryCreate, SummaryOut,
     SyncOut, TrendsOut, YoutubeCreate, YoutubeOut,
 )
 from app.services.kb import trends
 from app.services.kb.assistant import answer_question
 from app.services.kb.before_class import before_class_summary
+from app.services.kb.chat_tools import run_chat_tool
 from app.services.kb.llm import LLMMalformedOutput, LLMUnavailable
 from app.services.kb.moodle_client import MoodleClient, MoodleError
 from app.services.kb.study_tools import generate_study_tools
@@ -36,6 +38,12 @@ _lecturer_or_admin = require_role("lecturer", "admin")
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
+
+def _message_out(m: ChatMessage) -> MessageOut:
+    return MessageOut(id=m.id, role=m.role, content=m.content, citations=m.citations or [],
+                      source_type=m.source_type, created_at=m.created_at, kind=m.kind or "chat",
+                      payload=m.payload, topic=m.topic)
+
 
 async def _student(db: AsyncSession, user: User) -> Student:
     student = (await db.execute(select(Student).where(Student.user_id == user.id))).scalar_one_or_none()
@@ -129,8 +137,7 @@ async def list_messages(session_id: int, db: AsyncSession = Depends(get_db), use
     session = await _own_session(db, student.id, session_id)
     rows = (await db.execute(select(ChatMessage).where(ChatMessage.session_id == session.id)
                              .order_by(ChatMessage.id))).scalars().all()
-    return [MessageOut(id=m.id, role=m.role, content=m.content, citations=m.citations or [],
-                       source_type=m.source_type, created_at=m.created_at) for m in rows]
+    return [_message_out(m) for m in rows]
 
 
 @router.post("/student/assistant/sessions/{session_id}/messages", response_model=MessageOut)
@@ -144,8 +151,7 @@ async def send_message(session_id: int, body: MessageCreate, db: AsyncSession = 
     except LLMUnavailable as exc:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc))
     await db.refresh(reply)
-    return MessageOut(id=reply.id, role=reply.role, content=reply.content, citations=reply.citations or [],
-                      source_type=reply.source_type, created_at=reply.created_at)
+    return _message_out(reply)
 
 
 # ── lecturer: ask my materials (FR-815) ───────────────────────────────────────
@@ -241,8 +247,7 @@ async def list_lecturer_messages(session_id: int, db: AsyncSession = Depends(get
     session = await _own_lecturer_session(db, lecturer.id, session_id)
     rows = (await db.execute(select(ChatMessage).where(ChatMessage.session_id == session.id)
                              .order_by(ChatMessage.id))).scalars().all()
-    return [MessageOut(id=m.id, role=m.role, content=m.content, citations=m.citations or [],
-                       source_type=m.source_type, created_at=m.created_at) for m in rows]
+    return [_message_out(m) for m in rows]
 
 
 @router.post("/lecturer/assistant/sessions/{session_id}/messages", response_model=MessageOut)
@@ -256,8 +261,7 @@ async def send_lecturer_message(session_id: int, body: MessageCreate, db: AsyncS
     except LLMUnavailable as exc:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc))
     await db.refresh(reply)
-    return MessageOut(id=reply.id, role=reply.role, content=reply.content, citations=reply.citations or [],
-                      source_type=reply.source_type, created_at=reply.created_at)
+    return _message_out(reply)
 
 
 # ── student: open a cited source (FR-809) ─────────────────────────────────────
@@ -314,6 +318,44 @@ async def open_lecturer_material_file(material_id: int, db: AsyncSession = Depen
     if material.source != "moodle" or not material.file_url:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "This material has no file to open")
     return await _stream_material(material)
+
+
+@router.post("/student/assistant/sessions/{session_id}/tools", response_model=MessageOut)
+async def run_tool_in_chat(session_id: int, body: ChatToolCreate, db: AsyncSession = Depends(get_db),
+                           user: User = Depends(_student_only)):
+    """Run a study tool for a topic inside a chat (FR-810, FR-811). The request and the
+    result are saved as chat messages, so they appear in the chat history."""
+    student = await _student(db, user)
+    session = await _own_session(db, student.id, session_id)
+    course = await _enrolled_course(db, student.id, session.course_id)
+    try:
+        reply = await run_chat_tool(db, session, course, body.kind, body.topic)
+    except LLMMalformedOutput as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc))
+    except LLMUnavailable as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc))
+    await db.refresh(reply)
+    return _message_out(reply)
+
+
+@router.patch("/student/assistant/messages/{message_id}/score", response_model=MessageOut)
+async def save_practice_score(message_id: int, body: PracticeScore, db: AsyncSession = Depends(get_db),
+                              user: User = Depends(_student_only)):
+    """Remember the student's last score on a practice set (shown on the chat message)."""
+    student = await _student(db, user)
+    msg = (await db.execute(
+        select(ChatMessage).join(ChatSession, ChatSession.id == ChatMessage.session_id)
+        .where(ChatMessage.id == message_id, ChatSession.student_id == student.id)
+    )).scalar_one_or_none()
+    if not msg or msg.kind != "practice_questions" or msg.role != "assistant":
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Practice set not found")
+    if body.correct > body.total:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "correct cannot exceed total")
+    # a new dict, so SQLAlchemy sees the JSONB change
+    msg.payload = {**(msg.payload or {}), "last_score": {"correct": body.correct, "total": body.total}}
+    await db.flush()
+    await db.refresh(msg)
+    return _message_out(msg)
 
 
 @router.post("/student/assistant/summaries", response_model=SummaryOut)

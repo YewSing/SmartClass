@@ -62,6 +62,9 @@ class MessageOut(BaseModel):
     citations: list[Citation] = []
     source_type: Optional[str] = None   # course | general | refused (assistant messages)
     created_at: datetime
+    kind: str = "chat"       # chat | summary | study_guide | flashcards | practice_questions
+    payload: Optional[dict] = None      # study tool data (cards / questions / last_score)
+    topic: Optional[str] = None         # short topic label (assistant messages), e.g. for videos
 
     model_config = {"from_attributes": True}
 
@@ -108,6 +111,17 @@ class SummaryOut(BaseModel):
     kind: str
     material_id: Optional[int] = None
     topic: Optional[str] = None
+
+
+class ChatToolCreate(BaseModel):
+    """A study tool run inside a chat; the result is saved as a chat message."""
+    kind: Literal["summary", "study_guide", "flashcards", "practice_questions"]
+    topic: str = Field(min_length=1, max_length=200)
+
+
+class PracticeScore(BaseModel):
+    correct: int = Field(ge=0)
+    total: int = Field(ge=1)
 
 
 class StudyToolsCreate(BaseModel):

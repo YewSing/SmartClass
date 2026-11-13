@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useLecturer } from '../context/LecturerContext'
 import Topbar from '../components/Topbar'
 import * as api from '../services/api'
+import { materialsSummary } from '../services/assistantHelpers'
 import { C } from '../theme'
 
 // Material status → label + colour (FR-804)
@@ -114,6 +115,7 @@ export default function LecturerAssistant({ navigation }) {
   const [loading, setLoading] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  const [materialsOpen, setMaterialsOpen] = useState(false)   // collapsed: the trends matter more day to day
 
   const loadCourses = useCallback(async () => {
     try {
@@ -208,7 +210,18 @@ export default function LecturerAssistant({ navigation }) {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} colors={[C.primary]} />}
       >
         {/* Materials status (FR-804) */}
-        <Text style={styles.sectionLabel}>Materials</Text>
+        <TouchableOpacity
+          style={styles.collapseHeader}
+          onPress={() => setMaterialsOpen(o => !o)}
+          testID="assistant-materials-toggle"
+          accessibilityRole="button"
+          accessibilityState={{ expanded: materialsOpen }}
+        >
+          <Text style={[styles.sectionLabel, styles.collapseLabel]}>Materials</Text>
+          <Text style={styles.collapseSummary} numberOfLines={1}>{materialsSummary(materials)}</Text>
+          <Ionicons name={materialsOpen ? 'chevron-up' : 'chevron-down'} size={16} color={C.textHint} />
+        </TouchableOpacity>
+        {materialsOpen ? (
         <View style={styles.card} testID="assistant-materials">
           {loading && !materials ? (
             <View style={styles.centered}><ActivityIndicator color={C.primary} /></View>
@@ -235,6 +248,7 @@ export default function LecturerAssistant({ navigation }) {
             })
           )}
         </View>
+        ) : null}
 
         {/* Question trends (FR-813) */}
         <Text style={styles.sectionLabel}>What students ask</Text>
@@ -306,6 +320,9 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
   },
   actionText: { fontSize: 13, fontWeight: '600', color: C.primary },
+  collapseHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingRight: 16 },
+  collapseLabel: { paddingBottom: 0, marginBottom: 0, paddingTop: 14 },
+  collapseSummary: { flex: 1, fontSize: 12, color: C.textHint, paddingTop: 14 },
   sectionLabel: {
     fontSize: 11,
     fontWeight: '600',

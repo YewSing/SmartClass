@@ -37,7 +37,6 @@ import AdminDevices from '../screens/AdminDevices'
 import LecturerAssistant from '../screens/LecturerAssistant'
 import LecturerAsk from '../screens/LecturerAsk'
 import BeforeClass from '../screens/BeforeClass'
-import LecturerSource from '../screens/LecturerSource'
 
 const Stack = createNativeStackNavigator()
 const Tab   = createBottomTabNavigator()
@@ -100,7 +99,6 @@ function AssistantStack() {
       <Stack.Screen name="LecturerAssistant" component={LecturerAssistant} />
       <Stack.Screen name="LecturerAsk" component={LecturerAsk} />
       <Stack.Screen name="BeforeClass" component={BeforeClass} />
-      <Stack.Screen name="LecturerSource" component={LecturerSource} />
     </Stack.Navigator>
   )
 }

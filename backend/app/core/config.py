@@ -59,6 +59,9 @@ class Settings(BaseSettings):
     LLM_MODEL: str = "deepseek-chat"
     LLM_TIMEOUT_SECONDS: float = 45.0
     LLM_MAX_OUTPUT_TOKENS: int = 1200
+    # Summaries, study guides, flashcards, practice and "before next class" write much more,
+    # and thinking models spend part of the budget on hidden reasoning first.
+    LLM_LONG_OUTPUT_TOKENS: int = 6000
     LLM_REASONING_EFFORT: str = ""   # e.g. "low" for Gemini thinking models; empty = not sent
     LLM_FAKE: bool = False           # E2E only: canned answers, no provider call (see llm.fake_chat)
     LLM_RPM: int = 10                # client-side requests-per-minute cap (provider free tier)

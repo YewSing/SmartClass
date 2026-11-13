@@ -68,12 +68,12 @@ async def generate_study_tools(db, course, *, material_id: int | None, topic: st
     ]
 
     if kind == "flashcards":
-        data = await llm.chat_json(messages, validator=LLMCards.model_validate)
+        data = await llm.chat_json(messages, max_tokens=settings.LLM_LONG_OUTPUT_TOKENS, validator=LLMCards.model_validate)
         cards = [FlashcardOut(front=c.front, back=c.back, citation=_citation(c.citation, passages))
                  for c in data.cards]
         source = "course" if any(c.citation for c in cards) else "general"
         return cards, [], source
-    data = await llm.chat_json(messages, validator=LLMQuestions.model_validate)
+    data = await llm.chat_json(messages, max_tokens=settings.LLM_LONG_OUTPUT_TOKENS, validator=LLMQuestions.model_validate)
     questions = [PracticeQuestionOut(stem=q.stem, options=q.options, answer=q.answer,
                                      explanation=q.explanation,
                                      citation=_citation(q.citation, passages))

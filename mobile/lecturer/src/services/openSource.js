@@ -24,9 +24,19 @@ export function lecturerFileUrl(materialId) {
 
 export async function openLecturerSource(citation) {
   if (Platform.OS === 'web') {
-    const res = await apiCallRaw('GET', lecturerFileUrl(citation.material_id))
-    const url = URL.createObjectURL(await res.blob())
-    window.open(`${url}#page=${citation.open_page}`, '_blank')
+    // Open the tab now, while the click still counts as the user's: a tab opened after the
+    // download finishes is blocked as a pop-up by most browsers.
+    const tab = window.open('', '_blank')
+    try {
+      const res = await apiCallRaw('GET', lecturerFileUrl(citation.material_id))
+      const url = URL.createObjectURL(await res.blob())
+      const target = `${url}#page=${citation.open_page}`
+      if (tab) tab.location.href = target
+      else window.open(target, '_blank')
+    } catch (e) {
+      tab?.close()
+      throw e
+    }
     return
   }
 

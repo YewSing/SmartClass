@@ -6,8 +6,10 @@ import { Ionicons } from '@expo/vector-icons'
 import MarkdownText from '../components/MarkdownText'
 import Topbar from '../components/Topbar'
 import { useLecturer } from '../context/LecturerContext'
-import { createLecturerSession, getLecturerMessages, sendLecturerMessage } from '../services/api'
-import { openAtLabel } from '../services/openSource'
+import {
+  createLecturerSession, getLecturerMessages, getLecturerSessions, sendLecturerMessage,
+} from '../services/api'
+import { openAtLabel, openLecturerSource } from '../services/openSource'
 import { C } from '../theme'
 
 function CitationChips({ citations, onOpen }) {
@@ -53,7 +55,35 @@ export default function LecturerAsk({ route, navigation }) {
   const [messages, setMessages] = useState([])
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
+  const [loading, setLoading] = useState(true)
   const listRef = useRef(null)
+
+  // Reopening the screen continues the latest chat for this course instead of a blank one
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        const [latest] = await getLecturerSessions(courseId)   // newest first
+        if (!latest || !alive) return
+        const history = await getLecturerMessages(latest.id)
+        if (!alive) return
+        setSessionId(latest.id)
+        setMessages(history)
+      } catch (e) {
+        if (alive) showToast(e.message, 'error')
+      } finally {
+        if (alive) setLoading(false)
+      }
+    })()
+    return () => { alive = false }
+  }, [courseId])
+
+  const newChat = () => {
+    if (sending) return
+    setSessionId(null)
+    setMessages([])
+    setDraft('')
+  }
 
   useEffect(() => {
     const sub = Keyboard.addListener('keyboardDidShow', () => listRef.current?.scrollToEnd({ animated: true }))
@@ -84,11 +114,28 @@ export default function LecturerAsk({ route, navigation }) {
     }
   }
 
-  const openCitation = (citation) => navigation.navigate('LecturerSource', { citation, courseCode })
+  // A citation opens the file itself at the cited page or slide (no in-between screen)
+  const openCitation = async (citation) => {
+    try {
+      await openLecturerSource(citation)
+    } catch (e) {
+      showToast(e.message, 'error')
+    }
+  }
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior="padding">
-      <Topbar title="Ask my materials" sub={courseCode} onBack={() => navigation.goBack()} />
+      <Topbar
+        title="Ask my materials"
+        sub={courseCode}
+        onBack={() => navigation.goBack()}
+        right={messages.length ? (
+          <TouchableOpacity onPress={newChat} accessibilityLabel="New chat" testID="lecturer-new-chat"
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="create-outline" size={22} color={C.text} />
+          </TouchableOpacity>
+        ) : null}
+      />
       <View style={styles.body}>
         <FlatList
           ref={listRef}
@@ -98,7 +145,9 @@ export default function LecturerAsk({ route, navigation }) {
           contentContainerStyle={[styles.list, sending && styles.listWhileSending]}
           keyboardShouldPersistTaps="handled"
           onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
-          ListEmptyComponent={(
+          ListEmptyComponent={loading ? (
+            <ActivityIndicator style={{ marginTop: 40 }} color={C.primary} />
+          ) : (
             <View style={styles.empty}>
               <Ionicons name="sparkles-outline" size={32} color={C.primary} />
               <Text style={styles.emptyTitle}>Ask about {courseCode}</Text>
