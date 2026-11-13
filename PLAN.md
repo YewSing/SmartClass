@@ -170,4 +170,21 @@ These M8 tasks run before everything else after the T04 checkpoint, so the stude
   Done when: README and CLAUDE.md run instructions match reality (device client, Moodle plugin, E2E); `docs/interfaces.md` is complete.
 - [ ] **T99 [HUMAN] UAT preparation** (VPS deploy, test accounts, consent forms, and installable Android APKs of the student and lecturer apps pointed at the server, e.g. with EAS Build, because Expo Go needs the laptop's dev server).
 
+## 6. Monitoring session (AP2) preparation
+
+Goal: be ready for the AP2 monitoring session. Scored by `docs/private/Supervisor Rubric.pdf` (system analysis and design 8, development 8, evaluation 8, testing 3, error handling 1, plus soft skills) and the AP2 slide brief: objectives, requirements, methodology, system development, testing and evaluation, AP1 feedback, each with evidence (screenshots, results). Added 2026-11-14. Formats: diagrams in Lucidchart, report in Google Docs, slides as a PowerPoint file. The `[INFRA]` doc tasks can be done by Claude; the `[HUMAN]` ones need Yew Sing.
+
+- [ ] **T103 [INFRA] Design diagrams in Lucidchart (rubric: system analysis and design).** Depends on: —.
+  Done when: one Lucidchart document (Lucid connector) holds System Architecture, Module Diagram, Class Diagram, ERD (from the real Alembic schema), Activity Diagrams (attendance, face enrolment, AI chat), Navigation Diagram for both apps, and Wireframes or screen mock-ups; each matches the code; the share link and PNG exports (`docs/diagrams/`) are noted in PROGRESS.md. If the Lucid connector is not authorised, mark `[~]`.
+- [ ] **T104 [INFRA] Project report and evidence in a Google Doc.** Depends on: T98, T103.
+  Done when: a Google Doc (Drive connector) holds the AP2 report sections the supervisor rubric scores: requirements (FR/NFR status table: Done / Deferred on M6 / Not done), system design (the T103 diagrams), development (modules, screenshots in the report, no face or card images or secrets), testing (counts per level: unit, integration, system/E2E, live LLM, with commands, test-case tables, latest results) and error handling (Moodle down gives 503, face-enrolment retake message, LLM quota), and the UAT results once T107 is done. The doc link is noted in PROGRESS.md. If the Google connector is not authorised, mark `[~]`.
+- [ ] **T105 [INFRA] AP2 slides as a .pptx.** Depends on: T103, T104.
+  Done when: `docs/ap2-slides.pptx` (pptx skill) has one section per AP2 brief item (objectives progress, requirements progress, methodology, system development, testing and evaluation, AP1 feedback) using the diagrams and screenshots from T103/T104, speaker notes with likely supervisor questions and short answers, and the Yew Sing / Shino module split. Slides stay local (git-ignore the file if it holds screenshots of private data).
+- [ ] **T106 [HUMAN] Fill the AP1 feedback slide.** Depends on: T105.
+  Done when: the panel's AP1 comments (see `docs/private/Panel Rubric.pdf` and the AP1 feedback) are listed with what was done for each.
+- [ ] **T107 [HUMAN] Small UAT.** Depends on: T99.
+  Done when: a few classmates or a lecturer try both apps with a task list, results and feedback are recorded in `docs/testing/uat.md` (rubric: "conduct UAT successfully").
+- [ ] **T108 [HUMAN] Demo rehearsal and backup.** Depends on: T48, T105.
+  Done when: Moodle, backend, lecturer web and student app start cleanly from a cold boot; one full demo run is timed; a screen recording of it exists as a fallback; the Pi/webcam run and the AI assistant answer are in it.
+
 **Deferred (not in this plan, waiting on M6):** FR-820–FR-824.
