@@ -14,7 +14,7 @@ SmartClass/
 │   ├── device_client/  # Camera device client (Pi / webcam): detect faces, send crops
 │   ├── moodle/         # Local Moodle 4.5 simulating SPeCTRUM (own docker-compose)
 │   ├── tests/          # pytest suite
-│   ├── scripts/        # seed.py — admin, timetable, always-open test class; reset_to_moodle.py; kb_sync.py
+│   ├── scripts/        # seed.py — admin, timetable, always-open test class; device_key.py; reset_to_moodle.py; kb_sync.py
 │   └── docker-compose.yml
 └── mobile/
     ├── lecturer/   # React Native (Expo) app for lecturers
@@ -32,10 +32,19 @@ Each app has its own `package.json` and `node_modules`. The mobile apps use Expo
 
 ## Running the Project
 
+### Local Moodle (simulated SPeCTRUM)
+```bash
+cd backend/moodle
+docker compose up -d       # first boot 3-5 min
+./scripts/setup.sh         # first time: installs mod_attendance (needs internet), writes the token to .env.moodle
+./scripts/seed.sh          # first time: users, courses, enrolments, materials
+```
+Copy `MOODLE_URL`/`MOODLE_TOKEN` from `backend/moodle/.env.moodle` into `backend/.env`. Details: `backend/moodle/README.md`.
+
 ### Backend
 ```bash
 cd backend
-docker compose up -d                              # start postgres+pgvector
+docker compose up -d                              # start postgres+pgvector (port 5433)
 pip install -r requirements.txt
 alembic upgrade head
 python scripts/seed.py                            # admin, timetable, always-open test class (safe to re-run)
@@ -79,9 +88,9 @@ Both phone and laptop must be on the same WiFi network.
 - API base URL set via `EXPO_PUBLIC_API_URL` in `.env`
 
 ## Component Conventions
-- `src/components/ui/` — reusable primitives (Button, Modal, Toast, Badge, etc.)
-- `src/components/layout/` — structural wrappers (Sidebar, Topbar, BottomNav, PhoneFrame, StatusBar)
-- `src/views/` — page-level components, one file per route/screen
+- `src/components/` — shared pieces (Toast, Modals, Badge, Topbar, MarkdownText; lecturer also SideNav for web)
+- `src/screens/` — one file per screen
+- `src/context/` app state · `src/services/` backend calls · `src/navigation/` tabs and stacks
 
 ## Project Documentation
 
@@ -114,7 +123,7 @@ docs/
 - Live LLM tests (Gemini free tier, rate-limited): `cd backend && python -m pytest -m live -q`
 - Lint: `cd backend && ruff check .` · format: `ruff format <file>`
 - Mobile E2E (Android emulator + Maestro): `bash scripts/e2e-mobile.sh <student|lecturer> <flow>` runs `mobile/<app>/e2e/<flow>.yaml`; boots AVD `Pixel_4_API_35` headless, starts backend + Expo, stops them on exit. Maestro installs into git-ignored `.tools/` if missing.
-- Lecturer web E2E (Playwright): `cd mobile/lecturer && npm run e2e:web` (tests in `e2e-web/`; starts its own backend on :8001 with `LLM_FAKE=1` and Expo web on :8092; needs docker postgres + seed data)
+- Lecturer web E2E (Playwright): `cd mobile/lecturer && npm run e2e:web` (tests in `e2e-web/`; starts its own backend on :8001 with `LLM_FAKE=1` and Expo web on :8092; needs docker postgres + seed data + the local Moodle)
 
 ## Task Loop Rules (PLAN.md / PROGRESS.md)
 Long jobs run as one task per fresh session. Start everything with `/run-plan [rounds]`, 5 tasks per run at most unless Yew Sing asks for more, so the work gets checked before more is built (it runs `scripts/run-tasks.sh` in the background, one fresh Opus session per task running `/next-task`, and reports at the end). The reviewer subagent runs on Sonnet.

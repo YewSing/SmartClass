@@ -5,11 +5,28 @@ own. It is plain English on purpose: the code is the source of truth, this page 
 expect from it. Fields may be added; names are not changed without a note in
 `docs/requests-for-shino.md`.
 
-Three interfaces so far:
+Contents:
 
+- **Access checks** every caller uses first (NFR-04) — below.
 - **Attendance read interface for Module 7 (FR-313)** — below.
 - **Course knowledge base retrieval for Module 6 (FR-814, T88)** — below.
-- **Notification hook for Module 2 (FR-406, T44)** — below.
+- **Notification hook for Module 2 (FR-406, T44)** and the live WebSocket channels — below.
+- **What Module 8 will need from Module 6** (deferred FR-820–FR-824) — at the end.
+
+---
+
+## Access checks (NFR-04)
+
+**File:** `backend/app/core/deps.py`
+
+| Helper | Use | Result |
+|---|---|---|
+| `get_current_user` | FastAPI dependency | the signed-in, active `User`; 401 otherwise |
+| `require_role(*roles)` | `Depends(require_role("lecturer", "admin"))` | the `User`; 403 if their role is not listed |
+| `ensure_teaches_occurrence(db, actor, occurrence_id)` | `await` it inside a handler | the caller's `Lecturer` row; 403 unless they are the class's assigned lecturer |
+
+`ensure_teaches_occurrence` refuses admins too, so a handler that also lets admins in calls it only
+when `actor.role == "lecturer"`. The interfaces below do no permission checks of their own.
 
 ---
 
@@ -176,16 +193,41 @@ notification can never fail the request that raised it. `user_ids` are `users.id
 |---|---|---|
 | `attendance.recorded` | the student | `session_id`, `course_code`, `course_name`, `status` (`present` \| `late`), `detected_at`, `source` (`recognition` \| `student_flag`), `message` |
 
-`attendance.flagged` and `face_enrolment.pending_review` / `face_enrolment.result` (R1 in
-`docs/requests-for-shino.md`) are not raised through `emit` yet.
+### Events planned but not raised yet
+
+These are listed in `docs/requirements/functional-requirements.md` under Module 2 and in R1 of
+`docs/requests-for-shino.md`. Until they go through `emit`, the apps show them by refreshing their
+own screens or over the WebSockets below.
+
+| Event | To | Payload fields (proposed) | FR |
+|---|---|---|---|
+| `attendance.flagged` | the class's lecturer | today only the WebSocket `attendance_flagged` event | FR-318 |
+| `face_enrolment.pending_review` | lecturers of the student's courses | `enrolment_id`, `student_name`, `matric_no`, `courses` | FR-113 |
+| `face_enrolment.result` | the student | `enrolment_id`, `status` (`active` \| `rejected`), `reason` | FR-114 |
 
 ### Live channels (until M2)
 
-The apps can also listen on WebSockets directly:
+The apps can also listen on WebSockets directly. Each message is JSON with an `event` field.
 
-- Lecturers: `/ws/sessions/{id}?token=<access JWT>` — the session's live feed (`attendance_update`,
-  `attendance_flagged`, `attendance_flag_resolved`, `session_closed`, ...). Only the lecturer who
-  teaches the class may connect.
+- Lecturers: `/ws/sessions/{id}?token=<access JWT>` — one session's live feed. Only the lecturer who
+  teaches the class may connect. Events: `session_state` (sent once on connect: counts and the
+  class list), `attendance_update`, `attendance_alert` (low attendance), `attendance_override`,
+  `attendance_flagged`, `attendance_flag_resolved`, `moodle_sync`, `session_closed`.
 - Students: `/ws/me?token=<access JWT>` — the student's own events (`connected`,
   `attendance_recorded`, `attendance_flag_resolved`). Only an active student may connect; anyone
   else is closed with code 1008.
+
+---
+
+## What Module 8 will need from Module 6 (deferred, FR-820–FR-824)
+
+Nothing here is built. When Module 6 exists, these FRs need two read functions from it, in the
+same style as the interfaces above (plain Python, take an `AsyncSession`, read only):
+
+| Needed | Used for |
+|---|---|
+| whether a student has an active graded quiz attempt in a course | FR-820: the assistant refuses course-content help during a graded quiz |
+| a student's answers per question, each with correct/incorrect and the question's topic or source material (`material_id` + page/slide/section, as in `Passage`) | FR-821–FR-824: weak topics, recommended sections, "why was this wrong", class-wide weak topics |
+
+Module 6 can tag questions with their source because questions generated through `search()` above
+already carry the passage's `material_id` and location.

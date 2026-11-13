@@ -69,11 +69,14 @@ People, courses, enrolments and course materials all come from Moodle. The first
 ```bash
 cd backend/moodle
 docker compose up -d      # first boot takes 3-5 minutes
-./scripts/setup.sh        # writes the web-service token to backend/moodle/.env.moodle
+./scripts/setup.sh        # installs the Moodle Attendance plugin, writes the web-service token to backend/moodle/.env.moodle
 ./scripts/seed.sh         # users, courses, enrolments, materials
 ```
 
-Details and accounts are in `backend/moodle/README.md`. After the first time, `docker compose up -d` is enough.
+`setup.sh` downloads the Attendance plugin (`mod_attendance`) inside the container, so the first
+run needs internet. Closed SmartClass sessions are written into that plugin, which is how
+attendance reaches "SPeCTRUM". Details and accounts are in `backend/moodle/README.md`. After the
+first time, `docker compose up -d` is enough.
 
 ---
 
@@ -132,7 +135,21 @@ API at **http://localhost:8000** · Docs at **http://localhost:8000/docs**
 > `--host 0.0.0.0` is required so the mobile apps on a physical device can reach the backend over WiFi.
 > On Windows, `--reload` sometimes misses changes after a `git pull`. If the app behaves like old code, stop and restart the server.
 
-Course materials are pulled from Moodle and indexed for the AI assistant every 5 minutes, or straight away from the lecturer app (a course's AI Assistant → Sync materials).
+The API runs these background jobs itself (intervals are settings in `backend/.env`; the Moodle
+ones are off while `MOODLE_TOKEN` is empty):
+
+| Job | Every | Setting |
+|---|---|---|
+| Open and close attendance sessions from the timetable (opens 15 min early) | 1 min | `SESSION_SCHEDULER_INTERVAL_SECONDS` |
+| Send closed sessions to Moodle Attendance, retrying with backoff | 30 s | `MOODLE_ATTENDANCE_SYNC_INTERVAL_SECONDS` |
+| Check synced sessions still match Moodle | 3 h | `MOODLE_ATTENDANCE_CHECK_INTERVAL_SECONDS` |
+| Courses and enrolments from Moodle | 15 min | `MOODLE_SYNC_INTERVAL_SECONDS` |
+| Course materials indexed for the AI assistant | 5 min | `KB_SYNC_INTERVAL_SECONDS` |
+| Low-attendance alert to the lecturer's live session screen (below 70 %) | 30 s | — |
+| Delete unrecognised face crops older than 7 days | 1 h | `FACE_UNMATCHED_CLEANUP_INTERVAL_SECONDS` |
+
+A lecturer can also sync a course's materials straight away (a course's AI Assistant → Sync
+materials), and an admin can run the Moodle sync from the admin area.
 
 ---
 
@@ -146,7 +163,10 @@ python scripts/device_key.py CAM-TEST     # prints the seeded room's new key (co
 DEVICE_KEY=<key> python -m device_client --camera 0
 ```
 
-The client detects faces locally and sends crops to `POST /device/faces`; the server recognises them (`backend/device_client/README.md`).
+The client detects faces locally and sends crops to `POST /device/faces`; the server recognises them.
+It opens the camera only while a session is open for its room. Running it on a Raspberry Pi, and
+all its flags, are in `backend/device_client/README.md`. Other devices get their keys on the admin
+area's Devices page.
 
 ---
 
@@ -178,7 +198,19 @@ bash scripts/e2e-mobile.sh student assistant  # phone app E2E on an Android emul
 cd mobile/lecturer && npm run e2e:web         # lecturer web E2E (Playwright)
 ```
 
-Normal tests never call Moodle or the AI; they use recorded responses and mocks.
+Normal tests never call Moodle or the AI; they use recorded responses and mocks. Backend test
+markers: `db` needs the docker database, `live` calls the real AI, `moodle` needs the local Moodle
+(the last two skip themselves when their key or token is missing).
+
+**Phone E2E (Maestro):** flows are in `mobile/<app>/e2e/*.yaml`. Needs the Android SDK
+(`ANDROID_HOME`, or the default `%LOCALAPPDATA%\Android\Sdk`) with an emulator image named
+`Pixel_4_API_35` (or set `AVD=`) and Java. Maestro installs itself into the git-ignored `.tools/` on
+the first run. The script boots the emulator headless, starts the backend and Expo, and stops all of
+them when it ends.
+
+**Lecturer web E2E (Playwright):** tests are in `mobile/lecturer/e2e-web/`. It starts its own backend
+on :8001 (fake AI answers, no schedule or Moodle sync jobs) and Expo web on :8092, so it never
+touches your dev servers. Needs the docker database, the seed data and the local Moodle.
 
 ---
 
@@ -191,13 +223,14 @@ SmartClass/
 │   ├── alembic/        # DB migrations
 │   ├── device_client/  # Camera device client (Pi / webcam): detect faces, send crops
 │   ├── moodle/         # Local Moodle 4.5 simulating SPeCTRUM (own docker-compose)
-│   ├── scripts/        # seed.py, device_key.py, reset_to_moodle.py, kb_sync.py
-│   ├── tests/          # pytest suite
+│   ├── scripts/        # seed.py, device_key.py, reset_to_moodle.py, kb_sync.py, e2e_*.py helpers
+│   ├── eval/           # AI assistant evaluation question set
+│   ├── tests/          # pytest suite (tests/live = real-AI suite)
 │   └── docker-compose.yml
 ├── mobile/
-│   ├── lecturer/       # React Native lecturer app (Expo, also web)
-│   └── student/        # React Native student app (Expo)
-├── scripts/            # check.sh, E2E runners
+│   ├── lecturer/       # React Native lecturer app (Expo, also web); e2e/ Maestro, e2e-web/ Playwright
+│   └── student/        # React Native student app (Expo); e2e/ Maestro
+├── scripts/            # check.sh, e2e-mobile.sh, eval_assistant.py, backup-data.sh / restore-data.sh
 └── docs/
     ├── requirements/       # functional and non-functional requirements
     ├── use-cases/

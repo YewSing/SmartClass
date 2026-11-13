@@ -609,3 +609,9 @@ TEST-CHANGE: tests/test_seed_courses.py (test_materials_course_exists_in_the_see
 - **Study guide left the student tools menu** (too close to a normal answer). The API, its tests and old messages are unchanged; FR-810 notes it.
 - **Jump-to-latest button** in the student chat (bottom right, above the message box) when scrolled up; the chat only follows new content while at the bottom.
 - **Narrow answer bubble on Yew Sing's phone** after using a study tool: assistant bubbles now have a fixed 88% width instead of shrink-to-fit. It only showed on the real phone, so it is not reproduced here; check it there.
+
+### T98 — Docs refresh — 2026-11-14
+- Changed: README (Moodle Attendance plugin step, background-jobs table, device client pointer, E2E prerequisites, project tree); CLAUDE.md (local Moodle run step, `device_key.py`, the real `src/` layout replacing the stale `ui/ layout/ views/` conventions, Playwright needs Moodle); `docs/interfaces.md` (access-check helpers, events planned but not raised, full WebSocket event list, what M8 will need from M6 for FR-820–824).
+- Decisions: no app code changed; the docs describe the current code only.
+- Interface/schema changes: none.
+- Tests: new `tests/test_docs_interfaces.py` (17) checks documented signatures, dataclass fields, WebSocket events and run-script paths against the code; check.sh 714 passed; reviewer PASS.
