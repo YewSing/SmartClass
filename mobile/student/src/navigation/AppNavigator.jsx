@@ -18,6 +18,10 @@ import AttReportStatus from '../screens/AttReportStatus'
 import Participation from '../screens/Participation'
 import PartSessionPerf from '../screens/PartSessionPerf'
 import Profile from '../screens/Profile'
+import Notifications from '../screens/Notifications'
+import Interact from '../screens/Interact'
+import Quizzes from '../screens/Quizzes'
+import MyProgress from '../screens/MyProgress'
 
 const Stack = createNativeStackNavigator()
 const Tab   = createBottomTabNavigator()
@@ -28,6 +32,18 @@ function HomeStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="HomeScreen" component={Home} />
+      <Stack.Screen name="Notifications" component={Notifications} />
+      <Stack.Screen name="MyProgress" component={MyProgress} />
+    </Stack.Navigator>
+  )
+}
+
+function QuizzesStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="QuizzesScreen" component={Quizzes} />
+      <Stack.Screen name="Participation" component={Participation} />
+      <Stack.Screen name="PartSessionPerf" component={PartSessionPerf} />
     </Stack.Navigator>
   )
 }
@@ -42,14 +58,7 @@ function AttendanceStack() {
   )
 }
 
-function ParticipationStack() {
-  return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="ParticipationScreen" component={Participation} />
-      <Stack.Screen name="PartSessionPerf"     component={PartSessionPerf} />
-    </Stack.Navigator>
-  )
-}
+
 
 function ProfileStack() {
   return (
@@ -63,8 +72,9 @@ function ProfileStack() {
 
 const TAB_ICONS = {
   Home:          { active: 'home',                inactive: 'home-outline' },
+  Interact:      { active: 'pulse',               inactive: 'pulse-outline' },
+  Quizzes:       { active: 'document-text',       inactive: 'document-text-outline' },
   Attendance:    { active: 'calendar',            inactive: 'calendar-outline' },
-  Participation: { active: 'stats-chart',         inactive: 'stats-chart-outline' },
   Profile:       { active: 'person',              inactive: 'person-outline' },
 }
 
@@ -95,8 +105,9 @@ function MainTabs() {
       })}
     >
       <Tab.Screen name="Home"          component={HomeStack}          options={{ title: 'Home' }} />
+      <Tab.Screen name="Interact"      component={Interact}           options={{ title: 'Interact' }} />
+      <Tab.Screen name="Quizzes"       component={Quizzes}            options={{ title: 'Quizzes' }} />
       <Tab.Screen name="Attendance"    component={AttendanceStack}    options={{ title: 'Attendance' }} />
-      <Tab.Screen name="Participation" component={ParticipationStack} options={{ title: 'Participation' }} />
       <Tab.Screen name="Profile"       component={ProfileStack}       options={{ title: 'Profile' }} />
     </Tab.Navigator>
   )

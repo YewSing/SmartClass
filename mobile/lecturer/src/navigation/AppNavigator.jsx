@@ -21,6 +21,8 @@ import LiveResults from '../screens/LiveResults'
 import ResultsClosed from '../screens/ResultsClosed'
 import Breakdown from '../screens/Breakdown'
 import Analytics from '../screens/Analytics'
+import Notifications from '../screens/Notifications'
+import Interaction from '../screens/Interaction'
 
 const Stack = createNativeStackNavigator()
 const Tab   = createBottomTabNavigator()
@@ -31,6 +33,8 @@ function HomeStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Dashboard" component={Dashboard} />
+      <Stack.Screen name="Notifications" component={Notifications} />
+      <Stack.Screen name="Interact" component={Interaction} />
       <Stack.Screen name="Profile"   component={Profile} />
     </Stack.Navigator>
   )
@@ -69,6 +73,7 @@ function AnalyticsStack() {
 
 const TAB_ICONS = {
   Home:        { active: 'home',             inactive: 'home-outline' },
+  Interact:    { active: 'pulse',            inactive: 'pulse-outline' },
   Attendance:  { active: 'people',           inactive: 'people-outline' },
   Quiz:        { active: 'help-circle',      inactive: 'help-circle-outline' },
   Analytics:   { active: 'bar-chart',        inactive: 'bar-chart-outline' },
@@ -101,6 +106,7 @@ function MainTabs() {
       })}
     >
       <Tab.Screen name="Home"        component={HomeStack}       options={{ title: 'Home' }} />
+      <Tab.Screen name="Interact"    component={Interaction}     options={{ title: 'Interact' }} />
       <Tab.Screen name="Attendance"  component={AttendanceStack} options={{ title: 'Attendance' }} />
       <Tab.Screen name="Quiz"        component={QuizStack}       options={{ title: 'Quiz' }} />
       <Tab.Screen name="Analytics"   component={AnalyticsStack}  options={{ title: 'Analytics' }} />

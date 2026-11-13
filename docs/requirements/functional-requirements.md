@@ -156,7 +156,7 @@ Interfaces M8 needs from M6 (deferred FR-820 to FR-824): quiz results per studen
 
 | ID | Description | Priority | Actor |
 |----|-------------|----------|-------|
-| FR-601 | The system shall allow a lecturer to select one or more materials of a course they teach and specify the question type (multiple-choice or short-answer) and the number of questions to generate. | Must Have | Lecturer |
+| FR-601 | The system shall allow a lecturer to select one or more materials of a course they teach and specify the question type (multiple-choice or short-answer), level and the number of questions to generate. | Must Have | Lecturer |
 | FR-602 | The system shall generate draft questions from the selected materials using an LLM. Each multiple-choice question shall include answer options and the correct answer, and each short-answer question shall include a suggested answer. | Must Have | System |
 | FR-603 | The system shall tag each generated question with its source material and topic. | Must Have | System |
 | FR-604 | The system shall allow a lecturer to review, edit, approve or delete each generated question. The system shall allow only approved questions to be published. | Must Have | Lecturer |
