@@ -615,3 +615,9 @@ TEST-CHANGE: tests/test_seed_courses.py (test_materials_course_exists_in_the_see
 - Decisions: no app code changed; the docs describe the current code only.
 - Interface/schema changes: none.
 - Tests: new `tests/test_docs_interfaces.py` (17) checks documented signatures, dataclass fields, WebSocket events and run-script paths against the code; check.sh 714 passed; reviewer PASS.
+
+### T103 — Design diagrams in Lucidchart — 2026-11-14
+- Changed: Lucidchart doc "SmartClass - Design Diagrams (AP2)", 11 pages (architecture, modules, class diagrams domain + services, ERD of all 21 tables, 3 activity diagrams, student + lecturer navigation, wireframes): https://lucid.app/lucidchart/bb0ce806-e9cb-4362-8f7f-872b4a4ab86c/edit (private to Yew Sing's Lucid account; use Share in Lucid to give the supervisor a view link). PNG exports in `docs/diagrams/01-…07-*.png`; generator `docs/diagrams/build_lucid.py` + import file `smartclass-diagrams.lucid.json`.
+- Decisions: diagrams are generated from code (ERD from SQLAlchemy metadata = what `alembic upgrade head` builds; service arrows = real `app.services` imports), so re-run the script and re-import after schema changes. Lucid `pt` renders ~2.2x, so sizes are px; ERD tables are rectangles (Lucid table cells imported empty). A first import with layout problems was renamed "OLD DRAFT - delete" in Lucid; Yew Sing can trash it (the connector cannot delete).
+- Interface/schema changes: none.
+- Tests: new `tests/test_docs_diagrams.py` (4): every table placed on the ERD, every FK drawn, committed import file matches a fresh build, 11 PNGs exist; check.sh 718 passed; reviewer: content correct, only the PROGRESS note was missing (added).
