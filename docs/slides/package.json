@@ -1,0 +1,11 @@
+{
+  "name": "smartclass-ap2-slides",
+  "private": true,
+  "description": "T105: builds docs/ap2-slides.pptx",
+  "scripts": {
+    "build": "node build_slides.js"
+  },
+  "dependencies": {
+    "pptxgenjs": "^3.12.0"
+  }
+}
