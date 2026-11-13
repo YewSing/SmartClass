@@ -11,7 +11,6 @@ SmartClass/
 ├── backend/
 │   ├── app/            # FastAPI application (routers, models, schemas, services)
 │   ├── alembic/        # DB migrations
-│   ├── face_worker/    # Standalone face recognition worker process
 │   ├── device_client/  # Camera device client (Pi / webcam): detect faces, send crops
 │   ├── moodle/         # Local Moodle 4.5 simulating SPeCTRUM (own docker-compose)
 │   ├── tests/          # pytest suite
@@ -41,7 +40,6 @@ The web frontend is independent with its own `package.json`, `node_modules`, and
 cd backend
 docker compose up -d                              # start postgres+pgvector
 pip install -r requirements.txt
-pip install -r face_worker/requirements.txt       # insightface: without it face enrolment answers 503
 alembic upgrade head
 python scripts/seed.py                            # admin, timetable, always-open test class (safe to re-run)
 uvicorn app.main:app --reload --host 0.0.0.0     # API at localhost:8000, also reachable from phone
@@ -55,7 +53,7 @@ cd backend
 python scripts/device_key.py CAM-TEST     # prints the seeded room's new key (copy it)
 DEVICE_KEY=<key> python -m device_client --camera 0
 ```
-The client detects faces locally and sends crops to `POST /device/faces`; the server recognises them (`backend/device_client/README.md`). `face_worker/` is the old worker, kept until T43.
+The client detects faces locally and sends crops to `POST /device/faces`; the server recognises them (`backend/device_client/README.md`).
 
 ### Admin Web App
 ```bash

@@ -87,15 +87,17 @@ API at **http://localhost:8000** · Docs at **http://localhost:8000/docs**
 
 ---
 
-### 5. Start the Face Recognition Worker
+### 5. Start the Camera Device Client
 
-Open a **separate terminal**:
+Open a **separate terminal** (the backend's `requirements.txt` already installs InsightFace for the server):
 
 ```bash
-cd backend/face_worker
-pip install -r requirements.txt
-python worker.py
+cd backend
+python scripts/device_key.py CAM-TEST     # prints the seeded room's new key (copy it)
+DEVICE_KEY=<key> python -m device_client --camera 0
 ```
+
+The client detects faces locally and sends crops to `POST /device/faces`; the server recognises them (`backend/device_client/README.md`).
 
 ---
 
@@ -132,7 +134,7 @@ SmartClass/
 ├── backend/
 │   ├── app/            # FastAPI application
 │   ├── alembic/        # DB migrations
-│   ├── face_worker/    # Face recognition worker process
+│   ├── device_client/  # Camera device client (Pi / webcam): detect faces, send crops
 │   ├── scripts/        # Seed scripts
 │   └── docker-compose.yml
 ├── frontend/

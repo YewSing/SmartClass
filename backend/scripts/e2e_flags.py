@@ -8,26 +8,24 @@ face vector.
     python scripts/e2e_flags.py clean
 
 `seed` gives student4 two open classes (E2E045 for the flag, E2E046 for a simulated recognition),
-a camera `CAM-E2E045` with no key, and one face embedding built from a random vector: that vector
-is made up, not anyone's face (NFR-01/PDPA). The sessions have no Moodle course, so neither sync
+a camera `CAM-E2E045` with no key, and one face embedding of the first face in InsightFace's bundled
+sample photo `t1.jpg` (no real student's face, NFR-01/PDPA; nothing is written to disk). The sessions have no Moodle course, so neither sync
 touches them.
 
 `actor --mode student` waits for the student's flag, confirms it as lecturer1, then (10 s later)
-issues the camera a key and posts the same vector to `/internal/face-match` for E2E046, which
-records Present and tells the student's phone. `actor --mode lecturer` waits for the lecturer's
+issues the camera a key and posts that sample face to `POST /device/faces` for E2E046 (as many
+frames as FACE_VOTE_THRESHOLD), which records Present and tells the student's phone. `actor --mode lecturer` waits for the lecturer's
 "+15 min" tap, then flags E2E045 as the student. Tokens and the device key stay in memory.
 
 `clean` stops a running actor and removes everything `seed` created, leaving the dev database as
-before: only the two E2E courses, the test camera and the synthetic embedding.
+before: only the two E2E courses, the test camera and the sample-face embedding.
 
 Run from backend/ against the dev database (DATABASE_URL in .env).
 """
 import argparse
 import asyncio
 import json
-import math
 import os
-import random
 import signal
 import sys
 import tempfile
@@ -39,6 +37,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import httpx
 from sqlalchemy import delete, select, text
 
+from app.core.config import settings
 from app.core.database import AsyncSessionLocal, engine
 from app.core.security import create_access_token
 from app.models.attendance import AttendanceRecord
@@ -63,12 +62,32 @@ DEADLINE_SECONDS = 300
 MARKER = os.path.join(tempfile.gettempdir(), "smartclass-e2e-flags.json")
 
 
-def synthetic_embedding() -> list[float]:
-    """A deterministic 512-float vector, L2-normalised. Not a face: made up for the E2E only."""
-    rng = random.Random(45)
-    vec = [rng.gauss(0.0, 1.0) for _ in range(512)]
-    norm = math.sqrt(sum(x * x for x in vec))
-    return [x / norm for x in vec]
+_SAMPLE: tuple[bytes, list[float]] | None = None
+
+
+def sample_face() -> tuple[bytes, list[float]]:
+    """(PNG crop, embedding) of the largest face in InsightFace's bundled `t1.jpg`, made in memory.
+
+    T46b: recognition now runs on the server from a face crop, so the E2E needs a real face; this
+    sample photo ships with InsightFace and is nobody enrolled at UM. The embedding is computed the
+    way the server computes it, so the crop matches it.
+    """
+    global _SAMPLE
+    if _SAMPLE is None:
+        from insightface.app import FaceAnalysis
+
+        from app.core.config import settings
+        from app.services import recognition_service
+        from tests import card_images
+
+        fa = FaceAnalysis(name=settings.INSIGHTFACE_MODEL, providers=["CPUExecutionProvider"])
+        fa.prepare(ctx_id=-1, det_size=(640, 640))
+        crop = card_images._png(card_images.people(fa)[0])
+        embedding = recognition_service.embed_crop(fa, crop)
+        if embedding is None:
+            sys.exit("InsightFace found no face in its own sample photo.")
+        _SAMPLE = (crop, [float(x) for x in embedding])
+    return _SAMPLE
 
 
 # ── Lookups ──────────────────────────────────────────────────────────────────
@@ -131,7 +150,7 @@ async def seed(db, student_email: str, lecturer_email: str) -> None:
     camera = Camera(label=CAMERA_LABEL, room=REC_ROOM, device_id=DEVICE_ID)
     db.add(camera)
     await db.flush()
-    embedding = FaceEmbedding(student_id=student_id, embedding=synthetic_embedding())
+    embedding = FaceEmbedding(student_id=student_id, embedding=sample_face()[1])
     db.add(embedding)
     await db.flush()
 
@@ -222,17 +241,21 @@ async def clean(db, student_email: str | None) -> None:
     result = await db.execute(delete(Camera).where(Camera.device_id == DEVICE_ID))
     removed["cameras"] = result.rowcount or 0
 
-    # Only the made-up vector: the student's real enrolled faces stay (NFR-02)
-    student_id = marker.get("student_id")
-    if student_id is None and student_email:
-        student = await _student_by_email(db, student_email)
-        student_id = student.id if student is not None else None
-    if student_id is not None:
-        result = await db.execute(
-            text("DELETE FROM face_embeddings WHERE student_id = :sid AND embedding = CAST(:vec AS vector)"),
-            {"sid": student_id, "vec": str(synthetic_embedding())},
-        )
+    # Only the sample-face embedding: the student's real enrolled faces stay (NFR-02)
+    if marker.get("embedding_id") is not None:
+        result = await db.execute(delete(FaceEmbedding).where(FaceEmbedding.id == marker["embedding_id"]))
         removed["embeddings"] = result.rowcount or 0
+    else:
+        student_id = marker.get("student_id")
+        if student_id is None and student_email:
+            student = await _student_by_email(db, student_email)
+            student_id = student.id if student is not None else None
+        if student_id is not None:
+            result = await db.execute(
+                text("DELETE FROM face_embeddings WHERE student_id = :sid AND embedding = CAST(:vec AS vector)"),
+                {"sid": student_id, "vec": str(sample_face()[1])},
+            )
+            removed["embeddings"] = result.rowcount or 0
 
     await db.commit()
     if os.path.exists(MARKER):
@@ -311,12 +334,16 @@ async def actor(mode: str, api: str) -> None:
             _post(client, api, f"/lecturer/flags/{flag_id}/confirm", lecturer_token)
             await asyncio.sleep(10)   # the phone shows the confirmed flag first
             key = await _issue_camera_key(marker["camera_id"])
-            res = _post(client, api, "/internal/face-match",
-                        headers={"X-Device-Key": key},
-                        body={"embedding": synthetic_embedding(),
-                              "session_id": marker["rec_session_id"], "dry_run": False})
-            if not res.json().get("matched"):
-                sys.exit(f"face-match did not match: {res.text}")
+            crop = sample_face()[0]
+            outcome = {}
+            for _ in range(settings.FACE_VOTE_THRESHOLD):   # FR-404: consecutive frames agree
+                res = client.post(f"{api}/device/faces", headers={"X-Device-Key": key},
+                                  files=[("crops", ("face.png", crop, "image/png"))])
+                res.raise_for_status()
+                [outcome] = res.json()["results"]
+                await asyncio.sleep(1)
+            if outcome.get("outcome") not in ("recorded", "already_recorded"):
+                sys.exit(f"/device/faces did not record the student: {res.text}")
             print("flag confirmed; recognition recorded")
         else:
             if not await _wait_extended(marker, deadline):

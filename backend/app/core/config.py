@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     FACE_VOTE_MAX_GAP_SECONDS: int = 10   # FR-404: frames further apart than this aren't "consecutive"
     DEVICE_MAX_CROPS: int = 10            # crops per POST /device/faces (one frame)
     DEVICE_MAX_CROP_BYTES: int = 2 * 1024 * 1024
-    FACE_COOLDOWN_SECONDS: int = 30
+    FACE_COOLDOWN_SECONDS: int = 30   # unused since T46b (old face_worker); kept so old .env files still load
     # Unmatched face crops kept as evidence for "not recognised" flags (FR-407, FR-410, NFR-02)
     FACE_UNMATCHED_RETENTION_DAYS: int = 7
     FACE_UNMATCHED_CLEANUP_INTERVAL_SECONDS: int = 3600   # <= 0 disables the retention job

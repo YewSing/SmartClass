@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.routers import auth, admin_users, admin_students, admin_courses, admin_moodle, admin_devices, device, classes, sessions, attendance, attendance_flags, attendance_stats, internal, analytics, audit, face_review, assistant, student_face, face_verification, class_schedule
+from app.routers import auth, admin_users, admin_students, admin_courses, admin_moodle, admin_devices, device, classes, sessions, attendance, attendance_flags, attendance_stats, analytics, audit, face_review, assistant, student_face, face_verification, class_schedule
 from app.services.attendance_flags import unmatched_face_cleanup_loop
 from app.services.attendance_moodle_sync import attendance_moodle_sync_loop
 from app.services.attendance_service import low_attendance_monitor
@@ -84,7 +84,6 @@ app.include_router(sessions.router)
 app.include_router(attendance.router)
 app.include_router(attendance_flags.router)
 app.include_router(attendance_stats.router)
-app.include_router(internal.router)
 app.include_router(analytics.router)
 app.include_router(ws_router.router)
 app.include_router(audit.router)
