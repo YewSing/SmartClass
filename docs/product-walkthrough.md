@@ -45,8 +45,8 @@ A plain-language picture of the finished plan for Yew Sing's modules (M1, M3, M4
 3. If the materials don't cover it, the answer says so and is labelled as general knowledge.
 4. Follow-up questions work, like "what about its disadvantages?".
 5. Can rename and delete chats. No one else can read them, including lecturers.
-6. Can generate a summary or study guide, flashcards, and non-graded practice questions.
-7. Optional, if time allows: YouTube suggestions.
+6. Can generate a summary, flashcards, and non-graded practice questions from the tools menu. They arrive as chat messages; flashcards and practice open full screen, and the last practice score is kept.
+7. Can tap "Find related videos" under an answer for YouTube suggestions.
 
 ---
 
@@ -82,7 +82,7 @@ A small role for jobs that don't suit a lecturer, in the browser only:
 - View the audit log, and check or start the Moodle sync.
 - Register door cameras, and issue or replace their keys.
 
-The old `frontend/admin` site is deleted after these screens exist. Shino has confirmed she doesn't need it.
+The old `frontend/admin` site was deleted on 2026-11-13 (T96). Shino confirmed she doesn't need it.
 
 ---
 

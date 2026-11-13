@@ -66,14 +66,14 @@ Both phone and laptop must be on the same WiFi network.
 
 ### Student (`mobile/student/`)
 - React Native app (Expo SDK 54), runs on physical Android/iOS via Expo Go
-- Screens: Login, Home, Attendance, AttSessionDetail, AttReportStatus, Participation, PartSessionPerf, Profile
+- Screens: Login, Home, Attendance, AttSessionDetail, AttReportStatus, Participation, PartSessionPerf, Profile, FaceConsent, FaceEnrolment, FaceCapture, Assistant (one-screen AI chat with study tools), AssistantPdf, Flashcards, Practice
 - Navigation: React Navigation 6 — bottom tabs + native stack per tab
 - API base URL set via `EXPO_PUBLIC_API_URL` in `.env`
 
 ### Lecturer (`mobile/lecturer/`)
 - React Native app (Expo SDK 54), runs on physical Android/iOS via Expo Go, and in a browser via Expo web
 - Admin area (browser only, role `admin`): `AdminAccounts`, `AdminMoodleSync`, `AdminDevices`, `AdminAudit` screens; face-verification queue as the admin fallback
-- Screens: Dashboard, ClassDetail, AttendanceSessions, AttendanceDetail, QuizList, CreateQuiz, LiveResults, ResultsClosed, Breakdown, Analytics, Profile, Login (quiz screens are UI mock only — Module 6 belongs to Shino)
+- Screens: Dashboard, ClassDetail, AttendanceSessions, AttendanceDetail, LecturerAssistant, LecturerAsk, BeforeClass, FaceVerification, QuizList, CreateQuiz, LiveResults, ResultsClosed, Breakdown, Analytics, Profile, Login (quiz screens are UI mock only — Module 6 belongs to Shino)
 - Navigation: React Navigation 6 — bottom tabs + native stack per tab
 - State in `src/context/LecturerContext.jsx`
 - API base URL set via `EXPO_PUBLIC_API_URL` in `.env`
