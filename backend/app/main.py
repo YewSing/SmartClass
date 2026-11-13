@@ -7,7 +7,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.routers import auth, admin_users, admin_students, admin_courses, admin_moodle, admin_devices, device, classes, sessions, attendance, attendance_stats, internal, analytics, audit, face_review, assistant, student_face, face_verification, class_schedule
+from app.routers import auth, admin_users, admin_students, admin_courses, admin_moodle, admin_devices, device, classes, sessions, attendance, attendance_flags, attendance_stats, analytics, audit, face_review, assistant, student_face, face_verification, class_schedule
+from app.services.attendance_flags import unmatched_face_cleanup_loop
 from app.services.attendance_moodle_sync import attendance_moodle_sync_loop
 from app.services.attendance_service import low_attendance_monitor
 from app.services.kb.sync import kb_sync_loop
@@ -38,7 +39,7 @@ async def lifespan(app: FastAPI):
 
     tasks = [asyncio.create_task(low_attendance_monitor()), asyncio.create_task(kb_sync_loop()),
              asyncio.create_task(moodle_sync_loop()), asyncio.create_task(session_scheduler_loop()),
-             asyncio.create_task(attendance_moodle_sync_loop())]
+             asyncio.create_task(attendance_moodle_sync_loop()), asyncio.create_task(unmatched_face_cleanup_loop())]
     try:
         yield
     finally:
@@ -62,6 +63,7 @@ app.add_middleware(
         "http://localhost:8081",
         "http://localhost:8082",
         "http://localhost:8092",  # lecturer app on Expo web in the Playwright E2E
+        "http://localhost:8093",  # ...second worktree's Playwright E2E (E2E_WEB_PORT)
         "http://localhost:19006",
     ],
     allow_credentials=True,
@@ -80,8 +82,8 @@ app.include_router(classes.router)
 app.include_router(class_schedule.router)
 app.include_router(sessions.router)
 app.include_router(attendance.router)
+app.include_router(attendance_flags.router)
 app.include_router(attendance_stats.router)
-app.include_router(internal.router)
 app.include_router(analytics.router)
 app.include_router(ws_router.router)
 app.include_router(audit.router)

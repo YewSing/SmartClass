@@ -10,9 +10,10 @@ Flow for one question:
                    with citations is "course", one without is "general"
 7. save          - store both messages (retrieval_query feeds later lecturer insights)
 """
+import asyncio
 import re
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -48,11 +49,23 @@ Rules:
 6. Students read your answer as plain text on a phone. Never use LaTeX, $ signs or backslash
    commands. Write formulas in plain text, like (a + b) / c, x^2, sqrt(n), 3 × 4 or 50%."""
 
+# Added for a lecturer's own chat (FR-815): the same rules and citations, but the asker is
+# the lecturer whose materials these are, not a student.
+_LECTURER_NOTE = """
+
+The person asking is the lecturer who teaches {course_code} and uploaded these materials, not a
+student. Address them as the lecturer: say "your materials" or "your slides", and never tell them to
+ask their lecturer or check with the course page. When they ask about the materials themselves
+(what they cover, gaps, how current they look), answer from what the passages show and cite them."""
+
 _REWRITE_PROMPT = """Rewrite the student's latest question as a standalone search query for their course
 materials, resolving words like "it" or "that" from the conversation. Reply with the query only."""
 
-_TOPIC_LABEL_PROMPT = ("Label the student's question with a short topic of 2-5 words, so a lecturer "
-                       "can see what students ask about. Reply with the topic only.")
+_TOPIC_LABEL_PROMPT = ("Label the student's question with a short topic of 2-5 words in sentence case "
+                       "(for example \"Boundary value analysis\"), so a lecturer can see what students "
+                       "ask about. Name the concept, not a file or lecture. If one of the existing topics "
+                       "below fits, reply with it exactly, so the same question is counted together. "
+                       "Reply with the topic only.")
 
 # Budget for the short helper calls (follow-up rewrite, topic label). Thinking models
 # (deepseek-flash, Gemini 3.x) count hidden reasoning tokens against max_tokens, so a tight
@@ -128,21 +141,43 @@ async def _standalone_query(question: str, history: list[dict]) -> str:
         return question
 
 
-async def _label_topic(question: str) -> str | None:
-    """A short, anonymised topic for a general-knowledge question (FR-813).
+async def _existing_topics(db: AsyncSession, course_id: int, limit: int = 40) -> list[str]:
+    """The course's most recent distinct topic labels from student chats (the ones the trends
+    count), so a new label can reuse one."""
+    rows = (await db.execute(
+        select(ChatMessage.topic)
+        .join(ChatSession, ChatSession.id == ChatMessage.session_id)
+        .where(ChatSession.course_id == course_id, ChatMessage.topic.is_not(None),
+               ChatSession.student_id.is_not(None))
+        .group_by(ChatMessage.topic)
+        .order_by(func.max(ChatMessage.id).desc())
+        .limit(limit)
+    )).scalars().all()
+    return list(rows)
+
+
+async def _label_topic(question: str, existing: list[str] | None = None) -> str | None:
+    """A short, anonymised topic for a question (FR-813), reusing an existing one when it fits.
 
     Best-effort: if the LLM is down or the quota is gone, the question is left untagged
-    (it simply won't appear in the lecturer's "topics the materials don't cover" list).
+    (it simply won't appear in the lecturer's topic lists).
     """
+    known = "\n".join(f"- {t}" for t in existing or []) or "(none yet)"
     try:
         label = await llm.chat(
-            [{"role": "system", "content": _TOPIC_LABEL_PROMPT},
+            [{"role": "system", "content": f"{_TOPIC_LABEL_PROMPT}\n\nExisting topics:\n{known}"},
              {"role": "user", "content": question}],
             max_tokens=_SHORT_CALL_MAX_TOKENS, temperature=0,
         )
-        return label.strip().strip('"').strip() or None
     except llm.LLMUnavailable:
         return None
+    label = label.strip().strip('"').strip().rstrip(".")
+    if not label or len(label) > 80:
+        return None
+    for t in existing or []:   # same topic, different capitalisation -> one topic
+        if t.lower() == label.lower():
+            return t
+    return label
 
 
 async def answer_question(db: AsyncSession, session: ChatSession, course: Course, question: str) -> ChatMessage:
@@ -151,7 +186,7 @@ async def answer_question(db: AsyncSession, session: ChatSession, course: Course
     user_msg = ChatMessage(session_id=session.id, role="user", content=question)
     db.add(user_msg)
 
-    if await get_active_attempt(session.student_id, course.id) is not None:
+    if session.student_id is not None and await get_active_attempt(session.student_id, course.id) is not None:
         user_msg.source_type = SOURCE_REFUSED
         reply = ChatMessage(session_id=session.id, role="assistant", content=QUIZ_LOCK_MESSAGE,
                                  citations=[], source_type=SOURCE_REFUSED)
@@ -163,19 +198,23 @@ async def answer_question(db: AsyncSession, session: ChatSession, course: Course
     user_msg.retrieval_query = query
     passages = await search_materials(db, course.id, query, k=settings.ASSISTANT_TOP_K)
 
-    messages = [{"role": "system", "content": _SYSTEM_PROMPT.format(course=f"{course.code} {course.name}")}]
+    system = _SYSTEM_PROMPT.format(course=f"{course.code} {course.name}")
+    if session.lecturer_id is not None:
+        system += _LECTURER_NOTE.format(course_code=course.code)
+    messages = [{"role": "system", "content": system}]
     messages += history
     materials = format_passages(passages) if passages else "(No course materials are indexed for this course yet.)"
     messages.append({"role": "user", "content": f"Course material passages:\n\n{materials}\n\nQuestion: {question}"})
 
-    raw = await llm.chat(messages)  # LLMUnavailable propagates -> 503, nothing is saved
+    # The topic label (FR-813) runs alongside the answer, so it adds no waiting time. It is
+    # a concept like "Boundary value analysis", never a file name, for course answers too.
+    existing = await _existing_topics(db, course.id)
+    topic, raw = await asyncio.gather(
+        _label_topic(query, existing),
+        llm.chat(messages),  # LLMUnavailable propagates -> 503, nothing is saved
+    )
     content, citations, source = parse_answer(clean_latex(raw), passages)
-
-    if source == SOURCE_COURSE and citations:
-        topic = citations[0]["title"]
-    elif source == SOURCE_GENERAL:
-        topic = await _label_topic(question)
-    else:
+    if source not in (SOURCE_COURSE, SOURCE_GENERAL):
         topic = None
 
     reply = ChatMessage(session_id=session.id, role="assistant", content=content,

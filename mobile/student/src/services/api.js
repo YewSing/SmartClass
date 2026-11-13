@@ -89,12 +89,21 @@ export const getAttendanceCourses = async () => {
   return courses.map(c => toCourseView(c, occLookup))
 }
 
+// "I'm here but wasn't recognised" (FR-318): once per open session with no record
+export const flagNotRecognised = (sessionId) =>
+  apiCall('POST', `/student/me/sessions/${sessionId}/flag`)
+
+// The student's own flags, newest first (FR-319)
+export const getMyFlags = (sessionId) =>
+  apiCall('GET', sessionId != null ? `/student/me/flags?session_id=${sessionId}` : '/student/me/flags')
+
 // ─── AI Learning Assistant (Module 8) ─────────────────────────────────────────
 
 export const getAssistantCourses = () => apiCall('GET', '/student/assistant/courses')
 
-export const getChatSessions = (courseId) =>
-  apiCall('GET', `/student/assistant/sessions?course_id=${courseId}`)
+// All chats (history panel), or one course's
+export const getChatSessions = (courseId = null) =>
+  apiCall('GET', courseId != null ? `/student/assistant/sessions?course_id=${courseId}` : '/student/assistant/sessions')
 
 export const createChatSession = (courseId) =>
   apiCall('POST', '/student/assistant/sessions', { course_id: courseId })
@@ -110,6 +119,18 @@ export const getChatMessages = (sessionId) =>
 
 export const sendChatMessage = (sessionId, content) =>
   apiCall('POST', `/student/assistant/sessions/${sessionId}/messages`, { content })
+
+// A study tool inside a chat (FR-810/811): the request and the result are saved as chat messages
+export const runChatTool = (sessionId, kind, topic) =>
+  apiCall('POST', `/student/assistant/sessions/${sessionId}/tools`, { kind, topic })
+
+// Remember the last score on a practice set
+export const savePracticeScore = (messageId, correct, total) =>
+  apiCall('PATCH', `/student/assistant/messages/${messageId}/score`, { correct, total })
+
+// Related YouTube videos and search keywords for a topic (FR-812)
+export const getRelatedVideos = (courseId, topic) =>
+  apiCall('POST', '/student/assistant/youtube', { course_id: courseId, topic })
 
 // ─── Face enrolment (FR-109, FR-110, FR-115, FR-116) ──────────────────────────
 
@@ -137,5 +158,4 @@ const delay = (ms) => new Promise(res => setTimeout(res, ms))
 export const getParticipationSummary = async () => { await delay(200); return PART_SUMMARY }
 export const getParticipationGroups  = async () => { await delay(300); return PARTICIPATION_GROUPS }
 export const getSessionPerf = async (perfKey) => { await delay(200); return SESSION_PERFS[perfKey] ?? null }
-export const submitReport = async () => { await delay(400); return { refNo: `RPT-${Date.now()}`, status: 'pending' } }
 export const sendPasswordReset = async () => { await delay(400); return { success: true } }

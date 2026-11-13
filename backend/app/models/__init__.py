@@ -8,6 +8,7 @@ from app.models.face_enrolment import FaceEnrolment, FaceEnrolmentImage  # noqa:
 from app.models.camera import Camera  # noqa: F401
 from app.models.session import AttendanceSession  # noqa: F401
 from app.models.attendance import AttendanceRecord  # noqa: F401
+from app.models.attendance_flag import AttendanceFlag, UnmatchedFace  # noqa: F401
 from app.models.audit import AuditLog  # noqa: F401
 from app.models.face_review import FaceReviewEntry  # noqa: F401
 from app.models.knowledge import KbMaterial, KbChunk  # noqa: F401

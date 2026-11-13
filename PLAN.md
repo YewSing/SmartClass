@@ -112,16 +112,18 @@ These M8 tasks run before everything else after the T04 checkpoint, so the stude
   Done when: admins can register a device (name, room) and get its key once (stored hashed), regenerate a key (old one revoked); device endpoints authenticate with `X-Device-Key` instead of the shared internal key; `POST /device/heartbeat`; online = heartbeat within 60 s; tests.
 - [x] **T41 [API] Server-side recognition from face crops (FR-402–FR-405, NFR-10, NFR-22).** Depends on: T40, T30.
   Done when: `POST /device/faces` (multipart crop(s)) embeds on the server, matches only students enrolled in the open session's course above the threshold, keeps per-device consecutive-match votes (default 3) and records Present or Late through the attendance service; non-enrolled matches are logged, not recorded; tests with InsightFace sample images (match, late arrival, below threshold, not enrolled, vote counting, duplicate).
-- [ ] **T42 [API] Device client for Pi and webcam (FR-401, FR-409, FR-411).** Depends on: T41.
+- [x] **T42 [API] Device client for Pi and webcam (FR-401, FR-409, FR-411).** Depends on: T41.
   Done when: `device_client/` (replaces `face_worker/`'s role) polls for an open session for its room, detects faces locally (light model suitable for a Pi), POSTs crops with its key, sends heartbeats, optionally buffers while offline; runs on the laptop with a USB webcam via `python -m device_client --camera 0`; unit tests for the detection → crop → post logic with a fake camera.
-- [ ] **T43 [API] Student flags "not recognised"; lecturer resolves (FR-318, FR-319, FR-407, FR-410, NFR-02).** Depends on: T41, T31.
+- [x] **T43 [API] Student flags "not recognised"; lecturer resolves (FR-318, FR-319, FR-407, FR-410, NFR-02).** Depends on: T41, T31.
   Done when: while a session is open, an enrolled student with no record can flag it once, and the lecturer's live channel gets an event; the lecturer lists flags with the student's name and matric number, plus the closest unmatched crop if any, with its similarity; the lecturer confirms (Present or Late from the flag time, source `student_flag`, audited, re-synced if already synced) or rejects with a reason, and the student sees the result; flags unresolved at close leave the student Absent and stay in the lecturer's list; no screen asks a lecturer to identify an unclaimed face; unmatched crops are stored per session and deleted on resolution, with a retention job after 7 days; admin keeps access as a fallback; tests include flagging outside an open session, not enrolled, already recorded, and another lecturer's 403.
-- [ ] **T44 [API] Recognition feedback events (FR-406, NFR-12).** Depends on: T41.
+- [x] **T44 [API] Recognition feedback events (FR-406, NFR-12).** Depends on: T41.
   Done when: on Present or Late, a websocket event goes to the lecturer's session channel and to the student's channel, and `app/services/notify.py` exposes `emit(event, user_ids, payload)` as the M2 hook (logs only for now, documented in `docs/interfaces.md`); tests.
-- [ ] **T45 [UI] Student "I'm here" flag, lecturer flag alerts, "attendance recorded" banner.** Depends on: T43, T44, T03.
+- [x] **T45 [UI] Student "I'm here" flag, lecturer flag alerts, "attendance recorded" banner.** Depends on: T43, T44, T03.
   Done when: the student app's flag button appears only during an open session with no record, and the old mock report screen (`AttReportStatus`) shows the real flag status; Maestro flows: a student flags and sees pending then the result; the lecturer sees the alert and confirms it; the student app shows the banner after a simulated recognition.
-- [ ] **T46 [UI] Admin area: device management page.** Depends on: T40, T22.
+- [x] **T46 [UI] Admin area: device management page.** Depends on: T40, T22.
   Done when: page lists devices with online status, registers a device and shows the key once, regenerates a key; Playwright test.
+- [x] **T46b [API] Retire `face_worker/` and the old `/internal/*` recognition path (NFR-01, NFR-02).** Depends on: T42, T43.
+  Done when: `backend/face_worker/` is deleted; `/internal/active-session`, `/internal/face-match` and `/internal/face-review` are removed, so `device_client/` + `POST /device/faces` is the only way a camera records attendance; the server's face packages (insightface, onnxruntime, opencv) move from `face_worker/requirements.txt` into a backend requirements file so face enrolment and `/device/faces` still work after a fresh install; `CLAUDE.md` and `README.md` run instructions point at `device_client/` instead (no "Face Worker" terminal); code only the old path used is removed (unused `INTERNAL_API_KEY` may stay so old `.env` files load); `/admin/face-review`, its table and `frontend/admin`'s FaceReviewQueue stay until T96, but nothing adds new rows and any existing rows are deleted (NFR-02, a data migration or the T43 retention job); `test_devices.py::test_device_endpoints_refuse_the_old_shared_internal_key` now expects 404 for the removed endpoints (`TEST-CHANGE:` line in PROGRESS.md); check.sh and `pytest -m db` pass.
 - [ ] **T47 [HUMAN] Run the device client on the Raspberry Pi** with the Pi camera at the door; measure NFR-11 (fps) and NFR-10; record results in PROGRESS.md.
 - [ ] **T48 [HUMAN] Checkpoint: full attendance run.** Yew Sing runs one class end to end with the camera: a scheduled session opens by itself, Present and Late recognition, a student flags and the lecturer confirms, override to Excused, close, and check the statuses in Moodle. A Claude session reviews the work so far.
 
@@ -146,23 +148,23 @@ These M8 tasks run before everything else after the T04 checkpoint, so the stude
   Done when: each student question is tagged with a topic (from the cited materials/sections or a cheap LLM label); the lecturer endpoint returns three lists, most-asked topics, most-cited materials, and most-asked topics the materials don't cover (answers labelled general knowledge), each with ≥3 distinct students only and no names or text; tests prove that k<3 topics are hidden and that no endpoint exposes another student's chat.
 - [x] **T88 [API] Retrieval interface for Module 6 (FR-814).** Depends on: T80.
   Done when: `app/services/kb/retrieval_api.py` (`search(course_id, query, k)` → passages with source) is documented in `docs/interfaces.md`; tests.
-- [ ] **T90 [UI] Student app: summaries + flashcards/practice.** Depends on: T85, T86, T89.
+- [x] **T90 [UI] Student app: summaries + flashcards/practice.** Depends on: T85, T86, T89.
   Done when: screens for generate summary, flip flashcards, answer practice questions; Maestro flow with the fake LLM.
-- [ ] **T91 [UI] Lecturer app: materials status + sync button + question trends.** Depends on: T81, T87, T03.
+- [x] **T91 [UI] Lecturer app: materials status + sync button + question trends.** Depends on: T81, T87, T03.
   Done when: Maestro flow triggers a sync and sees the statuses and all three trends lists.
-- [ ] **T100 [API] Lecturer asks their own materials (FR-815).** Depends on: T82, T87.
+- [x] **T100 [API] Lecturer asks their own materials (FR-815).** Depends on: T82, T87.
   Done when: a lecturer can create, list, rename and delete chats and ask questions for courses they teach (other lecturers and students get 403), through the same answer code as students, with the same citations and labels; chats have one owner, a student or a lecturer (migration); a lecturer's chats are visible only to that lecturer and are never counted in question trends (test); replay/mock tests + live cases in the T82 suite with recorded fixtures.
-- [ ] **T101 [API] "Before next class" summary (FR-816, NFR-09).** Depends on: T82, T87.
+- [x] **T101 [API] "Before next class" summary (FR-816, NFR-09).** Depends on: T82, T87.
   Done when: `GET` for a course returns a short summary built only from the T87 aggregates, with what to revisit (citing material sections that exist) and what the materials don't cover; a test proves the LLM prompt holds no names, chat text or topics below the 3-student minimum; with too little data it returns "not enough questions yet" and makes no LLM call; the result is cached until the trends change; only the course's lecturer can read it; replay/mock tests + live cases in the T82 suite with recorded fixtures.
-- [ ] **T102 [UI] Lecturer app: ask my materials + before next class summary.** Depends on: T05, T91, T100, T101.
+- [x] **T102 [UI] Lecturer app: ask my materials + before next class summary.** Depends on: T05, T91, T100, T101.
   Done when: the lecturer app has both screens on phone and in the browser; citations open the source; Maestro and Playwright flows with the fake LLM ask a question and see a citation, and read a seeded summary.
-- [ ] **T92 [API] YouTube suggestions (FR-812, Could Have).** Depends on: T85.
+- [x] **T92 [API] YouTube suggestions (FR-812, Could Have).** Depends on: T85.
   Done when: YouTube Data API search behind config (`YOUTUBE_API_KEY`; feature off when empty); mocked tests. Needs Yew Sing to add the key to `.env`.
 
 ## 5. Wrap-up
 
 - [x] **T95 [HUMAN] Confirm with Shino that `frontend/admin` can go.** Shino confirmed on 2026-11-09 that her modules won't use it.
-- [ ] **T96 [INFRA] Retire `frontend/admin`.** Depends on: T22, T46, T95.
+- [x] **T96 [INFRA] Retire `frontend/admin`.** Depends on: T22, T46, T95.
   Done when: PROGRESS.md lists every old admin view and where it went (Users → accounts; FaceData, FaceReviewQueue → verification fallback; AuditLog → audit log; Students, Lecturers, Enrollment, ClassManagement → replaced by Moodle sync; Dashboard → removed); `frontend/admin/` is deleted; `scripts/check.sh`, README and CLAUDE.md no longer refer to it; no backend endpoint is removed unless a test shows nothing uses it; `bash scripts/check.sh` and the admin-area Playwright flows pass.
 - [ ] **T98 [INFRA] Docs refresh.** Depends on: all API tasks of M1/M3/M4/M8.
   Done when: README and CLAUDE.md run instructions match reality (device client, Moodle plugin, E2E); `docs/interfaces.md` is complete.

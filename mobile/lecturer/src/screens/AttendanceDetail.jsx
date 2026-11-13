@@ -6,11 +6,13 @@ import { Ionicons } from '@expo/vector-icons'
 import { useLecturer } from '../context/LecturerContext'
 import Topbar from '../components/Topbar'
 import Badge from '../components/Badge'
+import AuthImage from '../components/AuthImage'
 import AttendanceCounts from '../components/AttendanceCounts'
 import {
   statusLabel, statusBadge, groupRoster, countStatuses, timeRange, sessionStateLabel, sessionStateBadge,
-  syncInfo, moodleValueLabel, canTakeMoodle,
+  syncInfo, moodleValueLabel, canTakeMoodle, hhmm, cropText,
 } from '../services/attendance'
+import { flagCropPath } from '../services/api'
 import { C } from '../theme'
 
 const AVATAR_BG_CYCLE = [C.blueLt, C.greenLt, C.orangeLt]
@@ -139,9 +141,106 @@ function SyncStatus({ session }) {
   )
 }
 
+// Students who say they are in class but the camera didn't recognise them (FR-318, FR-319, FR-407)
+function FlagList({ flags }) {
+  const { doConfirmFlag, doRejectFlag } = useLecturer()
+  const [busy, setBusy] = useState(null)
+  const [rejecting, setRejecting] = useState(null)
+  const [reason, setReason] = useState('')
+
+  if (!flags?.length) return null
+
+  const pending = flags.filter(f => f.status === 'pending')
+  const resolved = flags.filter(f => f.status !== 'pending')
+
+  const run = async (key, fn) => {
+    setBusy(key)
+    try { await fn() } catch { /* toast shown in context */ } finally { setBusy(null) }
+  }
+
+  const closeReject = () => { setRejecting(null); setReason('') }
+
+  return (
+    <View style={styles.block} testID="flag-list">
+      <Text style={styles.blockTitle}>{`Says they're here (${pending.length})`}</Text>
+
+      {pending.map(flag => (
+        <View key={flag.id} style={styles.flagCard} testID="flag-card">
+          <View style={styles.flagHead}>
+            <Text testID="flag-card-name" style={styles.flagName}>{flag.name}</Text>
+            <Text style={styles.flagMatric}>{flag.matric_no}</Text>
+          </View>
+          <Text style={styles.blockText}>{`Flagged ${hhmm(flag.flagged_at)}`}</Text>
+
+          <View style={styles.flagCropRow}>
+            {flag.closest_crop ? (
+              <AuthImage
+                path={flagCropPath(flag.id)}
+                style={styles.flagCrop}
+                accessibilityLabel="Closest unrecognised face"
+              />
+            ) : null}
+            <Text style={[styles.blockText, styles.flagCropText]}>{cropText(flag)}</Text>
+          </View>
+
+          {rejecting === flag.id ? (
+            <View style={styles.flagReject}>
+              <TextInput
+                style={styles.flagReason}
+                testID="flag-reject-reason"
+                placeholder="Reason the student will see"
+                placeholderTextColor={C.textHint}
+                value={reason}
+                onChangeText={setReason}
+              />
+              <View style={styles.btnRow}>
+                <SmallBtn label="Cancel" disabled={busy === flag.id} onPress={closeReject} />
+                <SmallBtn
+                  label="Reject flag"
+                  variant="danger"
+                  testID="flag-reject-submit"
+                  disabled={busy === flag.id || !reason.trim()}
+                  onPress={() => run(`r${flag.id}`, async () => {
+                    await doRejectFlag(flag, reason.trim())
+                    closeReject()
+                  })}
+                />
+              </View>
+            </View>
+          ) : (
+            <View style={styles.btnRow}>
+              <SmallBtn
+                label="Confirm"
+                variant="primary"
+                testID="flag-confirm"
+                disabled={busy != null}
+                onPress={() => run(`c${flag.id}`, () => doConfirmFlag(flag))}
+              />
+              <SmallBtn
+                label="Reject"
+                testID="flag-reject"
+                disabled={busy != null}
+                onPress={() => { setRejecting(flag.id); setReason('') }}
+              />
+            </View>
+          )}
+        </View>
+      ))}
+
+      {resolved.map(flag => (
+        <Text key={flag.id} testID="flag-resolved" style={styles.flagResolved}>
+          {flag.status === 'confirmed'
+            ? `${flag.name} — Confirmed (${statusLabel(flag.record_status)})`
+            : `${flag.name} — Rejected: ${flag.reject_reason}`}
+        </Text>
+      ))}
+    </View>
+  )
+}
+
 export default function AttendanceDetail({ navigation }) {
-  const { state, openModal, loadStudents } = useLecturer()
-  const { students, selectedSession: session } = state
+  const { state, openModal, loadStudents, loadFlags } = useLecturer()
+  const { students, selectedSession: session, flags } = state
   const [search, setSearch] = useState('')
   const [sortAZ, setSortAZ] = useState(true)
   const [loading, setLoading] = useState(true)
@@ -152,15 +251,19 @@ export default function AttendanceDetail({ navigation }) {
     if (!sessionId) return
     setLoading(true)
     loadStudents(sessionId, { sessionOpen: status === 'open' }).finally(() => setLoading(false))
-  }, [sessionId, status])
+    loadFlags(sessionId)
+  }, [sessionId, status, loadStudents, loadFlags])
 
   const [refreshing, setRefreshing] = useState(false)
   const onRefresh = useCallback(async () => {
     if (!sessionId) return
     setRefreshing(true)
-    await loadStudents(sessionId, { sessionOpen: status === 'open' })
+    await Promise.all([
+      loadStudents(sessionId, { sessionOpen: status === 'open' }),
+      loadFlags(sessionId),
+    ])
     setRefreshing(false)
-  }, [loadStudents, sessionId, status])
+  }, [loadStudents, loadFlags, sessionId, status])
 
   const sections = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -217,6 +320,7 @@ export default function AttendanceDetail({ navigation }) {
       </View>
       {status === 'needs_confirmation' ? <ConfirmHeld session={session} /> : null}
       {status === 'closed' ? <SyncStatus session={session} /> : null}
+      <FlagList flags={flags} />
 
       <View style={styles.searchBar}>
         <Ionicons name="search-outline" size={16} color={C.textHint} style={{ marginRight: 8 }} />
@@ -333,6 +437,21 @@ const styles = StyleSheet.create({
   conflictName: { fontSize: 13, fontWeight: '600', color: C.text },
   conflictValues: { fontSize: 13, color: C.textSub },
   bold: { fontWeight: '700', color: C.text },
+  flagCard: {
+    borderTopWidth: 1, borderTopColor: C.border, paddingTop: 10, gap: 6,
+  },
+  flagHead: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
+  flagName: { fontSize: 14, fontWeight: '700', color: C.text },
+  flagMatric: { fontSize: 12, color: C.textSub },
+  flagCropRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  flagCrop: { width: 64, height: 64, borderRadius: 8 },
+  flagCropText: { flex: 1 },
+  flagReject: { gap: 8 },
+  flagReason: {
+    borderWidth: 1, borderColor: C.border, borderRadius: 8, paddingHorizontal: 10,
+    paddingVertical: 8, fontSize: 13, color: C.text, backgroundColor: C.card,
+  },
+  flagResolved: { fontSize: 12, color: C.textSub },
   searchBar: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: C.card,
     paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1, borderTopColor: C.border,

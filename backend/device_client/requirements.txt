@@ -1,0 +1,4 @@
+# Device client only. On a Raspberry Pi, `sudo apt install python3-opencv` instead of opencv-python.
+opencv-python==4.10.0.84
+numpy==1.26.4
+httpx==0.28.1

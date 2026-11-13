@@ -34,6 +34,7 @@ class AttendanceRecord(Base):
     camera_id: Mapped[Optional[int]] = mapped_column(ForeignKey("cameras.id", ondelete="SET NULL"), nullable=True)  # device that recognised the student (FR-405)
     override_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))
     override_at: Mapped[Optional[datetime]] = mapped_column()
+    source: Mapped[Optional[str]] = mapped_column(String(20))  # 'student_flag' for a confirmed flag (FR-319); NULL otherwise
     moodle_status_sent: Mapped[Optional[str]] = mapped_column(String(20))  # last status sent to Moodle (FR-311)
     # FR-320 conflict: Moodle's value when it was changed there (a status, 'none' = no mark, 'other' = a
     # status SmartClass doesn't have). NULL = no conflict.

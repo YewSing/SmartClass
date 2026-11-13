@@ -1,14 +1,27 @@
-# Assistant: a student asks a question about a course and opens the cited source.
+# Assistant: a student picks a course, asks a question, finds related videos, opens the cited
+# source, then renames and deletes the chat from the history panel.
 # Run: bash scripts/e2e-mobile.sh student assistant
 # Needs the dev database with indexed WIA2005 materials (Moodle sync) and the local Moodle up:
 # student2 is enrolled in WIA2005 there, and signing in syncs that enrolment (T11). The script
-# starts the backend with LLM_FAKE=1, so the answer is the canned one citing passage [1] and no
-# real LLM is called.
+# starts the backend with LLM_FAKE=1 and no YouTube key, so the answer is the canned one citing
+# passage [1], "Find related videos" offers search keywords, and nothing external is called.
 appId: host.exp.exponent
 ---
+# The test emulator's Bluetooth service sometimes crashes at boot and its dialog covers the app
+- runFlow:
+    when:
+      visible: ".*keeps stopping"
+    commands:
+      - tapOn: "Close app"
 - extendedWaitUntil:
-    visible: "Welcome back|Continue"
+    visible: "Welcome back|Continue|.*keeps stopping"
     timeout: 180000
+# The test emulator's Bluetooth service sometimes crashes at boot and its dialog covers the app
+- runFlow:
+    when:
+      visible: ".*keeps stopping"
+    commands:
+      - tapOn: "Close app"
 - runFlow:
     when:
       visible: "Continue"
@@ -17,8 +30,6 @@ appId: host.exp.exponent
 - extendedWaitUntil:
     visible: "Welcome back"
     timeout: 60000
-
-# Log in (SPeCTRUM) as a student enrolled in a course that has materials
 - tapOn:
     id: "login-username"
 - inputText: "student2"
@@ -27,68 +38,68 @@ appId: host.exp.exponent
 - inputText: "Student123!"
 - hideKeyboard
 - tapOn: "Sign In"
-
 - extendedWaitUntil:
     visible: "Assistant"
     timeout: 60000
 - tapOn: "Assistant"
-- extendedWaitUntil:
-    visible: "New chat"
-    timeout: 30000
-# The first course with materials is preselected and its chip scrolled into view
-- extendedWaitUntil:
-    visible: "WIA2005"
-    timeout: 10000
-- tapOn: "WIA2005"
-- assertVisible: "WIA2005 · .*"
-- assertVisible: "[0-9]+ materials from SPeCTRUM"
-- tapOn: "New chat"
 
-- assertVisible: "Ask about WIA2005"
+# One screen: a course dropdown under the logo; pick WIA2005
+- extendedWaitUntil:
+    visible:
+      id: "assistant-course-picker"
+    timeout: 30000
+- tapOn:
+    id: "assistant-course-picker"
+- tapOn:
+    id: "course-option-WIA2005"
+- assertVisible: "Ask anything about WIA2005\\..*"
+
 - tapOn:
     id: "assistant-input"
 - inputText: "What is a greedy algorithm?"
 - hideKeyboard
 - tapOn:
     id: "assistant-send"
-
-# The answer cites passage [1]; its chip shows the material and page/slide
 - extendedWaitUntil:
     visible: "This is a test answer from your course materials \\[1\\]\\."
     timeout: 60000
 - assertVisible: "\\[1\\]"
 - assertNotVisible: "General knowledge · not from your course materials"
-- tapOn: "\\[1\\]"
 
+# Related videos (FR-812): only on request; without a key it offers YouTube search keywords
+- tapOn:
+    id: "find-videos"
 - extendedWaitUntil:
-    visible: "Source \\[1\\]"
-    timeout: 15000
-- assertVisible: "Cited passage"
-- assertVisible: "Open file at (page|slide|section) [0-9]+"
-- takeScreenshot: source-screen
+    visible: "Search YouTube for:"
+    timeout: 20000
 
-# A cited PDF opens in the app at its page
+# Tapping a citation opens the file itself, no passage screen in between (FR-809, changed
+# 2026-11-13). A cited PDF opens in the app at its page; slides and Word files would open in another
+# app, which Maestro can't follow, so this only taps a citation that points at a PDF page.
 - runFlow:
     when:
-      visible: "Open file at page [0-9]+"
+      visible: ".*· page [0-9]+"
     commands:
-      - tapOn: "Open file at page [0-9]+"
+      - tapOn: ".*· page [0-9]+"
       - extendedWaitUntil:
           visible: "Page [0-9]+ of [0-9]+"
           timeout: 60000
+      - assertNotVisible: "Cited passage"
       - assertNotVisible: "This PDF could not be opened."
       - waitForAnimationToEnd:
           timeout: 5000
       - takeScreenshot: pdf-at-cited-page
       - back
 
-# Back in the chat list, the new chat is saved under its question
-- back
-- back
+# The chat is in the history panel (top left), under its question
+- tapOn:
+    id: "assistant-history"
 - extendedWaitUntil:
-    visible: "Your chats"
+    visible: "Chats"
     timeout: 15000
-- assertVisible: "What is a greedy algorithm\\?"
+- extendedWaitUntil:
+    visible: "What is a greedy algorithm\\?"
+    timeout: 15000
 
 # Rename the chat (FR-808), then delete it so runs don't leave chats behind
 - longPressOn: "What is a greedy algorithm\\?"
@@ -105,8 +116,11 @@ appId: host.exp.exponent
     visible: "Greedy notes"
     timeout: 15000
 - longPressOn: "Greedy notes"
-- tapOn: "Delete"
-- tapOn: "Delete"
+- tapOn:
+    id: "chat-delete"
+- assertVisible: "Delete chat\\?"
+- tapOn:
+    id: "chat-delete-confirm"
 - extendedWaitUntil:
     notVisible: "Greedy notes"
     timeout: 15000

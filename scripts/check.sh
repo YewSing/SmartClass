@@ -14,10 +14,6 @@ echo "== student app unit tests"
 (cd ../mobile/student && npm test --silent >/dev/null)
 echo "== lecturer app unit tests"
 (cd ../mobile/lecturer && npm test --silent >/dev/null)
-if [ -n "$(git status --porcelain -- ../frontend/admin/src)" ]; then
-  echo "== admin build (admin sources changed)"
-  (cd ../frontend/admin && npm run build --silent)
-fi
 if [ -n "$(git status --porcelain -- ../mobile/lecturer/src ../mobile/lecturer/App.js)" ]; then
   echo "== lecturer web export (lecturer app sources changed)"
   out="$(mktemp -d)"

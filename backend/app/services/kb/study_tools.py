@@ -6,6 +6,8 @@ topic. The LLM is asked for a single JSON object, which is validated against the
 then fails (→ 502). Each item's `citation` (a 1-based passage index) is mapped to a
 real `Citation`, and the source is "course" when any item cites a passage.
 """
+import re
+
 from app.core.config import settings
 from app.schemas.assistant import (
     Citation, FlashcardOut, LLMCards, LLMQuestions, PracticeQuestionOut,
@@ -29,9 +31,38 @@ Rules:
 
 _SHAPE = {
     "flashcards": 'JSON shape: {"cards": [{"front": "question side", "back": "answer side", "citation": 1}]}',
-    "practice_questions": ('JSON shape: {"questions": [{"stem": "question", "options": ["A", "B", "C", "D"], '
-                           '"answer": "B", "explanation": "why", "citation": 1}]}'),
+    "practice_questions": ('JSON shape: {"questions": [{"stem": "question", '
+                           '"options": ["first option", "second option", "third option", "fourth option"], '
+                           '"answer": "second option", "explanation": "why", "citation": 1}]}\n'
+                           '"answer" is the full text of the correct option, copied exactly from "options" '
+                           '(not a letter or number).'),
 }
+
+_LETTER = re.compile(r"^\(?([A-Ha-h1-8])[\).:]?(?:\s+(.*))?$", re.S)
+
+
+def _answer_text(answer: str, options: list[str]) -> str | None:
+    """The option the model meant as the answer, or None when it can't be told.
+
+    Models often reply "B" or "B) text" even when asked for the option text; the app compares
+    the pick with the option text, so a letter made every pick look wrong.
+    """
+    a = answer.strip()
+    if a in options:
+        return a
+    by_lower = {o.strip().lower(): o for o in options}
+    if a.lower() in by_lower:
+        return by_lower[a.lower()]
+    m = _LETTER.match(a)
+    if m:
+        key, rest = m.group(1), (m.group(2) or "").strip()
+        if rest and rest.lower() in by_lower:
+            return by_lower[rest.lower()]
+        i = ord(key.upper()) - ord("A") if key.isalpha() else int(key) - 1
+        if not rest and 0 <= i < len(options):
+            return options[i]
+    return None
+
 
 _KIND_LABEL = {"flashcards": "flashcards", "practice_questions": "practice questions"}
 
@@ -68,15 +99,19 @@ async def generate_study_tools(db, course, *, material_id: int | None, topic: st
     ]
 
     if kind == "flashcards":
-        data = await llm.chat_json(messages, validator=LLMCards.model_validate)
+        data = await llm.chat_json(messages, max_tokens=settings.LLM_LONG_OUTPUT_TOKENS, validator=LLMCards.model_validate)
         cards = [FlashcardOut(front=c.front, back=c.back, citation=_citation(c.citation, passages))
                  for c in data.cards]
         source = "course" if any(c.citation for c in cards) else "general"
         return cards, [], source
-    data = await llm.chat_json(messages, validator=LLMQuestions.model_validate)
-    questions = [PracticeQuestionOut(stem=q.stem, options=q.options, answer=q.answer,
-                                     explanation=q.explanation,
-                                     citation=_citation(q.citation, passages))
-                 for q in data.questions]
+    data = await llm.chat_json(messages, max_tokens=settings.LLM_LONG_OUTPUT_TOKENS, validator=LLMQuestions.model_validate)
+    questions = []
+    for q in data.questions:
+        answer = _answer_text(q.answer, q.options)
+        if answer is None:   # no option matches: the question can't be marked, so leave it out
+            continue
+        questions.append(PracticeQuestionOut(stem=q.stem, options=q.options, answer=answer,
+                                             explanation=q.explanation,
+                                             citation=_citation(q.citation, passages)))
     source = "course" if any(q.citation for q in questions) else "general"
     return [], questions, source
