@@ -1,7 +1,7 @@
 """
 Legacy face review queue: unrecognised faces the old face_worker reported. Since T46b nothing adds
 rows (the camera path is POST /device/faces, and unmatched crops go to the student flag queue, T43);
-the admin endpoints stay until frontend/admin is retired (T96).
+no app calls the admin endpoints since frontend/admin was retired (T96); see PROGRESS.md Next.
 """
 from typing import Optional
 

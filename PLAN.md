@@ -164,7 +164,7 @@ These M8 tasks run before everything else after the T04 checkpoint, so the stude
 ## 5. Wrap-up
 
 - [x] **T95 [HUMAN] Confirm with Shino that `frontend/admin` can go.** Shino confirmed on 2026-11-09 that her modules won't use it.
-- [ ] **T96 [INFRA] Retire `frontend/admin`.** Depends on: T22, T46, T95.
+- [x] **T96 [INFRA] Retire `frontend/admin`.** Depends on: T22, T46, T95.
   Done when: PROGRESS.md lists every old admin view and where it went (Users → accounts; FaceData, FaceReviewQueue → verification fallback; AuditLog → audit log; Students, Lecturers, Enrollment, ClassManagement → replaced by Moodle sync; Dashboard → removed); `frontend/admin/` is deleted; `scripts/check.sh`, README and CLAUDE.md no longer refer to it; no backend endpoint is removed unless a test shows nothing uses it; `bash scripts/check.sh` and the admin-area Playwright flows pass.
 - [ ] **T98 [INFRA] Docs refresh.** Depends on: all API tasks of M1/M3/M4/M8.
   Done when: README and CLAUDE.md run instructions match reality (device client, Moodle plugin, E2E); `docs/interfaces.md` is complete.

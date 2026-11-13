@@ -6,13 +6,10 @@ A classroom management system featuring face recognition attendance, quiz manage
 
 | App | Type | Description | Directory |
 |-----|------|-------------|-----------|
-| Admin Dashboard | Web (React + Vite) | Manage users, enrollment, face data, audit logs | `frontend/admin/` |
 | Student App | Mobile (React Native + Expo) | Attendance and participation — runs on real phone | `mobile/student/` |
-| Lecturer App | Mobile (React Native + Expo) | Sessions, quizzes, analytics — runs on real phone | `mobile/lecturer/` |
+| Lecturer App | Mobile + web (React Native + Expo) | Sessions, quizzes, analytics; also runs in a browser, where administrators get the admin area (accounts, Moodle sync, devices, audit log) | `mobile/lecturer/` |
 
 ## Tech Stack
-
-**Admin web:** React 18 + Vite 5, Tailwind CSS 3, React Context API
 
 **Mobile apps:** React Native + Expo SDK 54, React Navigation 6, AsyncStorage
 
@@ -101,17 +98,7 @@ The client detects faces locally and sends crops to `POST /device/faces`; the se
 
 ---
 
-### 6. Start the Admin Web App
-
-```bash
-cd frontend/admin
-npm install && npm run dev
-# → http://localhost:5173
-```
-
----
-
-### 7. Run the Mobile Apps
+### 6. Run the Mobile Apps
 
 ```bash
 cd mobile/lecturer   # or mobile/student
@@ -125,6 +112,8 @@ npm start
 
 Scan the QR code with **Expo Go** on your phone. Both phone and laptop must be on the same WiFi.
 
+The lecturer app also runs in a browser (press `w` in its Expo terminal). Administrators sign in there to reach the admin area.
+
 ---
 
 ## Project Structure
@@ -137,8 +126,6 @@ SmartClass/
 │   ├── device_client/  # Camera device client (Pi / webcam): detect faces, send crops
 │   ├── scripts/        # Seed scripts
 │   └── docker-compose.yml
-├── frontend/
-│   └── admin/          # Web admin dashboard
 ├── mobile/
 │   ├── lecturer/       # React Native lecturer app (Expo)
 │   └── student/        # React Native student app (Expo)

@@ -1,9 +1,9 @@
 # SmartClass — Claude Code Guide
 
 ## Project Overview
-SmartClass is a classroom management system for UM (Universiti Malaya): Moodle-based login, face recognition attendance (Raspberry Pi at the entrance), attendance management synced to Moodle, and an AI learning assistant over course materials. It has one React web frontend (admin) and two React Native mobile apps (lecturer, student). A local Moodle (`backend/moodle/`) simulates UM SPeCTRUM. Scope is defined by `docs/private/PROJECT PROPOSAL PAPER.pdf` (local only, git-ignored) (8 modules); IoT environment control and desk projection were dropped.
+SmartClass is a classroom management system for UM (Universiti Malaya): Moodle-based login, face recognition attendance (Raspberry Pi at the entrance), attendance management synced to Moodle, and an AI learning assistant over course materials. It has two React Native apps (lecturer, student); the lecturer app also runs in a browser via Expo web, where administrators get a small admin area. A local Moodle (`backend/moodle/`) simulates UM SPeCTRUM. Scope is defined by `docs/private/PROJECT PROPOSAL PAPER.pdf` (local only, git-ignored) (8 modules); IoT environment control and desk projection were dropped.
 
-**Web direction (decided 2026-11-09):** lecturers also use the lecturer app in a browser (same Expo code via Expo web). Administrators stay as a small role with a few web-only screens inside that app. `frontend/admin` is retired once PLAN.md T22, T46 and T96 are done; keep it working until then.
+**Web direction (decided 2026-11-09):** lecturers also use the lecturer app in a browser (same Expo code via Expo web). Administrators stay as a small role with a few web-only screens inside that app (accounts, Moodle sync, devices, audit log). The old `frontend/admin` web dashboard was retired in T96 (2026-11-13).
 
 ## Repo Structure
 ```
@@ -16,17 +16,14 @@ SmartClass/
 │   ├── tests/          # pytest suite
 │   ├── scripts/        # seed.py — admin, timetable, always-open test class; reset_to_moodle.py; kb_sync.py
 │   └── docker-compose.yml
-├── frontend/
-│   └── admin/      # Web dashboard for administrators
 └── mobile/
     ├── lecturer/   # React Native (Expo) app for lecturers
     └── student/    # React Native (Expo) app for students
 ```
 
-The web frontend is independent with its own `package.json`, `node_modules`, and `vite.config.js`. The mobile apps use Expo SDK 54.
+Each app has its own `package.json` and `node_modules`. The mobile apps use Expo SDK 54.
 
 ## Tech Stack
-- **Web frontend (admin):** React 18 + Vite 5, Tailwind CSS 3, React Context API
 - **Mobile apps:** React Native + Expo SDK 54, React Navigation 6, AsyncStorage
 - **Backend:** FastAPI + SQLAlchemy 2 async + asyncpg + PostgreSQL + pgvector
 - **Auth:** JWT (python-jose) + bcrypt (passlib)
@@ -55,11 +52,6 @@ DEVICE_KEY=<key> python -m device_client --camera 0
 ```
 The client detects faces locally and sends crops to `POST /device/faces`; the server recognises them (`backend/device_client/README.md`).
 
-### Admin Web App
-```bash
-cd frontend/admin && npm install && npm run dev  # → localhost:5173
-```
-
 ### Mobile Apps (React Native / Expo)
 ```bash
 cd mobile/lecturer   # or mobile/student
@@ -72,12 +64,6 @@ Both phone and laptop must be on the same WiFi network.
 
 ## App-Specific Notes
 
-### Admin (`frontend/admin/`)
-- Full web dashboard (not mobile-constrained)
-- Views: Dashboard, Users, Students, Lecturers, Enrollment, FaceData, FaceReviewQueue, ClassManagement, AuditLog, Login
-- State managed in `src/context/AdminContext.jsx`
-- API layer in `src/services/api.js` + `src/services/client.js` (real HTTP calls to backend)
-
 ### Student (`mobile/student/`)
 - React Native app (Expo SDK 54), runs on physical Android/iOS via Expo Go
 - Screens: Login, Home, Attendance, AttSessionDetail, AttReportStatus, Participation, PartSessionPerf, Profile
@@ -85,7 +71,8 @@ Both phone and laptop must be on the same WiFi network.
 - API base URL set via `EXPO_PUBLIC_API_URL` in `.env`
 
 ### Lecturer (`mobile/lecturer/`)
-- React Native app (Expo SDK 54), runs on physical Android/iOS via Expo Go
+- React Native app (Expo SDK 54), runs on physical Android/iOS via Expo Go, and in a browser via Expo web
+- Admin area (browser only, role `admin`): `AdminAccounts`, `AdminMoodleSync`, `AdminDevices`, `AdminAudit` screens; face-verification queue as the admin fallback
 - Screens: Dashboard, ClassDetail, AttendanceSessions, AttendanceDetail, QuizList, CreateQuiz, LiveResults, ResultsClosed, Breakdown, Analytics, Profile, Login (quiz screens are UI mock only — Module 6 belongs to Shino)
 - Navigation: React Navigation 6 — bottom tabs + native stack per tab
 - State in `src/context/LecturerContext.jsx`
@@ -128,7 +115,6 @@ docs/
 - Lint: `cd backend && ruff check .` · format: `ruff format <file>`
 - Mobile E2E (Android emulator + Maestro): `bash scripts/e2e-mobile.sh <student|lecturer> <flow>` runs `mobile/<app>/e2e/<flow>.yaml`; boots AVD `Pixel_4_API_35` headless, starts backend + Expo, stops them on exit. Maestro installs into git-ignored `.tools/` if missing.
 - Lecturer web E2E (Playwright): `cd mobile/lecturer && npm run e2e:web` (tests in `e2e-web/`; starts its own backend on :8001 with `LLM_FAKE=1` and Expo web on :8092; needs docker postgres + seed data)
-- Admin web build: `cd frontend/admin && npm run build`
 
 ## Task Loop Rules (PLAN.md / PROGRESS.md)
 Long jobs run as one task per fresh session. Start everything with `/run-plan [rounds]`, 5 tasks per run at most unless Yew Sing asks for more, so the work gets checked before more is built (it runs `scripts/run-tasks.sh` in the background, one fresh Opus session per task running `/next-task`, and reports at the end). The reviewer subagent runs on Sonnet.

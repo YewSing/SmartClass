@@ -12,7 +12,6 @@ Prepare the current work branch for merging into `main`. Yew Sing clicks Merge o
    - `python -m pip install --dry-run -q -r requirements.txt` shows no conflict.
 3. Every package imported by new code is in `requirements.txt` or the matching `package.json`.
 4. Build each frontend changed since `main` (`git diff --name-only origin/main...HEAD`), running `npm ci` first if `node_modules` is missing, with `--legacy-peer-deps` for the mobile apps:
-   - `frontend/admin`, if it still exists: `npm run build`
    - `mobile/<app>`: `npx expo export --platform android --output-dir "$TEMP/merge-<app>"`, plus `--platform web` for the lecturer app once it has web support. Remove the temporary output afterwards.
 5. Scan `git diff origin/main...HEAD` for secrets and files that must stay out of git:
    - API keys and tokens, comparing against real values without printing them;
