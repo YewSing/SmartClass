@@ -26,33 +26,13 @@ function StudentRow({ student }) {
   )
 }
 
-// Weekly schedule and start now (FR-301, FR-316)
-function ClassControls({ cls, navigation }) {
-  const { state, openModal, doOpenSession, selectSession, loadSessions } = useLecturer()
-  const [busy, setBusy] = useState(false)
-  const live = state.sessions.find(s => s.class_id === cls.id && s.open)
+// Weekly schedule (FR-301)
+function ClassControls({ cls }) {
+  const { loadSessions } = useLecturer()
   const title = `${cls.code}${cls.label ? ` ${cls.label}` : ''}`
   const hasSchedule = Boolean(cls.day_of_week && cls.start_time && cls.end_time)
 
   useEffect(() => { loadSessions() }, [])
-
-  const openLive = (session) => {
-    selectSession(session)
-    navigation.navigate('AttendanceDetail')
-  }
-
-  const openInteraction = () => {
-    navigation.navigate('InteractionControl', { occurrence_id: cls.id })
-  }
-
-  const startNow = async () => {
-    setBusy(true)
-    try {
-      openLive(await doOpenSession(cls.id))
-    } catch { /* toast shown in context */ } finally {
-      setBusy(false)
-    }
-  }
 
   return (
     <View style={styles.card}>
@@ -71,34 +51,6 @@ function ClassControls({ cls, navigation }) {
           ? `${cls.day_of_week} ${cls.start_time}–${cls.end_time}${cls.room ? ` · ${cls.room}` : ''} · opens by itself`
           : 'No fixed time. The class only runs when you start it.'}
       </Text>
-
-      <View style={styles.controlsRow}>
-        <TouchableOpacity
-          style={[styles.ctrlBtn, styles.ctrlOutline, busy && styles.disabled]}
-          testID="class-open-interaction"
-          disabled={busy}
-          onPress={openInteraction}
-        >
-          <Ionicons name="chatbubble-ellipses-outline" size={16} color="#fff" />
-          <Text style={styles.ctrlBtnTextFilled}>Interaction</Text>
-        </TouchableOpacity>
-        {live ? (
-          <TouchableOpacity style={[styles.ctrlBtn, styles.ctrlLive]} testID="class-open-live" onPress={() => openLive(live)}>
-            <Ionicons name="radio-outline" size={16} color="#fff" />
-            <Text style={styles.ctrlBtnTextFilled}>Live session</Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity
-            style={[styles.ctrlBtn, styles.ctrlStart, busy && styles.disabled]}
-            testID="class-start-now"
-            disabled={busy}
-            onPress={startNow}
-          >
-            <Ionicons name="play-circle-outline" size={16} color="#fff" />
-            <Text style={styles.ctrlBtnTextFilled}>{busy ? 'Starting…' : 'Start now'}</Text>
-          </TouchableOpacity>
-        )}
-      </View>
     </View>
   )
 }
@@ -171,7 +123,7 @@ export default function ClassDetail({ route, navigation }) {
         ) : null}
       </View>
 
-      {cls ? <ClassControls cls={cls} navigation={navigation} /> : null}
+      {cls ? <ClassControls cls={cls} /> : null}
 
       <View style={styles.listHeader}>
         <Text style={styles.listTitle} testID="class-student-count">

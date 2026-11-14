@@ -10,13 +10,14 @@ from responses when anonymous. New questions are broadcast on the interaction's 
 room after commit.
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc, func
 from sqlalchemy.orm import selectinload
 
+from app.core.config import settings
 from app.core.database import after_commit, get_db
 from app.core.deps import ensure_teaches_occurrence, require_role
 from app.models.class_ import ClassOccurrence, Enrollment
@@ -53,6 +54,7 @@ from app.schemas.interaction import (
     StudentPollOut,
     VoteRequest,
 )
+from app.schemas.session import ExtendRequest
 from app.websocket.manager import manager
 
 router = APIRouter(tags=["interactions"])
@@ -220,14 +222,38 @@ async def open_interaction(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Class occurrence not found")
     await ensure_teaches_occurrence(db, actor, body.occurrence_id)
 
-    interaction = InteractionSession(
-        occurrence_id=body.occurrence_id,
-        status="open",
-        opened_by=actor.id,
-    )
-    db.add(interaction)
-    await db.flush()
-    interaction = await _load_interaction(db, interaction.id)
+    # Reuse the most recent interaction session for this occurrence so opening and closing the
+    # same class time range keeps a single record (same session id across reopens). Attendance
+    # and interaction sessions are reopened together from the Dashboard, so both stay in sync.
+    existing = (await db.execute(
+        select(InteractionSession).where(
+            InteractionSession.occurrence_id == body.occurrence_id,
+        ).order_by(InteractionSession.id.desc())
+    )).scalar_one_or_none()
+    now = datetime.now()
+    default_ends = now + timedelta(minutes=settings.SESSION_DEFAULT_MINUTES)
+    if existing is not None:
+        if existing.status == "open":
+            interaction = await _load_interaction(db, existing.id)
+        else:
+            # closed -> reopen, same id, history (polls/questions/reactions) stays attached
+            existing.status = "open"
+            existing.opened_at = now
+            existing.closed_by = None
+            existing.closed_at = None
+            existing.ends_at = existing.ends_at if existing.ends_at and existing.ends_at > now else default_ends
+            await db.flush()
+            interaction = await _load_interaction(db, existing.id)
+    else:
+        interaction = InteractionSession(
+            occurrence_id=body.occurrence_id,
+            status="open",
+            opened_by=actor.id,
+            ends_at=default_ends,
+        )
+        db.add(interaction)
+        await db.flush()
+        interaction = await _load_interaction(db, interaction.id)
 
     async def _announce() -> None:
         await manager.broadcast(interaction.id, {
@@ -281,6 +307,25 @@ async def close_interaction(
         })
 
     after_commit(db, _announce)
+    return _interaction_out(interaction)
+
+
+@router.post("/lecturer/interactions/{interaction_id}/extend",
+             response_model=StudentInteractionOut)
+async def extend_interaction(
+    interaction_id: int,
+    body: ExtendRequest,
+    db: AsyncSession = Depends(get_db),
+    actor: User = Depends(_lecturer),
+):
+    """Push the interaction session's effective end out by `minutes` (mirrors FR-315)."""
+    interaction = await _get_taught_interaction(db, actor, interaction_id)
+    if interaction.status != "open":
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Session is not open")
+    now = datetime.now()
+    interaction.ends_at = (interaction.ends_at or now) + timedelta(minutes=body.minutes)
+    await db.flush()
+    interaction = await _load_interaction(db, interaction_id)
     return _interaction_out(interaction)
 
 

@@ -149,6 +149,7 @@ class StudentInteractionOut(BaseModel):
     class_name: str
     status: str
     opened_at: Optional[datetime] = None
+    ends_at: Optional[datetime] = None
     closed_by: Optional[int] = None
     closed_at: Optional[datetime] = None
     current_poll: Optional[StudentPollOut] = None

@@ -9,7 +9,7 @@ import Topbar from '../components/Topbar'
 import { useLecturer } from '../context/LecturerContext'
 import { getToken, refreshAccessToken, BASE } from '../services/client'
 import {
-  getInteraction, getOpenInteractions, getInteractions, closeInteraction,
+  getInteraction, getOpenInteractions, getInteractions,
   createPoll, closePoll, getPolls, postLiveQuestion, getLiveQuestion,
   markQuestionAnswered, getQuestions, getReactions, getIduCount,
 } from '../services/api'
@@ -230,18 +230,6 @@ export default function InteractionControl({ route, navigation }) {
     }
   }, [interactionId, loadLive, scheduleReload])
 
-  const stopSession = useCallback(async () => {
-    if (!interactionId || !isOpen) return
-    try {
-      await closeInteraction(interactionId)
-      setInteraction(prev => prev ? { ...prev, status: 'closed' } : prev)
-      scheduleReload()
-      showToast('Session closed', 'success')
-    } catch (e) {
-      Alert.alert('Could not close session', e.message)
-    }
-  }, [interactionId, isOpen, showToast, scheduleReload])
-
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
     await loadLive(interactionId)
@@ -328,21 +316,6 @@ export default function InteractionControl({ route, navigation }) {
       ? 'Loading…'
       : 'No open session'
 
-  const closeAction = (
-    <TouchableOpacity
-      testID="interaction-close-session"
-      onPress={stopSession}
-      disabled={loading || !isOpen}
-      accessibilityLabel={isOpen ? 'Close session' : 'Session closed'}
-      style={styles.closeBtn}
-    >
-      <Ionicons name={isOpen ? 'stop-circle' : 'checkmark-circle'} size={18} color={isOpen ? C.red : C.textSub} />
-      <Text style={[styles.closeBtnText, { color: isOpen ? C.red : C.textSub }]}>
-        {isOpen ? 'Close' : 'Closed'}
-      </Text>
-    </TouchableOpacity>
-  )
-
   // ── Resolving / empty states ───────────────────────────────────────────────
   if (loading) {
     return (
@@ -391,7 +364,7 @@ export default function InteractionControl({ route, navigation }) {
   // ── Live control screen ────────────────────────────────────────────────────
   return (
     <View style={styles.flex}>
-      <Topbar title="Interaction" sub={headerSub} onBack={() => navigation.goBack()} right={closeAction} />
+      <Topbar title="Interaction" sub={headerSub} onBack={() => navigation.goBack()} />
 
       <ScrollView
         style={styles.flex}
@@ -806,8 +779,6 @@ const styles = StyleSheet.create({
   empty: { padding: 40, alignItems: 'center' },
   emptyText: { fontSize: 14, color: C.textSub, marginTop: 8 },
   emptySub: { fontSize: 12, color: C.textHint, marginTop: 6 },
-  closeBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  closeBtnText: { fontSize: 13, fontWeight: '700' },
   // Tinted section card (participation style)
   section: {
     borderRadius: 14,

@@ -290,6 +290,37 @@ async def start_now(db: AsyncSession, occ: ClassOccurrence, lec: Lecturer,
     else:
         length = timedelta(minutes=settings.SESSION_DEFAULT_MINUTES)
 
+    # Reuse a closed session for this occurrence on today's date so opening and closing the
+    # same class time range keeps a single session record (one session per course time range,
+    # same session id across reopens). Attendance and interaction sessions are reopened together
+    # from the Dashboard, so both stay on this one record.
+    existing = (await db.execute(
+        select(AttendanceSession).where(
+            AttendanceSession.occurrence_id == occ.id,
+            AttendanceSession.class_date == today,
+            AttendanceSession.status == "closed",
+        ).order_by(AttendanceSession.id.desc())
+    )).scalar_one_or_none()
+    if existing is not None:
+        existing.status = "open"
+        existing.opened_at = now
+        existing.closed_at = None
+        existing.closed_by = None
+        existing.starts_at = now
+        existing.ends_at = now + length
+        existing.lecturer_id = lec.id
+        existing.camera_id = await camera_id_for_room(db, occ.room)
+        existing.lecturer_action_at = now
+        await db.flush()
+        await write_log(db, lec.user_id, "SESSION_START_NOW", "attendance_session", existing.id, None, {
+            "starts_at": _iso(existing.starts_at),
+            "ends_at": _iso(existing.ends_at),
+            "source": existing.source,
+            "reopened": True,
+        })
+        await db.flush()
+        return existing
+
     row = await _schedule_row(db, occ.id, today)
     if row is not None and row.status == "scheduled":
         row.starts_at = now

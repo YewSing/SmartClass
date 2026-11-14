@@ -255,6 +255,10 @@ export const openInteraction = async (occurrenceId) =>
 export const closeInteraction = async (interactionId) =>
   apiCall('POST', `/lecturer/interactions/${interactionId}/close`)
 
+// Extend an open interaction session by `minutes` (mirrors the attendance extend).
+export const extendInteraction = async (interactionId, minutes) =>
+  apiCall('POST', `/lecturer/interactions/${interactionId}/extend`, { minutes })
+
 // Create a live poll (FR-504).
 export const createPoll = async (interactionId, { question, options }) =>
   apiCall('POST', `/lecturer/interactions/${interactionId}/polls`, { question, options })

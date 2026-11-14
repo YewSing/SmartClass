@@ -39,6 +39,9 @@ class InteractionSession(Base):
     opened_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=sa.func.now()
     )
+    # Effective end of the session (set on open, moved by extend). Nullable so legacy rows
+    # and sessions closed before this column keep working.
+    ends_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     closed_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
     closed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
