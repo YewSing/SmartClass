@@ -199,3 +199,52 @@ async def test_question_asked_broadcast_on_room(users, classroom, lecturer_clien
         assert q_event["interaction_id"] == interaction_id
         assert q_event["question_id"] is not None
         assert q_event["anonymous"] is False
+
+
+# ── S28: session-wide question feed + question_answered broadcast ────────────
+
+
+async def test_student_state_lists_all_session_questions(
+    lecturer_client, student_client, classroom, users, db_session
+):
+    """The student state endpoint now carries every question of the session (FR-502/503),
+    newest first, answered flag included; anonymous identity stays hidden."""
+    interaction_id = await _open_interaction(lecturer_client, classroom["occurrence_id"])
+
+    r1 = await _ask(student_client, interaction_id, "first question", anonymous=False)
+    assert r1.status_code == 201
+    # A second student (if the fixture has one) asks anonymously.
+    second = users.get("student2")
+    if second:
+        async with _AuthedClient(create_access_token(second.id, "student")) as c2:
+            await _ask(c2, interaction_id, "someone else asks", anonymous=True)
+
+    resp = await student_client.get(f"/student/interactions/{interaction_id}")
+    assert resp.status_code == 200, resp.text
+    feed = resp.json()["questions"]
+    assert [q["text"] for q in feed][0] == ("someone else asks" if second else "first question")
+    for q in feed:
+        if q["anonymous"]:
+            assert q["student_id"] is None and q["student_name"] is None
+
+
+async def test_mark_answered_broadcasts_question_answered(
+    users, lecturer_client, student_client, classroom
+):
+    """Marking answered now notifies the room, so student screens update live."""
+    interaction_id = await _open_interaction(lecturer_client, classroom["occurrence_id"])
+    resp = await _ask(student_client, interaction_id, "please answer", anonymous=False)
+    question_id = resp.json()["id"]
+
+    async with InteractionRoom(
+        interaction_id, create_access_token(users["student"].id, "student")
+    ) as room:
+        mark = await lecturer_client.post(
+            f"/lecturer/interactions/{interaction_id}/questions/{question_id}/answered"
+        )
+        assert mark.status_code == 200, mark.text
+
+        events = [e["event"] for e in room.sent]
+        assert "question_answered" in events, events
+        ev = [e for e in room.sent if e["event"] == "question_answered"][0]
+        assert ev["question_id"] == question_id

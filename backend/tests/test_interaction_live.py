@@ -180,6 +180,26 @@ async def test_reaction_replaces_previous_one_per_student(
     assert len(rows.scalars().all()) == 1  # one row per student per session
 
 
+async def test_student_state_shows_my_reaction_none_after_cancel(
+    lecturer_client, student_client, classroom
+):
+    interaction_id = await _open_interaction(lecturer_client, classroom["occurrence_id"])
+
+    await student_client.post(
+        f"/student/interactions/{interaction_id}/reactions", json={"reaction": "agree"}
+    )
+    state = await student_client.get(f"/student/interactions/{interaction_id}")
+    assert state.json()["my_reaction"] == "agree"
+
+    # Cancel by tapping the same reaction again.
+    await student_client.post(
+        f"/student/interactions/{interaction_id}/reactions", json={"reaction": "agree"}
+    )
+    state = await student_client.get(f"/student/interactions/{interaction_id}")
+    assert state.json()["my_reaction"] is None
+    assert state.json()["reaction_counts"] == {}
+
+
 async def test_invalid_reaction_is_422(lecturer_client, student_client, classroom):
     interaction_id = await _open_interaction(lecturer_client, classroom["occurrence_id"])
     resp = await student_client.post(
@@ -209,10 +229,15 @@ async def test_idu_signal_counts_distinct_students(
     assert body["distinct_students"] == 1
     assert body["has_signal"] is True
 
-    # Second signal from same student: idempotent, still one distinct student.
+    # Second POST toggles: same student cancelling then re-signalling still leaves one row.
+    resp = await student_client.post(f"/student/interactions/{interaction_id}/idu", json={})
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["has_signal"] is False  # the second tap cancelled
+
     resp = await student_client.post(f"/student/interactions/{interaction_id}/idu", json={})
     assert resp.status_code == 201, resp.text
     assert resp.json()["distinct_students"] == 1
+    assert resp.json()["has_signal"] is True
 
     rows = await db_session.execute(
         select(InteractionIDUSignal).where(InteractionIDUSignal.interaction_id == interaction_id)
@@ -297,3 +322,106 @@ async def test_idu_signal_broadcasts(users, lecturer_client, student_client, cla
         assert "idu_signal" in events, events
         ev = [e for e in room.sent if e["event"] == "idu_signal"][0]
         assert ev["distinct_students"] == 1
+
+
+# ── reaction cancel (S28): sending the same reaction again deletes the row ────
+
+
+async def test_reaction_cancel_removes_row(
+    lecturer_client, student_client, classroom, db_session
+):
+    interaction_id = await _open_interaction(lecturer_client, classroom["occurrence_id"])
+
+    await student_client.post(
+        f"/student/interactions/{interaction_id}/reactions", json={"reaction": "confused"}
+    )
+    # Tap the same reaction again -> cancel (row deleted).
+    resp = await student_client.post(
+        f"/student/interactions/{interaction_id}/reactions", json={"reaction": "confused"}
+    )
+    assert resp.status_code == 204, resp.text
+
+    rows = (
+        await db_session.execute(
+            select(InteractionReaction).where(
+                InteractionReaction.interaction_id == interaction_id
+            )
+        )
+    ).scalars().all()
+    assert rows == []
+
+    counts = await lecturer_client.get(
+        f"/lecturer/interactions/{interaction_id}/reactions"
+    )
+    assert counts.json() == []
+
+
+async def test_reaction_switch_still_replaces(
+    lecturer_client, student_client, classroom, db_session
+):
+    """A different reaction still replaces (only the identical tap cancels)."""
+    interaction_id = await _open_interaction(lecturer_client, classroom["occurrence_id"])
+
+    await student_client.post(
+        f"/student/interactions/{interaction_id}/reactions", json={"reaction": "confused"}
+    )
+    await student_client.post(
+        f"/student/interactions/{interaction_id}/reactions", json={"reaction": "agree"}
+    )
+
+    rows = (
+        await db_session.execute(
+            select(InteractionReaction).where(
+                InteractionReaction.interaction_id == interaction_id
+            )
+        )
+    ).scalars().all()
+    assert len(rows) == 1 and rows[0].reaction == "agree"
+
+
+async def test_reaction_cancel_broadcasts_empty_counts(
+    users, lecturer_client, student_client, classroom
+):
+    interaction_id = await _open_interaction(lecturer_client, classroom["occurrence_id"])
+    await student_client.post(
+        f"/student/interactions/{interaction_id}/reactions", json={"reaction": "confused"}
+    )
+
+    async with InteractionRoom(
+        interaction_id, create_access_token(users["lecturer"].id, "lecturer")
+    ) as room:
+        await student_client.post(
+            f"/student/interactions/{interaction_id}/reactions", json={"reaction": "confused"}
+        )
+        ev = [e for e in room.sent if e["event"] == "reaction_updated"][-1]
+        assert ev["counts"] == {}
+        assert ev["cancelled"] is True
+
+
+# ── S29 follow-up: IDU toggle (tap again cancels) ────────────────────────────
+
+
+async def test_idu_toggle_cancel(lecturer_client, student_client, classroom, db_session):
+    interaction_id = await _open_interaction(lecturer_client, classroom["occurrence_id"])
+
+    first = await student_client.post(f"/student/interactions/{interaction_id}/idu", json={})
+    assert first.status_code == 201, first.text
+    assert first.json()["has_signal"] is True
+
+    # Second tap cancels the signal.
+    second = await student_client.post(f"/student/interactions/{interaction_id}/idu", json={})
+    assert second.status_code == 201, second.text
+    assert second.json()["has_signal"] is False
+    assert second.json()["distinct_students"] == 0
+
+    rows = (
+        await db_session.execute(
+            select(InteractionIDUSignal).where(
+                InteractionIDUSignal.interaction_id == interaction_id
+            )
+        )
+    ).scalars().all()
+    assert rows == []
+
+    count = await lecturer_client.get(f"/lecturer/interactions/{interaction_id}/idu")
+    assert count.json()["distinct_students"] == 0

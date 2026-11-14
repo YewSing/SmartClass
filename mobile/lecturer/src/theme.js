@@ -26,4 +26,6 @@ export const C = {
   gray400: '#9CA3AF',
   gray500: '#6B7280',
   gray600: '#4B5563',
+  purple: '#7E22CE',
+  purpleLt: '#F3E8FF',
 }

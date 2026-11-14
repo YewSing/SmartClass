@@ -165,6 +165,9 @@ class StudentInteractionStateOut(StudentInteractionOut):
     idu_distinct_students: int = 0
     idu_has_signal: bool = False
     my_questions: list[InteractionQuestionOut] = []
+    # Whole-session question feed (FR-502/503): every question asked in the session,
+    # newest first, with answered state — identity stripped when anonymous.
+    questions: list[InteractionQuestionOut] = []
 
 
 class OpenInteractionRequest(BaseModel):

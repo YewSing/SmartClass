@@ -95,6 +95,7 @@ def _load_options():
         .selectinload(InteractionPoll.options)
         .selectinload(InteractionPollOption.votes),
         selectinload(InteractionSession.live_questions),
+        selectinload(InteractionSession.questions),
     )
 
 
@@ -430,6 +431,14 @@ async def get_student_interaction(
         .order_by(desc(InteractionQuestion.created_at))
     )
 
+    # Whole-session feed (FR-502/503): every question with its answered state.
+    session_questions = await db.execute(
+        select(InteractionQuestion)
+        .options(selectinload(InteractionQuestion.student).selectinload(Student.user))
+        .where(InteractionQuestion.interaction_id == interaction_id)
+        .order_by(desc(InteractionQuestion.created_at))
+    )
+
     occ = interaction.occurrence
     return StudentInteractionStateOut(
         id=interaction.id,
@@ -456,6 +465,10 @@ async def get_student_interaction(
         idu_distinct_students=idu_distinct or 0,
         idu_has_signal=has_idu is not None,
         my_questions=[_question_out(q, hide_identity=q.anonymous) for q in own_questions.scalars().all()],
+        questions=[
+            _question_out(q, hide_identity=q.anonymous)
+            for q in session_questions.scalars().all()
+        ],
     )
 
 
@@ -538,6 +551,14 @@ async def mark_question_answered(
     question.answered_by = lecturer.id
     question.answered_at = datetime.now()
     await db.flush()
+
+    async def _announce() -> None:
+        await manager.broadcast(interaction_id, {
+            "event": "question_answered",
+            "interaction_id": interaction_id,
+            "question_id": question.id,
+        })
+    after_commit(db, _announce)
 
     return _question_out(question, hide_identity=question.anonymous)
 
@@ -894,7 +915,11 @@ async def send_reaction(
     db: AsyncSession = Depends(get_db),
     actor: User = Depends(_student),
 ):
-    """A student sends one of the predefined reactions (FR-507)."""
+    """A student sends one of the predefined reactions (FR-507).
+
+    Sending the same reaction the student already has cancels it (tapping the
+    active chip again removes the signal).
+    """
     if body.reaction not in REACTION_SET:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"reaction must be one of {list(REACTION_SET)}")
@@ -908,7 +933,10 @@ async def send_reaction(
         )
     )
     reaction = existing.scalar_one_or_none()
-    if reaction:
+    cancelled = bool(reaction and reaction.reaction == body.reaction)
+    if cancelled:
+        await db.delete(reaction)
+    elif reaction:
         reaction.reaction = body.reaction
     else:
         reaction = InteractionReaction(
@@ -929,6 +957,7 @@ async def send_reaction(
             "event": "reaction_updated",
             "interaction_id": interaction_id,
             "counts": {r: c for r, c in counts.all()},
+            "cancelled": cancelled,
         })
 
     after_commit(db, _announce)
@@ -962,7 +991,10 @@ async def send_idu_signal(
     db: AsyncSession = Depends(get_db),
     actor: User = Depends(_student),
 ):
-    """A student signals 'I Don't Understand' — at most once per session (FR-508)."""
+    """A student toggles 'I Don't Understand' (FR-508, S28-style toggle).
+
+    The first tap records the signal; tapping again cancels it.
+    """
     student = await _student_row(db, actor)
     interaction = await _get_open_interaction_for_student(db, student, interaction_id)
 
@@ -973,7 +1005,11 @@ async def send_idu_signal(
         )
     )
     signal = existing.scalar_one_or_none()
-    if not signal:
+    cancelled = False
+    if signal:
+        await db.delete(signal)
+        cancelled = True
+    else:
         signal = InteractionIDUSignal(
             interaction_id=interaction_id,
             student_id=student.id,
@@ -992,10 +1028,11 @@ async def send_idu_signal(
             "interaction_id": interaction_id,
             "student_id": student.id,
             "distinct_students": distinct,
+            "cancelled": cancelled,
         })
 
     after_commit(db, _announce)
-    return InteractionIDUOut(distinct_students=distinct or 0, has_signal=True)
+    return InteractionIDUOut(distinct_students=distinct or 0, has_signal=not cancelled)
 
 
 @router.get("/lecturer/interactions/{interaction_id}/idu",
