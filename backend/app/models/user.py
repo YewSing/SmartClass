@@ -12,6 +12,13 @@ if TYPE_CHECKING:
     from app.models.attendance import AttendanceRecord
     from app.models.session import AttendanceSession
     from app.models.audit import AuditLog
+    from app.models.interaction_question import InteractionQuestion
+    from app.models.interaction_poll import InteractionPollVote
+    from app.models.interaction_live import (
+        InteractionIDUSignal,
+        InteractionLiveQuestionResponse,
+        InteractionReaction,
+    )
 
 
 class User(Base):
@@ -48,6 +55,21 @@ class Student(Base):
     face_embeddings: Mapped[list["FaceEmbedding"]] = relationship(back_populates="student")
     enrollments: Mapped[list["Enrollment"]] = relationship(back_populates="student")
     attendance_records: Mapped[list["AttendanceRecord"]] = relationship(back_populates="student")
+    interaction_questions: Mapped[list["InteractionQuestion"]] = relationship(
+        back_populates="student", cascade="all, delete-orphan"
+    )
+    interaction_poll_votes: Mapped[list["InteractionPollVote"]] = relationship(
+        back_populates="student", cascade="all, delete-orphan"
+    )
+    live_question_responses: Mapped[list["InteractionLiveQuestionResponse"]] = relationship(
+        back_populates="student", cascade="all, delete-orphan"
+    )
+    interaction_reactions: Mapped[list["InteractionReaction"]] = relationship(
+        back_populates="student", cascade="all, delete-orphan"
+    )
+    idu_signals: Mapped[list["InteractionIDUSignal"]] = relationship(
+        back_populates="student", cascade="all, delete-orphan"
+    )
 
 
 class Lecturer(Base):

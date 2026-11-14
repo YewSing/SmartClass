@@ -1,0 +1,71 @@
+# Interaction (S26): the lecturer opens an interaction session from a class, posts a live
+# question, creates a poll and sees live results, then closes the session.
+# Run: bash scripts/e2e-mobile.sh lecturer interaction
+# Needs the local Moodle up (lecturer1 / Lecturer123!), backend up, and
+#   bash mobile/lecturer/e2e/interaction.setup.sh setup
+# run first (seeds one open interaction session + poll on lecturer1's WIF3001 lecture).
+appId: host.exp.exponent
+---
+- extendedWaitUntil:
+    visible: "Welcome back|Continue"
+    timeout: 180000
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+- extendedWaitUntil:
+    visible: "Welcome back"
+    timeout: 60000
+
+# Sign in as lecturer1
+- tapOn:
+    id: "login-username"
+- inputText: "lecturer1"
+- tapOn:
+    id: "login-password"
+- inputText: "Lecturer123!"
+- hideKeyboard
+- tapOn: "Sign In"
+- extendedWaitUntil:
+    visible: "SmartClass"
+    timeout: 60000
+
+# Open the live interaction from Home (UC-501: Home owns open/close)
+- extendedWaitUntil:
+    visible: "Interaction live"
+    timeout: 30000
+- tapOn:
+    id: "home-interaction-toggle"
+- extendedWaitUntil:
+    visible: "Session is open"
+    timeout: 30000
+
+# Post a live question
+- tapOn:
+    id: "interaction-live-question-input"
+- inputText: "Is everyone following?"
+- tapOn:
+    id: "interaction-post-question-btn"
+- extendedWaitUntil:
+    visible: "Is everyone following?"
+    timeout: 30000
+
+# View the latest poll (seeded by setup) and its results
+- extendedWaitUntil:
+    visible: "Latest poll"
+    timeout: 30000
+- assertVisible: "Ready for the quiz?"
+
+# Back to Home and close the session there
+- back
+- extendedWaitUntil:
+    visible: "SmartClass"
+    timeout: 30000
+- tapOn:
+    id: "home-interaction-close"
+- extendedWaitUntil:
+    visible: "Start interaction"
+    timeout: 30000
+
+- takeScreenshot: lecturer-interaction-flow

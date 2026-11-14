@@ -41,6 +41,10 @@ function ClassControls({ cls, navigation }) {
     navigation.navigate('AttendanceDetail')
   }
 
+  const openInteraction = () => {
+    navigation.navigate('InteractionControl', { occurrence_id: cls.id })
+  }
+
   const startNow = async () => {
     setBusy(true)
     try {
@@ -69,6 +73,15 @@ function ClassControls({ cls, navigation }) {
       </Text>
 
       <View style={styles.controlsRow}>
+        <TouchableOpacity
+          style={[styles.ctrlBtn, styles.ctrlOutline, busy && styles.disabled]}
+          testID="class-open-interaction"
+          disabled={busy}
+          onPress={openInteraction}
+        >
+          <Ionicons name="chatbubble-ellipses-outline" size={16} color="#fff" />
+          <Text style={styles.ctrlBtnTextFilled}>Interaction</Text>
+        </TouchableOpacity>
         {live ? (
           <TouchableOpacity style={[styles.ctrlBtn, styles.ctrlLive]} testID="class-open-live" onPress={() => openLive(live)}>
             <Ionicons name="radio-outline" size={16} color="#fff" />

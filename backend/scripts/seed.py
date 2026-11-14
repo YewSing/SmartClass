@@ -61,6 +61,11 @@ async def _ensure_user(db: AsyncSession, details: dict, role: str) -> User:
                     role=role, name=details["name"], status="active")
         db.add(user)
         await db.flush()
+    elif not user.password_hash:
+        # A Moodle sync can create the account with no local password; set the seed one so
+        # the documented browser sign-in (no Moodle needed) works.
+        user.password_hash = hash_password(details["password"])
+        await db.flush()
     return user
 
 

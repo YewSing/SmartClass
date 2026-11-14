@@ -47,18 +47,23 @@ function nextLabel(c) {
 
 export default function Dashboard({ navigation }) {
   const {
-    state, loadClasses, loadAllClasses, loadSessions, doOpenSession, selectSession,
+    state, loadClasses, loadAllClasses, loadSessions, doOpenSession, selectSession, showToast,
   } = useLecturer()
   const { sessions, classes, allClasses, lecturer } = state
   const insets = useSafeAreaInsets()
   const [starting, setStarting] = useState(false)
 
-  useEffect(() => {
-    loadClasses()
-    loadAllClasses()
+  // ── Interaction session toggle (UC-501, S26): open/close lives on Home ──
+  const [openInteractions, setOpenInteractions] = useState([])
+  const [interactionBusy, setInteractionBusy] = useState(false)
+
+  const loadOpenInteractions = useCallback(async () => {
+    try { setOpenInteractions(await api.getOpenInteractions()) } catch { /* card hides on failure */ }
   }, [])
-  // The schedule opens and closes classes by itself, so re-read the sessions on every visit
-  useFocusEffect(useCallback(() => { loadSessions() }, [loadSessions]))
+
+  useEffect(() => { loadClasses(); loadAllClasses(); loadOpenInteractions() }, [])
+  // The schedule opens and closes classes by itself, so re-read on every visit
+  useFocusEffect(useCallback(() => { loadSessions(); loadOpenInteractions() }, [loadSessions, loadOpenInteractions]))
 
   // Face enrolments waiting for this lecturer (FR-113); a failed count just hides the banner
   const [pendingFaces, setPendingFaces] = useState(0)
@@ -70,15 +75,16 @@ export default function Dashboard({ navigation }) {
   const [refreshing, setRefreshing] = useState(false)
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
-    await Promise.all([loadClasses(), loadSessions(), loadAllClasses(), loadPendingFaces()])
+    await Promise.all([loadClasses(), loadSessions(), loadAllClasses(), loadPendingFaces(), loadOpenInteractions()])
     setRefreshing(false)
-  }, [loadClasses, loadSessions, loadAllClasses, loadPendingFaces])
+  }, [loadClasses, loadSessions, loadAllClasses, loadPendingFaces, loadOpenInteractions])
 
   const activeSession = sessions.find(s => s.open)
   const sessionOpen   = Boolean(activeSession)
   const firstClass    = classes[0]
   const nextClasses   = useMemo(() => computeNextClasses(allClasses), [allClasses])
   const nextClass     = nextClasses[0] ?? null
+  const headerClassId = firstClass?.id ?? nextClass?.id
 
   const openLive = (session) => {
     selectSession(session)
@@ -104,13 +110,57 @@ export default function Dashboard({ navigation }) {
   const badgeVariant = sessionOpen ? 'green' : firstClass ? 'yellow' : 'gray'
   const badgeText    = sessionOpen ? 'Session Open' : firstClass ? 'Class Ongoing' : 'No Class Now'
 
+  // Interaction (Module 5): the live session for the current class, if any.
+  const currentInteraction = headerClassId
+    ? openInteractions.find(i => i.occurrence_id === headerClassId) ?? null
+    : openInteractions[0] ?? null
+  const canToggleInteraction = Boolean(currentInteraction || headerClassId)
+
+  // UC-501: Home opens the session if none is running, then goes to the live view.
+  // A session already open elsewhere is joined instead of opening a second one.
+  const handleInteractionToggle = async () => {
+    if (interactionBusy) return
+    setInteractionBusy(true)
+    try {
+      let session = currentInteraction
+      if (!session && headerClassId) {
+        session = await api.openInteraction(headerClassId)
+        await loadOpenInteractions()
+      }
+      if (session) {
+        navigation.navigate('InteractionControl', {
+          interaction_id: session.id,
+          occurrence_id: session.occurrence_id,
+        })
+      }
+    } catch (e) {
+      showToast(e.message, 'error')
+    } finally {
+      setInteractionBusy(false)
+    }
+  }
+
+  // Home also closes the session (UC-501); the live view keeps its own close action.
+  const handleCloseInteraction = async () => {
+    if (!currentInteraction || interactionBusy) return
+    setInteractionBusy(true)
+    try {
+      await api.closeInteraction(currentInteraction.id)
+      await loadOpenInteractions()
+      showToast('Interaction closed', 'success')
+    } catch (e) {
+      showToast(e.message, 'error')
+    } finally {
+      setInteractionBusy(false)
+    }
+  }
+
   const headerTitle = firstClass
     ? `${firstClass.code} — ${firstClass.name}`
     : nextClass
       ? `${nextClass.code} — ${nextClass.name}`
       : 'No classes this week'
 
-  const headerClassId = firstClass?.id ?? nextClass?.id
   const openClass = (classId) => navigation.navigate('ClassDetail', { classId })
 
   const headerMeta = firstClass
@@ -174,7 +224,7 @@ export default function Dashboard({ navigation }) {
           <TouchableOpacity
             style={[
               styles.sessionToggleBtn,
-              styles.toggleOpen,
+              currentInteraction ? styles.toggleOpen : styles.toggleInteraction,
               (starting || (!sessionOpen && !firstClass)) && styles.btnDisabled,
             ]}
             testID={sessionOpen ? 'home-live-session' : 'home-start-now'}
@@ -186,6 +236,56 @@ export default function Dashboard({ navigation }) {
               {starting ? ' …' : sessionOpen ? ' Live session' : ' Start now'}
             </Text>
           </TouchableOpacity>
+        </View>
+
+        {/* Interaction toggle (UC-501, S26): open/close the live session from Home */}
+        <View style={[styles.dashHeaderBot, { marginTop: 10 }]}>
+          <View style={styles.rowGap}>
+            <Ionicons
+              name={currentInteraction ? 'chatbubbles' : 'chatbubble-ellipses-outline'}
+              size={14}
+              color={currentInteraction ? C.green : C.textSub}
+            />
+            <Text style={styles.metaSmall}>
+              {currentInteraction
+                ? `Interaction live · ${currentInteraction.class_code}`
+                : headerClassId
+                  ? 'No interaction running'
+                  : 'No class to open'}
+            </Text>
+          </View>
+          <View style={styles.interactionActions}>
+            {currentInteraction && (
+              <TouchableOpacity
+                style={styles.closeInteractionBtn}
+                testID="home-interaction-close"
+                onPress={handleCloseInteraction}
+                disabled={interactionBusy}
+                accessibilityLabel="Close interaction"
+              >
+                <Ionicons name="stop-circle-outline" size={20} color={C.red} />
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={[
+                styles.sessionToggleBtn,
+                currentInteraction ? styles.toggleInteractionLive : styles.toggleOpen,
+                (interactionBusy || !canToggleInteraction) && styles.btnDisabled,
+              ]}
+              testID="home-interaction-toggle"
+              onPress={handleInteractionToggle}
+              disabled={interactionBusy || !canToggleInteraction}
+            >
+              <Ionicons
+                name={currentInteraction ? 'radio-outline' : 'chatbubble-ellipses'}
+                size={16}
+                color="#fff"
+              />
+              <Text style={styles.toggleText}>
+                {interactionBusy ? ' …' : currentInteraction ? ' Open live view' : ' Start interaction'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {!sessionOpen && (
@@ -429,8 +529,22 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     gap: 4,
   },
+  interactionActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  closeInteractionBtn: {
+    padding: 4,
+  },
   toggleOpen: {
     backgroundColor: C.green,
+  },
+  toggleInteraction: {
+    backgroundColor: C.primary,
+  },
+  toggleInteractionLive: {
+    backgroundColor: C.primary,
   },
   toggleText: {
     fontSize: 13,

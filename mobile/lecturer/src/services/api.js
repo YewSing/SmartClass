@@ -213,6 +213,84 @@ export const retryMoodleSync = async (sessionId) =>
 export const resolveMoodleConflict = async (sessionId, recordId, keep) =>
   sessionAdapter(await apiCall('POST', `/lecturer/sessions/${sessionId}/moodle-conflicts/${recordId}`, { keep }))
 
+// ─── Interaction sessions (Module 5, S26) ───────────────────────────────
+
+function mapInteraction(i) {
+  return {
+    id: i.id,
+    occurrence_id: i.occurrence_id,
+    class_code: i.class_code,
+    class_name: i.class_name,
+    status: i.status,
+    opened_at: i.opened_at,
+    closed_by: i.closed_by ?? null,
+    closed_at: i.closed_at ?? null,
+    current_poll: i.current_poll,
+    live_question: i.live_question,
+  }
+}
+
+// Every open interaction session across the lecturer's classes, newest first.
+// Powers the Home card (UC-501): shows 'Live' without picking a class first.
+export const getOpenInteractions = async () => {
+  const list = await apiCall('GET', '/lecturer/interactions/open')
+  return list.map(mapInteraction)
+}
+
+// Open interaction sessions for one class.
+export const getInteractions = async (occurrenceId) => {
+  const list = await apiCall('GET', `/lecturer/interactions?occurrence_id=${occurrenceId}`)
+  return list.map(mapInteraction)
+}
+
+// One interaction session by id (used when navigating with interaction_id only).
+export const getInteraction = async (interactionId) =>
+  mapInteraction(await apiCall('GET', `/lecturer/interactions/${interactionId}`))
+
+// Open an interaction session for a class (FR-501).
+export const openInteraction = async (occurrenceId) =>
+  apiCall('POST', '/lecturer/interactions', { occurrence_id: occurrenceId })
+
+// Close an open interaction session (FR-501).
+export const closeInteraction = async (interactionId) =>
+  apiCall('POST', `/lecturer/interactions/${interactionId}/close`)
+
+// Create a live poll (FR-504).
+export const createPoll = async (interactionId, { question, options }) =>
+  apiCall('POST', `/lecturer/interactions/${interactionId}/polls`, { question, options })
+
+// Close voting on a live poll — FR-504. The session itself stays open.
+export const closePoll = async (interactionId, pollId) =>
+  apiCall('POST', `/lecturer/interactions/${interactionId}/polls/${pollId}/close`)
+
+// All polls for a session with live per-option counts.
+export const getPolls = async (interactionId) =>
+  apiCall('GET', `/lecturer/interactions/${interactionId}/polls`)
+
+// All questions for a session (lecturer view; anonymous identity stripped).
+export const getQuestions = async (interactionId) =>
+  apiCall('GET', `/lecturer/interactions/${interactionId}/questions`)
+
+// Post a live question to the class (FR-506).
+export const postLiveQuestion = async (interactionId, question) =>
+  apiCall('POST', `/lecturer/interactions/${interactionId}/live-question`, { question })
+
+// The lecturer's current live question with responses (FR-506).
+export const getLiveQuestion = async (interactionId) =>
+  apiCall('GET', `/lecturer/interactions/${interactionId}/live-question`)
+
+// Mark a student question as answered (FR-502).
+export const markQuestionAnswered = async (interactionId, questionId) =>
+  apiCall('POST', `/lecturer/interactions/${interactionId}/questions/${questionId}/answered`)
+
+// Live per-reaction distinct-student counts (FR-507).
+export const getReactions = async (interactionId) =>
+  apiCall('GET', `/lecturer/interactions/${interactionId}/reactions`)
+
+// Number of distinct students who signalled IDU (FR-508).
+export const getIduCount = async (interactionId) =>
+  apiCall('GET', `/lecturer/interactions/${interactionId}/idu`)
+
 // ─── Class schedule (FR-301) ──────────────────────────────────────────
 
 // All of day/start/end, or all null to clear the weekly slot. Moodle sync never overwrites it.

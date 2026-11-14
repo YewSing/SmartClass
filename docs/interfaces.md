@@ -10,6 +10,7 @@ Three interfaces so far:
 - **Attendance read interface for Module 7 (FR-313)** — below.
 - **Course knowledge base retrieval for Module 6 (FR-814, T88)** — below.
 - **Notification hook for Module 2 (FR-406, T44)** — below.
+- **Participation read interface for Module 7 (FR-509)** — below.
 
 ---
 
@@ -189,3 +190,121 @@ The apps can also listen on WebSockets directly:
 - Students: `/ws/me?token=<access JWT>` — the student's own events (`connected`,
   `attendance_recorded`, `attendance_flag_resolved`). Only an active student may connect; anyone
   else is closed with code 1008.
+## Participation read interface for Module 7 (FR-509)
+
+**File:** `backend/app/services/participation_read.py`
+
+Read-only aggregation of a student's (or a class's) interaction participation across the
+five interaction write tables (`interaction_questions`, `interaction_poll_votes`,
+`interaction_live_question_responses`, `interaction_reactions`, `interaction_idu_signals`).
+All counts are scoped through `interaction_sessions → class_occurrences → courses`, so a
+course result joins all its classes (lectures and tutorials) together.
+
+This is the FR-509 → FR-701 handover: M7's per-student engagement indicators are built from
+these functions. The interface does **not** check who is asking — callers must enforce NFR-04
+(the user may only see their own class's students) before calling it, because it returns
+names and matric numbers.
+
+### How to call it
+
+```python
+from app.services.participation_read import (
+    get_student_participation_per_course,
+    get_student_participation_per_session,
+    get_class_participation_per_session,
+    list_class_sessions_with_counts,
+    student_has_participated_in_course,
+)
+
+summary = await get_student_participation_per_course(db, student_id, course_id)
+# summary: {questions, votes, responses, reactions, idu_signals, idu_students,
+#           student_id, course_id}
+```
+
+The functions take an `AsyncSession` and read only; they never commit.
+
+### Rules
+
+- An occurrence counts only once per interaction type per student (e.g. one vote per
+  student per poll, enforced by `uq_interaction_poll_votes_poll_student`).
+- `idu_signals` counts signal rows; `idu_students` counts **distinct** students, so a
+  student who signals repeatedly still counts once (FR-508).
+- Unknown course, student or occurrence ids return empty lists / zeros, never errors.
+- Dates are not filtered here — the caller passes occurrence/course ids directly.
+
+### Functions
+
+| Function | Arguments | Returns | Notes |
+|---|---|---|---|
+| `get_student_participation_per_course` | `db, student_id, course_id` | `dict` — totals across all of the course's sessions | keys: questions, votes, responses, reactions, idu_signals, idu_students, student_id, course_id |
+| `get_student_participation_per_session` | `db, student_id, occurrence_id` | `dict` — totals in one occurrence | keys as above plus occurrence_id |
+| `get_class_participation_per_session` | `db, occurrence_id` | `dict` — class-level totals in one occurrence | idu_students is distinct students |
+| `list_class_sessions_with_counts` | `db, course_id` | `list[dict]` — one entry per occurrence with counts and label | ordered by occurrence id |
+| `student_has_participated_in_course` | `db, student_id, course_id` | `bool` — any participation record in the course | cheap existence check |
+
+### No permission checks
+
+The interface does not check who is asking. Callers must check the user may see the course
+(NFR-04) before calling it, because it returns names and matric numbers.
+
+### Stability
+
+Fields may be added, but never renamed or removed without a note in
+`docs/requests-for-shino.md`.
+
+
+## Quiz read interface for Module 7 / Module 8 (FR-612, FR-613, FR-614)
+
+**File:** `backend/app/services/quiz_read.py`
+
+Read-only aggregation of quiz results: per student per question (correct/score, question
+topic + source material) and whether the student has an active graded attempt in the
+course — scoped through `quiz_attempts → quiz_questions → quizzes → courses`. This is the
+FR-612 → FR-701 and FR-614 → FR-820–FR-824 (M8, Yew Sing) handover.
+
+The interface does **not** check who is asking — callers must enforce NFR-04 before calling
+it.
+
+### How to call it
+
+```python
+from app.services.quiz_read import (
+    quiz_result_per_student_per_question,
+    quiz_results_per_student,
+    student_has_active_graded_attempt_in_course,
+)
+
+per_q = await quiz_result_per_student_per_question(db, course_id, student_id)
+# each entry: {quiz_id, question_id, question, type, topic, source_material_id,
+#              correct, score, answered, has_active_graded_attempt_in_course, ...}
+```
+
+The functions take an `AsyncSession` and read only; they never commit.
+
+### Rules
+
+- Only `published` quizzes are considered.
+- `correct` is populated for `mcq` questions (student's answer == `correct_answer`);
+  `short_answer` questions have `correct` = null until scored.
+- `score` is the stored answer score (null for unscored short answers).
+- `has_active_graded_attempt_in_course` is true when the student has a `started` attempt
+  on a published quiz in the course — used by M8's quiz lock.
+- Unknown course or student ids return empty lists / empty dicts, never errors.
+
+### Functions
+
+| Function | Arguments | Returns | Notes |
+|---|---|---|---|
+| `quiz_result_per_student_per_question` | `db, course_id, student_id` | `list[dict]` | per attempted question: correct, score, topic, source_material_id, answered, plus `has_active_graded_attempt_in_course` |
+| `quiz_results_per_student` | `db, course_id, student_id` | `dict` | per-quiz attempts with scores + `average_score` across graded quizzes |
+| `student_has_active_graded_attempt_in_course` | `db, student_id, course_id` | `bool` | started attempt on a published quiz in the course (M8 quiz lock) |
+
+### No permission checks
+
+The interface does not check who is asking. Callers must check the user may see the course
+(NFR-04) before calling it.
+
+### Stability
+
+Fields may be added, but never renamed or removed without a note in
+`docs/requests-for-shino.md`.

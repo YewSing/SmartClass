@@ -2,6 +2,15 @@
 # has all classes registered before any query or migration runs.
 from app.models.user import User, Student, Lecturer  # noqa: F401
 from app.models.class_ import Course, ClassOccurrence, Enrollment  # noqa: F401
+from app.models.interaction_question import InteractionQuestion  # noqa: F401
+from app.models.interaction import InteractionSession  # noqa: F401
+from app.models.interaction_poll import InteractionPoll, InteractionPollOption, InteractionPollVote  # noqa: F401
+from app.models.interaction_live import (  # noqa: F401
+    InteractionIDUSignal,
+    InteractionLiveQuestion,
+    InteractionLiveQuestionResponse,
+    InteractionReaction,
+)
 from app.models.face import FaceEmbedding  # noqa: F401
 from app.models.consent import FaceConsent  # noqa: F401
 from app.models.face_enrolment import FaceEnrolment, FaceEnrolmentImage  # noqa: F401

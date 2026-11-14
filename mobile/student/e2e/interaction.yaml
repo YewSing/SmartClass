@@ -1,0 +1,73 @@
+# Interaction (S25): the Participation tab opens a seeded live session and the student
+# asks a question, votes in a poll, reacts and presses IDU.
+# Run: bash scripts/e2e-mobile.sh student interaction
+# Needs the local Moodle up (student4 signs in), backend up, and
+#   bash mobile/student/e2e/interaction.setup.sh setup
+# run first (seeds one open interaction session + poll on student4's class).
+appId: host.exp.exponent
+---
+- extendedWaitUntil:
+    visible: "Welcome back|Continue"
+    timeout: 180000
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+- extendedWaitUntil:
+    visible: "Welcome back"
+    timeout: 60000
+
+# Sign in as student4
+- tapOn:
+    id: "login-username"
+- inputText: "student4"
+- tapOn:
+    id: "login-password"
+- inputText: "Student123!"
+- hideKeyboard
+- tapOn: "Sign In"
+- extendedWaitUntil:
+    visible: "Home"
+    timeout: 60000
+
+# Join the seeded open session straight from the Home card (S25/UC-501)
+- extendedWaitUntil:
+    visible: "Class interaction is live"
+    timeout: 30000
+- tapOn:
+    id: "home-interaction-card"
+- extendedWaitUntil:
+    visible: "Ask a question"
+    timeout: 30000
+- assertVisible: "Session is open"
+
+# Ask a question (anonymous toggle off)
+- tapOn:
+    id: "interaction-question-input"
+- inputText: "Is the quiz open-book?"
+- tapOn:
+    id: "interaction-ask-btn"
+- extendedWaitUntil:
+    visible: "Is the quiz open-book?"
+    timeout: 30000
+
+# Vote in the live poll (option "Yes")
+- tapOn:
+    visible: "Yes"
+- tapOn:
+    id: "interaction-vote-btn"
+
+# React "Confused"
+- tapOn:
+    id: "interaction-reaction-confused"
+
+# Press IDU
+- tapOn:
+    id: "interaction-idu-btn"
+- extendedWaitUntil:
+    visible: "IDU sent"
+    timeout: 30000
+- assertVisible: "1 student"
+
+- takeScreenshot: interaction-flow

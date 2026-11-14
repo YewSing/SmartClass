@@ -5,8 +5,10 @@ import {
 import { Ionicons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { useFocusEffect } from '@react-navigation/native'
 import { useStudent } from '../context/StudentContext'
 import Badge from '../components/Badge'
+import { getOpenInteractions } from '../services/api'
 import { C } from '../theme'
 
 function greeting() {
@@ -17,18 +19,33 @@ function greeting() {
 }
 
 export default function Home({ navigation }) {
-  const { state, loadClasses } = useStudent()
+  const { state, loadClasses, showToast } = useStudent()
   const { classes, student } = state
   const insets = useSafeAreaInsets()
 
   useEffect(() => { loadClasses() }, [loadClasses])
 
+  // ── Live interaction card (UC-501 step 3 / FR-201 ongoing activities, S25) ──
+  const [openInteractions, setOpenInteractions] = useState([])
+  const loadOpenInteractions = useCallback(async () => {
+    try { setOpenInteractions(await getOpenInteractions()) } catch { /* card hides on failure */ }
+  }, [])
+  useFocusEffect(useCallback(() => { loadOpenInteractions() }, [loadOpenInteractions]))
+
   const [refreshing, setRefreshing] = useState(false)
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
-    await loadClasses()
+    await Promise.all([loadClasses(), loadOpenInteractions()])
     setRefreshing(false)
-  }, [loadClasses])
+  }, [loadClasses, loadOpenInteractions])
+
+  // One live session at a time per the FR-501 flow; if several are open, join the first.
+  const liveInteraction = openInteractions[0] ?? null
+
+  const joinInteraction = () => {
+    if (!liveInteraction) return
+    navigation.navigate('Participation', { interaction_id: liveInteraction.id })
+  }
 
   return (
     <View style={styles.flex}>
@@ -52,6 +69,29 @@ export default function Home({ navigation }) {
               : 'Loading classes…'}
           </Text>
         </LinearGradient>
+
+        {/* Live interaction — ongoing classroom activity (FR-201, UC-501 step 3) */}
+        {liveInteraction && (
+          <TouchableOpacity
+            testID="home-interaction-card"
+            style={styles.liveCard}
+            activeOpacity={0.8}
+            onPress={joinInteraction}
+          >
+            <View style={styles.liveCardIcon}>
+              <Ionicons name="chatbubbles" size={20} color="#fff" />
+            </View>
+            <View style={styles.liveCardBody}>
+              <Text style={styles.liveCardTitle}>Class interaction is live</Text>
+              <Text style={styles.liveCardSub} numberOfLines={1}>
+                {liveInteraction.class_code} · {liveInteraction.class_name}
+              </Text>
+            </View>
+            <View style={styles.liveBadge}>
+              <Text style={styles.liveBadgeText}>Join</Text>
+            </View>
+          </TouchableOpacity>
+        )}
 
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>My Classes</Text>
@@ -104,6 +144,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 28,
   },
+  liveCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0D47A1',
+    marginHorizontal: 16,
+    marginTop: 12,
+    borderRadius: 12,
+    padding: 12,
+    gap: 12,
+  },
+  liveCardIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  liveCardBody: { flex: 1 },
+  liveCardTitle: { fontSize: 14, fontWeight: '700', color: '#fff' },
+  liveCardSub: { fontSize: 12, color: '#BFDBFE', marginTop: 2 },
+  liveBadge: {
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+  },
+  liveBadgeText: { fontSize: 12, fontWeight: '800', color: '#0D47A1' },
   greetingText: {
     fontSize: 14,
     color: '#DBEAFE',

@@ -131,8 +131,7 @@ export async function apiCall(method, path, body, _isRetry = false) {
   return res.status === 204 ? null : res.json()
 }
 
-export async function apiCallRaw(method, path, _isRetry = false) {
-  const token = getToken()
+export async function apiCallRaw(method, path, _isRetry = false) {  const token = getToken()
   const res = await fetch(`${BASE}${path}`, {
     method,
     headers: {
@@ -153,6 +152,10 @@ export async function apiCallRaw(method, path, _isRetry = false) {
     throw new Error(e.detail ?? `HTTP ${res.status}`)
   }
   return res
+}
+
+export async function refreshAccessToken() {
+  return _doRefresh()
 }
 
 export { BASE }

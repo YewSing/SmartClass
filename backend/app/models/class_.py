@@ -8,6 +8,7 @@ from app.core.database import Base
 if TYPE_CHECKING:
     from app.models.user import Student, Lecturer
     from app.models.session import AttendanceSession
+    from app.models.interaction import InteractionSession
 
 
 class Course(Base):
@@ -44,6 +45,9 @@ class ClassOccurrence(Base):
         back_populates="occurrence", cascade="all, delete-orphan"
     )
     sessions: Mapped[list["AttendanceSession"]] = relationship(back_populates="occurrence")
+    interaction_sessions: Mapped[list["InteractionSession"]] = relationship(
+        back_populates="occurrence", cascade="all, delete-orphan"
+    )
 
     @property
     def has_schedule(self) -> bool:

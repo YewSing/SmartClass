@@ -7,6 +7,7 @@ from app.core.security import decode_token
 from app.models.session import AttendanceSession
 from app.models.attendance import AttendanceRecord
 from app.models.user import Lecturer, Student, User
+from app.models.interaction import InteractionSession
 from app.models.class_ import ClassOccurrence, Enrollment
 from app.services.session_service import get_session_counts
 from app.websocket.manager import manager
@@ -117,6 +118,7 @@ async def student_ws(
     if not user_id or token_type != "access" or role != "student":
         await websocket.close(code=1008)
         return
+
     try:
         user_id = int(user_id)
     except (TypeError, ValueError):
@@ -128,13 +130,12 @@ async def student_ws(
         if user is None or user.status != "active":
             await websocket.close(code=1008)
             return
-    # No DB session stays open during the receive loop: there is no initial state to send.
 
+    # No DB session stays open during the receive loop.
     await manager.connect_user(user_id, websocket)
 
     try:
         await websocket.send_json({"event": "connected", "user_id": user_id})
-        # Keep connection alive; server drives all pushes
         while True:
             await websocket.receive_text()
 
@@ -142,3 +143,83 @@ async def student_ws(
         pass
     finally:
         manager.disconnect_user(user_id, websocket)
+
+
+@router.websocket("/ws/interactions/{interaction_id}")
+async def interaction_ws(
+    interaction_id: int,
+    websocket: WebSocket,
+    token: str = Query(...),
+):
+    """
+    Real-time feed for an interaction session room.
+    Authenticate via ?token=<JWT>. The lecturer who teaches the class, or any student
+    enrolled in it, may connect (NFR-04).
+    """
+    payload = decode_token(token)
+    user_id = payload.get("sub")
+    role = payload.get("role")
+    token_type = payload.get("type")
+
+    if not user_id or token_type != "access":
+        await websocket.close(code=1008)
+        return
+
+    try:
+        user_id = int(user_id)
+    except (TypeError, ValueError):
+        await websocket.close(code=1008)
+        return
+
+    async with AsyncSessionLocal() as db:
+        interaction = await db.scalar(
+            select(InteractionSession).where(
+                InteractionSession.id == interaction_id
+            )
+        )
+
+        if not interaction:
+            await websocket.close(code=1008)
+            return
+
+        allowed = False
+
+        if role == "lecturer":
+            teaching_user_id = await db.scalar(
+                select(Lecturer.user_id)
+                .join(
+                    ClassOccurrence,
+                    ClassOccurrence.lecturer_id == Lecturer.id,
+                )
+                .where(ClassOccurrence.id == interaction.occurrence_id)
+            )
+            allowed = teaching_user_id == user_id
+
+        elif role == "student":
+            student_id = await db.scalar(
+                select(Student.id).where(Student.user_id == user_id)
+            )
+
+            if student_id is not None:
+                enrolled = await db.scalar(
+                    select(Enrollment.id).where(
+                        Enrollment.student_id == student_id,
+                        Enrollment.occurrence_id == interaction.occurrence_id,
+                    )
+                )
+                allowed = enrolled is not None
+
+        if not allowed:
+            await websocket.close(code=1008)
+            return
+
+        await manager.connect(interaction_id, websocket)
+
+        try:
+            while True:
+                await websocket.receive_text()
+
+        except WebSocketDisconnect:
+            pass
+        finally:
+            manager.disconnect(interaction_id, websocket)

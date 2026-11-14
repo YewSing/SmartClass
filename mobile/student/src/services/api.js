@@ -97,6 +97,36 @@ export const flagNotRecognised = (sessionId) =>
 export const getMyFlags = (sessionId) =>
   apiCall('GET', sessionId != null ? `/student/me/flags?session_id=${sessionId}` : '/student/me/flags')
 
+// ─── Interaction sessions (Module 5, S25) ──────────────────────────────────────
+
+// Open interaction sessions for classes the student is enrolled in.
+export const getOpenInteractions = () => apiCall('GET', '/student/interactions')
+
+// Full live state of one session for this student: polls, live question, reactions,
+// IDU and their own questions. Readable while the session is open or closed.
+export const getInteractionState = (interactionId) =>
+  apiCall('GET', `/student/interactions/${interactionId}`)
+
+// Ask a question in an open interaction session (FR-502).
+export const askInteractionQuestion = (interactionId, { text, anonymous }) =>
+  apiCall('POST', `/student/interactions/${interactionId}/questions`, { text, anonymous })
+
+// Respond to the lecturer's live question (FR-506) — once per student per question.
+export const respondToLiveQuestion = (interactionId, liveQuestionId, response) =>
+  apiCall('POST', `/student/interactions/${interactionId}/live-question/${liveQuestionId}/response`, { response })
+
+// Vote once in an open poll (FR-505).
+export const voteInteractionPoll = (pollId, optionId) =>
+  apiCall('POST', `/student/polls/${pollId}/vote`, { option_id: optionId })
+
+// Send one of the predefined reactions (FR-507).
+export const sendInteractionReaction = (interactionId, reaction) =>
+  apiCall('POST', `/student/interactions/${interactionId}/reactions`, { reaction })
+
+// Signal "I Don't Understand" — at most once per session (FR-508).
+export const sendInteractionIDU = (interactionId) =>
+  apiCall('POST', `/student/interactions/${interactionId}/idu`, {})
+
 // ─── AI Learning Assistant (Module 8) ─────────────────────────────────────────
 
 export const getAssistantCourses = () => apiCall('GET', '/student/assistant/courses')

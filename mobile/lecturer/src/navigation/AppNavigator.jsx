@@ -20,6 +20,7 @@ import Login from '../screens/Login'
 import Dashboard from '../screens/Dashboard'
 import Profile from '../screens/Profile'
 import ClassDetail from '../screens/ClassDetail'
+import InteractionControl from '../screens/InteractionControl'
 import AttendanceSessions from '../screens/AttendanceSessions'
 import AttendanceDetail from '../screens/AttendanceDetail'
 import QuizList from '../screens/QuizList'
@@ -58,6 +59,7 @@ function HomeStack() {
       <Stack.Screen name="Dashboard" component={Dashboard} />
       <Stack.Screen name="Profile"   component={Profile} />
       <Stack.Screen name="ClassDetail" component={ClassDetail} />
+      <Stack.Screen name="InteractionControl" component={InteractionControl} />
       <Stack.Screen name="AttendanceDetail" component={AttendanceDetail} />
       <Stack.Screen name="FaceVerification" component={FaceVerification} />
     </Stack.Navigator>
@@ -93,6 +95,14 @@ function AnalyticsStack() {
   )
 }
 
+function InteractionStack() {
+  return (
+    <Stack.Navigator screenOptions={useStackOptions()}>
+      <Stack.Screen name="InteractionControl" component={InteractionControl} />
+    </Stack.Navigator>
+  )
+}
+
 function AssistantStack() {
   return (
     <Stack.Navigator screenOptions={useStackOptions()}>
@@ -111,6 +121,7 @@ const TAB_ICONS = {
   Quiz:        { active: 'help-circle',      inactive: 'help-circle-outline' },
   Assistant:   { active: 'sparkles',         inactive: 'sparkles-outline' },
   Analytics:   { active: 'bar-chart',        inactive: 'bar-chart-outline' },
+  Interaction: { active: 'chatbubbles',      inactive: 'chatbubble-outline' },
 }
 
 // Each tab's main page. Pressing a tab goes here, rather than back to the page last left open in it.
@@ -120,6 +131,7 @@ const TAB_ROOTS = {
   Quiz:       'QuizList',
   Assistant:  'LecturerAssistant',
   Analytics:  'AnalyticsScreen',
+  Interaction:'InteractionControl',
 }
 
 function MainTabs() {
@@ -162,6 +174,7 @@ function MainTabs() {
       <Tab.Screen name="Quiz"        component={QuizStack}       options={{ title: 'Quiz' }} />
       <Tab.Screen name="Assistant"   component={AssistantStack}  options={{ title: 'AI Assistant' }} />
       <Tab.Screen name="Analytics"   component={AnalyticsStack}  options={{ title: 'Analytics' }} />
+      <Tab.Screen name="Interaction" component={InteractionStack} options={{ title: 'Interaction', tabBarTestID: 'tab-interaction' }} />
     </Tab.Navigator>
   )
 }

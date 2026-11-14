@@ -120,7 +120,7 @@ function MainTabs() {
       <Tab.Screen name="Home"          component={HomeStack}          options={{ title: 'Home' }} />
       <Tab.Screen name="Attendance"    component={AttendanceStack}    options={{ title: 'Attendance', tabBarTestID: 'tab-attendance' }} />
       <Tab.Screen name="Assistant"     component={AssistantStack}     options={{ title: 'Assistant' }} />
-      <Tab.Screen name="Participation" component={ParticipationStack} options={{ title: 'Participation' }} />
+      <Tab.Screen name="Participation" component={ParticipationStack} options={{ title: 'Participation', tabBarTestID: 'tab-participation' }} />
       <Tab.Screen name="Profile"       component={ProfileStack}       options={{ title: 'Profile' }} />
     </Tab.Navigator>
   )
