@@ -189,3 +189,23 @@ export const getParticipationSummary = async () => { await delay(200); return PA
 export const getParticipationGroups  = async () => { await delay(300); return PARTICIPATION_GROUPS }
 export const getSessionPerf = async (perfKey) => { await delay(200); return SESSION_PERFS[perfKey] ?? null }
 export const sendPasswordReset = async () => { await delay(400); return { success: true } }
+
+// ─── Quizzes (Module 6, S36) ───────────────────────────────────────────────────
+
+// Published quizzes of the student's enrolled courses (FR-607).
+export const getStudentQuizzes = () => apiCall('GET', '/student/quizzes')
+
+// Start one attempt (one per quiz unless the lecturer allowed more; FR-606/607).
+export const startQuizAttempt = (quizId) =>
+  apiCall('POST', `/student/quizzes/${quizId}/attempt`)
+
+// Submit the attempt; MCQ auto-graded, short answers scored later by the lecturer (FR-608).
+export const submitQuizAttempt = (attemptId, answers) =>
+  apiCall('POST', `/student/quizzes/attempts/${attemptId}/submit`, { answers })
+
+// Per-question result — visible only once grading is complete (FR-611).
+export const getQuizAttemptResult = (attemptId) =>
+  apiCall('GET', `/student/quizzes/attempts/${attemptId}/result`)
+
+// Quiz + its questions (answers stripped) for taking it (FR-606).
+export const getQuizDetail = (quizId) => apiCall('GET', `/student/quizzes/${quizId}`)

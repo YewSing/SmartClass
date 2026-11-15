@@ -137,7 +137,7 @@ async def test_publish_quiz(lecturer_client, classroom, db_session):
               "opens_at": "2026-11-20T08:00:00", "closes_at": "2026-11-20T10:00:00"},
     )
     assert resp.status_code == 201, resp.text
-    body = resp.json()
+    body = resp.json()[0]  # one quiz per course; this request publishes to a single course
     assert body["status"] == "published"
     assert body["course_id"] == classroom["course_id"]
     assert body["time_limit_minutes"] == 30

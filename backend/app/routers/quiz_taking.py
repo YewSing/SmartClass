@@ -21,6 +21,7 @@ from app.schemas.quiz import (
 )
 from app.services.quiz_taking import (
     auto_submit_expired_attempts,
+    get_quiz_for_taking,
     list_student_quizzes as _svc_list_student_quizzes,
     start_attempt as _svc_start_attempt,
     submit_attempt as _svc_submit_attempt,
@@ -65,6 +66,20 @@ async def list_student_quizzes(
     student = await _student_for_actor(db, actor)
     rows = await _svc_list_student_quizzes(db, student.id)
     return [StudentQuizOut.model_validate(r) for r in rows]
+
+
+@router.get("/student/quizzes/{quiz_id}", response_model=dict)
+async def get_quiz_detail(
+    quiz_id: int,
+    db: AsyncSession = Depends(get_db),
+    actor: User = Depends(_student),
+):
+    """Quiz + questions (answers stripped) for a student taking it (FR-606)."""
+    student = await _student_for_actor(db, actor)
+    try:
+        return await get_quiz_for_taking(db, quiz_id, student.id)
+    except ValueError as exc:
+        raise _http_error(exc)
 
 
 @router.post("/student/quizzes/{quiz_id}/attempt", status_code=status.HTTP_201_CREATED)

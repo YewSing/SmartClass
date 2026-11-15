@@ -9,6 +9,26 @@ import Badge from '../components/Badge'
 import { getQuizAttempts, getUnscoredAnswers, scoreShortAnswer, suggestScore } from '../services/api'
 import { C } from '../theme'
 
+/** Section card in the interaction style: colored title chip + right node (S29 pattern). */
+function Section({ tint = 'blue', badge, right, children, style }) {
+  const bg = { blue: C.blueLt, green: C.greenLt, red: C.redLt, orange: C.orangeLt, gray: C.gray100, purple: C.purpleLt, yellow: C.yellowLt }[tint]
+  const fg = { blue: C.blueDk, green: C.greenDk, red: C.redDk, orange: C.orangeDk, gray: C.textSub, purple: C.purple, yellow: C.yellowDk }[tint]
+  return (
+    <View style={[styles.section, style]}>
+      {badge != null && (
+        <View style={styles.sectionHead}>
+          <View style={[styles.sectionBadge, { backgroundColor: bg }]}>
+            <Text style={[styles.sectionBadgeText, { color: fg }]}>{badge}</Text>
+          </View>
+          <View style={{ flex: 1 }} />
+          {right}
+        </View>
+      )}
+      {children}
+    </View>
+  )
+}
+
 export default function ResultsClosed({ navigation, route }) {
   const { showToast } = useLecturer()
   const { attemptId, quizId } = (route?.params ?? {})
@@ -73,7 +93,7 @@ export default function ResultsClosed({ navigation, route }) {
   }
 
   const handleSave = async (answer) => {
-    const input = documentScoreInputs[answer.answer_id]
+    const input = scoreInputs[answer.answer_id]
     const score = parseFloat(input)
     if (Number.isNaN(score) || score < 0 || score > 100) { showToast('Enter a score between 0 and 100', 'error'); return }
     setScoring(prev => ({ ...prev, [answer.answer_id]: true }))
@@ -114,13 +134,11 @@ export default function ResultsClosed({ navigation, route }) {
         {!loading && !error && attempt && (
           <>
             {/* Attempt status */}
-            <View style={styles.statusCard}>
-              <View style={styles.statusRow}>
-                <Text style={styles.statusLabel}>Status</Text>
-                <Badge variant={attempt.status === 'submitted' || attempt.auto_submitted ? 'green' : 'blue'}>
-                  {statusLabel(attempt.status)}
-                </Badge>
-              </View>
+            <Section tint="blue" badge="Attempt" right={
+              <Badge variant={attempt.status === 'submitted' || attempt.auto_submitted ? 'green' : 'blue'} dot>
+                {statusLabel(attempt.status)}
+              </Badge>
+            }>
               <View style={styles.statusRow}>
                 <Text style={styles.statusLabel}>Score</Text>
                 <Text style={styles.statusValue}>{attempt.score != null ? `${attempt.score}%` : '--'}</Text>
@@ -131,29 +149,26 @@ export default function ResultsClosed({ navigation, route }) {
                   <Text style={[styles.statusValue, { color: C.textSub }]}>Auto-submitted (deadline passed)</Text>
                 </View>
               )}
-              {complete ? (
-                <View style={styles.statusRow}>
-                  <Text style={styles.statusLabel}>Grading</Text>
-                  <Badge variant="green">Complete</Badge>
-                </View>
-              ) : (
-                <View style={styles.statusRow}>
-                  <Text style={styles.statusLabel}>Grading</Text>
-                  <Badge variant="orange">Short answers awaiting your score</Badge>
-                </View>
-              )}
-            </View>
+              <View style={styles.statusRow}>
+                <Text style={styles.statusLabel}>Grading</Text>
+                {complete
+                  ? <Badge variant="green">Complete</Badge>
+                  : <Badge variant="orange">Short answers awaiting your score</Badge>}
+              </View>
+            </Section>
 
             {/* Unscored short answers */}
-            <Text style={styles.sectionTitle}>
-              Short answers to score {unscored.length > 0 ? `(${unscored.length})` : ''}
-            </Text>
-            {unscored.length === 0 && !complete && (
-              <View style={styles.empty}>
-                <Ionicons name="checkmark-circle" size={28} color={C.green} />
-                <Text style={styles.emptyText}>All short answers are scored.</Text>
-              </View>
-            )}
+            <Section
+              tint="yellow"
+              badge="Short answers to score"
+              right={unscored.length > 0 ? <Text style={styles.counter}>{unscored.length} waiting</Text> : null}
+            >
+              {unscored.length === 0 && !complete && (
+                <View style={styles.empty}>
+                  <Ionicons name="checkmark-circle" size={28} color={C.green} />
+                  <Text style={styles.emptyText}>All short answers are scored.</Text>
+                </View>
+              )}
             {unscored.map(answer => (
               <View key={answer.answer_id} style={styles.answerCard}>
                 <View style={styles.answerBody}>
@@ -199,15 +214,18 @@ export default function ResultsClosed({ navigation, route }) {
                 </View>
               </View>
             ))}
+            </Section>
 
             {complete && (
-              <View style={styles.doneCard}>
-                <Ionicons name="checkmark-circle" size={32} color={C.green} />
-                <Text style={styles.doneTitle}>Grading complete</Text>
-                <Text style={styles.doneSub}>
-                  Final score: <Text style={styles.doneScore}>{attempt.score != null ? `${attempt.score}%` : '--'}</Text>
-                </Text>
-              </View>
+              <Section tint="green" badge="Grading">
+                <View style={styles.doneCard}>
+                  <Ionicons name="checkmark-circle" size={32} color={C.green} />
+                  <Text style={styles.doneTitle}>Grading complete</Text>
+                  <Text style={styles.doneSub}>
+                    Final score: <Text style={styles.doneScore}>{attempt.score != null ? `${attempt.score}%` : '--'}</Text>
+                  </Text>
+                </View>
+              </Section>
             )}
 
             <View style={{ height: 24 }} />
@@ -224,10 +242,14 @@ const styles = StyleSheet.create({
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 40 },
   err: { padding: 16 },
   errText: { fontSize: 13, color: C.red },
-  statusCard: {
+  section: {
     backgroundColor: C.card, borderRadius: 12, padding: 14, marginBottom: 12,
     borderWidth: 1, borderColor: C.border,
   },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 8 },
+  sectionBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  sectionBadgeText: { fontSize: 12, fontWeight: '800' },
+  counter: { fontSize: 11, color: C.textHint, fontWeight: '600' },
   statusRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   statusLabel: { fontSize: 12, fontWeight: '700', color: C.textSub },
   statusValue: { fontSize: 15, fontWeight: '800', color: C.text },

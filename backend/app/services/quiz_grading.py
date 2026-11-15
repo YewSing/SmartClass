@@ -94,6 +94,15 @@ async def score_short_answer(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Not a short answer")
     await _accessible_attempt(db, answer.attempt_id, lecturer)
     answer.score = score
+    # FR-611: the attempt's total is the sum of all scored answers, so the student sees
+    # the up-to-date score the moment grading completes
+    total = await db.scalar(
+        select(sa.func.coalesce(sa.func.sum(QuizAnswer.score), 0.0)).where(
+            QuizAnswer.attempt_id == answer.attempt_id
+        )
+    )
+    attempt = await db.get(QuizAttempt, answer.attempt_id)
+    attempt.score = float(total)
     await db.commit()
     await db.refresh(answer)
     return answer
@@ -149,6 +158,10 @@ async def get_attempt_result(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your attempt")
     complete = await _is_grading_complete(db, attempt_id)
     student_visible = complete and attempt.status in ("submitted", "auto_submitted")
+    quiz = await db.get(Quiz, attempt.quiz_id)
+    # review_visible=False: the lecturer keeps the answers hidden from students entirely
+    # (Moodle-style review option) — only grading progress is reported.
+    review_ok = student_visible and (quiz.review_visible if quiz else True)
     result = await db.execute(
         select(QuizAnswer, QuizQuestion)
         .join(QuizQuestion, QuizQuestion.id == QuizAnswer.question_id)
@@ -159,12 +172,12 @@ async def get_attempt_result(
     for a, q in result.all():
         answers.append({
             "question_id": q.id,
-            "question": q.question,
+            "question": q.question if review_ok else None,
             "type": q.type,
             "answer": a.answer,
-            "score": a.score if (student_visible or q.type == "mcq") else None,
+            "score": a.score if (review_ok or q.type == "mcq") else None,
             "auto_graded": a.auto_graded,
-            "suggested_answer": q.suggested_answer if student_visible else None,
+            "suggested_answer": q.suggested_answer if review_ok else None,
         })
     return {
         "attempt_id": attempt.id,
@@ -173,6 +186,7 @@ async def get_attempt_result(
         "auto_submitted": attempt.auto_submitted,
         "grading_complete": complete,
         "student_score_visible": student_visible,
+        "review_visible": quiz.review_visible if quiz else True,
         "answers": answers,
     }
 

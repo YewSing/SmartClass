@@ -11,7 +11,6 @@ from datetime import datetime, timedelta
 import pytest
 from sqlalchemy import select
 
-from app.models.class_ import Enrollment
 from app.models.quiz import Quiz, QuizQuestion
 from app.models.quiz_attempt import QuizAttempt, QuizAnswer
 from app.services.kb.llm import LLMMalformedOutput
@@ -23,7 +22,7 @@ async def _setup(db_session, classroom):
     """Enrolled student, published quiz with one short-answer question, submitted attempt
     with one unscored short answer. Returns (student_id, quiz_id, attempt_id, answer_id)."""
     student_id = classroom["student_ids"][0]
-    db_session.add(Enrollment(student_id=student_id, occurrence_id=classroom["occurrence_id"]))
+    # already enrolled in the occurrence by the `classroom` fixture
     quiz = Quiz(
         course_id=classroom["course_id"], title="Sample Quiz",
         time_limit_minutes=30, opens_at=datetime.now(),
@@ -163,8 +162,38 @@ async def test_student_result_after_complete_is_visible(
 
 
 async def test_student_not_own_attempt_is_403(student_client, classroom, db_session):
-    _, _, attempt_id, _ = await _setup(db_session, classroom)
-    resp = await student_client.get(f"/student/quizzes/attempts/{attempt_id}/result")
+    from datetime import datetime, timedelta
+
+    from app.models.quiz import Quiz, QuizQuestion
+    from app.models.quiz_attempt import QuizAttempt
+
+    # an attempt belonging to a DIFFERENT student (the classroom fixture enrolls
+    # student_ids[1] in the same occurrence)
+    other_student = classroom["student_ids"][1]
+    quiz = Quiz(
+        course_id=classroom["course_id"], title="Other's quiz",
+        time_limit_minutes=30, opens_at=datetime.now(),
+        closes_at=datetime.now() + timedelta(days=7),
+        status="published", created_by=classroom["lecturer_id"],
+    )
+    db_session.add(quiz)
+    await db_session.flush()
+    q = QuizQuestion(
+        quiz_id=quiz.id, course_id=classroom["course_id"], type="short_answer",
+        question="Q?", level="beginner", status="approved",
+    )
+    db_session.add(q)
+    await db_session.flush()
+    attempt = QuizAttempt(
+        quiz_id=quiz.id, student_id=other_student,
+        started_at=datetime.now() - timedelta(minutes=5),
+        deadline=datetime.now() + timedelta(minutes=25),
+        status="submitted",
+    )
+    db_session.add(attempt)
+    await db_session.commit()
+
+    resp = await student_client.get(f"/student/quizzes/attempts/{attempt.id}/result")
     assert resp.status_code == 403, resp.text
 
 

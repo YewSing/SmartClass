@@ -46,7 +46,12 @@ async def _fake_search(course_id: int, query: str, k: int = 8):
 
 async def _fake_chat_json(messages, *, max_tokens=None, temperature=0.2, retries=1, validator=None):
     _fake_chat_json.calls += 1
-    return _generated(qtext=f"generated question {_fake_chat_json.calls}")
+    # the service prompt ends with "Question type: {mcq|short_answer}" — shape the mock's
+    # answer accordingly (the mock used to always answer mcq-shaped, which can never
+    # satisfy the short-answer test's suggested_answer assertion)
+    prompt = messages[-1]["content"]
+    qtype = "short_answer" if "Question type: short_answer" in prompt else "mcq"
+    return _generated(qtext=f"generated question {_fake_chat_json.calls}", qtype=qtype)
 
 
 _fake_chat_json.calls = 0

@@ -9,6 +9,26 @@ import Badge from '../components/Badge'
 import { getQuizAttempts } from '../services/api'
 import { C } from '../theme'
 
+/** Section card in the interaction style: colored title chip + right node (S29 pattern). */
+function Section({ tint = 'blue', badge, right, children, style }) {
+  const bg = { blue: C.blueLt, green: C.greenLt, red: C.redLt, orange: C.orangeLt, gray: C.gray100, purple: C.purpleLt, yellow: C.yellowLt }[tint]
+  const fg = { blue: C.blueDk, green: C.greenDk, red: C.redDk, orange: C.orangeDk, gray: C.textSub, purple: C.purple, yellow: C.yellowDk }[tint]
+  return (
+    <View style={[styles.section, style]}>
+      {badge != null && (
+        <View style={styles.sectionHead}>
+          <View style={[styles.sectionBadge, { backgroundColor: bg }]}>
+            <Text style={[styles.sectionBadgeText, { color: fg }]}>{badge}</Text>
+          </View>
+          <View style={{ flex: 1 }} />
+          {right}
+        </View>
+      )}
+      {children}
+    </View>
+  )
+}
+
 export default function Breakdown({ navigation, route }) {
   const { showToast } = useLecturer()
   const { quizId } = (route?.params ?? {})
@@ -61,15 +81,13 @@ export default function Breakdown({ navigation, route }) {
       />
       <ScrollView style={styles.flex} showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         {/* Summary */}
-        <View style={styles.summaryCard}>
+        <Section tint="purple" badge="Breakdown" right={
+          <Badge variant="green" dot>{submitted.length} finished</Badge>
+        }>
           <View style={styles.summaryRow}>
             <View style={styles.summaryCell}>
               <Text style={styles.summaryNum}>{attempts.length}</Text>
               <Text style={styles.summaryLbl}>Attempts</Text>
-            </View>
-            <View style={styles.summaryCell}>
-              <Text style={[styles.summaryNum, { color: C.green }]}>{submitted.length}</Text>
-              <Text style={styles.summaryLbl}>Finished</Text>
             </View>
             <View style={styles.summaryCell}>
               <Text style={[styles.summaryNum, { color: C.textSub }]}>{avg}</Text>
@@ -80,7 +98,7 @@ export default function Breakdown({ navigation, route }) {
               <Text style={styles.summaryLbl}>Passing (≥50%)</Text>
             </View>
           </View>
-        </View>
+        </Section>
 
         {loading && <View style={styles.loading}><ActivityIndicator size="large" color={C.primary} /></View>}
 
@@ -118,6 +136,13 @@ export default function Breakdown({ navigation, route }) {
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: C.bg },
   content: { padding: 16 },
+  section: {
+    backgroundColor: C.card, borderRadius: 12, padding: 14, marginBottom: 12,
+    borderWidth: 1, borderColor: C.border,
+  },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 8 },
+  sectionBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  sectionBadgeText: { fontSize: 12, fontWeight: '800' },
   summaryCard: {
     backgroundColor: C.card, borderRadius: 12, padding: 14, marginBottom: 12,
     borderWidth: 1, borderColor: C.border,

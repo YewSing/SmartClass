@@ -498,10 +498,44 @@ export const approveQuizQuestion = async (questionId) =>
 export const deleteQuizQuestion = async (questionId) =>
   apiCall('DELETE', `/lecturer/quizzes/questions/${questionId}`)
 
-// Publish approved questions as a quiz (FR-605).
-export const publishQuiz = async ({ question_ids, time_limit_minutes, opens_at, closes_at }) =>
+// Publish approved questions as a quiz (FR-605) — optionally to several courses at once
+// (one quiz per course; the question copies appear in each class).
+export const publishQuiz = async ({ question_ids, time_limit_minutes, opens_at, closes_at, title, attempts_allowed, review_visible, course_ids }) =>
   apiCall('POST', '/lecturer/quizzes', {
     question_ids, time_limit_minutes, opens_at, closes_at,
+    title, attempts_allowed, review_visible, course_ids: course_ids ?? [],
+  })
+
+// ─── Quiz quiz-sets / draft flow (S35) ──────────────────────────────────────
+
+// All quizzes (draft / published / closed) of a course the lecturer teaches.
+export const getCourseQuizzes = async (courseId) =>
+  apiCall('GET', `/lecturer/courses/${courseId}/quizzes`)
+
+// Save a draft quiz set from the given question ids (review → publish later).
+export const saveQuizDraft = async ({ question_ids, title, time_limit_minutes, opens_at, closes_at, attempts_allowed, review_visible }) =>
+  apiCall('POST', '/lecturer/quizzes/draft', {
+    question_ids, title, time_limit_minutes, opens_at, closes_at,
+    attempts_allowed, review_visible,
+  })
+
+// Edit a draft quiz's details (title, window, time limit, attempts, review).
+export const updateQuizDraft = async (quizId, data) =>
+  apiCall('PUT', `/lecturer/quizzes/${quizId}`, data)
+
+// Publish a draft quiz — to its own course plus clones to the listed course ids.
+export const publishQuizDraft = async (quizId, courseIds = []) =>
+  apiCall('POST', `/lecturer/quizzes/${quizId}/publish`, { course_ids: courseIds })
+
+// Add a question manually (review/edit/add flow).
+export const createQuizQuestion = async (data) =>
+  apiCall('POST', '/lecturer/quizzes/questions', data)
+
+// One-sentence quiz builder (LLM): "create 5 mcq, 2 short answer, duration 15min,
+// valid two days from now" → parses the spec, drafts questions, saves a draft quiz.
+export const quickAddQuiz = async (courseId, { prompt, material_ids, level }) =>
+  apiCall('POST', `/lecturer/courses/${courseId}/quizzes/quick-add`, {
+    prompt, material_ids: material_ids ?? [], level,
   })
 
 // Attempts for a quiz the lecturer teaches (NFR-04) (FR-612 data).

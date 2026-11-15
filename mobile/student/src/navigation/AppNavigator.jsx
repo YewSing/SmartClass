@@ -18,6 +18,9 @@ import AttSessionDetail from '../screens/AttSessionDetail'
 import AttReportStatus from '../screens/AttReportStatus'
 import Participation from '../screens/Participation'
 import PartSessionPerf from '../screens/PartSessionPerf'
+import QuizList from '../screens/QuizList'
+import TakeQuiz from '../screens/TakeQuiz'
+import QuizResult from '../screens/QuizResult'
 import Profile from '../screens/Profile'
 import Assistant from '../screens/Assistant'
 import AssistantPdf from '../screens/AssistantPdf'
@@ -59,6 +62,16 @@ function ParticipationStack() {
   )
 }
 
+function QuizStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="QuizListScreen" component={QuizList} />
+      <Stack.Screen name="TakeQuiz"    component={TakeQuiz} />
+      <Stack.Screen name="QuizResult"  component={QuizResult} />
+    </Stack.Navigator>
+  )
+}
+
 function AssistantStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -86,6 +99,7 @@ function ProfileStack() {
 const TAB_ICONS = {
   Home:          { active: 'home',                inactive: 'home-outline' },
   Attendance:    { active: 'calendar',            inactive: 'calendar-outline' },
+  Quiz:          { active: 'help-circle',         inactive: 'help-circle-outline' },
   Assistant:     { active: 'sparkles',            inactive: 'sparkles-outline' },
   Participation: { active: 'stats-chart',         inactive: 'stats-chart-outline' },
   Profile:       { active: 'person',              inactive: 'person-outline' },
@@ -119,6 +133,7 @@ function MainTabs() {
     >
       <Tab.Screen name="Home"          component={HomeStack}          options={{ title: 'Home' }} />
       <Tab.Screen name="Attendance"    component={AttendanceStack}    options={{ title: 'Attendance', tabBarTestID: 'tab-attendance' }} />
+      <Tab.Screen name="Quiz"          component={QuizStack}          options={{ title: 'Quiz', tabBarTestID: 'tab-quiz' }} />
       <Tab.Screen name="Assistant"     component={AssistantStack}     options={{ title: 'Assistant' }} />
       <Tab.Screen name="Participation" component={ParticipationStack} options={{ title: 'Participation', tabBarTestID: 'tab-participation' }} />
       <Tab.Screen name="Profile"       component={ProfileStack}       options={{ title: 'Profile' }} />

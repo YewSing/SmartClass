@@ -31,6 +31,12 @@ class Quiz(Base):
     time_limit_minutes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     opens_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     closes_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # Moodle-style settings: how many attempts a student gets; whether the student may
+    # see their score / per-question results after answering.
+    attempts_allowed: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+    review_visible: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=sa.true()
+    )
     # draft | published | closed
     status: Mapped[str] = mapped_column(String(20), nullable=False, server_default="draft")
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)

@@ -10,7 +10,6 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from app.models.class_ import Enrollment
 from app.models.quiz import Quiz, QuizQuestion
 from app.models.quiz_attempt import QuizAttempt, QuizAnswer
 from app.services import quiz_read
@@ -24,10 +23,7 @@ async def _setup(db_session, classroom):
     Returns (student1_id, student2_id, quiz_id, mcq_id, sa_id, attempt1_id)."""
     s1 = classroom["student_ids"][0]
     s2 = classroom["student_ids"][1]
-    db_session.add_all([
-        Enrollment(student_id=s1, occurrence_id=classroom["occurrence_id"]),
-        Enrollment(student_id=s2, occurrence_id=classroom["occurrence_id"]),
-    ])
+    # both students are already enrolled in the occurrence by the `classroom` fixture
     quiz = Quiz(
         course_id=classroom["course_id"], title="Sample Quiz",
         time_limit_minutes=30, opens_at=datetime.now(),

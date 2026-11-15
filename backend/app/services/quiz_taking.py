@@ -11,6 +11,7 @@
 
 from datetime import datetime, timedelta
 
+import sqlalchemy as sa
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -53,15 +54,69 @@ async def list_student_quizzes(db: AsyncSession, student_id: int) -> list[dict]:
     out = []
     for q in quizzes:
         a = attempts.get(q.id)
+        used = sum(1 for at in attempts.values() if at.quiz_id == q.id)
         out.append({
             "id": q.id, "course_id": q.course_id, "title": q.title,
             "time_limit_minutes": q.time_limit_minutes, "opens_at": q.opens_at,
             "closes_at": q.closes_at, "status": q.status,
+            "attempts_allowed": q.attempts_allowed, "attempts_used": used,
+            "review_visible": q.review_visible,
             "has_attempt": a is not None,
             "attempt_id": a.id if a else None,
             "deadline": a.deadline if a else None,
         })
     return out
+
+
+async def get_quiz_for_taking(db: AsyncSession, quiz_id: int, student_id: int) -> dict:
+    """Quiz + its questions (no answers) for a student about to take it (FR-606).
+
+    Enforced: published quiz, enrolled student, inside the open window. Questions are
+    returned without correct_answer/suggested_answer/level — the student never sees them.
+    """
+    quiz = await db.get(Quiz, quiz_id)
+    if not quiz or quiz.status != "published":
+        raise ValueError("quiz_not_published")
+    enrolled = await db.scalar(
+        select(Enrollment.id).join(
+            ClassOccurrence, ClassOccurrence.id == Enrollment.occurrence_id
+        ).where(
+            Enrollment.student_id == student_id,
+            ClassOccurrence.course_id == quiz.course_id,
+        ).limit(1)
+    )
+    if not enrolled:
+        raise ValueError("not_enrolled")
+    now = _now()
+    if quiz.opens_at and now < quiz.opens_at:
+        raise ValueError("not_yet_open")
+    if quiz.closes_at and now > quiz.closes_at:
+        raise ValueError("quiz_closed")
+    questions = (await db.execute(
+        select(QuizQuestion).where(
+            QuizQuestion.quiz_id == quiz_id,
+            QuizQuestion.status.in_(("approved", "draft")),
+        ).order_by(QuizQuestion.id)
+    )).scalars().all()
+    return {
+        "id": quiz.id,
+        "course_id": quiz.course_id,
+        "title": quiz.title,
+        "time_limit_minutes": quiz.time_limit_minutes,
+        "opens_at": quiz.opens_at,
+        "closes_at": quiz.closes_at,
+        "attempts_allowed": quiz.attempts_allowed,
+        "review_visible": quiz.review_visible,
+        "questions": [
+            {
+                "id": q.id,
+                "type": q.type,
+                "question": q.question,
+                "options": q.options,
+            }
+            for q in questions
+        ],
+    }
 
 
 async def start_attempt(db: AsyncSession, quiz_id: int, student_id: int) -> QuizAttempt:
@@ -79,12 +134,12 @@ async def start_attempt(db: AsyncSession, quiz_id: int, student_id: int) -> Quiz
     )
     if not enrolled:
         raise ValueError("not_enrolled")
-    existing = await db.scalar(
-        select(QuizAttempt.id).where(
+    used = (await db.execute(
+        select(sa.func.count(QuizAttempt.id)).where(
             QuizAttempt.quiz_id == quiz_id, QuizAttempt.student_id == student_id
-        ).limit(1)
-    )
-    if existing:
+        )
+    )).scalar_one()
+    if used >= (quiz.attempts_allowed or 1):
         raise ValueError("already_attempted")
     now = _now()
     if quiz.opens_at and now < quiz.opens_at:
