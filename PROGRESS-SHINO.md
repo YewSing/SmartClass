@@ -171,3 +171,10 @@ Counterpart of `PROGRESS.md` (Yew Sing's M1/M3/M4/M8 log). Same conventions: tes
 - Changed UI: quiz-details number fields (time limit, attempts) now have **−/+ stepper buttons** (still typeable), and the open/close fields use a **calendar date-time picker modal** (month grid, hour/minute steppers, quick chips: Now / +15 min / +1 hour / Tomorrow / +2 days / +7 days) — pure React Native so it works in the browser export too.
 - Tests: `TEST-CHANGE:` `tests/test_quiz_s35.py` `test_quick_add_no_materials_422` → replaced by `test_quick_add_without_materials_uses_prompt_only` (201 with a question, no source material) — the 422 behaviour it pinned was the gap this follow-up removes. Quiz suites 62 passed; `ruff` clean; lecturer unit suites pass; lecturer Expo web export succeeds.
 - Next: unchanged — Maestro/Playwright quiz flows, then S37.
+
+### S35 follow-up 2 — CreateQuiz UI polish + course picker inside the AI sheet — 2026-11-16
+- Changed UI: the Quiz-details section puts **Open and Close on the same row**, and the −/+ number fields were compacted (28px steppers, tighter gaps, `minWidth: 0` columns) so Time limit / Attempts fit narrow screens.
+- Changed UI: the "Choose a class" page is gone — CreateQuiz opens straight into the builder (defaults to the lecturer's first class) and the **Draft-with-AI sheet carries a class chip row**; picking a class reloads that course's materials and draft questions.
+- 503 on quick-add (user report): the console trace is the backend returning 503 — `LLMUnavailable` from `app/services/kb/llm.py`, raised when `LLM_API_KEY` is empty, the provider is down, or the quota is exhausted. Not a quiz bug; the toast now maps 503 → "check the backend LLM configuration (LLM_API_KEY) or try again later" and 502 → "malformed answer, try again" instead of the raw detail.
+- Tests: lecturer unit suites pass; Expo web export succeeds (UI-only + error-message change; no backend touched).
+- Next: unchanged — Maestro/Playwright quiz flows, then S37.

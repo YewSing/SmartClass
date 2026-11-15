@@ -229,7 +229,6 @@ export default function CreateQuiz({ navigation, route }) {
   const { showToast } = useLecturer()
   const { courseId: paramCourseId, courseCode, courseName } = (route?.params ?? {})
 
-  const [coursePickerMode, setCoursePickerMode] = useState(!paramCourseId)
   const [courses, setCourses] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -283,85 +282,75 @@ export default function CreateQuiz({ navigation, route }) {
   const [targetIds, setTargetIds] = useState([])
   const [finishBusy, setFinishBusy] = useState(false)
 
-  const loadCourses = useCallback(async () => {
-    try {
-      const list = await getClasses()
-      setCourses(list)
-      setTargetIds(prev => (prev.length ? prev : list.slice(0, 1).map(c => c.course_id)))
-    } catch (e) { setError(e.message) }
-  }, [])
-
-  const loadDrafts = useCallback(async () => {
-    if (!courseId) return
+  const loadDrafts = useCallback(async (id = courseId) => {
+    if (!id) return
     setDraftsLoading(true)
     try {
-      const list = await getQuizDrafts(courseId)
+      const list = await getQuizDrafts(id)
       setDrafts(list)
     } catch (e) { setError(e.message) }
     finally { setDraftsLoading(false) }
   }, [courseId])
 
-  const loadMaterials = useCallback(async () => {
-    if (!courseId) return
+  const loadMaterials = useCallback(async (id = courseId) => {
+    if (!id) return
     setMaterialsLoading(true)
     try {
-      const list = await getMaterials(courseId)
+      const list = await getMaterials(id)
       setMaterials(list)
       setSelectedMaterials(list.map(m => m.id))
     } catch (e) { /* materials may not be indexed yet */ }
     finally { setMaterialsLoading(false) }
   }, [courseId])
 
+  // pick a class inside the Draft-with-AI sheet (no separate chooser page)
+  const selectCourse = useCallback((c) => {
+    setCourseId(c.course_id)
+    setCourseCodeState(c.code)
+    setCourseNameState(c.name)
+    setTargetIds([c.course_id])
+    loadDrafts(c.course_id)
+    loadMaterials(c.course_id)
+  }, [loadDrafts, loadMaterials])
+
   useEffect(() => {
     let cancelled = false
-    if (coursePickerMode) {
-      loadCourses().then(() => { if (!cancelled) setLoading(false) })
-    } else {
-      loadDrafts().then(() => { if (!cancelled) setLoading(false) })
-    }
+    ;(async () => {
+      try {
+        const list = await getClasses()
+        if (cancelled) return
+        setCourses(list)
+        if (!paramCourseId && list.length > 0) {
+          const first = list[0]
+          setCourseId(first.course_id)
+          setCourseCodeState(first.code)
+          setCourseNameState(first.name)
+          setTargetIds([first.course_id])
+        }
+      } catch (e) {
+        if (!cancelled) setError(e.message)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
     return () => { cancelled = true }
-  }, [coursePickerMode, courseId, loadCourses, loadDrafts])
+  }, [paramCourseId])
+
+  useEffect(() => {
+    let cancelled = false
+    if (courseId) loadDrafts().then(() => { if (!cancelled) setLoading(false) })
+    else setLoading(false)
+    return () => { cancelled = true }
+  }, [courseId, loadDrafts])
 
   if (loading) {
     return (
       <View style={styles.flex}>
-        <Topbar title={coursePickerMode ? 'Choose a class' : 'Create Quiz'} />
+        <Topbar title="Create Quiz" />
         <View style={styles.loading}>
           <ActivityIndicator size="large" color={C.primary} />
           <Text style={styles.loadingText}>Loading…</Text>
         </View>
-      </View>
-    )
-  }
-
-  // ─── Course picker ───────────────────────────────────────────────────────
-
-  if (coursePickerMode) {
-    return (
-      <View style={styles.flex}>
-        <Topbar title="Choose a class" onBack={() => navigation.goBack()} />
-        <ScrollView style={styles.flex} showsVerticalScrollIndicator={false} contentContainerStyle={styles.list}>
-          {error && <View style={styles.err}><Text style={styles.errText}>{error}</Text></View>}
-          {courses.map(c => (
-            <TouchableOpacity key={c.id} style={styles.courseRow} onPress={() => {
-              setCoursePickerMode(false)
-              setCourseId(c.course_id)
-              setCourseCodeState(c.code)
-              setCourseNameState(c.name)
-              setTargetIds([c.course_id])
-              loadDrafts()
-              loadMaterials()
-            }}>
-              <View style={styles.courseRowBody}>
-                <Text style={styles.courseRowCode}>{c.code}</Text>
-                <Text style={styles.courseRowName}>{c.name}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={C.textHint} />
-            </TouchableOpacity>
-          ))}
-          {courses.length === 0 && <View style={styles.empty}><Text style={styles.emptyText}>No courses</Text></View>}
-          <View style={{ height: 24 }} />
-        </ScrollView>
       </View>
     )
   }
@@ -388,7 +377,12 @@ export default function CreateQuiz({ navigation, route }) {
       if (quiz.closes_at) setClosesAt(dtLocal(new Date(quiz.closes_at)))
       showToast('AI drafted the quiz — review the questions below', 'success')
     } catch (e) {
-      showToast(e.message || 'Could not build the quiz from that instruction', 'error')
+      const msg = e?.status === 503
+        ? 'The AI service is unavailable right now — check the backend LLM configuration (LLM_API_KEY) or try again later'
+        : e?.status === 502
+          ? 'The AI returned a malformed answer — please try again'
+          : (e.message || 'Could not build the quiz from that instruction')
+      showToast(msg, 'error')
     } finally {
       setQuickBusy(false)
     }
@@ -624,8 +618,6 @@ export default function CreateQuiz({ navigation, route }) {
               <Text style={styles.subLabel}>Open</Text>
               <DateTimeField value={opensAt} onChange={setOpensAt} testID="quiz-opens" />
             </View>
-          </View>
-          <View style={styles.detailRow}>
             <View style={styles.detailCol}>
               <Text style={styles.subLabel}>Close</Text>
               <DateTimeField value={closesAt} onChange={setClosesAt} testID="quiz-closes" />
@@ -691,8 +683,23 @@ export default function CreateQuiz({ navigation, route }) {
         <View style={styles.modalBody}>
           <Text style={styles.modalTitle}>Draft with AI</Text>
           <Text style={styles.modalSub}>
-            Pick materials to ground the questions in them — or leave them all unselected and the AI drafts from your message alone.
+            Pick the class and (optionally) materials to ground the questions in them — or leave the materials unselected and the AI drafts from your message alone.
           </Text>
+
+          {/* class picker — decides which course's materials show below */}
+          <Text style={styles.subLabel}>Class</Text>
+          <View style={styles.materialsList}>
+            {courses.map(c => (
+              <TouchableOpacity
+                key={c.id}
+                style={[styles.materialChip, courseId === c.course_id && styles.materialChipActive]}
+                onPress={() => selectCourse(c)}
+                testID={`ai-class-${c.course_id}`}
+              >
+                <Text style={[styles.materialChipText, courseId === c.course_id && styles.materialChipTextActive]}>{c.code}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
 
           <View style={styles.materialsHead}>
             <Text style={styles.subLabel}>Course materials (synced from Moodle)</Text>
@@ -939,11 +946,11 @@ const styles = StyleSheet.create({
   metaText: { fontSize: 11, color: C.textHint },
   draftActions: { flexDirection: 'row', gap: 6 },
   iconBtn: { padding: 6 },
-  detailRow: { flexDirection: 'row', gap: 10 },
-  detailCol: { flex: 1, marginBottom: 10 },
-  numRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 },
+  detailRow: { flexDirection: 'row', gap: 8 },
+  detailCol: { flex: 1, minWidth: 0, marginBottom: 10 },
+  numRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 10 },
   stepBtn: {
-    width: 34, height: 34, borderRadius: 8, borderWidth: 1.5, borderColor: C.border,
+    width: 28, height: 32, borderRadius: 8, borderWidth: 1.5, borderColor: C.border,
     alignItems: 'center', justifyContent: 'center', backgroundColor: C.card,
   },
   stepBtnSm: {
