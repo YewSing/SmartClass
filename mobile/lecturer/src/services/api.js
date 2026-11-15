@@ -1,13 +1,8 @@
 import { apiCall, apiCallRaw, getToken, setToken, clearToken, setRefreshToken, clearRefreshToken, BASE } from './client'
 import { saveCsv } from './saveCsv'
 import { dayMonth, hhmm, minutesBetween, rosterStatus, cleanReason } from './attendance'
-import {
-  QUIZZES, BREAKDOWN_ROWS,
-  ANALYTICS_PAR_BARS, ANALYTICS_PAR_LABELS,
-} from '../data/mockData'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
 function initials(name = '') {
   return name.split(' ').map(p => p[0]).join('').substring(0, 2).toUpperCase()
 }
@@ -136,9 +131,10 @@ function courseName(code, name) {
 }
 
 export const getClasses = async () => {
-  const list = await apiCall('GET', '/classes')
+  const list = await apiCall('GET', '/classes?full=1')
   return list.map(c => ({
     id: c.id,
+    course_id: c.course_id,
     code: c.course_code,
     name: courseName(c.course_code, c.course_name),
     day_of_week: c.day_of_week ?? null,
@@ -478,14 +474,52 @@ export const sendLecturerMessage = async (sessionId, content) =>
 export const getBeforeClass = async (courseId) =>
   apiCall('GET', `/lecturer/assistant/before-class/${courseId}`)
 
-// ─── Mocked (Module 3/4 — quiz) ────────────────────────
+// ─── Quiz (Module 6, S35) ──────────────────────────────────────────────────
 
-const delay = (ms) => new Promise(res => setTimeout(res, ms))
+// Draft (and approved) questions for a course the lecturer teaches (FR-604).
+export const getQuizDrafts = async (courseId) =>
+  apiCall('GET', `/lecturer/quizzes/drafts?course_id=${courseId}`)
 
-export const getQuizzes        = async (_id)  => { await delay(300); return QUIZZES }
-export const createQuiz        = async (data) => { await delay(400); return { id: `q${Date.now()}`, ...data, status: 'draft' } }
-export const pushQuiz          = async (_id)  => { await delay(300); return { success: true } }
-export const closeQuiz         = async (_id)  => { await delay(300); return { success: true } }
-export const getBreakdown      = async (_id)  => { await delay(300); return BREAKDOWN_ROWS }
-export const resetConfusion    = async ()     => { await delay(300); return { success: true } }
-export const getAnalyticsPar   = async ()     => ({ bars: ANALYTICS_PAR_BARS, labels: ANALYTICS_PAR_LABELS })
+// Draft `count` questions of `type`/`level` from the selected materials (FR-601/602/603).
+export const generateQuiz = async (courseId, { material_ids, type, level, count }) =>
+  apiCall('POST', `/lecturer/courses/${courseId}/quizzes/generate`, {
+    material_ids, type, level, count,
+  })
+
+// Edit a draft question (FR-604).
+export const editQuizQuestion = async (questionId, data) =>
+  apiCall('PUT', `/lecturer/quizzes/questions/${questionId}`, data)
+
+// Approve a draft question (draft → approved) (FR-604).
+export const approveQuizQuestion = async (questionId) =>
+  apiCall('POST', `/lecturer/quizzes/questions/${questionId}/approve`)
+
+// Soft-delete a draft question (draft → deleted) (FR-604).
+export const deleteQuizQuestion = async (questionId) =>
+  apiCall('DELETE', `/lecturer/quizzes/questions/${questionId}`)
+
+// Publish approved questions as a quiz (FR-605).
+export const publishQuiz = async ({ question_ids, time_limit_minutes, opens_at, closes_at }) =>
+  apiCall('POST', '/lecturer/quizzes', {
+    question_ids, time_limit_minutes, opens_at, closes_at,
+  })
+
+// Attempts for a quiz the lecturer teaches (NFR-04) (FR-612 data).
+export const getQuizAttempts = async (quizId) =>
+  apiCall('GET', `/lecturer/quizzes/${quizId}/attempts`)
+
+// Unscored short answers on an attempt (FR-609).
+export const getUnscoredAnswers = async (attemptId) =>
+  apiCall('GET', `/lecturer/quizzes/attempts/${attemptId}/answers`)
+
+// Score a short answer (FR-609).
+export const scoreShortAnswer = async (attemptId, answerId, score) =>
+  apiCall('POST', `/lecturer/quizzes/attempts/${attemptId}/answers/${answerId}/score`, { score })
+
+// AI-suggested score for a short answer (FR-610).
+export const suggestScore = async (attemptId, answerId) =>
+  apiCall('POST', `/lecturer/quizzes/attempts/${attemptId}/answers/${answerId}/suggest-score`)
+
+// Per-question results for an attempt (visible only after grading complete).
+export const getAttemptResult = async (attemptId) =>
+  apiCall('GET', `/student/quizzes/attempts/${attemptId}/result`)

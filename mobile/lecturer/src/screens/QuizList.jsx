@@ -1,115 +1,126 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useLecturer } from '../context/LecturerContext'
 import Topbar from '../components/Topbar'
 import Badge from '../components/Badge'
-import { QUIZZES } from '../data/mockData'
+import { getClasses } from '../services/api'
 import { C } from '../theme'
 
-const FILTERS = ['all', 'active', 'closed', 'draft']
-
 export default function QuizList({ navigation }) {
-  const { openModal } = useLecturer()
-  const [filter, setFilter] = useState('all')
+  const { state, showToast } = useLecturer()
+  const { classes: storedClasses = [] } = state
+  const [courses, setCourses] = useState(storedClasses)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
-  const visible = filter === 'all' ? QUIZZES : QUIZZES.filter(q => q.status === filter)
+  useEffect(() => {
+    let cancelled = false
+    getClasses()
+      .then(list => { if (!cancelled) { setCourses(list); setLoading(false) } })
+      .catch(e => { if (!cancelled) { setError(e.message); setLoading(false) } })
+    return () => { cancelled = true }
+  }, [])
+
+  const headerRight = courses.length > 0 ? (
+    <View style={styles.headerRight}>
+      <TouchableOpacity style={styles.createTopBtn} onPress={() => navigation.navigate('CreateQuiz', { courseId: courses[0].course_id, courseCode: courses[0].code, courseName: courses[0].name })}>
+        <Ionicons name="add" size={16} color="#fff" />
+        <Text style={styles.createTopBtnText}>Create quiz</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.createTopBtn} onPress={() => {
+        showToast('Saved as draft', 'success')
+      }}>
+        <Ionicons name="document-text" size={16} color="#fff" />
+        <Text style={styles.createTopBtnText}>Draft</Text>
+      </TouchableOpacity>
+    </View>
+  ) : null
+
+  if (loading) {
+    return (
+      <View style={styles.flex}>
+        <Topbar title="Quiz & Poll" />
+        <View style={styles.loading}>
+          <ActivityIndicator size="large" color={C.primary} />
+          <Text style={styles.loadingText}>Loading courses…</Text>
+        </View>
+      </View>
+    )
+  }
+
+  if (error) {
+    return (
+      <View style={styles.flex}>
+        <Topbar title="Quiz & Poll" />
+        <View style={styles.empty}>
+          <Ionicons name="alert-circle" size={32} color={C.red} />
+          <Text style={styles.emptyText}>{error}</Text>
+        </View>
+      </View>
+    )
+  }
 
   return (
     <View style={styles.flex}>
       <Topbar
         title="Quiz & Poll"
-        sub="WIA2005 — Session in progress"
-        right={
-          <TouchableOpacity style={styles.createBtn} onPress={() => navigation.navigate('CreateQuiz')}>
-            <Ionicons name="add" size={16} color="#fff" />
-            <Text style={styles.createBtnText}>Create</Text>
-          </TouchableOpacity>
-        }
+        sub="Create and manage quizzes for your courses"
+        right={headerRight}
       />
-
-      {/* Filter pills */}
-      <View style={styles.filterRow}>
-        {FILTERS.map(f => (
-          <TouchableOpacity
-            key={f}
-            style={[styles.pill, filter === f && styles.pillActive]}
-            onPress={() => setFilter(f)}
-          >
-            <Text style={[styles.pillText, filter === f && styles.pillTextActive]}>
-              {f.charAt(0).toUpperCase() + f.slice(1)}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <ScrollView style={styles.flex} showsVerticalScrollIndicator={false}>
-        <Text style={styles.countLabel}>{visible.length} questions this session</Text>
-        {visible.map(q => (
-          <TouchableOpacity key={q.id} style={styles.quizCard} onPress={() => openModal('quiz', q)}>
-            <View style={styles.quizCardTop}>
-              <Text style={styles.quizQ} numberOfLines={3}>{q.question}</Text>
-              <Badge variant={q.status === 'active' ? 'blue' : q.status === 'closed' ? 'gray' : 'yellow'}>
-                {q.status.charAt(0).toUpperCase() + q.status.slice(1)}
-              </Badge>
-            </View>
-
-            <View style={styles.metaRow}>
-              <Ionicons name="time-outline" size={11} color={C.textHint} />
-              <Text style={styles.metaText}>
-                {q.time}{q.timer ? ` · ${q.timer} timer` : ' · not pushed yet'}
-              </Text>
-              {q.status === 'active' && (
-                <Text style={styles.metaText}>· {q.answered}/{q.total} answered</Text>
-              )}
-              {q.status === 'closed' && (
-                <Text style={[styles.metaText, { color: C.greenDk, fontWeight: '700' }]}>· {q.pct}% correct</Text>
-              )}
-            </View>
-
-            {q.status === 'active' && (
-              <View style={styles.progressRow}>
-                <View style={styles.progressTrack}>
-                  <View style={[styles.progressFill, { width: `${q.pct}%` }]} />
+      {courses.length === 0 && (
+        <View style={styles.empty}>
+          <Ionicons name="school" size={32} color={C.textHint} />
+          <Text style={styles.emptyText}>No courses found</Text>
+        </View>
+      )}
+      <ScrollView style={styles.flex} showsVerticalScrollIndicator={false} contentContainerStyle={styles.list}>
+        {courses.map(course => {
+          const typeVariant = course.type === 'LECTURE' ? 'blue' : 'green'
+          const typeText = course.type === 'LECTURE' ? 'Lecture' : (course.label ?? 'Tutorial')
+          return (
+            <TouchableOpacity
+              key={course.id}
+              style={styles.courseCard}
+              onPress={() => navigation.navigate('CreateQuiz', {
+                courseId: course.course_id, courseCode: course.code, courseName: course.name,
+              })}
+            >
+              <View style={styles.cardTop}>
+                <View style={styles.cardBody}>
+                  <View style={styles.codeRow}>
+                    <Text style={styles.courseCode}>{course.code}</Text>
+                    <Badge variant={typeVariant}>{typeText}</Badge>
+                  </View>
+                  <Text style={styles.courseName}>{course.name}</Text>
+                  {course.day_of_week && (
+                    <Text style={styles.courseMeta}>
+                      {course.day_of_week} {course.start_time}–{course.end_time}{course.room ? ` · ${course.room}` : ''}
+                    </Text>
+                  )}
                 </View>
-                <Text style={styles.progressPct}>{q.pct}%</Text>
+                <Badge variant="blue">{course.enrolled_count != null ? course.enrolled_count : 0} students</Badge>
               </View>
-            )}
-
-            {q.status === 'closed' && (
-              <View style={styles.closedChips}>
-                <View style={[styles.chip, { backgroundColor: C.greenLt }]}>
-                  <Text style={[styles.chipText, { color: C.greenDk }]}>{q.correct_count} Correct</Text>
-                </View>
-                <View style={[styles.chip, { backgroundColor: C.redLt }]}>
-                  <Text style={[styles.chipText, { color: C.redDk }]}>{q.wrong_count} Wrong</Text>
-                </View>
-                <View style={[styles.chip, { backgroundColor: C.gray100 }]}>
-                  <Text style={[styles.chipText, { color: C.gray500 }]}>{q.unanswered_count} Skipped</Text>
-                </View>
-              </View>
-            )}
-
-            {q.status === 'draft' && (
-              <TouchableOpacity style={styles.pushBtn} onPress={() => openModal('quiz', q)}>
-                <Ionicons name="send-outline" size={13} color="#fff" />
-                <Text style={styles.pushBtnText}>Push now</Text>
-              </TouchableOpacity>
-            )}
-          </TouchableOpacity>
-        ))}
-        <View style={{ height: 20 }} />
+            </TouchableOpacity>
+          )
+        })}
+        <View style={{ height: 24 }} />
       </ScrollView>
-
     </View>
   )
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: C.bg },
-  createBtn: {
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
+  loadingText: { fontSize: 14, color: C.textSub },
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 10 },
+  emptyText: { fontSize: 14, color: C.textSub },
+  list: { padding: 16 },
+  headerRight: { flexDirection: 'row', gap: 8 },
+  createTopBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: C.primary,
@@ -118,123 +129,44 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     gap: 4,
   },
-  createBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  filterRow: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    gap: 8,
-    backgroundColor: C.card,
-    borderBottomWidth: 1,
-    borderBottomColor: C.border,
-  },
-  pill: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 20,
-    backgroundColor: C.gray100,
-  },
-  pillActive: {
-    backgroundColor: C.primary,
-  },
-  pillText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: C.textSub,
-  },
-  pillTextActive: {
-    color: '#fff',
-  },
-  countLabel: {
-    padding: 12,
-    paddingBottom: 4,
-    fontSize: 12,
-    color: C.textSub,
-  },
-  quizCard: {
+  createTopBtnText: { fontSize: 13, fontWeight: '700', color: '#fff' },
+  courseCard: {
     backgroundColor: C.card,
     borderRadius: 12,
     padding: 14,
     marginHorizontal: 16,
-    marginBottom: 8,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: C.border,
-    gap: 8,
   },
-  quizCardTop: {
+  cardTop: {
     flexDirection: 'row',
-    gap: 8,
+    justifyContent: 'space-between',
     alignItems: 'flex-start',
+    gap: 10,
+    marginBottom: 8,
   },
-  quizQ: {
-    flex: 1,
-    fontSize: 13,
-    fontWeight: '600',
-    color: C.text,
-    lineHeight: 20,
-  },
-  metaRow: {
+  cardBody: { flex: 1 },
+  codeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    flexWrap: 'wrap',
-  },
-  metaText: {
-    fontSize: 11,
-    color: C.textHint,
-  },
-  progressRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  progressTrack: {
-    flex: 1,
-    height: 4,
-    backgroundColor: C.gray100,
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: C.primary,
-    borderRadius: 2,
-  },
-  progressPct: {
-    fontSize: 10,
-    color: C.textHint,
-  },
-  closedChips: {
-    flexDirection: 'row',
     gap: 8,
-    flexWrap: 'wrap',
+    marginBottom: 2,
   },
-  chip: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
+  courseCode: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: C.primary,
   },
-  chipText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  pushBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: C.primary,
-    alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    gap: 6,
-  },
-  pushBtnText: {
+  courseName: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#fff',
+    color: C.text,
+    marginTop: 2,
+  },
+  courseMeta: {
+    fontSize: 11,
+    color: C.textHint,
+    marginTop: 4,
   },
 })

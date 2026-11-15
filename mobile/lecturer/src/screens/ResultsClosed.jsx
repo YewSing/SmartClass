@@ -1,93 +1,218 @@
+import { useState, useEffect, useCallback } from 'react'
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, TextInput,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
+import { useLecturer } from '../context/LecturerContext'
 import Topbar from '../components/Topbar'
 import Badge from '../components/Badge'
-import { QUIZZES } from '../data/mockData'
+import { getQuizAttempts, getUnscoredAnswers, scoreShortAnswer, suggestScore } from '../services/api'
 import { C } from '../theme'
 
-const BARS = [
-  { opt: 'A', pct: 16, count: 4,  correct: false },
-  { opt: 'B', pct: 8,  count: 2,  correct: false },
-  { opt: 'C', pct: 8,  count: 2,  correct: false },
-  { opt: 'D', pct: 72, count: 18, correct: true  },
-]
+export default function ResultsClosed({ navigation, route }) {
+  const { showToast } = useLecturer()
+  const { attemptId, quizId } = (route?.params ?? {})
 
-const MAX_BAR_H = 90
+  const [attempt, setAttempt] = useState(null)
+  const [unscored, setUnscored] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [scoring, setScoring] = useState({}) // answerId -> busy
 
-export default function ResultsClosed({ navigation }) {
-  const quiz = QUIZZES[1]
+  const loadAttempt = useCallback(async () => {
+    if (!quizId) return
+    try {
+      const list = await getQuizAttempts(quizId)
+      const a = list.find(x => x.attempt_id === attemptId)
+      setAttempt(a ?? null)
+    } catch (e) { setError(e.message || 'Could not load attempt') }
+  }, [quizId, attemptId])
+
+  const loadUnscored = useCallback(async () => {
+    if (!attemptId) return
+    try {
+      const list = await getUnscoredAnswers(attemptId)
+      setUnscored(list)
+    } catch (e) { setError(e.message || 'Could not load answers') }
+  }, [attemptId])
+
+  useEffect(() => {
+    let cancelled = false
+    loadAttempt()
+    loadUnscored()
+    return () => { cancelled = true }
+  }, [loadAttempt, loadUnscored])
+
+  useEffect(() => {
+    setLoading(!attempt || unscored.length === 0 && !error)
+  }, [attempt, unscored, error])
+
+  const complete = attempt?.grading_complete
+  const statusLabel = (s) => {
+    switch (s) {
+      case 'started': return 'In progress'
+      case 'submitted': return 'Submitted'
+      case 'auto_submitted': return 'Auto-submitted'
+      default: return s
+    }
+  }
+
+  const handleSuggest = async (answer) => {
+    setScoring(prev => ({ ...prev, [answer.answer_id]: true }))
+    try {
+      const suggestion = await suggestScore(attemptId, answer.answer_id)
+      setUnscored(prev => prev.map(a =>
+        a.answer_id === answer.answer_id ? { ...a, suggestedScore: suggestion.suggested_score, suggestedReason: suggestion.reasoning } : a
+      ))
+      showToast(`AI suggests ${Math.round(suggestion.suggested_score)}%`, 'info')
+    } catch (e) {
+      showToast(e.message || 'Could not get AI suggestion', 'error')
+    } finally {
+      setScoring(prev => { const { [answer.answer_id]: _, ...rest } = prev; return rest })
+    }
+  }
+
+  const handleSave = async (answer) => {
+    const input = documentScoreInputs[answer.answer_id]
+    const score = parseFloat(input)
+    if (Number.isNaN(score) || score < 0 || score > 100) { showToast('Enter a score between 0 and 100', 'error'); return }
+    setScoring(prev => ({ ...prev, [answer.answer_id]: true }))
+    try {
+      await scoreShortAnswer(attemptId, answer.answer_id, score)
+      setUnscored(prev => prev.filter(a => a.answer_id !== answer.answer_id))
+      showToast('Score saved', 'success')
+      if (attempt && !attempt.grading_complete) {
+        // re-fetch to detect completion
+        const list = await getQuizAttempts(quizId)
+        const a = list.find(x => x.attempt_id === attemptId)
+        setAttempt(a)
+      }
+    } catch (e) {
+      showToast(e.message || 'Could not save score', 'error')
+    } finally {
+      setScoring(prev => { const { [answer.answer_id]: _, ...rest } = prev; return rest })
+    }
+  }
+
+  // per-answer score inputs (uncontrolled text, read on save)
+  const [scoreInputs, setScoreInputs] = useState({})
 
   return (
     <View style={styles.flex}>
       <Topbar
-        title="Quiz Results"
+        title="Score & Review"
+        sub={attempt ? `Attempt #${String(attempt.attempt_id).slice(-4)}` : undefined}
         onBack={() => navigation.goBack()}
-        right={<Badge variant="gray">Closed</Badge>}
       />
-      <ScrollView style={styles.flex} showsVerticalScrollIndicator={false}>
-        {/* Question card */}
-        <View style={styles.card}>
-          <Text style={styles.quizQuestion}>{quiz.question}</Text>
-        </View>
+      <ScrollView style={styles.flex} showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+        {loading && <View style={styles.loading}><ActivityIndicator size="large" color={C.primary} /></View>}
 
-        {/* Time's Up */}
-        <View style={styles.timerBlock}>
-          <Text style={styles.timerNum}>⏱ Time's Up</Text>
-          <Text style={styles.timerLabel}>Quiz ended · {quiz.timer} timer</Text>
-        </View>
+        {!loading && error && (
+          <View style={styles.err}><Text style={styles.errText}>{error}</Text></View>
+        )}
 
-        {/* Response summary */}
-        <View style={styles.respSummary}>
-          {[
-            { n: '22/25', l: 'Answered', color: C.text },
-            { n: String(quiz.correct_count), l: 'Correct', color: C.green },
-            { n: String(quiz.wrong_count), l: 'Incorrect', color: C.red },
-            { n: String(quiz.unanswered_count), l: 'Unanswered', color: C.gray400 },
-          ].map(r => (
-            <View key={r.l} style={styles.respStat}>
-              <Text style={[styles.respN, { color: r.color }]}>{r.n}</Text>
-              <Text style={styles.respL}>{r.l}</Text>
+        {!loading && !error && attempt && (
+          <>
+            {/* Attempt status */}
+            <View style={styles.statusCard}>
+              <View style={styles.statusRow}>
+                <Text style={styles.statusLabel}>Status</Text>
+                <Badge variant={attempt.status === 'submitted' || attempt.auto_submitted ? 'green' : 'blue'}>
+                  {statusLabel(attempt.status)}
+                </Badge>
+              </View>
+              <View style={styles.statusRow}>
+                <Text style={styles.statusLabel}>Score</Text>
+                <Text style={styles.statusValue}>{attempt.score != null ? `${attempt.score}%` : '--'}</Text>
+              </View>
+              {attempt.auto_submitted && (
+                <View style={styles.statusRow}>
+                  <Text style={styles.statusLabel}>Submitted</Text>
+                  <Text style={[styles.statusValue, { color: C.textSub }]}>Auto-submitted (deadline passed)</Text>
+                </View>
+              )}
+              {complete ? (
+                <View style={styles.statusRow}>
+                  <Text style={styles.statusLabel}>Grading</Text>
+                  <Badge variant="green">Complete</Badge>
+                </View>
+              ) : (
+                <View style={styles.statusRow}>
+                  <Text style={styles.statusLabel}>Grading</Text>
+                  <Badge variant="orange">Short answers awaiting your score</Badge>
+                </View>
+              )}
             </View>
-          ))}
-        </View>
 
-        {/* Bar chart */}
-        <View style={styles.chartCard}>
-          <Text style={styles.chartLabel}>Final Distribution</Text>
-          <View style={styles.barsContainer}>
-            {BARS.map(b => (
-              <View key={b.opt} style={styles.barCol}>
-                <View style={styles.barWrapper}>
-                  <View
-                    style={[
-                      styles.barFill,
-                      { height: Math.round((b.pct / 100) * MAX_BAR_H) || 4 },
-                      { backgroundColor: b.correct ? C.green : C.gray300 },
-                    ]}
-                  />
+            {/* Unscored short answers */}
+            <Text style={styles.sectionTitle}>
+              Short answers to score {unscored.length > 0 ? `(${unscored.length})` : ''}
+            </Text>
+            {unscored.length === 0 && !complete && (
+              <View style={styles.empty}>
+                <Ionicons name="checkmark-circle" size={28} color={C.green} />
+                <Text style={styles.emptyText}>All short answers are scored.</Text>
+              </View>
+            )}
+            {unscored.map(answer => (
+              <View key={answer.answer_id} style={styles.answerCard}>
+                <View style={styles.answerBody}>
+                  <Text style={styles.answerQuestion}>{answer.question}</Text>
+                  <View style={styles.answerMeta}>
+                    <Text style={styles.metaLabel}>Student's answer</Text>
+                    <Text style={styles.answerText}>{answer.answer ?? '(no answer)'}</Text>
+                    {answer.suggested_answer && (
+                      <>
+                        <Text style={styles.metaLabel}>Ideal answer</Text>
+                        <Text style={[styles.answerText, { color: C.textSub }]}>{answer.suggested_answer}</Text>
+                      </>
+                    )}
+                  </View>
+                  <View style={styles.scoreRow}>
+                    <TextInput
+                      style={styles.scoreInput}
+                      value={scoreInputs[answer.answer_id] ?? ''}
+                      onChangeText={t => setScoreInputs(prev => ({ ...prev, [answer.answer_id]: t }))}
+                      keyboardType="numeric"
+                      placeholder="0-100"
+                      maxLength={3}
+                    />
+                    <TouchableOpacity
+                      style={styles.suggestBtn}
+                      onPress={() => handleSuggest(answer)}
+                      disabled={scoring[answer.answer_id]}
+                    >
+                      <Ionicons name="sparkles" size={14} color={C.primary} />
+                      <Text style={styles.suggestText}>AI suggest</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.saveBtn}
+                      onPress={() => handleSave(answer)}
+                      disabled={scoring[answer.answer_id]}
+                    >
+                      <Text style={styles.saveText}>Save</Text>
+                    </TouchableOpacity>
+                    {answer.suggestedScore != null && (
+                      <Text style={styles.aiHint}>AI suggests {Math.round(answer.suggestedScore)}% · {answer.suggestedReason}</Text>
+                    )}
+                  </View>
                 </View>
-                <Text style={[styles.barPct, { color: b.correct ? C.green : C.textSub }]}>
-                  {b.pct}%
-                </Text>
-                <View style={[styles.barOptLabel, { backgroundColor: b.correct ? C.greenLt : C.gray100 }]}>
-                  <Text style={[styles.barOptText, { color: b.correct ? C.greenDk : C.gray600 }]}>{b.opt}</Text>
-                </View>
-                <Text style={styles.barCount}>{b.count}</Text>
               </View>
             ))}
-          </View>
-        </View>
 
-        {/* Breakdown button */}
-        <View style={styles.actionRow}>
-          <TouchableOpacity style={styles.primaryBtn} onPress={() => navigation.navigate('Breakdown')}>
-            <Ionicons name="list-outline" size={16} color="#fff" />
-            <Text style={styles.primaryBtnText}>View Individual Breakdown</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={{ height: 20 }} />
+            {complete && (
+              <View style={styles.doneCard}>
+                <Ionicons name="checkmark-circle" size={32} color={C.green} />
+                <Text style={styles.doneTitle}>Grading complete</Text>
+                <Text style={styles.doneSub}>
+                  Final score: <Text style={styles.doneScore}>{attempt.score != null ? `${attempt.score}%` : '--'}</Text>
+                </Text>
+              </View>
+            )}
+
+            <View style={{ height: 24 }} />
+          </>
+        )}
       </ScrollView>
     </View>
   )
@@ -95,133 +220,51 @@ export default function ResultsClosed({ navigation }) {
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: C.bg },
-  card: {
-    margin: 16,
-    backgroundColor: C.card,
-    borderRadius: 12,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: C.border,
+  content: { padding: 16 },
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 40 },
+  err: { padding: 16 },
+  errText: { fontSize: 13, color: C.red },
+  statusCard: {
+    backgroundColor: C.card, borderRadius: 12, padding: 14, marginBottom: 12,
+    borderWidth: 1, borderColor: C.border,
   },
-  quizQuestion: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: C.text,
-    lineHeight: 22,
+  statusRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  statusLabel: { fontSize: 12, fontWeight: '700', color: C.textSub },
+  statusValue: { fontSize: 15, fontWeight: '800', color: C.text },
+  sectionTitle: { fontSize: 14, fontWeight: '800', color: C.text, marginBottom: 8 },
+  empty: { alignItems: 'center', paddingVertical: 30, gap: 8 },
+  emptyText: { fontSize: 14, color: C.textSub },
+  answerCard: {
+    backgroundColor: C.card, borderRadius: 10, padding: 12, marginBottom: 8,
+    borderWidth: 1, borderColor: C.border,
   },
-  timerBlock: {
-    alignItems: 'center',
-    paddingVertical: 20,
-    backgroundColor: C.card,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: C.border,
+  answerBody: { flex: 1 },
+  answerQuestion: { fontSize: 14, fontWeight: '800', color: C.text, lineHeight: 20, marginBottom: 8 },
+  answerMeta: { marginBottom: 8 },
+  metaLabel: { fontSize: 11, fontWeight: '700', color: C.textSub, marginBottom: 4 },
+  answerText: { fontSize: 13, color: C.text, lineHeight: 18, marginBottom: 4 },
+  scoreRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap',
   },
-  timerNum: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: C.textSub,
+  scoreInput: {
+    width: 70, height: 40, borderWidth: 1.5, borderColor: C.border, borderRadius: 8,
+    paddingHorizontal: 8, fontSize: 14, color: C.text, backgroundColor: C.card, textAlign: 'center',
   },
-  timerLabel: {
-    fontSize: 12,
-    color: C.textSub,
-    marginTop: 4,
+  suggestBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 10,
+    borderRadius: 8, borderWidth: 1, borderColor: C.border, backgroundColor: C.card,
   },
-  respSummary: {
-    flexDirection: 'row',
-    backgroundColor: C.card,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    borderRadius: 12,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: C.border,
-    justifyContent: 'space-around',
+  suggestText: { fontSize: 12, fontWeight: '700', color: C.primary },
+  saveBtn: {
+    paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, backgroundColor: C.primary,
   },
-  respStat: {
-    alignItems: 'center',
+  saveText: { fontSize: 13, fontWeight: '700', color: '#fff' },
+  aiHint: { fontSize: 11, color: C.textSub, marginTop: 4, fontStyle: 'italic' },
+  doneCard: {
+    backgroundColor: C.greenLt, borderRadius: 12, padding: 16, marginTop: 10, alignItems: 'center',
+    borderWidth: 1, borderColor: C.greenLt,
   },
-  respN: {
-    fontSize: 20,
-    fontWeight: '800',
-  },
-  respL: {
-    fontSize: 11,
-    color: C.textSub,
-    marginTop: 2,
-  },
-  chartCard: {
-    backgroundColor: C.card,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    borderRadius: 12,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: C.border,
-  },
-  chartLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: C.text,
-    marginBottom: 14,
-  },
-  barsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'flex-end',
-    height: 130,
-  },
-  barCol: {
-    alignItems: 'center',
-    gap: 4,
-    flex: 1,
-  },
-  barWrapper: {
-    height: MAX_BAR_H,
-    justifyContent: 'flex-end',
-    width: 36,
-  },
-  barFill: {
-    width: 36,
-    borderRadius: 4,
-    minHeight: 4,
-  },
-  barPct: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  barOptLabel: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  barOptText: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  barCount: {
-    fontSize: 12,
-    color: C.textSub,
-  },
-  actionRow: {
-    paddingHorizontal: 16,
-  },
-  primaryBtn: {
-    backgroundColor: C.primary,
-    borderRadius: 10,
-    paddingVertical: 13,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  primaryBtnText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#fff',
-  },
+  doneTitle: { fontSize: 16, fontWeight: '800', color: C.greenDk, marginTop: 8 },
+  doneSub: { fontSize: 13, color: C.text, marginTop: 4 },
+  doneScore: { fontSize: 20, fontWeight: '800', color: C.greenDk },
 })

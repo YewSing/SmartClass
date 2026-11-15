@@ -1,165 +1,147 @@
+import { useState, useEffect, useCallback } from 'react'
 import {
-  View, Text, FlatList, StyleSheet,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, FlatList,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
+import { useLecturer } from '../context/LecturerContext'
 import Topbar from '../components/Topbar'
-import { BREAKDOWN_ROWS } from '../data/mockData'
+import Badge from '../components/Badge'
+import { getQuizAttempts } from '../services/api'
 import { C } from '../theme'
 
-export default function Breakdown({ navigation }) {
-  const renderItem = ({ item: r }) => (
-    <View style={styles.row}>
-      <Text style={styles.rowName}>{r.name}</Text>
-      <Text style={styles.rowAnswer}>{r.answer}</Text>
-      <View style={styles.rowResult}>
-        {r.correct === true  ? <Text style={styles.resultYes}>✅</Text>
-         : r.correct === false ? <Text style={styles.resultNo}>❌</Text>
-         : <Text style={styles.resultNA}>—</Text>}
+export default function Breakdown({ navigation, route }) {
+  const { showToast } = useLecturer()
+  const { quizId } = (route?.params ?? {})
+
+  const [attempts, setAttempts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  const loadAttempts = useCallback(async () => {
+    if (!quizId) return
+    try {
+      const list = await getQuizAttempts(quizId)
+      setAttempts(list)
+      setError(null)
+    } catch (e) { setError(e.message || 'Could not load breakdown') }
+    finally { setLoading(false) }
+  }, [quizId])
+
+  useEffect(() => { loadAttempts() }, [loadAttempts])
+
+  const submitted = attempts.filter(a => a.status === 'submitted' || a.auto_submitted)
+  const scored = submitted.filter(a => a.score != null)
+  const avg = scored.length ? (scored.reduce((s, a) => s + a.score, 0) / scored.length).toFixed(0) : '--'
+  const correctCount = scored.reduce((s, a) => s + (a.score >= 50 ? 1 : 0), 0)
+
+  const renderItem = ({ item: a }) => (
+    <TouchableOpacity
+      style={styles.row}
+      onPress={() => navigation.navigate('ResultsClosed', { attemptId: a.attempt_id, quizId })}
+    >
+      <View style={styles.rowBody}>
+        <Text style={styles.rowStudent}>Student #{String(a.student_id).slice(-4)}</Text>
+        <Text style={styles.rowMeta}>{a.started_at ? new Date(a.started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</Text>
       </View>
-    </View>
+      <View style={styles.rowRight}>
+        <Badge variant={a.status === 'submitted' || a.auto_submitted ? 'green' : 'blue'} dot>
+          {a.status === 'started' ? 'In progress' : a.status === 'submitted' ? 'Submitted' : 'Auto-submitted'}
+        </Badge>
+        <Text style={styles.rowScore}>{a.score != null ? `${a.score}%` : '--'}</Text>
+      </View>
+    </TouchableOpacity>
   )
 
   return (
     <View style={styles.flex}>
-      <Topbar title="Response Breakdown" onBack={() => navigation.goBack()} />
-
-      {/* Question banner */}
-      <View style={styles.questionBanner}>
-        <Text style={styles.questionText}>
-          What does SOLID stand for in object-oriented design principles?
-        </Text>
-        <View style={styles.correctRow}>
-          <Ionicons name="checkmark-circle" size={14} color={C.green} style={{ marginTop: 1, flexShrink: 0 }} />
-          <Text style={styles.correctText}>
-            Correct: D — Single Responsibility, Open/Closed, Liskov, Interface Segregation, Dependency Inversion
-          </Text>
-        </View>
-      </View>
-
-      {/* Summary stats */}
-      <View style={styles.summaryRow}>
-        <View style={[styles.bkdnStat, { backgroundColor: C.greenLt }]}>
-          <Text style={[styles.bkdnNum, { color: C.green }]}>18</Text>
-          <Text style={[styles.bkdnLbl, { color: C.greenDk }]}>Correct</Text>
-        </View>
-        <View style={[styles.bkdnStat, { backgroundColor: C.redLt }]}>
-          <Text style={[styles.bkdnNum, { color: C.red }]}>4</Text>
-          <Text style={[styles.bkdnLbl, { color: C.redDk }]}>Incorrect</Text>
-        </View>
-        <View style={[styles.bkdnStat, { backgroundColor: C.gray100 }]}>
-          <Text style={[styles.bkdnNum, { color: C.gray500 }]}>3</Text>
-          <Text style={[styles.bkdnLbl, { color: C.gray500 }]}>Unanswered</Text>
-        </View>
-      </View>
-
-      {/* Table header */}
-      <View style={styles.tableHeader}>
-        <Text style={[styles.headerText, { flex: 1 }]}>Student</Text>
-        <Text style={[styles.headerText, { width: 70, textAlign: 'center' }]}>Answer</Text>
-        <Text style={[styles.headerText, { width: 50, textAlign: 'center' }]}>Result</Text>
-      </View>
-
-      <FlatList
-        data={BREAKDOWN_ROWS}
-        keyExtractor={(_, i) => String(i)}
-        renderItem={renderItem}
-        ListFooterComponent={<View style={{ height: 24 }} />}
-        style={styles.flex}
+      <Topbar
+        title="Response Breakdown"
+        sub="Per-student attempts · tap a row to review answers"
+        onBack={() => navigation.goBack()}
       />
+      <ScrollView style={styles.flex} showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+        {/* Summary */}
+        <View style={styles.summaryCard}>
+          <View style={styles.summaryRow}>
+            <View style={styles.summaryCell}>
+              <Text style={styles.summaryNum}>{attempts.length}</Text>
+              <Text style={styles.summaryLbl}>Attempts</Text>
+            </View>
+            <View style={styles.summaryCell}>
+              <Text style={[styles.summaryNum, { color: C.green }]}>{submitted.length}</Text>
+              <Text style={styles.summaryLbl}>Finished</Text>
+            </View>
+            <View style={styles.summaryCell}>
+              <Text style={[styles.summaryNum, { color: C.textSub }]}>{avg}</Text>
+              <Text style={styles.summaryLbl}>Avg score</Text>
+            </View>
+            <View style={styles.summaryCell}>
+              <Text style={[styles.summaryNum, { color: C.greenDk }]}>{correctCount}</Text>
+              <Text style={styles.summaryLbl}>Passing (≥50%)</Text>
+            </View>
+          </View>
+        </View>
+
+        {loading && <View style={styles.loading}><ActivityIndicator size="large" color={C.primary} /></View>}
+
+        {!loading && error && (
+          <View style={styles.err}><Text style={styles.errText}>{error}</Text></View>
+        )}
+
+        {!loading && !error && attempts.length === 0 && (
+          <View style={styles.empty}>
+            <Ionicons name="people-outline" size={32} color={C.textHint} />
+            <Text style={styles.emptyText}>No attempts yet</Text>
+          </View>
+        )}
+
+        {!loading && !error && attempts.length > 0 && (
+          <>
+            <Text style={styles.listTitle}>Students <Text style={styles.listSub}>tap to view answers & score short responses</Text></Text>
+            <FlatList
+              data={attempts}
+              keyExtractor={(_, i) => String(i)}
+              renderItem={renderItem}
+              ItemSeparatorComponent={() => <View style={styles.separator} />}
+              contentContainerStyle={{ paddingBottom: 90 }}
+              style={styles.flex}
+            />
+          </>
+        )}
+
+        <View style={{ height: 24 }} />
+      </ScrollView>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: C.bg },
-  questionBanner: {
-    backgroundColor: C.card,
-    padding: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: C.border,
-    gap: 8,
+  content: { padding: 16 },
+  summaryCard: {
+    backgroundColor: C.card, borderRadius: 12, padding: 14, marginBottom: 12,
+    borderWidth: 1, borderColor: C.border,
   },
-  questionText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: C.text,
-    lineHeight: 21,
-  },
-  correctRow: {
-    flexDirection: 'row',
-    gap: 6,
-    alignItems: 'flex-start',
-  },
-  correctText: {
-    fontSize: 12,
-    color: C.textSub,
-    flex: 1,
-    lineHeight: 18,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    gap: 10,
-    padding: 14,
-    backgroundColor: C.card,
-    borderBottomWidth: 1,
-    borderBottomColor: C.border,
-  },
-  bkdnStat: {
-    flex: 1,
-    borderRadius: 10,
-    padding: 10,
-    alignItems: 'center',
-  },
-  bkdnNum: {
-    fontSize: 22,
-    fontWeight: '800',
-  },
-  bkdnLbl: {
-    fontSize: 11,
-    fontWeight: '700',
-    marginTop: 2,
-  },
-  tableHeader: {
-    flexDirection: 'row',
-    padding: 10,
-    paddingHorizontal: 14,
-    backgroundColor: C.gray50,
-    borderBottomWidth: 1,
-    borderBottomColor: C.border,
-  },
-  headerText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: C.textSub,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-  },
+  summaryRow: { flexDirection: 'row', gap: 10 },
+  summaryCell: { flex: 1, alignItems: 'center' },
+  summaryNum: { fontSize: 22, fontWeight: '800', color: C.text },
+  summaryLbl: { fontSize: 11, color: C.textSub, marginTop: 2 },
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 40 },
+  err: { padding: 16 },
+  errText: { fontSize: 13, color: C.red },
+  empty: { alignItems: 'center', paddingVertical: 40, gap: 8 },
+  emptyText: { fontSize: 15, fontWeight: '700', color: C.text },
+  listTitle: { fontSize: 15, fontWeight: '800', color: C.text, marginTop: 10, marginBottom: 4 },
+  listSub: { fontSize: 12, color: C.textSub, marginBottom: 8 },
+  separator: { height: 1, backgroundColor: C.border, marginHorizontal: 16 },
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: C.border,
-    backgroundColor: C.card,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 16, paddingVertical: 12, backgroundColor: C.card,
+    borderBottomWidth: 1, borderBottomColor: C.border,
   },
-  rowName: {
-    flex: 1,
-    fontSize: 13,
-    color: C.text,
-  },
-  rowAnswer: {
-    width: 70,
-    textAlign: 'center',
-    fontSize: 13,
-    fontWeight: '700',
-    color: C.text,
-  },
-  rowResult: {
-    width: 50,
-    alignItems: 'center',
-  },
-  resultYes: { fontSize: 16 },
-  resultNo:  { fontSize: 16 },
-  resultNA:  { fontSize: 16, color: C.gray300 },
+  rowBody: { flex: 1, marginRight: 10 },
+  rowStudent: { fontSize: 14, fontWeight: '700', color: C.text },
+  rowMeta: { fontSize: 11, color: C.textHint, marginTop: 2 },
+  rowRight: { alignItems: 'flex-end', minWidth: 120 },
+  rowScore: { fontSize: 15, fontWeight: '800', color: C.text, marginTop: 2 },
 })
