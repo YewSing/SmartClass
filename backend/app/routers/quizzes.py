@@ -541,9 +541,6 @@ async def quick_add_quiz_endpoint(
             db, course_id, body.prompt, body.material_ids, body.level, lecturer.id,
         )
     except ValueError as exc:
-        if str(exc) == "no_materials":
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                "No indexed materials for this course — sync the KB first")
         if str(exc) == "no_questions_generated":
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
                                 "Could not draft any questions — check the counts in your instruction")

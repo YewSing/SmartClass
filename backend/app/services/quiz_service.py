@@ -131,6 +131,59 @@ async def parse_quick_add(prompt: str) -> QuickAddSpec:
     )
 
 
+_INSTRUCTION_PROMPT = """You draft one exam question for a university course, based ONLY on
+the lecturer's instruction below (no course material is provided). Return a single JSON
+object with exactly these keys:
+- "question": the question text (string)
+- "options": 2-5 option strings (mcq) or an empty list (short_answer)
+- "correct_answer": the correct option text (mcq) or null (short_answer)
+- "suggested_answer": the ideal short answer (short_answer) or null (mcq)
+- "level": one of beginner, intermediate, advanced
+- "topic": a short topic name (2-5 words) drawn from the instruction
+Reply with only the JSON object.
+
+Lecturer's instruction: {instruction}
+
+Question type: {qtype}. Level: {level}."""
+
+
+async def generate_questions_from_instruction(
+    course_id: int,
+    instruction: str,
+    qtype: str,
+    level: str,
+    count: int,
+) -> list["QuizQuestion"]:
+    """Draft `count` questions from the lecturer's instruction alone — used when the
+    quick-add flow runs without any material selected. Questions carry no source
+    material (source_material_id NULL); topic comes from the LLM."""
+    created: list["QuizQuestion"] = []
+    for _ in range(count):
+        prompt = _INSTRUCTION_PROMPT.format(instruction=instruction[:2000], qtype=qtype, level=level)
+        generated = await llm.chat_json(
+            [{"role": "user", "content": prompt}],
+            validator=GeneratedQuestion,
+        )
+        q = QuizQuestion(
+            course_id=course_id,
+            type=qtype,
+            question=generated.question,
+            options=generated.options or None,
+            correct_answer=generated.correct_answer,
+            suggested_answer=generated.suggested_answer,
+            level=level,  # the lecturer's requested level wins (FR-602)
+            source_material_id=None,
+            topic=generated.topic,
+            status="draft",
+        )
+        async with AsyncSessionLocal() as db:
+            db.add(q)
+            await db.commit()
+            await db.refresh(q)
+            created.append(q)
+    return created
+
+
 async def quick_add_quiz(
     db,
     course_id: int,
@@ -139,10 +192,12 @@ async def quick_add_quiz(
     level: str,
     created_by: int,
 ) -> tuple["Quiz", list["QuizQuestion"]]:
-    """Parse the prompt, draft the requested questions from the materials and save
-    everything as one draft quiz (review → publish later). Returns (quiz, questions).
+    """Parse the prompt, draft the requested questions and save everything as one draft
+    quiz (review → publish later). Returns (quiz, questions).
 
-    Materials default to every indexed material of the course when none are passed.
+    With materials selected the questions are grounded in them (retrieval per material);
+    with none, the course's latest indexed materials are used; if the course has none
+    indexed at all the questions are drafted from the prompt + level alone.
     """
     spec = await parse_quick_add(prompt)
 
@@ -157,15 +212,19 @@ async def quick_add_quiz(
             ).order_by(KbMaterial.id.desc()).limit(5)
         )
         ids = [r for (r,) in rows.all()]
-    if not ids:
-        raise ValueError("no_materials")
 
-    questions: list[QuizQuestion] = []
+    questions: list["QuizQuestion"] = []
     for qtype, count in (("mcq", spec.mcq_count), ("short_answer", spec.short_answer_count)):
         if count <= 0:
             continue
-        # generate_questions commits with its own session; rows come back detached-safe
-        questions.extend(await generate_questions(course_id, ids, qtype, level, count))
+        if ids:
+            # grounded: retrieval per material (FR-814 — materials are never parsed)
+            questions.extend(await generate_questions(course_id, ids, qtype, level, count))
+        else:
+            # no materials anywhere in the course: prompt + level only
+            questions.extend(
+                await generate_questions_from_instruction(course_id, prompt, qtype, level, count)
+            )
     if not questions:
         raise ValueError("no_questions_generated")
 

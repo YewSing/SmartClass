@@ -257,19 +257,46 @@ async def test_quick_add_creates_draft_quiz(lecturer_client, classroom, db_sessi
     assert body["closes_at"] is not None  # valid two days from now
 
 
-async def test_quick_add_no_materials_422(lecturer_client, classroom, db_session, monkeypatch):
+async def test_quick_add_without_materials_uses_prompt_only(lecturer_client, classroom,
+                                                            db_session, monkeypatch):
+    """No material selected and no indexed course materials → the questions are drafted
+    from the prompt + level alone (ungrounded), with no source material attached."""
     from app.services import quiz_service
 
     async def fake_parse(prompt):
         from app.schemas.quiz import QuickAddSpec
         return QuickAddSpec(mcq_count=1)
 
+    async def fake_generate_from_instruction(course_id, instruction, qtype, level, count):
+        from app.core.database import AsyncSessionLocal
+        from app.models.quiz import QuizQuestion
+        out = []
+        async with AsyncSessionLocal() as db:
+            for i in range(count):
+                q = QuizQuestion(
+                    course_id=course_id, type=qtype, question=f"prompt-only {qtype} {i}",
+                    level=level, topic="prompt", status="draft",
+                    options=["a", "b"] if qtype == "mcq" else None,
+                    correct_answer="a" if qtype == "mcq" else None,
+                )
+                db.add(q)
+                out.append(q)
+            await db.commit()
+            for q in out:
+                await db.refresh(q)
+        return out
+
     monkeypatch.setattr(quiz_service, "parse_quick_add", fake_parse)
+    monkeypatch.setattr(quiz_service, "generate_questions_from_instruction",
+                        fake_generate_from_instruction)
     resp = await lecturer_client.post(
         f"/lecturer/courses/{classroom['course_id']}/quizzes/quick-add",
-        json={"prompt": "create 1 mcq"},
+        json={"prompt": "create 1 mcq about recursion"},
     )
-    assert resp.status_code == 422, resp.text
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["status"] == "draft"
+    assert body["question_count"] == 1
 
 
 # ── attempts_allowed + review_visible in taking/results ──────────────────────

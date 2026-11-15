@@ -9,7 +9,7 @@ import Topbar from '../components/Topbar'
 import Badge from '../components/Badge'
 import {
   getClasses, getMaterials, syncMaterials, getQuizDrafts,
-  generateQuiz, editQuizQuestion, approveQuizQuestion, deleteQuizQuestion,
+  editQuizQuestion, approveQuizQuestion, deleteQuizQuestion,
   createQuizQuestion, quickAddQuiz, publishQuiz, saveQuizDraft,
 } from '../services/api'
 import { C } from '../theme'
@@ -54,6 +54,177 @@ function dtLocal(date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const DAY_NAMES = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+
+/** Number input with −/+ stepper buttons (still typeable). */
+function NumberField({ value, onChange, min = 1, max = 999, step = 1, testID }) {
+  const clamp = (v) => Math.max(min, Math.min(max, v))
+  const bump = (dir) => {
+    const cur = parseInt(value, 10)
+    onChange(String(clamp((Number.isNaN(cur) ? min : cur) + dir * step)))
+  }
+  return (
+    <View style={styles.numRow}>
+      <TouchableOpacity style={styles.stepBtn} onPress={() => bump(-1)} testID={testID ? `${testID}-dec` : undefined}>
+        <Ionicons name="remove" size={16} color={C.text} />
+      </TouchableOpacity>
+      <TextInput
+        style={styles.inputNum}
+        value={value}
+        onChangeText={onChange}
+        keyboardType="number-pad"
+        testID={testID}
+      />
+      <TouchableOpacity style={styles.stepBtn} onPress={() => bump(1)} testID={testID ? `${testID}-inc` : undefined}>
+        <Ionicons name="add" size={16} color={C.text} />
+      </TouchableOpacity>
+    </View>
+  )
+}
+
+/** Date-time field with a calendar picker modal (+ quick chips) — pure RN, works on web. */
+function DateTimeField({ value, onChange, testID }) {
+  const [open, setOpen] = useState(false)
+  const parsed = value ? new Date(value) : null
+  const [viewMonth, setViewMonth] = useState(() => parsed ?? new Date())
+  const [sel, setSel] = useState(() => parsed ?? new Date())
+
+  const openPicker = () => {
+    const base = value ? new Date(value) : new Date()
+    setSel(base)
+    setViewMonth(base)
+    setOpen(true)
+  }
+
+  const firstWeekday = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), 1).getDay()
+  const daysInMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 0).getDate()
+  const sameDay = (a, b) => a && b && a.toDateString() === b.toDateString()
+
+  const shiftMonth = (dir) => setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() + dir, 1))
+  const bumpMinutes = (delta) => {
+    const next = new Date(sel)
+    next.setMinutes(next.getMinutes() + delta)
+    setSel(next)
+  }
+  const bumpHours = (delta) => {
+    const next = new Date(sel)
+    next.setHours(next.getHours() + delta)
+    setSel(next)
+  }
+  const quick = (make) => {
+    const next = make()
+    setSel(next)
+    setViewMonth(next)
+  }
+
+  const confirm = () => { onChange(dtLocal(sel)); setOpen(false) }
+  const clear = () => { onChange(''); setOpen(false) }
+
+  return (
+    <View>
+      <TouchableOpacity style={styles.dateBtn} onPress={openPicker} testID={testID}>
+        <Ionicons name="calendar-outline" size={15} color={C.yellowDk} />
+        <Text style={[styles.dateBtnText, !value && { color: C.textHint }]}>
+          {value ? dtLocal(parsed).replace('T', ' ') : 'not set'}
+        </Text>
+      </TouchableOpacity>
+
+      <Modal visible={open} animationType="slide" transparent onRequestClose={() => setOpen(false)}>
+        <View style={styles.overlay}>
+          <View style={styles.pickerSheet}>
+            {/* quick chips */}
+            <View style={styles.chipRow}>
+              {[
+                ['Now', () => new Date()],
+                ['+15 min', () => new Date(Date.now() + 15 * 60000)],
+                ['+1 hour', () => new Date(Date.now() + 60 * 60000)],
+                ['Tomorrow', () => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(8, 0, 0, 0); return d }],
+                ['+2 days', () => { const d = new Date(); d.setDate(d.getDate() + 2); return d }],
+                ['+7 days', () => { const d = new Date(); d.setDate(d.getDate() + 7); return d }],
+              ].map(([label, make]) => (
+                <TouchableOpacity key={label} style={styles.quickChip} onPress={() => quick(make)}>
+                  <Text style={styles.quickChipText}>{label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* month header */}
+            <View style={styles.monthRow}>
+              <TouchableOpacity style={styles.stepBtn} onPress={() => shiftMonth(-1)}>
+                <Ionicons name="chevron-back" size={16} color={C.text} />
+              </TouchableOpacity>
+              <Text style={styles.monthLabel}>
+                {MONTH_NAMES[viewMonth.getMonth()]} {viewMonth.getFullYear()}
+              </Text>
+              <TouchableOpacity style={styles.stepBtn} onPress={() => shiftMonth(1)}>
+                <Ionicons name="chevron-forward" size={16} color={C.text} />
+              </TouchableOpacity>
+            </View>
+
+            {/* day grid */}
+            <View style={styles.weekRow}>
+              {DAY_NAMES.map((d, i) => <Text key={i} style={styles.weekDay}>{d}</Text>)}
+            </View>
+            <View style={styles.grid}>
+              {Array.from({ length: firstWeekday }).map((_, i) => <View key={`b${i}`} style={styles.dayCell} />)}
+              {Array.from({ length: daysInMonth }).map((_, i) => {
+                const day = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), i + 1)
+                const on = sameDay(day, sel)
+                return (
+                  <TouchableOpacity key={i} style={[styles.dayCell, on && styles.dayCellOn]} onPress={() => setSel(new Date(day))}>
+                    <Text style={[styles.dayText, on && styles.dayTextOn]}>{i + 1}</Text>
+                  </TouchableOpacity>
+                )
+              })}
+            </View>
+
+            {/* time steppers */}
+            <View style={styles.timeRow}>
+              <View style={styles.timeGroup}>
+                <Text style={styles.subLabel}>Hour</Text>
+                <View style={styles.timeSteppers}>
+                  <TouchableOpacity style={styles.stepBtnSm} onPress={() => bumpHours(-1)}>
+                    <Ionicons name="remove" size={13} color={C.text} />
+                  </TouchableOpacity>
+                  <Text style={styles.timeValue}>{String(sel.getHours()).padStart(2, '0')}</Text>
+                  <TouchableOpacity style={styles.stepBtnSm} onPress={() => bumpHours(1)}>
+                    <Ionicons name="add" size={13} color={C.text} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+              <View style={styles.timeGroup}>
+                <Text style={styles.subLabel}>Minute</Text>
+                <View style={styles.timeSteppers}>
+                  <TouchableOpacity style={styles.stepBtnSm} onPress={() => bumpMinutes(-5)}>
+                    <Ionicons name="remove" size={13} color={C.text} />
+                  </TouchableOpacity>
+                  <Text style={styles.timeValue}>{String(sel.getMinutes()).padStart(2, '0')}</Text>
+                  <TouchableOpacity style={styles.stepBtnSm} onPress={() => bumpMinutes(5)}>
+                    <Ionicons name="add" size={13} color={C.text} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.btnRow}>
+              <TouchableOpacity style={[styles.btn, styles.btnOutline]} onPress={clear}>
+                <Text style={styles.btnOutlineText}>Clear</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.btn, styles.btnOutline]} onPress={() => setOpen(false)}>
+                <Text style={styles.btnOutlineText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.btn, styles.btnPrimary]} onPress={confirm}>
+                <Text style={styles.btnPrimaryText}>Set</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  )
+}
+
 export default function CreateQuiz({ navigation, route }) {
   const { showToast } = useLecturer()
   const { courseId: paramCourseId, courseCode, courseName } = (route?.params ?? {})
@@ -71,17 +242,14 @@ export default function CreateQuiz({ navigation, route }) {
   const [draftsLoading, setDraftsLoading] = useState(false)
   const [syncing, setSyncing] = useState(false)
 
-  // Generate-from-materials sheet
-  const [generateVisible, setGenerateVisible] = useState(false)
+  // One AI drafting sheet: materials (optional) + natural-language prompt + level.
+  // With materials selected the AI grounds the questions in them; with none it drafts
+  // from the prompt + level alone.
+  const [aiVisible, setAiVisible] = useState(false)
   const [materials, setMaterials] = useState([])
   const [materialsLoading, setMaterialsLoading] = useState(false)
   const [selectedMaterials, setSelectedMaterials] = useState([])
-  const [genType, setGenType] = useState('mcq')
   const [genLevel, setGenLevel] = useState('beginner')
-  const [genCount, setGenCount] = useState('5')
-  const [genBusy, setGenBusy] = useState(false)
-
-  // LLM quick-add ("create 5 mcq, 2 short answer, duration 15min, valid two days from now")
   const [quickPrompt, setQuickPrompt] = useState('')
   const [quickBusy, setQuickBusy] = useState(false)
 
@@ -213,6 +381,7 @@ export default function CreateQuiz({ navigation, route }) {
         level: genLevel,
       })
       setQuickPrompt('')
+      setAiVisible(false)
       await loadDrafts()
       if (quiz.time_limit_minutes) setTimeLimit(String(quiz.time_limit_minutes))
       if (quiz.title) setQuizTitle(quiz.title)
@@ -236,28 +405,6 @@ export default function CreateQuiz({ navigation, route }) {
       showToast(e.message || 'Sync failed', 'error')
     } finally {
       setSyncing(false)
-    }
-  }
-
-  const handleGenerate = async () => {
-    if (genBusy || selectedMaterials.length === 0) return
-    setGenBusy(true)
-    try {
-      const count = Math.max(1, Math.min(50, parseInt(genCount || '5', 10) || 5))
-      await generateQuiz(courseId, {
-        material_ids: selectedMaterials,
-        type: genType,
-        level: genLevel,
-        count,
-      })
-      setGenerateVisible(false)
-      setGenCount('5')
-      await loadDrafts()
-      showToast('Questions drafted', 'success')
-    } catch (e) {
-      showToast(e.message || 'Could not generate questions', 'error')
-    } finally {
-      setGenBusy(false)
     }
   }
 
@@ -380,75 +527,15 @@ export default function CreateQuiz({ navigation, route }) {
       />
       <ScrollView style={styles.flex} showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
 
-        {/* 1 — AI quick-add */}
-        <Section tint="purple" badge="AI quick-add">
+        {/* 1 — build: one AI drafting button + manual add */}
+        <Section tint="purple" badge="Build questions">
           <Text style={styles.hintText}>
-            Say what you want, e.g. <Text style={styles.hintBold}>“create 5 mcq, 2 short answer, duration 15min, valid two days from now”</Text> — the AI reads your materials, drafts the questions and fills the details.
+            <Text style={styles.hintBold}>Draft with AI</Text> walks you through picking materials (optional), describing the quiz in your own words and a level — then drafts the questions and fills the details. Or add questions by hand.
           </Text>
-          <TextInput
-            style={styles.quickInput}
-            value={quickPrompt}
-            onChangeText={setQuickPrompt}
-            placeholder="create 5 mcq, 2 short answer, duration 15min…"
-            placeholderTextColor={C.textHint}
-            multiline
-            testID="quiz-quick-prompt"
-          />
-          <TouchableOpacity
-            style={[styles.btn, styles.btnPrimary, (!quickPrompt.trim() || quickBusy) && styles.btnDisabled]}
-            onPress={quickAdd}
-            disabled={!quickPrompt.trim() || quickBusy}
-            testID="quiz-quick-go"
-          >
-            {quickBusy
-              ? <ActivityIndicator size="small" color="#fff" />
-              : <Ionicons name="sparkles" size={16} color="#fff" />}
-            <Text style={styles.btnPrimaryText}>{quickBusy ? 'Drafting…' : 'Draft with AI'}</Text>
-          </TouchableOpacity>
-        </Section>
-
-        {/* 2 — materials + manual building */}
-        <Section tint="blue" badge="Build questions">
-          <View style={styles.materialsHead}>
-            <Text style={styles.subLabel}>Course materials (synced from Moodle)</Text>
-            <TouchableOpacity style={styles.syncBtn} onPress={syncFromMoodle} disabled={syncing} testID="quiz-sync">
-              {syncing
-                ? <ActivityIndicator size={12} color={C.primary} />
-                : <Ionicons name="sync" size={13} color={C.primary} />}
-              <Text style={styles.syncText}>{syncing ? 'Syncing…' : 'Sync Moodle'}</Text>
-            </TouchableOpacity>
-          </View>
-          {materialsLoading && <View style={styles.loadingSmall}><ActivityIndicator size={16} color={C.primary} /></View>}
-          {!materialsLoading && materials.length === 0 && (
-            <Text style={styles.hintText}>No indexed materials yet — press “Sync Moodle”, then generate from them.</Text>
-          )}
-          <View style={styles.materialsList}>
-            {materials.map(m => (
-              <TouchableOpacity
-                key={m.id}
-                style={[styles.materialChip, selectedMaterials.includes(m.id) && styles.materialChipActive]}
-                onPress={() => setSelectedMaterials(prev =>
-                  prev.includes(m.id) ? prev.filter(id => id !== m.id) : [...prev, m.id]
-                )}
-              >
-                <Text style={[styles.materialChipText, selectedMaterials.includes(m.id) && styles.materialChipTextActive]} numberOfLines={1}>{m.title}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          <View style={styles.pillRow}>
-            <Text style={styles.subLabel}>Level for new questions</Text>
-            <View style={styles.pills}>
-              {['beginner', 'intermediate', 'advanced'].map(l => (
-                <TouchableOpacity key={l} style={[styles.pill, genLevel === l && styles.pillActive]} onPress={() => setGenLevel(l)}>
-                  <Text style={[styles.pillText, genLevel === l && styles.pillTextActive]}>{l.charAt(0).toUpperCase() + l.slice(1)}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
           <View style={styles.buildRow}>
-            <TouchableOpacity style={[styles.buildBtn, { backgroundColor: C.blueLt }]} onPress={() => { loadMaterials(); setGenerateVisible(true) }} testID="quiz-generate">
+            <TouchableOpacity style={[styles.buildBtn, { backgroundColor: C.blueLt }]} onPress={() => { loadMaterials(); setAiVisible(true) }} testID="quiz-generate">
               <Ionicons name="sparkles-outline" size={16} color={C.blueDk} />
-              <Text style={[styles.buildBtnText, { color: C.blueDk }]}>Generate from materials</Text>
+              <Text style={[styles.buildBtnText, { color: C.blueDk }]}>Draft with AI</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.buildBtn, { backgroundColor: C.yellowLt }]} onPress={() => setAddVisible(true)} testID="quiz-add-question">
               <Ionicons name="add-circle-outline" size={16} color={C.yellowDk} />
@@ -525,21 +612,23 @@ export default function CreateQuiz({ navigation, route }) {
           <View style={styles.detailRow}>
             <View style={styles.detailCol}>
               <Text style={styles.subLabel}>Time limit (min)</Text>
-              <TextInput style={styles.input} value={timeLimit} onChangeText={setTimeLimit} keyboardType="numeric" />
+              <NumberField value={timeLimit} onChange={setTimeLimit} min={1} max={600} testID="quiz-timelimit" />
             </View>
             <View style={styles.detailCol}>
               <Text style={styles.subLabel}>Attempts allowed</Text>
-              <TextInput style={styles.input} value={attempts} onChangeText={setAttempts} keyboardType="numeric" />
+              <NumberField value={attempts} onChange={setAttempts} min={1} max={10} testID="quiz-attempts" />
             </View>
           </View>
           <View style={styles.detailRow}>
             <View style={styles.detailCol}>
               <Text style={styles.subLabel}>Open</Text>
-              <TextInput style={styles.input} value={opensAt} onChangeText={setOpensAt} placeholder="YYYY-MM-DDTHH:MM" placeholderTextColor={C.textHint} />
+              <DateTimeField value={opensAt} onChange={setOpensAt} testID="quiz-opens" />
             </View>
+          </View>
+          <View style={styles.detailRow}>
             <View style={styles.detailCol}>
               <Text style={styles.subLabel}>Close</Text>
-              <TextInput style={styles.input} value={closesAt} onChangeText={setClosesAt} placeholder="YYYY-MM-DDTHH:MM" placeholderTextColor={C.textHint} />
+              <DateTimeField value={closesAt} onChange={setClosesAt} testID="quiz-closes" />
             </View>
           </View>
           <View style={styles.switchRow}>
@@ -597,27 +686,75 @@ export default function CreateQuiz({ navigation, route }) {
         <View style={{ height: 24 }} />
       </ScrollView>
 
-      {/* Generate-from-materials sheet */}
-      <Sheet visible={generateVisible} onClose={() => setGenerateVisible(false)}>
+      {/* Draft with AI — one flow: materials (optional) + prompt + level */}
+      <Sheet visible={aiVisible} onClose={() => setAiVisible(false)}>
         <View style={styles.modalBody}>
-          <Text style={styles.modalTitle}>Generate questions</Text>
-          <Text style={styles.modalSub}>Draft questions from your indexed course materials (LLM-generated; review before publishing).</Text>
-          <Text style={styles.subLabel}>Type</Text>
-          <View style={styles.pills}>
-            {['mcq', 'short_answer'].map(t => (
-              <TouchableOpacity key={t} style={[styles.pill, genType === t && styles.pillActive]} onPress={() => setGenType(t)}>
-                <Text style={[styles.pillText, genType === t && styles.pillTextActive]}>{t === 'mcq' ? 'MCQ' : 'Short answer'}</Text>
+          <Text style={styles.modalTitle}>Draft with AI</Text>
+          <Text style={styles.modalSub}>
+            Pick materials to ground the questions in them — or leave them all unselected and the AI drafts from your message alone.
+          </Text>
+
+          <View style={styles.materialsHead}>
+            <Text style={styles.subLabel}>Course materials (synced from Moodle)</Text>
+            <TouchableOpacity style={styles.syncBtn} onPress={syncFromMoodle} disabled={syncing} testID="quiz-sync">
+              {syncing
+                ? <ActivityIndicator size={12} color={C.primary} />
+                : <Ionicons name="sync" size={13} color={C.primary} />}
+              <Text style={styles.syncText}>{syncing ? 'Syncing…' : 'Sync Moodle'}</Text>
+            </TouchableOpacity>
+          </View>
+          {materialsLoading && <View style={styles.loadingSmall}><ActivityIndicator size={16} color={C.primary} /></View>}
+          {!materialsLoading && materials.length === 0 && (
+            <Text style={styles.hintText}>No indexed materials yet — press “Sync Moodle”, or just write your message below.</Text>
+          )}
+          <View style={styles.materialsList}>
+            {materials.map(m => (
+              <TouchableOpacity
+                key={m.id}
+                style={[styles.materialChip, selectedMaterials.includes(m.id) && styles.materialChipActive]}
+                onPress={() => setSelectedMaterials(prev =>
+                  prev.includes(m.id) ? prev.filter(id => id !== m.id) : [...prev, m.id]
+                )}
+              >
+                <Text style={[styles.materialChipText, selectedMaterials.includes(m.id) && styles.materialChipTextActive]} numberOfLines={1}>{m.title}</Text>
               </TouchableOpacity>
             ))}
           </View>
-          <Text style={styles.subLabel}>How many</Text>
-          <TextInput style={styles.input} value={genCount} onChangeText={setGenCount} keyboardType="numeric" maxLength={2} />
+
+          <Text style={styles.subLabel}>Your message</Text>
+          <TextInput
+            style={styles.quickInput}
+            value={quickPrompt}
+            onChangeText={setQuickPrompt}
+            placeholder="create 5 mcq, 2 short answer, duration 15min, valid two days from now"
+            placeholderTextColor={C.textHint}
+            multiline
+            testID="quiz-quick-prompt"
+          />
+
+          <Text style={styles.subLabel}>Level</Text>
+          <View style={styles.pills}>
+            {['beginner', 'intermediate', 'advanced'].map(l => (
+              <TouchableOpacity key={l} style={[styles.pill, genLevel === l && styles.pillActive]} onPress={() => setGenLevel(l)}>
+                <Text style={[styles.pillText, genLevel === l && styles.pillTextActive]}>{l.charAt(0).toUpperCase() + l.slice(1)}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
           <View style={styles.btnRow}>
-            <TouchableOpacity style={[styles.btn, styles.btnOutline]} onPress={() => setGenerateVisible(false)}>
+            <TouchableOpacity style={[styles.btn, styles.btnOutline]} onPress={() => setAiVisible(false)}>
               <Text style={styles.btnOutlineText}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.btn, styles.btnPrimary]} onPress={handleGenerate} disabled={genBusy || selectedMaterials.length === 0}>
-              <Text style={styles.btnPrimaryText}>{genBusy ? 'Generating…' : 'Generate'}</Text>
+            <TouchableOpacity
+              style={[styles.btn, styles.btnPrimary, (!quickPrompt.trim() || quickBusy) && styles.btnDisabled]}
+              onPress={quickAdd}
+              disabled={!quickPrompt.trim() || quickBusy}
+              testID="quiz-quick-go"
+            >
+              {quickBusy
+                ? <ActivityIndicator size="small" color="#fff" />
+                : <Ionicons name="sparkles" size={16} color="#fff" />}
+              <Text style={styles.btnPrimaryText}>{quickBusy ? 'Drafting…' : 'Draft with AI'}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -804,6 +941,51 @@ const styles = StyleSheet.create({
   iconBtn: { padding: 6 },
   detailRow: { flexDirection: 'row', gap: 10 },
   detailCol: { flex: 1, marginBottom: 10 },
+  numRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 },
+  stepBtn: {
+    width: 34, height: 34, borderRadius: 8, borderWidth: 1.5, borderColor: C.border,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: C.card,
+  },
+  stepBtnSm: {
+    width: 26, height: 26, borderRadius: 7, borderWidth: 1.2, borderColor: C.border,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: C.card,
+  },
+  inputNum: {
+    flex: 1, height: 34, borderWidth: 1.5, borderColor: C.border, borderRadius: 8,
+    paddingHorizontal: 10, fontSize: 14, color: C.text, backgroundColor: C.card, textAlign: 'center',
+  },
+  dateBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, height: 34, paddingHorizontal: 10,
+    borderWidth: 1.5, borderColor: C.border, borderRadius: 8, backgroundColor: C.card,
+    marginBottom: 10, alignSelf: 'flex-start', minWidth: 150,
+  },
+  dateBtnText: { fontSize: 13, fontWeight: '600', color: C.text },
+  pickerSheet: {
+    backgroundColor: C.card, borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    paddingHorizontal: 20, paddingTop: 14, paddingBottom: 24,
+  },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
+  quickChip: {
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
+    backgroundColor: C.blueLt, borderWidth: 1, borderColor: C.blueLt,
+  },
+  quickChipText: { fontSize: 11, fontWeight: '700', color: C.blueDk },
+  monthRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  monthLabel: { fontSize: 15, fontWeight: '800', color: C.text },
+  weekRow: { flexDirection: 'row', marginBottom: 2 },
+  weekDay: { flex: 1, textAlign: 'center', fontSize: 11, fontWeight: '700', color: C.textHint },
+  grid: { flexDirection: 'row', flexWrap: 'wrap' },
+  dayCell: {
+    width: `${100 / 7}%`, alignItems: 'center', justifyContent: 'center',
+    height: 34, borderRadius: 8,
+  },
+  dayCellOn: { backgroundColor: C.primary },
+  dayText: { fontSize: 13, color: C.text },
+  dayTextOn: { color: '#fff', fontWeight: '800' },
+  timeRow: { flexDirection: 'row', gap: 24, marginVertical: 12 },
+  timeGroup: { alignItems: 'flex-start' },
+  timeSteppers: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  timeValue: { fontSize: 16, fontWeight: '800', color: C.text, minWidth: 28, textAlign: 'center' },
   input: {
     height: 44, borderWidth: 1.5, borderColor: C.border, borderRadius: 10,
     paddingHorizontal: 12, fontSize: 14, color: C.text, backgroundColor: C.card,
