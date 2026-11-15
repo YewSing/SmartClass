@@ -36,6 +36,7 @@ from app.core.timezone import now_myt
 from app.models.attendance import AttendanceRecord
 from app.models.camera import Camera
 from app.models.class_ import ClassOccurrence
+from app.models.interaction import InteractionSession
 from app.models.session import AttendanceSession
 from app.models.user import Lecturer
 from app.services import session_service
@@ -122,6 +123,18 @@ async def open_session_for(db: AsyncSession, occ: ClassOccurrence, d: date,
         opened_at=now,
     )
     db.add(session)
+    await db.flush()
+    # Open the matching interaction session at the same time so students can participate
+    # without the lecturer clicking "open session" (FR-501). `opened_by` references users.id.
+    opened_by = (await db.execute(
+        select(Lecturer.user_id).where(Lecturer.id == occ.lecturer_id)
+    )).scalar_one()
+    db.add(InteractionSession(
+        occurrence_id=occ.id,
+        status="open",
+        opened_by=opened_by,
+        ends_at=end,
+    ))
     await db.flush()
     return session
 

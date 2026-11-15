@@ -19,8 +19,10 @@ from app.models.attendance import AttendanceRecord
 from app.models.audit import AuditLog
 from app.models.camera import Camera
 from app.models.class_ import ClassOccurrence
+from app.models.interaction import InteractionSession
 from app.models.face_review import FaceReviewEntry
 from app.models.session import AttendanceSession
+from app.models.user import Lecturer
 from app.services import moodle_sync, session_schedule
 
 pytestmark = pytest.mark.db
@@ -114,6 +116,24 @@ async def test_opens_15_minutes_before_start(lecturer_client, classroom, db_sess
     assert row.opened_at == at(7, 45)
     assert row.camera_id == camera_id
     assert row.lecturer_id == classroom["lecturer_id"]
+
+
+async def test_opens_interaction_with_attendance(lecturer_client, classroom, db_session):
+    await run_tick(at(7, 45))
+
+    lec_user_id = (await db_session.execute(
+        select(Lecturer.user_id).where(Lecturer.id == classroom["lecturer_id"])
+    )).scalar_one()
+
+    interaction = (await db_session.execute(
+        select(InteractionSession).where(
+            InteractionSession.occurrence_id == classroom["occurrence_id"],
+        )
+    )).scalar_one_or_none()
+    assert interaction is not None
+    assert interaction.status == "open"
+    assert interaction.opened_by == lec_user_id
+    assert interaction.ends_at == at(10, 0)
 
 
 async def test_opens_once_per_class_date(lecturer_client, classroom, db_session):
