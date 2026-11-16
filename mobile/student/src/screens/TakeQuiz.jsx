@@ -113,22 +113,6 @@ export default function TakeQuiz({ navigation, route }) {
     navigation.goBack()
   }
 
-  // Countdown — auto-submit at zero (server also auto-submits expired attempts).
-  useEffect(() => {
-    if (!deadline) return
-    const tick = () => {
-      const left = Math.max(0, Math.floor((deadline.getTime() - Date.now()) / 1000))
-      setRemaining(left)
-      if (left <= 0 && !submittedRef.current) {
-        submittedRef.current = true
-        doSubmit(true)
-      }
-    }
-    tick()
-    const id = setInterval(tick, 1000)
-    return () => clearInterval(id)
-  }, [deadline])
-
   const doSubmit = useCallback(async (auto = false) => {
     if (submitting || submittedRef.current) return
     submittedRef.current = true
@@ -141,17 +125,43 @@ export default function TakeQuiz({ navigation, route }) {
       }
       const res = await submitQuizAttempt(attemptId, payload.answers)
       navigation.replace('QuizResult', {
-        attemptId: res.attempt_id ?? attemptId,
+        attemptId: res?.attempt_id ?? attemptId,
         quizTitle: quiz?.title,
         justSubmitted: true,
-        autoSubmitted: auto || res.auto_submitted,
+        autoSubmitted: auto || res?.auto_submitted,
       })
     } catch (e) {
+      if (auto || e?.status === 403 || e?.status === 409 || e?.message?.includes('expired') || e?.message?.includes('already_submitted')) {
+        navigation.replace('QuizResult', {
+          attemptId,
+          quizTitle: quiz?.title,
+          justSubmitted: true,
+          autoSubmitted: true,
+        })
+        return
+      }
       submittedRef.current = false
       setSubmitting(false)
       showToast(e.message || 'Could not submit', 'error')
     }
-  }, [answers, attemptId, submitting])
+  }, [answers, attemptId, submitting, quiz?.title, navigation, showToast])
+
+  // Countdown — auto-submit at zero (server also auto-submits expired attempts).
+  useEffect(() => {
+    if (!deadline) return
+    const tick = () => {
+      const left = Math.max(0, Math.floor((deadline.getTime() - Date.now()) / 1000))
+      setRemaining(left)
+      if (left <= 0 && !submittedRef.current) {
+        submittedRef.current = true
+        showToast('Time is up — auto-submitting your quiz…', 'info')
+        doSubmit(true)
+      }
+    }
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [deadline, doSubmit, showToast])
 
   if (loading) {
     return (

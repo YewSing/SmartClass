@@ -422,6 +422,46 @@ async def list_course_quizzes(
     return out
 
 
+@router.get("/lecturer/quizzes/{quiz_id}", response_model=QuizOut)
+async def get_quiz_endpoint(
+    quiz_id: int,
+    db: AsyncSession = Depends(get_db),
+    actor: User = Depends(_lecturer),
+):
+    """Details of one quiz (including total enrolled students)."""
+    lecturer = await _lecturer_for_actor(db, actor)
+    quiz = await db.get(Quiz, quiz_id)
+    if not quiz:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz not found")
+    if not await _course_accessible(db, lecturer, quiz.course_id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not teach this course")
+
+    total_enrolled = (await db.scalar(
+        select(sa.func.count(sa.func.distinct(Enrollment.student_id)))
+        .join(ClassOccurrence, ClassOccurrence.id == Enrollment.occurrence_id)
+        .where(ClassOccurrence.course_id == quiz.course_id)
+    )) or 0
+
+    qcount = await db.scalar(
+        select(sa.func.count(QuizQuestion.id)).where(
+            QuizQuestion.quiz_id == quiz.id, QuizQuestion.status != "deleted"
+        )
+    )
+    acount = await db.scalar(
+        select(sa.func.count(QuizAttempt.id)).where(QuizAttempt.quiz_id == quiz.id)
+    )
+
+    return QuizOut(
+        id=quiz.id, course_id=quiz.course_id, title=quiz.title,
+        time_limit_minutes=quiz.time_limit_minutes, opens_at=quiz.opens_at,
+        closes_at=quiz.closes_at, attempts_allowed=quiz.attempts_allowed,
+        review_visible=quiz.review_visible, status=quiz.status,
+        created_by=quiz.created_by, created_at=quiz.created_at,
+        question_count=qcount or 0, attempt_count=acount or 0,
+        total_enrolled=total_enrolled,
+    )
+
+
 @router.get("/lecturer/quizzes/{quiz_id}/questions", response_model=list[QuizQuestionOut])
 async def list_quiz_questions_for_lecturer(
     quiz_id: int,

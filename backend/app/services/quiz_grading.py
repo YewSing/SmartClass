@@ -106,6 +106,7 @@ async def list_unscored_short_answers(
             "answer": a.answer,
             "suggested_answer": q.suggested_answer,
             "score": a.score,
+            "max_score": getattr(q, "score", 1.0) or 1.0,
         }
         for a, q in result.all()
     ]

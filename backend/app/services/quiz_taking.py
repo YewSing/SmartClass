@@ -245,13 +245,17 @@ async def _auto_submit_single_attempt(db: AsyncSession, attempt: QuizAttempt) ->
                 ans_row.score = float(q_score) if is_correct else 0.0
                 ans_row.auto_graded = True
                 total += ans_row.score
-            elif ans_row.score is not None:
-                total += ans_row.score
+            elif q.type == "short_answer":
+                if not ans_row.answer or not str(ans_row.answer).strip():
+                    ans_row.score = 0.0
+                    ans_row.auto_graded = True
+                elif ans_row.score is not None:
+                    total += ans_row.score
         else:
-            # Unanswered question gets 0.0 score
+            # Unanswered question gets 0.0 score directly (both MCQ and empty short answer)
             db.add(QuizAnswer(
                 attempt_id=attempt.id, question_id=q.id, answer=None,
-                score=0.0 if q.type == "mcq" else None, auto_graded=(q.type == "mcq"),
+                score=0.0, auto_graded=True,
             ))
 
     attempt.score = total
@@ -283,6 +287,7 @@ async def submit_attempt(
     if attempt.status != "started":
         raise ValueError("already_submitted")
     if attempt.deadline and _now() > attempt.deadline:
+        await _auto_submit_single_attempt(db, attempt)
         raise ValueError("expired")
 
     # Ensure all questions on this quiz get an answer row (missing/unanswered gets 0.0 for MCQ, None for SA)
@@ -314,6 +319,11 @@ async def submit_attempt(
             is_correct = _check_mcq_correct(answer, question.correct_answer)
             score = float(q_score) if is_correct else 0.0
             total += score
+        elif question.type == "short_answer":
+            if not answer or not str(answer).strip():
+                # Student didn't input any words — directly give 0.0, lecturer no need to review
+                auto_graded = True
+                score = 0.0
 
         if ans_row:
             ans_row.answer = answer

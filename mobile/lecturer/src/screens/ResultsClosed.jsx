@@ -89,10 +89,13 @@ export default function ResultsClosed({ navigation, route }) {
     setScoring(prev => ({ ...prev, [answer.answer_id]: true }))
     try {
       const suggestion = await suggestScore(attemptId, answer.answer_id)
+      const maxPts = answer.max_score ?? 1.0
+      const pts = Math.round((suggestion.suggested_score / 100) * maxPts * 10) / 10
+      setScoreInputs(prev => ({ ...prev, [answer.answer_id]: String(pts) }))
       setUnscored(prev => prev.map(a =>
         a.answer_id === answer.answer_id ? { ...a, suggestedScore: suggestion.suggested_score, suggestedReason: suggestion.reasoning } : a
       ))
-      showToast(`AI suggests ${Math.round(suggestion.suggested_score)}%`, 'info')
+      showToast(`AI suggests ${pts}/${maxPts} (${Math.round(suggestion.suggested_score)}%)`, 'info')
     } catch (e) {
       showToast(e.message || 'Could not get AI suggestion', 'error')
     } finally {
@@ -101,14 +104,18 @@ export default function ResultsClosed({ navigation, route }) {
   }
 
   const handleSave = async (answer) => {
-    const input = scoreInputs[answer.answer_id]
+    const maxScore = answer.max_score ?? 1.0
+    const input = scoreInputs[answer.answer_id] ?? '0'
     const score = parseFloat(input)
-    if (Number.isNaN(score) || score < 0 || score > 100) { showToast('Enter a score between 0 and 100', 'error'); return }
+    if (Number.isNaN(score) || score < 0 || score > maxScore) {
+      showToast(`Enter a score between 0 and ${maxScore}`, 'error')
+      return
+    }
     setScoring(prev => ({ ...prev, [answer.answer_id]: true }))
     try {
       await scoreShortAnswer(attemptId, answer.answer_id, score)
       setUnscored(prev => prev.filter(a => a.answer_id !== answer.answer_id))
-      showToast('Score saved', 'success')
+      showToast(`Score saved (${score}/${maxScore})`, 'success')
       if (attempt && !attempt.grading_complete) {
         // re-fetch to detect completion
         const list = await getQuizAttempts(quizId)
@@ -192,14 +199,47 @@ export default function ResultsClosed({ navigation, route }) {
                     )}
                   </View>
                   <View style={styles.scoreRow}>
-                    <TextInput
-                      style={styles.scoreInput}
-                      value={scoreInputs[answer.answer_id] ?? ''}
-                      onChangeText={t => setScoreInputs(prev => ({ ...prev, [answer.answer_id]: t }))}
-                      keyboardType="numeric"
-                      placeholder="0-100"
-                      maxLength={3}
-                    />
+                    <View style={styles.stepperWrap}>
+                      <TouchableOpacity
+                        style={styles.stepperBtn}
+                        onPress={() => {
+                          const maxPts = answer.max_score ?? 1.0
+                          const cur = parseFloat(scoreInputs[answer.answer_id] ?? '0') || 0
+                          const step = maxPts <= 2 ? 0.5 : 1
+                          const next = Math.max(0, Math.min(maxPts, +(cur - step).toFixed(2)))
+                          setScoreInputs(prev => ({ ...prev, [answer.answer_id]: String(next) }))
+                        }}
+                      >
+                        <Ionicons name="remove" size={16} color={C.text} />
+                      </TouchableOpacity>
+                      <TextInput
+                        style={styles.stepperInput}
+                        value={scoreInputs[answer.answer_id] ?? '0'}
+                        onChangeText={t => {
+                          const maxPts = answer.max_score ?? 1.0
+                          const v = parseFloat(t)
+                          if (!t) setScoreInputs(prev => ({ ...prev, [answer.answer_id]: '' }))
+                          else if (!isNaN(v)) {
+                            setScoreInputs(prev => ({ ...prev, [answer.answer_id]: String(Math.max(0, Math.min(maxPts, v))) }))
+                          }
+                        }}
+                        keyboardType="numeric"
+                      />
+                      <Text style={styles.stepperMax}>/ {answer.max_score ?? 1}</Text>
+                      <TouchableOpacity
+                        style={styles.stepperBtn}
+                        onPress={() => {
+                          const maxPts = answer.max_score ?? 1.0
+                          const cur = parseFloat(scoreInputs[answer.answer_id] ?? '0') || 0
+                          const step = maxPts <= 2 ? 0.5 : 1
+                          const next = Math.max(0, Math.min(maxPts, +(cur + step).toFixed(2)))
+                          setScoreInputs(prev => ({ ...prev, [answer.answer_id]: String(next) }))
+                        }}
+                      >
+                        <Ionicons name="add" size={16} color={C.text} />
+                      </TouchableOpacity>
+                    </View>
+
                     <TouchableOpacity
                       style={styles.suggestBtn}
                       onPress={() => handleSuggest(answer)}
@@ -215,10 +255,10 @@ export default function ResultsClosed({ navigation, route }) {
                     >
                       <Text style={styles.saveText}>Save</Text>
                     </TouchableOpacity>
-                    {answer.suggestedScore != null && (
-                      <Text style={styles.aiHint}>AI suggests {Math.round(answer.suggestedScore)}% · {answer.suggestedReason}</Text>
-                    )}
                   </View>
+                  {answer.suggestedScore != null && (
+                    <Text style={styles.aiHint}>AI suggests {Math.round(answer.suggestedScore)}% · {answer.suggestedReason}</Text>
+                  )}
                 </View>
               </View>
             ))}
@@ -337,9 +377,18 @@ const styles = StyleSheet.create({
   scoreRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap',
   },
-  scoreInput: {
-    width: 70, height: 40, borderWidth: 1.5, borderColor: C.border, borderRadius: 8,
-    paddingHorizontal: 8, fontSize: 14, color: C.text, backgroundColor: C.card, textAlign: 'center',
+  stepperWrap: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: C.gray50,
+    borderWidth: 1.5, borderColor: C.border, borderRadius: 8, paddingHorizontal: 4, height: 40,
+  },
+  stepperBtn: {
+    padding: 6, alignItems: 'center', justifyContent: 'center',
+  },
+  stepperInput: {
+    minWidth: 32, textAlign: 'center', fontSize: 14, fontWeight: '700', color: C.text, paddingHorizontal: 2,
+  },
+  stepperMax: {
+    fontSize: 12, fontWeight: '700', color: C.textSub, marginRight: 4,
   },
   suggestBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 10,

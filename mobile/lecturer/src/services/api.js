@@ -513,6 +513,10 @@ export const publishQuiz = async ({ question_ids, time_limit_minutes, opens_at, 
 
 // ─── Quiz quiz-sets / draft flow (S35) ──────────────────────────────────────
 
+// Get details of one quiz (including total enrolled count).
+export const getQuiz = async (quizId) =>
+  apiCall('GET', `/lecturer/quizzes/${quizId}`)
+
 // All quizzes (draft / published / closed) of a course the lecturer teaches.
 export const getCourseQuizzes = async (courseId) =>
   apiCall('GET', `/lecturer/courses/${courseId}/quizzes`)

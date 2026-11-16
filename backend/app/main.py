@@ -1,9 +1,11 @@
 import asyncio
 import mimetypes
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
+from sqlalchemy.engine import make_url
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -19,9 +21,22 @@ from app.websocket import router as ws_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Fail fast if a leaked DATABASE_URL points the real server at the pytest
+    # database — that looked like "the app lost all data" more than once.
+    # Tests opt in by setting ALLOW_TEST_DB=1 in tests/conftest.py.
+    from app.core.config import settings
+
+    _db_name = (make_url(settings.DATABASE_URL).database or "")
+    if _db_name.endswith("_test") and os.environ.get("ALLOW_TEST_DB") != "1":
+        raise RuntimeError(
+            f"Refusing to serve against test database '{_db_name}'. "
+            "Unset DATABASE_URL/TEST_DATABASE_URL in this shell (a test or E2E run leaked it) "
+            "so backend/.env points the app at the real database, or set ALLOW_TEST_DB=1 "
+            "if you really mean it."
+        )
+
     try:
         from insightface.app import FaceAnalysis
-        from app.core.config import settings
         fa = FaceAnalysis(name=settings.INSIGHTFACE_MODEL, providers=["CPUExecutionProvider"])
         fa.prepare(ctx_id=-1, det_size=(640, 640))
         app.state.face_app = fa

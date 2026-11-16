@@ -80,6 +80,7 @@ class QuizOut(BaseModel):
     created_at: Optional[datetime] = None
     question_count: int = 0
     attempt_count: int = 0
+    total_enrolled: Optional[int] = None
 
     model_config = {"from_attributes": True}
 

@@ -35,6 +35,7 @@ if not (_test_url.database or "").endswith("_test"):
     raise RuntimeError(f"Refusing to run tests against database '{_test_url.database}' (name must end in _test)")
 settings.DATABASE_URL = TEST_DATABASE_URL
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL  # for the alembic subprocess
+os.environ["ALLOW_TEST_DB"] = "1"  # let the app's lifespan guard accept the test database
 # Closing a session starts a Moodle sync in the background as soon as it commits (T38b); with a
 # MOODLE_TOKEN in .env that would reach the real Moodle. Tests that exercise it turn it back on
 # (interval > 0) against the respx fake.

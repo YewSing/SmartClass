@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useLecturer } from '../context/LecturerContext'
 import Topbar from '../components/Topbar'
 import Badge from '../components/Badge'
-import { getQuizAttempts, getQuizQuestionsForLecturer } from '../services/api'
+import { getQuizAttempts, getQuizQuestionsForLecturer, getQuiz } from '../services/api'
 import { C } from '../theme'
 
 /** Section card in the interaction style: colored title chip + right node (S29 pattern). */
@@ -38,6 +38,7 @@ export default function LiveResults({ navigation, route }) {
   const [activeTab, setActiveTab] = useState('attempts') // 'questions' | 'attempts'
   const [attempts, setAttempts] = useState([])
   const [questions, setQuestions] = useState([])
+  const [enrolledCount, setEnrolledCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
@@ -46,12 +47,18 @@ export default function LiveResults({ navigation, route }) {
   const loadData = useCallback(async () => {
     if (!quizId) return
     try {
-      const [attemptList, questionList] = await Promise.all([
+      const [attemptList, questionList, quizDetail] = await Promise.all([
         getQuizAttempts(quizId),
         getQuizQuestionsForLecturer(quizId).catch(() => []),
+        getQuiz(quizId).catch(() => null),
       ])
       setAttempts(attemptList)
       setQuestions(questionList)
+      if (quizDetail?.total_enrolled != null) {
+        setEnrolledCount(quizDetail.total_enrolled)
+      } else if (attemptList[0]?.total_enrolled != null) {
+        setEnrolledCount(attemptList[0].total_enrolled)
+      }
       setError(null)
     } catch (e) {
       setError(e.message || 'Could not load quiz data')
@@ -68,7 +75,7 @@ export default function LiveResults({ navigation, route }) {
     return () => clearInterval(id)
   }, [loadData])
 
-  const totalEnrolled = attempts[0]?.total_enrolled ?? 0
+  const totalEnrolled = enrolledCount || (attempts[0]?.total_enrolled ?? 0)
   const submittedStudents = new Set(
     attempts.filter(a => a.status === 'submitted' || a.auto_submitted).map(a => a.student_id)
   ).size
