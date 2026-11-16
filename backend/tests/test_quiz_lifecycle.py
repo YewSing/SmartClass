@@ -81,8 +81,9 @@ async def test_edit_draft_question(lecturer_client, classroom, db_session):
     assert body["status"] == "draft"
 
 
-async def test_edit_non_draft_is_409(lecturer_client, classroom, db_session):
-    ids = await _make_drafts(db_session, classroom, n=1, approved=1)
+async def test_edit_deleted_is_409(lecturer_client, classroom, db_session):
+    ids = await _make_drafts(db_session, classroom, n=1)
+    await lecturer_client.delete(f"/lecturer/quizzes/questions/{ids[0]}")
     resp = await lecturer_client.put(f"/lecturer/quizzes/questions/{ids[0]}", json={"question": "x"})
     assert resp.status_code == 409, resp.text
 
@@ -103,8 +104,9 @@ async def test_approve_question(lecturer_client, classroom, db_session):
     assert result.scalar_one().status == "approved"
 
 
-async def test_approve_non_draft_is_409(lecturer_client, classroom, db_session):
-    ids = await _make_drafts(db_session, classroom, n=1, approved=1)
+async def test_approve_deleted_is_409(lecturer_client, classroom, db_session):
+    ids = await _make_drafts(db_session, classroom, n=1)
+    await lecturer_client.delete(f"/lecturer/quizzes/questions/{ids[0]}")
     resp = await lecturer_client.post(f"/lecturer/quizzes/questions/{ids[0]}/approve")
     assert resp.status_code == 409, resp.text
 
@@ -118,8 +120,9 @@ async def test_delete_draft_question(lecturer_client, classroom, db_session):
     assert result.scalar_one().status == "deleted"
 
 
-async def test_delete_non_draft_is_409(lecturer_client, classroom, db_session):
-    ids = await _make_drafts(db_session, classroom, n=1, approved=1)
+async def test_delete_deleted_is_409(lecturer_client, classroom, db_session):
+    ids = await _make_drafts(db_session, classroom, n=1)
+    await lecturer_client.delete(f"/lecturer/quizzes/questions/{ids[0]}")
     resp = await lecturer_client.delete(f"/lecturer/quizzes/questions/{ids[0]}")
     assert resp.status_code == 409, resp.text
 

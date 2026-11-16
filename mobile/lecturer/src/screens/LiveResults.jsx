@@ -80,10 +80,10 @@ export default function LiveResults({ navigation, route }) {
   const renderItem = ({ item: a }) => (
     <TouchableOpacity
       style={styles.row}
-      onPress={() => navigation.navigate('ResultsClosed', { attemptId: a.attempt_id })}
+      onPress={() => navigation.navigate('ResultsClosed', { attemptId: a.attempt_id, quizId })}
     >
       <View style={styles.rowBody}>
-        <Text style={styles.rowStudent}>Student #{String(a.student_id).slice(-4)}</Text>
+        <Text style={styles.rowStudent} numberOfLines={1}>{a.student_name || `Student #${String(a.student_id).slice(-4)}`}</Text>
         <Text style={styles.rowMeta}>
           {statusLabel(a.status)}{a.submitted_at ? ` · submitted` : ''}
         </Text>

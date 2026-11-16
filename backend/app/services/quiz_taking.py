@@ -40,30 +40,30 @@ async def list_student_quizzes(db: AsyncSession, student_id: int) -> list[dict]:
     )
     quizzes = result.scalars().all()
     # existing attempts
-    attempts = {
-        a.quiz_id: a
-        for a in (
-            await db.execute(
-                select(QuizAttempt).where(
-                    QuizAttempt.student_id == student_id,
-                    QuizAttempt.quiz_id.in_([q.id for q in quizzes]),
-                )
-            )
-        ).scalars().all()
-    }
+    attempt_rows = (await db.execute(
+        select(QuizAttempt).where(
+            QuizAttempt.student_id == student_id,
+            QuizAttempt.quiz_id.in_([q.id for q in quizzes]),
+        ).order_by(QuizAttempt.started_at.desc())
+    )).scalars().all()
+    attempts_by_quiz: dict[int, list[QuizAttempt]] = {}
+    for a in attempt_rows:
+        attempts_by_quiz.setdefault(a.quiz_id, []).append(a)
+
     out = []
     for q in quizzes:
-        a = attempts.get(q.id)
-        used = sum(1 for at in attempts.values() if at.quiz_id == q.id)
+        ats = attempts_by_quiz.get(q.id, [])
+        latest_attempt = ats[0] if ats else None
+        used = len(ats)
         out.append({
             "id": q.id, "course_id": q.course_id, "title": q.title,
             "time_limit_minutes": q.time_limit_minutes, "opens_at": q.opens_at,
             "closes_at": q.closes_at, "status": q.status,
             "attempts_allowed": q.attempts_allowed, "attempts_used": used,
             "review_visible": q.review_visible,
-            "has_attempt": a is not None,
-            "attempt_id": a.id if a else None,
-            "deadline": a.deadline if a else None,
+            "has_attempt": latest_attempt is not None,
+            "attempt_id": latest_attempt.id if latest_attempt else None,
+            "deadline": latest_attempt.deadline if latest_attempt else None,
         })
     return out
 

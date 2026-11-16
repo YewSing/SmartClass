@@ -3,6 +3,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
+import { useFocusEffect } from '@react-navigation/native'
 import { useStudent } from '../context/StudentContext'
 import Topbar from '../components/Topbar'
 import { getStudentQuizzes, getEnrolledClasses } from '../services/api'
@@ -50,11 +51,11 @@ export default function QuizList({ navigation }) {
     try {
       const [list, classes] = await Promise.all([getStudentQuizzes(), getEnrolledClasses()])
       const map = {}
-      for (const c of classes) map[c.course_id ?? c.id] = c
-      // quizzes carry course_id; /classes rows carry id — resolve code/name either way
-      const byId = {}
-      for (const c of classes) byId[c.id] = c
-      setClassMap(byId)
+      for (const c of classes) {
+        if (c.course_id != null) map[c.course_id] = c
+        if (c.id != null && !map[c.id]) map[c.id] = c
+      }
+      setClassMap(map)
       setQuizzes(list)
       setError(null)
     } catch (e) {
@@ -65,7 +66,11 @@ export default function QuizList({ navigation }) {
     }
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useFocusEffect(
+    useCallback(() => {
+      load()
+    }, [load])
+  )
 
   const openQuiz = (quiz) => {
     const cls = classMap[quiz.course_id] ?? {}

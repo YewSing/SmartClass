@@ -12,6 +12,8 @@ Only approved questions can go into a quiz (server-enforced). Publish calls
 """
 
 
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 import sqlalchemy as sa
 from sqlalchemy import select
@@ -19,10 +21,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import require_role
-from app.models.class_ import ClassOccurrence
+from app.models.class_ import ClassOccurrence, Enrollment
 from app.models.quiz import Quiz, QuizQuestion
 from app.models.quiz_attempt import QuizAttempt
-from app.models.user import Lecturer, User
+from app.models.user import Lecturer, Student, User
 from app.schemas.quiz import (
     CreateQuizQuestionRequest,
     EditQuizQuestionRequest,
@@ -113,6 +115,8 @@ async def generate_quiz_questions(
 @router.get("/lecturer/quizzes/drafts", response_model=list[QuizQuestionOut])
 async def list_draft_questions(
     course_id: int = Query(...),
+    quiz_id: Optional[int] = Query(None, description="Filter by draft quiz set ID or null"),
+    unlinked_only: bool = Query(False, description="Return only questions not yet assigned to any quiz"),
     db: AsyncSession = Depends(get_db),
     actor: User = Depends(_lecturer),
 ):
@@ -120,12 +124,17 @@ async def list_draft_questions(
     lecturer = await _lecturer_for_actor(db, actor)
     if not await _course_accessible(db, lecturer, course_id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not teach this course")
-    result = await db.execute(
-        select(QuizQuestion).where(
-            QuizQuestion.course_id == course_id,
-            QuizQuestion.status.in_(("draft", "approved")),
-        ).order_by(QuizQuestion.created_at.desc())
+
+    query = select(QuizQuestion).where(
+        QuizQuestion.course_id == course_id,
+        QuizQuestion.status.in_(("draft", "approved")),
     )
+    if quiz_id is not None:
+        query = query.where(QuizQuestion.quiz_id == quiz_id)
+    elif unlinked_only:
+        query = query.where(QuizQuestion.quiz_id.is_(None))
+
+    result = await db.execute(query.order_by(QuizQuestion.created_at.desc()))
     return [QuizQuestionOut.model_validate(q) for q in result.scalars().all()]
 
 
@@ -136,15 +145,15 @@ async def edit_draft_question(
     db: AsyncSession = Depends(get_db),
     actor: User = Depends(_lecturer),
 ):
-    """Edit a draft question (only draft, only the lecturer's course) (FR-604)."""
+    """Edit a draft or approved question (only the lecturer's course) (FR-604)."""
     lecturer = await _lecturer_for_actor(db, actor)
     q = await db.get(QuizQuestion, question_id)
     if not q:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Question not found")
     if not await _course_accessible(db, lecturer, q.course_id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not teach this course")
-    if q.status != "draft":
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Only draft questions can be edited")
+    if q.status not in ("draft", "approved"):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Deleted questions cannot be edited")
 
     if body.question is not None:
         q.question = body.question
@@ -169,16 +178,19 @@ async def approve_question(
     db: AsyncSession = Depends(get_db),
     actor: User = Depends(_lecturer),
 ):
-    """Approve a draft question (draft → approved) (FR-604)."""
+    """Approve a draft question (draft → approved) or revert an approved one (approved → draft) (FR-604)."""
     lecturer = await _lecturer_for_actor(db, actor)
     q = await db.get(QuizQuestion, question_id)
     if not q:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Question not found")
     if not await _course_accessible(db, lecturer, q.course_id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not teach this course")
-    if q.status != "draft":
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Only draft questions can be approved")
-    q.status = "approved"
+    if q.status == "approved":
+        q.status = "draft"
+    elif q.status == "draft":
+        q.status = "approved"
+    else:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Only draft or approved questions can change status")
     await db.commit()
     await db.refresh(q)
     return QuizQuestionOut.model_validate(q)
@@ -190,15 +202,15 @@ async def delete_draft_question(
     db: AsyncSession = Depends(get_db),
     actor: User = Depends(_lecturer),
 ):
-    """Soft-delete a draft question (draft → deleted) (FR-604)."""
+    """Soft-delete a draft or approved question (→ deleted) (FR-604)."""
     lecturer = await _lecturer_for_actor(db, actor)
     q = await db.get(QuizQuestion, question_id)
     if not q:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Question not found")
     if not await _course_accessible(db, lecturer, q.course_id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not teach this course")
-    if q.status != "draft":
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Only draft questions can be deleted")
+    if q.status not in ("draft", "approved"):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Question is already deleted")
     q.status = "deleted"
     await db.commit()
     return None
@@ -272,8 +284,17 @@ async def publish_quiz(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not teach this course")
     if any(q.status != "approved" for q in questions):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Only approved questions can be published")
-    if any(q.quiz_id is not None for q in questions):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A question is already in a quiz")
+    # A question can be in at most one published quiz (draft quiz reassignment is allowed)
+    published_qids = set((await db.execute(
+        select(QuizQuestion.id)
+        .join(Quiz, Quiz.id == QuizQuestion.quiz_id)
+        .where(
+            QuizQuestion.id.in_(body.question_ids),
+            Quiz.status != "draft",
+        )
+    )).scalars().all())
+    if published_qids:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A question is already in a published quiz")
 
     extra = [c for c in dict.fromkeys(body.course_ids) if c != course_id]
     for c in extra:
@@ -287,10 +308,17 @@ async def publish_quiz(
     await db.commit()
     for quiz in quizzes:
         await db.refresh(quiz)
-        # FR-211: publish emits an important-priority notification to the lecturer.
+        # FR-211: publish emits an important-priority notification to the lecturer and enrolled students.
+        student_user_ids = (await db.execute(
+            select(Student.user_id)
+            .join(Enrollment, Enrollment.student_id == Student.id)
+            .join(ClassOccurrence, ClassOccurrence.id == Enrollment.occurrence_id)
+            .where(ClassOccurrence.course_id == quiz.course_id)
+        )).scalars().all()
+        target_users = list(set([lecturer.user_id] + list(student_user_ids)))
         await emit(
             event="quiz.published",
-            user_ids=[lecturer.user_id],
+            user_ids=target_users,
             payload={"quiz_id": quiz.id, "course_id": quiz.course_id},
             priority="important",
         )
@@ -379,8 +407,17 @@ async def save_quiz_draft(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="All questions must belong to the same course")
     if not await _course_accessible(db, lecturer, course_ids.pop()):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not teach this course")
-    if any(q.quiz_id is not None for q in questions):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A question is already in a quiz")
+    # A question can only be in one quiz; if it's already in another published quiz, reject
+    published_qids = set((await db.execute(
+        select(QuizQuestion.id)
+        .join(Quiz, Quiz.id == QuizQuestion.quiz_id)
+        .where(
+            QuizQuestion.id.in_(body.question_ids),
+            Quiz.status != "draft",
+        )
+    )).scalars().all())
+    if published_qids:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A question is already in a published quiz")
 
     quiz = Quiz(
         course_id=questions[0].course_id,
@@ -488,9 +525,16 @@ async def publish_draft_quiz(
     await db.commit()
     for q in created:
         await db.refresh(q)
+        student_user_ids = (await db.execute(
+            select(Student.user_id)
+            .join(Enrollment, Enrollment.student_id == Student.id)
+            .join(ClassOccurrence, ClassOccurrence.id == Enrollment.occurrence_id)
+            .where(ClassOccurrence.course_id == q.course_id)
+        )).scalars().all()
+        target_users = list(set([lecturer.user_id] + list(student_user_ids)))
         await emit(
             event="quiz.published",
-            user_ids=[lecturer.user_id],
+            user_ids=target_users,
             payload={"quiz_id": q.id, "course_id": q.course_id},
             priority="important",
         )

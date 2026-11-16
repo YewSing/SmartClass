@@ -209,12 +209,23 @@ async def list_quiz_attempts(
     result = await db.execute(
         select(QuizAttempt).where(QuizAttempt.quiz_id == quiz_id).order_by(QuizAttempt.started_at.desc())
     )
+    attempts = result.scalars().all()
+    names: dict[int, str] = {}
+    if attempts:
+        from app.models.user import Student, User
+        rows = await db.execute(
+            select(Student.id, User.name)
+            .join(User, User.id == Student.user_id)
+            .where(Student.id.in_(a.student_id for a in attempts))
+        )
+        names = dict(rows.all())
     out = []
-    for a in result.scalars().all():
+    for a in attempts:
         complete = await _is_grading_complete(db, a.id)
         out.append({
             "attempt_id": a.id,
             "student_id": a.student_id,
+            "student_name": names.get(a.student_id),
             "status": a.status,
             "score": a.score,
             "auto_submitted": a.auto_submitted,

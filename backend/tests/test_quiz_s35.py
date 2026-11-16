@@ -490,3 +490,71 @@ async def test_student_quiz_detail_not_enrolled_403(student_client, db_session):
 
     resp = await student_client.get(f"/student/quizzes/{quiz.id}")
     assert resp.status_code == 403, resp.text
+
+
+# ── review actions on approved questions (revert / edit / delete) ───────────
+
+async def test_approve_reverts_approved_question(lecturer_client, classroom, db_session):
+    ids = await _seed_questions(db_session, classroom, n=1, approved=False)
+    qid = ids[0]
+
+    resp = await lecturer_client.post(f"/lecturer/quizzes/questions/{qid}/approve")
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "approved"
+
+    # second call reverts it back to draft
+    resp = await lecturer_client.post(f"/lecturer/quizzes/questions/{qid}/approve")
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["status"] == "draft"
+
+
+async def test_edit_and_delete_approved_question(lecturer_client, classroom, db_session):
+    ids = await _seed_questions(db_session, classroom, n=1)  # approved
+    qid = ids[0]
+
+    resp = await lecturer_client.put(f"/lecturer/quizzes/questions/{qid}", json={
+        "question": "edited",
+    })
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["question"] == "edited"
+    assert resp.json()["status"] == "approved"
+
+    resp = await lecturer_client.delete(f"/lecturer/quizzes/questions/{qid}")
+    assert resp.status_code == 204, resp.text
+
+    resp = await lecturer_client.get(
+        f"/lecturer/quizzes/drafts?course_id={classroom['course_id']}")
+    assert all(q["id"] != qid for q in resp.json())
+
+
+async def test_attempts_carry_student_name(lecturer_client, classroom, db_session):
+    from datetime import datetime, timedelta
+    from app.models.quiz import Quiz
+    from app.models.quiz_attempt import QuizAttempt
+    from app.models.user import Student
+
+    student_id = classroom["student_ids"][0]
+    quiz = Quiz(course_id=classroom["course_id"], title="Named", status="published",
+                created_by=classroom["lecturer_id"], time_limit_minutes=10)
+    db_session.add(quiz)
+    await db_session.flush()
+    attempt = QuizAttempt(
+        quiz_id=quiz.id, student_id=student_id,
+        started_at=datetime.now() - timedelta(minutes=1),
+        deadline=datetime.now() + timedelta(minutes=10),
+        status="submitted",
+    )
+    db_session.add(attempt)
+    await db_session.commit()
+
+    resp = await lecturer_client.get(f"/lecturer/quizzes/{quiz.id}/attempts")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert len(body) == 1
+    assert body[0]["attempt_id"] == attempt.id
+    name = body[0]["student_name"]
+    assert name, "student_name must be filled"
+    from app.models.user import User
+    row = await db_session.get(Student, student_id)
+    user = await db_session.get(User, row.user_id)
+    assert name == user.name

@@ -35,9 +35,10 @@ export default function ResultsClosed({ navigation, route }) {
 
   const [attempt, setAttempt] = useState(null)
   const [unscored, setUnscored] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState(null)
   const [scoring, setScoring] = useState({}) // answerId -> busy
+  const loading = !loaded
 
   const loadAttempt = useCallback(async () => {
     if (!quizId) return
@@ -45,6 +46,7 @@ export default function ResultsClosed({ navigation, route }) {
       const list = await getQuizAttempts(quizId)
       const a = list.find(x => x.attempt_id === attemptId)
       setAttempt(a ?? null)
+      if (!a) setError('Attempt not found for this quiz')
     } catch (e) { setError(e.message || 'Could not load attempt') }
   }, [quizId, attemptId])
 
@@ -57,15 +59,16 @@ export default function ResultsClosed({ navigation, route }) {
   }, [attemptId])
 
   useEffect(() => {
+    if (!quizId || !attemptId) {
+      setError('This page was opened without an attempt — go back and open it from Live Results.')
+      setLoaded(true)
+      return
+    }
     let cancelled = false
-    loadAttempt()
-    loadUnscored()
+    Promise.all([loadAttempt(), loadUnscored()])
+      .finally(() => { if (!cancelled) setLoaded(true) })
     return () => { cancelled = true }
-  }, [loadAttempt, loadUnscored])
-
-  useEffect(() => {
-    setLoading(!attempt || unscored.length === 0 && !error)
-  }, [attempt, unscored, error])
+  }, [loadAttempt, loadUnscored, quizId, attemptId])
 
   const complete = attempt?.grading_complete
   const statusLabel = (s) => {

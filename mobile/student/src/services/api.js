@@ -58,6 +58,7 @@ export const getEnrolledClasses = async () => {
   const ACCENT_COLORS = ['#0E6FBF', '#7C3AED', '#E03A3A', '#12A564']
   return list.map((c, i) => ({
     id: c.id,
+    course_id: c.course_id,
     code: c.course_code,
     name: c.course_name,
     type: c.type,

@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, FlatList,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, FlatList, RefreshControl,
 } from 'react-native'
+import { useFocusEffect } from '@react-navigation/native'
 import { Ionicons } from '@expo/vector-icons'
 import { useLecturer } from '../context/LecturerContext'
 import Topbar from '../components/Topbar'
@@ -54,30 +55,36 @@ export default function QuizList({ navigation }) {
   const [courses, setCourses] = useState([])
   const [quizzesByCourse, setQuizzesByCourse] = useState({}) // courseId -> [quiz]
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState(null)
   const [draftOpen, setDraftOpen] = useState(false)
 
-  useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      try {
-        const list = await getClasses()
-        if (cancelled) return
-        setCourses(list)
-        const results = await Promise.allSettled(list.map(c => getCourseQuizzes(c.course_id)))
-        const map = {}
-        list.forEach((c, i) => {
-          map[c.course_id] = results[i].status === 'fulfilled' ? results[i].value : []
-        })
-        if (!cancelled) setQuizzesByCourse(map)
-      } catch (e) {
-        if (!cancelled) setError(e.message)
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    })()
-    return () => { cancelled = true }
+  const loadData = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true)
+    else setLoading(true)
+    try {
+      const list = await getClasses()
+      setCourses(list)
+      const results = await Promise.allSettled(list.map(c => getCourseQuizzes(c.course_id)))
+      const map = {}
+      list.forEach((c, i) => {
+        map[c.course_id] = results[i].status === 'fulfilled' ? results[i].value : []
+      })
+      setQuizzesByCourse(map)
+      setError(null)
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
   }, [])
+
+  useFocusEffect(
+    useCallback(() => {
+      loadData()
+    }, [loadData])
+  )
 
   const allDrafts = Object.values(quizzesByCourse)
     .flat()
@@ -87,7 +94,14 @@ export default function QuizList({ navigation }) {
   const courseOf = (quiz) => courses.find(c => c.course_id === quiz.course_id)
 
   const openQuiz = useCallback((quiz) => {
-    if (quiz.status === 'draft') { setDraftOpen(true); return }
+    if (quiz.status === 'draft') {
+      // a draft quiz set opens in the builder so it can be edited or published
+      const c = courseOf(quiz) ?? {}
+      navigation.navigate('CreateQuiz', {
+        courseId: quiz.course_id, courseCode: c.code, courseName: c.name, draftQuiz: quiz,
+      })
+      return
+    }
     const c = courseOf(quiz) ?? {}
     navigation.navigate('LiveResults', {
       quizId: quiz.id, courseId: quiz.course_id, courseCode: c.code, courseName: c.name,
@@ -197,7 +211,14 @@ export default function QuizList({ navigation }) {
         sub="Create, publish and grade quizzes for your courses"
         right={headerRight}
       />
-      <ScrollView style={styles.flex} showsVerticalScrollIndicator={false} contentContainerStyle={styles.list}>
+      <ScrollView
+        style={styles.flex}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.list}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={() => loadData(true)} tintColor={C.primary} />
+        }
+      >
         {error && (
           <View style={styles.err}><Text style={styles.errText}>{error}</Text></View>
         )}

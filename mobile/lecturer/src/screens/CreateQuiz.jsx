@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, TextInput,
-  Switch, Modal, FlatList, Dimensions,
+  Switch, Modal, FlatList, Dimensions, Alert,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useLecturer } from '../context/LecturerContext'
@@ -11,6 +11,7 @@ import {
   getClasses, getMaterials, syncMaterials, getQuizDrafts,
   editQuizQuestion, approveQuizQuestion, deleteQuizQuestion,
   createQuizQuestion, quickAddQuiz, publishQuiz, saveQuizDraft,
+  updateQuizDraft, publishQuizDraft,
 } from '../services/api'
 import { C } from '../theme'
 
@@ -227,13 +228,17 @@ function DateTimeField({ value, onChange, testID }) {
 
 export default function CreateQuiz({ navigation, route }) {
   const { showToast } = useLecturer()
-  const { courseId: paramCourseId, courseCode, courseName } = (route?.params ?? {})
+  const { courseId: paramCourseId, courseCode, courseName, draftQuiz: draftQuizParam } = (route?.params ?? {})
+  const draftQuiz = draftQuizParam ?? null
+  const draftQuizId = draftQuiz?.id ?? null
+
+  const [currentDraftQuizId, setCurrentDraftQuizId] = useState(draftQuizId)
 
   const [courses, setCourses] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  const [courseId, setCourseId] = useState(paramCourseId)
+  const [courseId, setCourseId] = useState(paramCourseId ?? draftQuiz?.course_id)
   const [courseCodeState, setCourseCodeState] = useState(courseCode)
   const [courseNameState, setCourseNameState] = useState(courseName)
 
@@ -282,15 +287,33 @@ export default function CreateQuiz({ navigation, route }) {
   const [targetIds, setTargetIds] = useState([])
   const [finishBusy, setFinishBusy] = useState(false)
 
-  const loadDrafts = useCallback(async (id = courseId) => {
+  // Editing an existing draft quiz set — prefill the details from it
+  const leaveAllowed = useRef(false)
+  const handlersRef = useRef({})
+  useEffect(() => {
+    if (!draftQuiz) return
+    setQuizTitle(draftQuiz.title ?? '')
+    if (draftQuiz.time_limit_minutes) setTimeLimit(String(draftQuiz.time_limit_minutes))
+    if (draftQuiz.opens_at) setOpensAt(dtLocal(new Date(draftQuiz.opens_at)))
+    if (draftQuiz.closes_at) setClosesAt(dtLocal(new Date(draftQuiz.closes_at)))
+    setAttempts(String(draftQuiz.attempts_allowed ?? 1))
+    setReviewVisible(draftQuiz.review_visible !== false)
+    if (draftQuiz.course_id != null) {
+      setCourseId(draftQuiz.course_id)
+      setTargetIds([draftQuiz.course_id])
+    }
+  }, [draftQuizId])
+
+  const loadDrafts = useCallback(async (id = courseId, qid = currentDraftQuizId) => {
     if (!id) return
     setDraftsLoading(true)
     try {
-      const list = await getQuizDrafts(id)
+      const opts = qid != null ? { quizId: qid } : { unlinkedOnly: true }
+      const list = await getQuizDrafts(id, opts)
       setDrafts(list)
     } catch (e) { setError(e.message) }
     finally { setDraftsLoading(false) }
-  }, [courseId])
+  }, [courseId, currentDraftQuizId])
 
   const loadMaterials = useCallback(async (id = courseId) => {
     if (!id) return
@@ -343,6 +366,35 @@ export default function CreateQuiz({ navigation, route }) {
     return () => { cancelled = true }
   }, [courseId, loadDrafts])
 
+  // Warn before leaving an unsaved builder session (draft sets are edited in place,
+  // so only a brand-new session with questions is at risk of losing work).
+  const dirty = !loading && !currentDraftQuizId && drafts.length > 0
+  useEffect(() => {
+    if (!dirty) return
+    const unsub = navigation.addListener('beforeRemove', (e) => {
+      if (leaveAllowed.current) return
+      e.preventDefault()
+      const action = e.data.action
+      if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
+        if (window.confirm('Leave the quiz builder? This session will not be saved — save as a draft if you want to edit it later.')) {
+          leaveAllowed.current = true
+          navigation.dispatch(action)
+        }
+        return
+      }
+      Alert.alert(
+        'Leave quiz builder?',
+        'This create-quiz session will not be saved. Save it as a draft if you want to edit it later.',
+        [
+          { text: 'Stay', style: 'cancel' },
+          { text: 'Save as draft', onPress: () => handlersRef.current.saveDraft?.(action) },
+          { text: 'Leave without saving', style: 'destructive', onPress: () => { leaveAllowed.current = true; navigation.dispatch(action) } },
+        ],
+      )
+    })
+    return unsub
+  }, [dirty, navigation])
+
   if (loading) {
     return (
       <View style={styles.flex}>
@@ -371,7 +423,12 @@ export default function CreateQuiz({ navigation, route }) {
       })
       setQuickPrompt('')
       setAiVisible(false)
-      await loadDrafts()
+      if (quiz?.id) {
+        setCurrentDraftQuizId(quiz.id)
+        await loadDrafts(courseId, quiz.id)
+      } else {
+        await loadDrafts()
+      }
       if (quiz.time_limit_minutes) setTimeLimit(String(quiz.time_limit_minutes))
       if (quiz.title) setQuizTitle(quiz.title)
       if (quiz.closes_at) setClosesAt(dtLocal(new Date(quiz.closes_at)))
@@ -503,7 +560,7 @@ export default function CreateQuiz({ navigation, route }) {
     }
   }
 
-  const handleSaveDraft = async () => {
+  const handleSaveDraft = async (afterAction) => {
     if (finishBusy || drafts.length === 0) return
     setFinishBusy(true)
     try {
@@ -512,13 +569,49 @@ export default function CreateQuiz({ navigation, route }) {
         ...detailsPayload(),
       })
       showToast('Saved as draft — find it under Draft on the Quiz page', 'success')
-      navigation.goBack()
+      leaveAllowed.current = true
+      if (afterAction) navigation.dispatch(afterAction)
+      else navigation.goBack()
     } catch (e) {
       showToast(e.message || 'Could not save draft', 'error')
     } finally {
       setFinishBusy(false)
     }
   }
+
+  const handleUpdateDraft = async () => {
+    if (finishBusy || !currentDraftQuizId) return
+    setFinishBusy(true)
+    try {
+      await updateQuizDraft(currentDraftQuizId, detailsPayload())
+      showToast('Draft updated', 'success')
+      leaveAllowed.current = true
+      navigation.goBack()
+    } catch (e) {
+      showToast(e.message || 'Could not update draft', 'error')
+    } finally {
+      setFinishBusy(false)
+    }
+  }
+
+  const handlePublishDraft = async () => {
+    if (finishBusy || !currentDraftQuizId || !canFinish) return
+    setFinishBusy(true)
+    try {
+      const created = await publishQuizDraft(currentDraftQuizId)
+      showToast(`Quiz published to ${created.length} class${created.length !== 1 ? 'es' : ''}`, 'success')
+      leaveAllowed.current = true
+      navigation.navigate('LiveResults', {
+        quizId: created[0].id, courseId: created[0].course_id,
+        courseCode: courseCodeState, courseName: courseNameState,
+      })
+    } catch (e) {
+      showToast(e.message || 'Could not publish draft', 'error')
+    } finally {
+      setFinishBusy(false)
+    }
+  }
+  handlersRef.current = { saveDraft: handleSaveDraft }
 
   return (
     <View style={styles.flex}>
@@ -572,9 +665,7 @@ export default function CreateQuiz({ navigation, route }) {
                     </View>
                   ))}
                   {d.type === 'short_answer' && !!d.suggested_answer && (
-                    <View style={[styles.optionChip, styles.optionChipCorrect]}>
-                      <Text style={[styles.optionChipText, styles.optionChipTextCorrect]} numberOfLines={1}>ideal: {d.suggested_answer}</Text>
-                    </View>
+                    <Text style={styles.idealAnswer} numberOfLines={3}>Ideal answer: {d.suggested_answer}</Text>
                   )}
                 </View>
                 <View style={styles.draftMeta}>
@@ -583,23 +674,24 @@ export default function CreateQuiz({ navigation, route }) {
                 </View>
               </View>
               <View style={styles.draftActions}>
-                {d.status === 'draft' && (
+                {d.status !== 'deleted' && (
                   <>
                     <TouchableOpacity style={styles.iconBtn} onPress={() => openEdit(d)} testID={`quiz-edit-${d.id}`}>
                       <Ionicons name="create-outline" size={16} color={C.primary} />
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.iconBtn} onPress={() => approveQuizQuestion(d.id).then(loadDrafts).then(() => showToast('Approved', 'success')).catch(e => showToast(e.message, 'error'))} testID={`quiz-approve-${d.id}`}>
-                      <Ionicons name="checkmark-outline" size={16} color={C.green} />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.iconBtn} onPress={() => deleteQuizQuestion(d.id).then(loadDrafts).catch(e => showToast(e.message, 'error'))} testID={`quiz-delete-${d.id}`}>
+                    {d.status === 'draft' ? (
+                      <TouchableOpacity style={styles.iconBtn} onPress={() => { approveQuizQuestion(d.id).then(() => loadDrafts()).then(() => showToast('Approved', 'success')).catch(e => showToast(e.message, 'error')) }} testID={`quiz-approve-${d.id}`}>
+                        <Ionicons name="checkmark-outline" size={16} color={C.green} />
+                      </TouchableOpacity>
+                    ) : (
+                      <TouchableOpacity style={styles.iconBtn} onPress={() => { approveQuizQuestion(d.id).then(() => loadDrafts()).then(() => showToast('Approval reverted — question back to draft', 'info')).catch(e => showToast(e.message, 'error')) }} testID={`quiz-unapprove-${d.id}`}>
+                        <Ionicons name="arrow-undo-outline" size={16} color={C.orange} />
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity style={styles.iconBtn} onPress={() => { deleteQuizQuestion(d.id).then(() => loadDrafts()).catch(e => showToast(e.message, 'error')) }} testID={`quiz-delete-${d.id}`}>
                       <Ionicons name="trash-outline" size={16} color={C.red} />
                     </TouchableOpacity>
                   </>
-                )}
-                {d.status === 'approved' && (
-                  <TouchableOpacity style={styles.iconBtn} onPress={() => showToast(`${d.options?.length ?? 0} options · correct: ${d.correct_answer ?? '—'}`, 'info')}>
-                    <Ionicons name="eye-outline" size={16} color={C.textSub} />
-                  </TouchableOpacity>
                 )}
               </View>
             </View>
@@ -662,24 +754,49 @@ export default function CreateQuiz({ navigation, route }) {
               : 'Approve at least one question above before publishing.'}
           </Text>
           <View style={styles.btnRow}>
-            <TouchableOpacity
-              style={[styles.btn, styles.btnOutline]}
-              onPress={handleSaveDraft}
-              disabled={finishBusy || drafts.length === 0}
-              testID="quiz-save-draft"
-            >
-              <Ionicons name="document-text-outline" size={16} color={C.text} />
-              <Text style={styles.btnOutlineText}>Save as draft</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.btn, styles.btnPrimary, !canFinish && styles.btnDisabled]}
-              onPress={handlePublish}
-              disabled={finishBusy || !canFinish}
-              testID="quiz-publish"
-            >
-              <Ionicons name="send-outline" size={16} color="#fff" />
-              <Text style={styles.btnPrimaryText}>{finishBusy ? 'Working…' : 'Publish'}</Text>
-            </TouchableOpacity>
+            {currentDraftQuizId ? (
+              <>
+                <TouchableOpacity
+                  style={[styles.btn, styles.btnOutline]}
+                  onPress={handleUpdateDraft}
+                  disabled={finishBusy}
+                  testID="quiz-update-draft"
+                >
+                  <Ionicons name="save-outline" size={16} color={C.text} />
+                  <Text style={styles.btnOutlineText}>Save changes</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.btn, styles.btnPrimary, !canFinish && styles.btnDisabled]}
+                  onPress={handlePublishDraft}
+                  disabled={finishBusy || !canFinish}
+                  testID="quiz-publish"
+                >
+                  <Ionicons name="send-outline" size={16} color="#fff" />
+                  <Text style={styles.btnPrimaryText}>{finishBusy ? 'Working…' : 'Publish'}</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <TouchableOpacity
+                  style={[styles.btn, styles.btnOutline]}
+                  onPress={() => handleSaveDraft()}
+                  disabled={finishBusy || drafts.length === 0}
+                  testID="quiz-save-draft"
+                >
+                  <Ionicons name="document-text-outline" size={16} color={C.text} />
+                  <Text style={styles.btnOutlineText}>Save as draft</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.btn, styles.btnPrimary, !canFinish && styles.btnDisabled]}
+                  onPress={handlePublish}
+                  disabled={finishBusy || !canFinish}
+                  testID="quiz-publish"
+                >
+                  <Ionicons name="send-outline" size={16} color="#fff" />
+                  <Text style={styles.btnPrimaryText}>{finishBusy ? 'Working…' : 'Publish'}</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </Section>
 
@@ -946,10 +1063,15 @@ const styles = StyleSheet.create({
   optionChip: {
     flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 5,
     borderRadius: 8, borderWidth: 1, borderColor: C.border, backgroundColor: C.card,
+    maxWidth: '100%',
   },
   optionChipCorrect: { borderColor: C.green, backgroundColor: C.greenLt },
-  optionChipText: { fontSize: 11, color: C.textSub },
+  optionChipText: { fontSize: 11, color: C.textSub, flexShrink: 1 },
   optionChipTextCorrect: { color: C.greenDk, fontWeight: '700' },
+  idealAnswer: {
+    fontSize: 11, fontWeight: '700', color: C.greenDk, lineHeight: 16,
+    backgroundColor: C.greenLt, borderRadius: 8, padding: 8, marginBottom: 6,
+  },
   draftMeta: { flexDirection: 'row', gap: 10, alignItems: 'center' },
   metaText: { fontSize: 11, color: C.textHint },
   draftActions: { flexDirection: 'row', gap: 6 },

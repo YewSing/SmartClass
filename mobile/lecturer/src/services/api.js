@@ -477,8 +477,13 @@ export const getBeforeClass = async (courseId) =>
 // ─── Quiz (Module 6, S35) ──────────────────────────────────────────────────
 
 // Draft (and approved) questions for a course the lecturer teaches (FR-604).
-export const getQuizDrafts = async (courseId) =>
-  apiCall('GET', `/lecturer/quizzes/drafts?course_id=${courseId}`)
+// Can filter by quizId or pass unlinkedOnly=true for brand new builder sessions.
+export const getQuizDrafts = async (courseId, { quizId, unlinkedOnly } = {}) => {
+  let url = `/lecturer/quizzes/drafts?course_id=${courseId}`
+  if (quizId != null) url += `&quiz_id=${quizId}`
+  else if (unlinkedOnly) url += '&unlinked_only=true'
+  return apiCall('GET', url)
+}
 
 // Draft `count` questions of `type`/`level` from the selected materials (FR-601/602/603).
 export const generateQuiz = async (courseId, { material_ids, type, level, count }) =>
