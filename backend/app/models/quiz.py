@@ -76,6 +76,8 @@ class QuizQuestion(Base):
     level: Mapped[str] = mapped_column(String(20), nullable=False)
     source_material_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     topic: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    score: Mapped[float] = mapped_column(sa.Float, nullable=False, server_default="1.0")
+    learning_hint: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     # draft | approved | deleted
     status: Mapped[str] = mapped_column(String(20), nullable=False, server_default="draft")
     created_at: Mapped[datetime] = mapped_column(

@@ -97,31 +97,49 @@ export default function QuizResult({ navigation, route }) {
             {result.student_score_visible && (result.answers ?? []).length > 0 && (
               <Section tint="blue" badge="Your answers">
                 {result.answers.map((a, i) => {
-                  const correct = a.type === 'mcq' ? a.score === 1.0 : null
+                  const maxPts = a.max_score ?? 1.0
+                  const isCorrect = a.score != null && a.score >= maxPts
+                  const isWrong = a.score != null && a.score < maxPts
                   return (
                     <View key={a.question_id} style={styles.answerCard}>
                       <View style={styles.answerHead}>
-                        <Text style={styles.answerQ}>Q{i + 1} · {a.type === 'mcq' ? 'MCQ' : 'Short answer'}</Text>
-                        {a.type === 'mcq' && (
-                          <View style={[styles.badge, { backgroundColor: correct ? C.greenLt : C.redLt }]}>
-                            <Text style={[styles.badgeText, { color: correct ? C.greenDk : C.redDk }]}>
-                              {correct ? 'Correct' : 'Incorrect'}
-                            </Text>
-                          </View>
-                        )}
+                        <Text style={styles.answerQ}>Q{i + 1} · {a.type === 'mcq' ? 'MCQ' : 'Short answer'} · {a.score != null ? a.score : 0}/{maxPts} pt{maxPts !== 1 ? 's' : ''}</Text>
+                        <View style={[styles.badge, { backgroundColor: isCorrect ? C.greenLt : (isWrong ? C.redLt : C.yellowLt) }]}>
+                          <Text style={[styles.badgeText, { color: isCorrect ? C.greenDk : (isWrong ? C.redDk : C.yellowDk) }]}>
+                            {isCorrect ? 'Correct' : (isWrong ? 'Incorrect' : 'Partially scored')}
+                          </Text>
+                        </View>
                       </View>
+
                       {a.question && <Text style={styles.answerBody}>{a.question}</Text>}
+
                       <Text style={styles.answerLine}>
-                        Your answer: <Text style={styles.answerValue}>{a.answer || '—'}</Text>
+                        Your answer: <Text style={[styles.answerValue, isWrong && { color: C.redDk }]}>{a.answer || '—'}</Text>
                       </Text>
-                      {a.suggested_answer && (
+
+                      {/* Reveal correct answer if student got it wrong or if review is allowed */}
+                      {isWrong && a.correct_answer && (
                         <Text style={styles.answerLine}>
-                          Ideal: <Text style={[styles.answerValue, { color: C.greenDk }]}>{a.suggested_answer}</Text>
+                          Correct answer: <Text style={[styles.answerValue, { color: C.greenDk }]}>{a.correct_answer}</Text>
                         </Text>
                       )}
-                      {a.score != null && a.type !== 'mcq' && (
-                        <Text style={styles.answerLine}>Score: {a.score}</Text>
+
+                      {a.suggested_answer && (
+                        <Text style={styles.answerLine}>
+                          Ideal answer: <Text style={[styles.answerValue, { color: C.greenDk }]}>{a.suggested_answer}</Text>
+                        </Text>
                       )}
+
+                      {/* AI learning suggestion on wrong answers */}
+                      {isWrong && a.learning_hint ? (
+                        <View style={styles.hintBox}>
+                          <View style={styles.hintHeader}>
+                            <Ionicons name="sparkles" size={14} color={C.primary} />
+                            <Text style={styles.hintTitle}>Where to find the answer & learn</Text>
+                          </View>
+                          <Text style={styles.hintBody}>{a.learning_hint}</Text>
+                        </View>
+                      ) : null}
                     </View>
                   )
                 })}
@@ -177,4 +195,11 @@ const styles = StyleSheet.create({
   answerBody: { fontSize: 13, fontWeight: '700', color: C.text, marginBottom: 6 },
   answerLine: { fontSize: 12, color: C.textHint, marginTop: 2 },
   answerValue: { color: C.text, fontWeight: '600' },
+  hintBox: {
+    backgroundColor: C.blueLt, borderRadius: 8, padding: 8, marginTop: 8,
+    borderLeftWidth: 3, borderLeftColor: C.primary,
+  },
+  hintHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3 },
+  hintTitle: { fontSize: 11, fontWeight: '800', color: C.blueDk },
+  hintBody: { fontSize: 12, color: C.blueDk, lineHeight: 16 },
 })

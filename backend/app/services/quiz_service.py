@@ -18,17 +18,23 @@ from app.models.quiz import Quiz, QuizQuestion
 from app.schemas.quiz import GeneratedQuestion, QuickAddSpec
 from app.services.kb import llm, retrieval_api
 
-_QUESTION_PROMPT = """You draft one exam question for a university course, based ONLY on the
-passage below. Return a single JSON object with exactly these keys:
-- "question": the question text (string)
+_QUESTION_PROMPT = """You draft one exam question for a university course, testing concepts and knowledge related to the course material below.
+
+RULES FOR THE QUESTION:
+1. NEVER mention "the passage", "the text", "the provided material", "according to the text", or similar phrases in the question text. Write it as an authentic, standalone exam question.
+2. The question must test understanding, concepts, principles, or applications related to the subject matter at the requested difficulty level ({level}) so that students who studied the material can answer it.
+3. For MCQ, provide realistic and plausible distractors. For multiple correct answers or single answer, specify the correct answer clearly.
+
+Return a single JSON object with exactly these keys:
+- "question": the standalone question text (string)
 - "options": 2-5 option strings (mcq) or an empty list (short_answer)
 - "correct_answer": the correct option text (mcq) or null (short_answer)
 - "suggested_answer": the ideal short answer (short_answer) or null (mcq)
 - "level": one of beginner, intermediate, advanced
-- "topic": a short topic name (2-5 words) drawn from the passage
+- "topic": a short topic name (2-5 words) drawn from the material
 Reply with only the JSON object.
 
-Passage (source: {source}, {location}):
+Course Material (source: {source}, {location}):
 {text}
 
 Question type: {qtype}. Level: {level}."""
@@ -69,14 +75,31 @@ async def generate_questions(
     # passages whose material_id matches the material we searched for. Each material is
     # asked for an equal share of `count` (ceil) — a material with no retrievable text
     # simply contributes nothing rather than stealing another's quota.
+    import random
+
     quota = -(-count // len(material_ids))
     # all materials share the same query, so one can dominate the top hits — ask for
     # enough to cover every material's share before filtering by material_id
-    k = max(quota * len(material_ids), 8)
+    k = max(quota * len(material_ids) * 3, 15)
     per_material: dict[int, list] = {}
     for material_id in material_ids:
         passages = await retrieval_api.search(course_id, search_texts[material_id], k=k)
-        per_material[material_id] = [p for p in passages if p.material_id == material_id]
+        matched = [p for p in passages if p.material_id == material_id]
+        # Shuffle/sample to ensure different runs generate varied questions across chunks
+        if len(matched) > 1:
+            random.shuffle(matched)
+        per_material[material_id] = matched
+
+    # Keep track of existing question texts in this course to avoid duplicates
+    existing_texts = set()
+    async with AsyncSessionLocal() as db:
+        old_qs = (await db.execute(
+            select(QuizQuestion.question).where(
+                QuizQuestion.course_id == course_id,
+                QuizQuestion.status != "deleted",
+            )
+        )).scalars().all()
+        existing_texts = {t.strip().lower() for t in old_qs}
 
     created: list[QuizQuestion] = []
     for material_id in material_ids:
@@ -84,14 +107,19 @@ async def generate_questions(
         while made < quota:
             pool = per_material.get(material_id, [])
             if not pool:
-                # re-search once before giving up on the material (the fake/live search
-                # may return one passage per call; asking again yields the next chunk)
+                # re-search once before giving up on the material
                 passages = await retrieval_api.search(course_id, search_texts[material_id], k=k)
                 pool = [p for p in passages if p.material_id == material_id]
+                if len(pool) > 1:
+                    random.shuffle(pool)
                 per_material[material_id] = pool
                 if not pool:
                     break  # no retrievable text for this material
             passage = pool.pop(0)
+
+            # Pass existing questions as an avoidance hint if available
+            avoid_sample = list(existing_texts)[:5]
+            avoid_note = ("\nDo NOT duplicate or repeat these previous questions:\n" + "\n".join(f"- {a}" for a in avoid_sample)) if avoid_sample else ""
 
             prompt = _QUESTION_PROMPT.format(
                 source=passage.title,
@@ -99,7 +127,7 @@ async def generate_questions(
                 text=passage.text[:2500],
                 qtype=qtype,
                 level=level,
-            )
+            ) + avoid_note
             # LLMMalformedOutput / LLMUnavailable propagate (the adapter already retries
             # once); the router maps them to 502/503 — malformed output is never silently
             # skipped, or the lecturer would get fewer questions than asked
@@ -154,9 +182,13 @@ async def parse_quick_add(prompt: str) -> QuickAddSpec:
     )
 
 
-_INSTRUCTION_PROMPT = """You draft one exam question for a university course, based ONLY on
-the lecturer's instruction below (no course material is provided). Return a single JSON
-object with exactly these keys:
+_INSTRUCTION_PROMPT = """You draft one exam question for a university course, testing the topic and requirements from the lecturer's instruction below.
+
+RULES FOR THE QUESTION:
+1. NEVER mention "the lecturer's instruction", "the prompt", "based on the instruction", or similar meta-phrases. Write it as an authentic, standalone exam question.
+2. The question must test subject concepts, understanding, or problem-solving at the requested difficulty level ({level}).
+
+Return a single JSON object with exactly these keys:
 - "question": the question text (string)
 - "options": 2-5 option strings (mcq) or an empty list (short_answer)
 - "correct_answer": the correct option text (mcq) or null (short_answer)

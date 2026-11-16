@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useLecturer } from '../context/LecturerContext'
 import Topbar from '../components/Topbar'
 import Badge from '../components/Badge'
-import { getQuizAttempts } from '../services/api'
+import { getQuizAttempts, getQuizQuestionsForLecturer } from '../services/api'
 import { C } from '../theme'
 
 /** Section card in the interaction style: colored title chip + right node (S29 pattern). */
@@ -35,20 +35,26 @@ export default function LiveResults({ navigation, route }) {
   const { showToast } = useLecturer()
   const { quizId, courseId, courseCode, courseName } = (route?.params ?? {})
 
+  const [activeTab, setActiveTab] = useState('attempts') // 'questions' | 'attempts'
   const [attempts, setAttempts] = useState([])
+  const [questions, setQuestions] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
   const [intervalId, setIntervalId] = useState(null)
 
-  const loadAttempts = useCallback(async () => {
+  const loadData = useCallback(async () => {
     if (!quizId) return
     try {
-      const list = await getQuizAttempts(quizId)
-      setAttempts(list)
+      const [attemptList, questionList] = await Promise.all([
+        getQuizAttempts(quizId),
+        getQuizQuestionsForLecturer(quizId).catch(() => []),
+      ])
+      setAttempts(attemptList)
+      setQuestions(questionList)
       setError(null)
     } catch (e) {
-      setError(e.message || 'Could not load quiz attempts')
+      setError(e.message || 'Could not load quiz data')
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -56,11 +62,17 @@ export default function LiveResults({ navigation, route }) {
   }, [quizId])
 
   useEffect(() => {
-    loadAttempts()
-    const id = setInterval(loadAttempts, REFRESH_MS)
+    loadData()
+    const id = setInterval(loadData, REFRESH_MS)
     setIntervalId(id)
     return () => clearInterval(id)
-  }, [loadAttempts])
+  }, [loadData])
+
+  const totalEnrolled = attempts[0]?.total_enrolled ?? 0
+  const submittedStudents = new Set(
+    attempts.filter(a => a.status === 'submitted' || a.auto_submitted).map(a => a.student_id)
+  ).size
+  const notSubmitted = Math.max(0, totalEnrolled - submittedStudents)
 
   const started = attempts.filter(a => a.status === 'started').length
   const submitted = attempts.filter(a => a.status === 'submitted').length
@@ -108,60 +120,155 @@ export default function LiveResults({ navigation, route }) {
         sub={courseCode ? `${courseCode} · ${courseName}` : undefined}
         onBack={() => navigation.goBack()}
         right={
-          <TouchableOpacity style={styles.refresh} onPress={() => { setRefreshing(true); loadAttempts() }}>
+          <TouchableOpacity style={styles.refresh} onPress={() => { setRefreshing(true); loadData() }}>
             <Ionicons name={refreshing ? 'loop-circle' : 'refresh-outline'} size={18} color={C.primary} />
           </TouchableOpacity>
         }
       />
+
+      {/* Category Tabs: Questions vs Student Attempts */}
+      <View style={styles.tabBar}>
+        <TouchableOpacity
+          style={[styles.tabBtn, activeTab === 'attempts' && styles.tabBtnActive]}
+          onPress={() => setActiveTab('attempts')}
+        >
+          <Ionicons
+            name="people-outline"
+            size={16}
+            color={activeTab === 'attempts' ? C.primary : C.textSub}
+          />
+          <Text style={[styles.tabBtnText, activeTab === 'attempts' && styles.tabBtnTextActive]}>
+            Student Attempts ({attempts.length})
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.tabBtn, activeTab === 'questions' && styles.tabBtnActive]}
+          onPress={() => setActiveTab('questions')}
+        >
+          <Ionicons
+            name="help-circle-outline"
+            size={16}
+            color={activeTab === 'questions' ? C.primary : C.textSub}
+          />
+          <Text style={[styles.tabBtnText, activeTab === 'questions' && styles.tabBtnTextActive]}>
+            Questions ({questions.length})
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       <ScrollView style={styles.flex} showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        {/* Summary */}
-        <Section tint="blue" badge="Live results" right={
-          <Badge variant={started > 0 ? 'blue' : 'gray'} dot>{attempts.length} attempts</Badge>
-        }>
-          <View style={styles.summaryRow}>
-            <View style={styles.summaryCell}>
-              <Text style={styles.summaryNum}>{started}</Text>
-              <Text style={styles.summaryLbl}>In progress</Text>
-            </View>
-            <View style={styles.summaryCell}>
-              <Text style={[styles.summaryNum, { color: C.green }]}>{submitted}</Text>
-              <Text style={styles.summaryLbl}>Submitted</Text>
-            </View>
-            <View style={styles.summaryCell}>
-              <Text style={[styles.summaryNum, { color: C.textSub }]}>{avg}</Text>
-              <Text style={styles.summaryLbl}>Avg score</Text>
-            </View>
-          </View>
-          {autoSubmitted > 0 && (
-            <Text style={styles.hint}>{autoSubmitted} attempt{autoSubmitted !== 1 ? 's' : ''} auto-submitted after the deadline.</Text>
-          )}
-        </Section>
-
-        {loading && <View style={styles.loading}><ActivityIndicator size="large" color={C.primary} /></View>}
-
-        {!loading && error && (
-          <View style={styles.err}><Text style={styles.errText}>{error}</Text></View>
-        )}
-
-        {!loading && !error && attempts.length === 0 && (
-          <View style={styles.empty}>
-            <Ionicons name="people-outline" size={32} color={C.textHint} />
-            <Text style={styles.emptyText}>No attempts yet</Text>
-            <Text style={styles.emptySub}>Students take the quiz from the student app.</Text>
-          </View>
-        )}
-
-        {!loading && !error && attempts.length > 0 && (
+        {activeTab === 'attempts' && (
           <>
-            <Text style={styles.listTitle}>Attempts <Text style={styles.listSub}>tap a row to view / score answers</Text></Text>
-            <FlatList
-              data={attempts}
-              keyExtractor={(_, i) => String(i)}
-              renderItem={renderItem}
-              ItemSeparatorComponent={() => <View style={styles.separator} />}
-              contentContainerStyle={{ paddingBottom: 90 }}
-              style={styles.flex}
-            />
+            {/* Summary */}
+            <Section tint="blue" badge="Live results" right={
+              <Badge variant={notSubmitted > 0 ? 'orange' : 'green'} dot>{notSubmitted} not submitted</Badge>
+            }>
+              <View style={styles.summaryRow}>
+                <View style={styles.summaryCell}>
+                  <Text style={[styles.summaryNum, { color: C.orange }]}>{notSubmitted}</Text>
+                  <Text style={styles.summaryLbl}>Not submitted</Text>
+                </View>
+                <View style={styles.summaryCell}>
+                  <Text style={styles.summaryNum}>{started}</Text>
+                  <Text style={styles.summaryLbl}>In progress</Text>
+                </View>
+                <View style={styles.summaryCell}>
+                  <Text style={[styles.summaryNum, { color: C.green }]}>{submitted}</Text>
+                  <Text style={styles.summaryLbl}>Submitted</Text>
+                </View>
+                <View style={styles.summaryCell}>
+                  <Text style={[styles.summaryNum, { color: C.textSub }]}>{avg}</Text>
+                  <Text style={styles.summaryLbl}>Avg score</Text>
+                </View>
+              </View>
+              {autoSubmitted > 0 && (
+                <Text style={styles.hint}>{autoSubmitted} attempt{autoSubmitted !== 1 ? 's' : ''} auto-submitted after deadline.</Text>
+              )}
+            </Section>
+
+            {loading && <View style={styles.loading}><ActivityIndicator size="large" color={C.primary} /></View>}
+
+            {!loading && error && (
+              <View style={styles.err}><Text style={styles.errText}>{error}</Text></View>
+            )}
+
+            {!loading && !error && attempts.length === 0 && (
+              <View style={styles.empty}>
+                <Ionicons name="people-outline" size={32} color={C.textHint} />
+                <Text style={styles.emptyText}>No attempts yet</Text>
+                <Text style={styles.emptySub}>Students take the quiz from the student app.</Text>
+              </View>
+            )}
+
+            {!loading && !error && attempts.length > 0 && (
+              <>
+                <Text style={styles.listTitle}>Attempts <Text style={styles.listSub}>tap a row to view / score answers</Text></Text>
+                <FlatList
+                  data={attempts}
+                  keyExtractor={(_, i) => String(i)}
+                  renderItem={renderItem}
+                  ItemSeparatorComponent={() => <View style={styles.separator} />}
+                  contentContainerStyle={{ paddingBottom: 90 }}
+                  style={styles.flex}
+                />
+              </>
+            )}
+          </>
+        )}
+
+        {activeTab === 'questions' && (
+          <>
+            {loading && <View style={styles.loading}><ActivityIndicator size="large" color={C.primary} /></View>}
+
+            {!loading && questions.length === 0 && (
+              <View style={styles.empty}>
+                <Ionicons name="help-circle-outline" size={32} color={C.textHint} />
+                <Text style={styles.emptyText}>No questions on this quiz</Text>
+              </View>
+            )}
+
+            {!loading && questions.map((q, idx) => (
+              <Section
+                key={q.id}
+                tint={q.type === 'mcq' ? 'blue' : 'purple'}
+                badge={`Q${idx + 1} · ${q.type === 'mcq' ? 'MCQ' : 'Short answer'} · ${q.score ?? 1} pt${q.score !== 1 ? 's' : ''}`}
+                right={<Badge variant={q.status === 'approved' ? 'green' : 'gray'}>{q.level}</Badge>}
+              >
+                <Text style={styles.questionText}>{q.question}</Text>
+                {q.type === 'mcq' ? (
+                  <View style={styles.optionsList}>
+                    {(q.options ?? []).map((opt, i) => {
+                      const correctList = (q.correct_answer || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+                      const isCorrect = correctList.includes(opt.trim().toLowerCase())
+                      return (
+                        <View key={i} style={[styles.optionItem, isCorrect && styles.optionItemCorrect]}>
+                          <View style={[styles.letterBadge, isCorrect && styles.letterBadgeCorrect]}>
+                            <Text style={[styles.letterBadgeText, isCorrect && { color: '#fff' }]}>
+                              {'ABCD'[i] ?? '?'}
+                            </Text>
+                          </View>
+                          <Text style={[styles.optionText, isCorrect && styles.optionTextCorrect]}>
+                            {opt}
+                          </Text>
+                          {isCorrect && (
+                            <Ionicons name="checkmark-circle" size={16} color={C.green} style={{ marginLeft: 'auto' }} />
+                          )}
+                        </View>
+                      )
+                    })}
+                  </View>
+                ) : (
+                  <View style={styles.idealAnswerBox}>
+                    <Text style={styles.idealLabel}>Ideal Answer (Grading Reference):</Text>
+                    <Text style={styles.idealText}>{q.suggested_answer || '(No suggested answer recorded)'}</Text>
+                  </View>
+                )}
+                {q.topic ? (
+                  <Text style={styles.questionTopic}>Topic: {q.topic}</Text>
+                ) : null}
+              </Section>
+            ))}
           </>
         )}
 
@@ -200,6 +307,39 @@ const styles = StyleSheet.create({
   listTitle: { fontSize: 15, fontWeight: '800', color: C.text, marginTop: 10, marginBottom: 4 },
   listSub: { fontSize: 12, color: C.textSub, marginBottom: 8 },
   separator: { height: 1, backgroundColor: C.border, marginHorizontal: 16 },
+  tabBar: {
+    flexDirection: 'row', backgroundColor: C.card, borderBottomWidth: 1, borderBottomColor: C.border,
+  },
+  tabBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: 'transparent',
+  },
+  tabBtnActive: { borderBottomColor: C.primary },
+  tabBtnText: { fontSize: 13, fontWeight: '700', color: C.textSub },
+  tabBtnTextActive: { color: C.primary },
+  questionText: { fontSize: 14, fontWeight: '700', color: C.text, marginBottom: 10, lineHeight: 20 },
+  optionsList: { gap: 6, marginBottom: 8 },
+  optionItem: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: C.gray50, borderRadius: 8, padding: 8,
+    borderWidth: 1, borderColor: C.border,
+  },
+  optionItemCorrect: { backgroundColor: C.greenLt, borderColor: C.green },
+  letterBadge: {
+    width: 24, height: 24, borderRadius: 12, backgroundColor: C.gray200,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  letterBadgeCorrect: { backgroundColor: C.green },
+  letterBadgeText: { fontSize: 11, fontWeight: '800', color: C.text },
+  optionText: { fontSize: 13, color: C.text, flex: 1 },
+  optionTextCorrect: { color: C.greenDk, fontWeight: '700' },
+  idealAnswerBox: {
+    backgroundColor: C.gray50, borderRadius: 8, padding: 10, marginBottom: 8,
+    borderLeftWidth: 3, borderLeftColor: C.purple,
+  },
+  idealLabel: { fontSize: 11, fontWeight: '800', color: C.purple, marginBottom: 4 },
+  idealText: { fontSize: 13, color: C.text, lineHeight: 18 },
+  questionTopic: { fontSize: 11, color: C.textHint, marginTop: 4 },
   row: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 16, paddingVertical: 12, backgroundColor: C.card,

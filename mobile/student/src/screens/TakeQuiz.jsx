@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useStudent } from '../context/StudentContext'
 import Topbar from '../components/Topbar'
 import {
-  getQuizDetail, startQuizAttempt, submitQuizAttempt,
+  getQuizDetail, startQuizAttempt, submitQuizAttempt, saveQuizAttemptProgress,
 } from '../services/api'
 import { C } from '../theme'
 
@@ -58,14 +58,23 @@ export default function TakeQuiz({ navigation, route }) {
     ;(async () => {
       if (!quiz?.id) { setLoading(false); return }
       try {
-        const [att, detail] = await Promise.all([
-          startQuizAttempt(quiz.id),
-          getQuizDetail(quiz.id),
-        ])
+        const detail = await getQuizDetail(quiz.id)
         if (cancelled) return
-        setAttemptId(att.attempt_id)
-        setDeadline(new Date(att.deadline))
+        let attId = detail.active_attempt_id
+        let attDeadline = detail.active_deadline
+
+        if (!attId) {
+          const att = await startQuizAttempt(quiz.id)
+          attId = att.attempt_id
+          attDeadline = att.deadline
+        }
+
+        setAttemptId(attId)
+        setDeadline(new Date(attDeadline))
         setQuestions(detail.questions ?? [])
+        if (detail.saved_answers && Object.keys(detail.saved_answers).length > 0) {
+          setAnswers(detail.saved_answers)
+        }
         setLoading(false)
       } catch (e) {
         if (!cancelled) {
@@ -76,6 +85,33 @@ export default function TakeQuiz({ navigation, route }) {
     })()
     return () => { cancelled = true }
   }, [quiz?.id])
+
+  // Auto-save progress whenever answers change
+  useEffect(() => {
+    if (!attemptId || submittedRef.current) return
+    const timer = setTimeout(() => {
+      const payload = Object.entries(answers).map(([qid, ans]) => ({
+        question_id: Number(qid),
+        answer: ans,
+      }))
+      if (payload.length > 0) {
+        saveQuizAttemptProgress(attemptId, payload).catch(() => {})
+      }
+    }, 1000)
+    return () => clearTimeout(timer)
+  }, [answers, attemptId])
+
+  const handleBack = () => {
+    if (attemptId && Object.keys(answers).length > 0) {
+      const payload = Object.entries(answers).map(([qid, ans]) => ({
+        question_id: Number(qid),
+        answer: ans,
+      }))
+      saveQuizAttemptProgress(attemptId, payload).catch(() => {})
+    }
+    showToast('Progress saved — you can continue before the time limit ends', 'info')
+    navigation.goBack()
+  }
 
   // Countdown — auto-submit at zero (server also auto-submits expired attempts).
   useEffect(() => {
@@ -133,6 +169,7 @@ export default function TakeQuiz({ navigation, route }) {
       <Topbar
         title={quiz?.title ?? 'Quiz'}
         sub={courseCode}
+        onBack={handleBack}
         right={
           remaining != null ? (
             <View style={[styles.timer, low && styles.timerLow]}>
@@ -159,18 +196,29 @@ export default function TakeQuiz({ navigation, route }) {
             {q.type === 'mcq' ? (
               <View style={styles.options}>
                 {(q.options ?? []).map((opt, i) => {
-                  const on = answers[q.id] === opt
+                  const currentSelected = (answers[q.id] || '').split(',').map(s => s.trim()).filter(Boolean)
+                  const on = currentSelected.includes(opt)
+                  const toggleOption = () => {
+                    setAnswers(prev => {
+                      const cur = (prev[q.id] || '').split(',').map(s => s.trim()).filter(Boolean)
+                      const next = cur.includes(opt) ? cur.filter(x => x !== opt) : [...cur, opt]
+                      return { ...prev, [q.id]: next.join(', ') }
+                    })
+                  }
                   return (
                     <TouchableOpacity
                       key={i}
                       style={[styles.option, on && styles.optionOn]}
-                      onPress={() => setAnswers(prev => ({ ...prev, [q.id]: opt }))}
+                      onPress={toggleOption}
                       testID={`quiz-opt-${q.id}-${i}`}
                     >
                       <View style={[styles.letter, on && styles.letterOn]}>
                         <Text style={[styles.letterText, on && { color: '#fff' }]}>{'ABCD'[i] ?? '?'}</Text>
                       </View>
                       <Text style={[styles.optionText, on && { color: C.blueDk, fontWeight: '700' }]}>{opt}</Text>
+                      {on && (
+                        <Ionicons name="checkmark-circle" size={16} color={C.primary} style={{ marginLeft: 'auto' }} />
+                      )}
                     </TouchableOpacity>
                   )
                 })}

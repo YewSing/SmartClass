@@ -10,6 +10,7 @@
 """
 
 from datetime import datetime, timedelta
+from typing import Optional
 
 import sqlalchemy as sa
 from sqlalchemy import select
@@ -98,6 +99,22 @@ async def get_quiz_for_taking(db: AsyncSession, quiz_id: int, student_id: int) -
             QuizQuestion.status.in_(("approved", "draft")),
         ).order_by(QuizQuestion.id)
     )).scalars().all()
+    # Check if student has an existing active attempt for this quiz to return saved progress
+    active_attempt = (await db.execute(
+        select(QuizAttempt).where(
+            QuizAttempt.quiz_id == quiz_id,
+            QuizAttempt.student_id == student_id,
+            QuizAttempt.status == "started",
+        ).order_by(QuizAttempt.started_at.desc())
+    )).scalars().first()
+
+    existing_answers = {}
+    if active_attempt:
+        ans_rows = (await db.execute(
+            select(QuizAnswer).where(QuizAnswer.attempt_id == active_attempt.id)
+        )).scalars().all()
+        existing_answers = {a.question_id: a.answer for a in ans_rows if a.answer is not None}
+
     return {
         "id": quiz.id,
         "course_id": quiz.course_id,
@@ -107,12 +124,16 @@ async def get_quiz_for_taking(db: AsyncSession, quiz_id: int, student_id: int) -
         "closes_at": quiz.closes_at,
         "attempts_allowed": quiz.attempts_allowed,
         "review_visible": quiz.review_visible,
+        "active_attempt_id": active_attempt.id if active_attempt else None,
+        "active_deadline": active_attempt.deadline if active_attempt else None,
+        "saved_answers": existing_answers,
         "questions": [
             {
                 "id": q.id,
                 "type": q.type,
                 "question": q.question,
                 "options": q.options,
+                "score": getattr(q, "score", 1.0) or 1.0,
             }
             for q in questions
         ],
@@ -134,6 +155,7 @@ async def start_attempt(db: AsyncSession, quiz_id: int, student_id: int) -> Quiz
     )
     if not enrolled:
         raise ValueError("not_enrolled")
+    now = _now()
     used = (await db.execute(
         select(sa.func.count(QuizAttempt.id)).where(
             QuizAttempt.quiz_id == quiz_id, QuizAttempt.student_id == student_id
@@ -141,7 +163,6 @@ async def start_attempt(db: AsyncSession, quiz_id: int, student_id: int) -> Quiz
     )).scalar_one()
     if used >= (quiz.attempts_allowed or 1):
         raise ValueError("already_attempted")
-    now = _now()
     if quiz.opens_at and now < quiz.opens_at:
         raise ValueError("not_yet_open")
     if quiz.closes_at and now > quiz.closes_at:
@@ -157,6 +178,101 @@ async def start_attempt(db: AsyncSession, quiz_id: int, student_id: int) -> Quiz
     return attempt
 
 
+async def save_attempt_progress(
+    db: AsyncSession, attempt_id: int, answers: list[dict], student_id: int
+) -> int:
+    """Save in-progress answers without finalizing or grading."""
+    attempt = await db.get(QuizAttempt, attempt_id)
+    if not attempt or attempt.student_id != student_id:
+        raise ValueError("attempt_not_found")
+    if attempt.status != "started":
+        raise ValueError("already_submitted")
+    if attempt.deadline and _now() > attempt.deadline:
+        await _auto_submit_single_attempt(db, attempt)
+        raise ValueError("expired")
+
+    by_question = {a["question_id"]: a.get("answer") for a in answers}
+    saved_count = 0
+    for qid, answer in by_question.items():
+        existing = (await db.execute(
+            select(QuizAnswer).where(
+                QuizAnswer.attempt_id == attempt_id,
+                QuizAnswer.question_id == qid,
+            )
+        )).scalars().first()
+        if existing:
+            existing.answer = answer
+        else:
+            db.add(QuizAnswer(
+                attempt_id=attempt_id, question_id=qid, answer=answer,
+                score=None, auto_graded=False,
+            ))
+        saved_count += 1
+    await db.commit()
+    return saved_count
+
+
+async def _auto_submit_single_attempt(db: AsyncSession, attempt: QuizAttempt) -> None:
+    """Auto-submit a single expired attempt, grading any MCQ answers submitted so far."""
+    if attempt.status != "started":
+        return
+    attempt.status = "auto_submitted"
+    attempt.auto_submitted = True
+    attempt.submitted_at = _now()
+
+    # Get all questions of this quiz to ensure missing questions get an answer row with 0 points
+    questions = (await db.execute(
+        select(QuizQuestion).where(
+            QuizQuestion.quiz_id == attempt.quiz_id,
+            QuizQuestion.status.in_(("approved", "draft")),
+        )
+    )).scalars().all()
+
+    existing_answers = {
+        a.question_id: a
+        for a in (await db.execute(
+            select(QuizAnswer).where(QuizAnswer.attempt_id == attempt.id)
+        )).scalars().all()
+    }
+
+    total = 0.0
+    for q in questions:
+        q_score = getattr(q, "score", 1.0) or 1.0
+        ans_row = existing_answers.get(q.id)
+        if ans_row:
+            if q.type == "mcq":
+                is_correct = _check_mcq_correct(ans_row.answer, q.correct_answer)
+                ans_row.score = float(q_score) if is_correct else 0.0
+                ans_row.auto_graded = True
+                total += ans_row.score
+            elif ans_row.score is not None:
+                total += ans_row.score
+        else:
+            # Unanswered question gets 0.0 score
+            db.add(QuizAnswer(
+                attempt_id=attempt.id, question_id=q.id, answer=None,
+                score=0.0 if q.type == "mcq" else None, auto_graded=(q.type == "mcq"),
+            ))
+
+    attempt.score = total
+    await db.commit()
+    await db.refresh(attempt)
+
+
+def _check_mcq_correct(user_ans: Optional[str], correct_ans: Optional[str]) -> bool:
+    """Auto-grade MCQ answers supporting single choice or multiple choices (comma or semicolon separated)."""
+    if not user_ans or not correct_ans:
+        return False
+    # Normalize by splitting on comma/semicolon, trimming and lowercasing
+    def _parse_items(s: str) -> set[str]:
+        parts = [p.strip().lower() for p in s.replace(";", ",").split(",") if p.strip()]
+        return set(parts)
+
+    user_set = _parse_items(user_ans)
+    correct_set = _parse_items(correct_ans)
+    return bool(user_set and user_set == correct_set)
+
+
 async def submit_attempt(
     db: AsyncSession, attempt_id: int, answers: list[dict], student_id: int
 ) -> QuizAttempt:
@@ -169,22 +285,46 @@ async def submit_attempt(
     if attempt.deadline and _now() > attempt.deadline:
         raise ValueError("expired")
 
+    # Ensure all questions on this quiz get an answer row (missing/unanswered gets 0.0 for MCQ, None for SA)
+    all_questions = (await db.execute(
+        select(QuizQuestion).where(
+            QuizQuestion.quiz_id == attempt.quiz_id,
+            QuizQuestion.status.in_(("approved", "draft")),
+        )
+    )).scalars().all()
+
+    existing_rows = {
+        a.question_id: a
+        for a in (await db.execute(
+            select(QuizAnswer).where(QuizAnswer.attempt_id == attempt_id)
+        )).scalars().all()
+    }
+
     by_question = {a["question_id"]: a.get("answer") for a in answers}
     total = 0.0
-    for qid, answer in by_question.items():
-        question = await db.get(QuizQuestion, qid)
-        if not question or question.quiz_id is not None and question.quiz_id != attempt.quiz_id:
-            continue
+    for question in all_questions:
+        qid = question.id
+        answer = by_question.get(qid)
+        ans_row = existing_rows.get(qid)
         auto_graded = False
         score = None
+        q_score = getattr(question, "score", 1.0) or 1.0
         if question.type == "mcq":
             auto_graded = True
-            score = 1.0 if (answer is not None and answer == question.correct_answer) else 0.0
+            is_correct = _check_mcq_correct(answer, question.correct_answer)
+            score = float(q_score) if is_correct else 0.0
             total += score
-        db.add(QuizAnswer(
-            attempt_id=attempt_id, question_id=qid, answer=answer,
-            score=score, auto_graded=auto_graded,
-        ))
+
+        if ans_row:
+            ans_row.answer = answer
+            ans_row.score = score
+            ans_row.auto_graded = auto_graded
+        else:
+            db.add(QuizAnswer(
+                attempt_id=attempt_id, question_id=qid, answer=answer,
+                score=score, auto_graded=auto_graded,
+            ))
+
     attempt.submitted_at = _now()
     attempt.status = "submitted"
     attempt.score = total

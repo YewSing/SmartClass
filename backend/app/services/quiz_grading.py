@@ -54,6 +54,35 @@ async def _accessible_attempt(db: AsyncSession, attempt_id: int, lecturer: Lectu
     return attempt
 
 
+async def list_all_attempt_answers(
+    db: AsyncSession, attempt_id: int, lecturer: Lecturer
+) -> list[dict]:
+    """All answers (MCQ and Short Answer) on the attempt for lecturer review."""
+    await _accessible_attempt(db, attempt_id, lecturer)
+    result = await db.execute(
+        select(QuizAnswer, QuizQuestion)
+        .join(QuizQuestion, QuizQuestion.id == QuizAnswer.question_id)
+        .where(QuizAnswer.attempt_id == attempt_id)
+        .order_by(QuizAnswer.id)
+    )
+    return [
+        {
+            "answer_id": a.id,
+            "question_id": q.id,
+            "question": q.question,
+            "type": q.type,
+            "options": q.options,
+            "answer": a.answer,
+            "correct_answer": q.correct_answer,
+            "suggested_answer": q.suggested_answer,
+            "score": a.score,
+            "max_score": getattr(q, "score", 1.0) or 1.0,
+            "auto_graded": a.auto_graded,
+        }
+        for a, q in result.all()
+    ]
+
+
 async def list_unscored_short_answers(
     db: AsyncSession, attempt_id: int, lecturer: Lecturer
 ) -> list[dict]:
@@ -168,21 +197,74 @@ async def get_attempt_result(
         .where(QuizAnswer.attempt_id == attempt_id)
         .order_by(QuizAnswer.id)
     )
+    material_ids = [q.source_material_id for _, q in result.all() if q.source_material_id is not None]
+    from app.models.knowledge import KbMaterial
+    mat_titles = {}
+    if material_ids:
+        mats = (await db.execute(select(KbMaterial).where(KbMaterial.id.in_(material_ids)))).scalars().all()
+        mat_titles = {m.id: m.title for m in mats}
+
+    # Re-query answers and questions
+    result = await db.execute(
+        select(QuizAnswer, QuizQuestion)
+        .join(QuizQuestion, QuizQuestion.id == QuizAnswer.question_id)
+        .where(QuizAnswer.attempt_id == attempt_id)
+        .order_by(QuizAnswer.id)
+    )
     answers = []
+    total_earned = 0.0
+    total_possible = 0.0
     for a, q in result.all():
+        q_max = getattr(q, "score", 1.0) or 1.0
+        total_possible += q_max
+        if a.score is not None:
+            total_earned += a.score
+
+        # AI learning suggestion for incorrect answers
+        learning_hint = None
+        is_wrong = False
+        if q.type == "mcq" and a.score is not None and a.score < q_max:
+            is_wrong = True
+        elif q.type == "short_answer" and a.score is not None and a.score < (q_max * 0.5):
+            is_wrong = True
+
+        if review_ok and is_wrong:
+            learning_hint = q.learning_hint
+            if not learning_hint:
+                mat_name = mat_titles.get(q.source_material_id) if q.source_material_id else None
+                parts = []
+                if mat_name:
+                    parts.append(f"Review material: '{mat_name}'")
+                if q.topic:
+                    parts.append(f"Topic: {q.topic}")
+                    parts.append(f"Recommended search keyword: '{q.topic}' for online tutorials and videos")
+                elif q.question:
+                    parts.append("Search the key concepts in this question to study related video guides.")
+                learning_hint = " · ".join(parts) if parts else "Review the lecture notes on this topic."
+
         answers.append({
             "question_id": q.id,
             "question": q.question if review_ok else None,
             "type": q.type,
+            "options": q.options if review_ok else None,
             "answer": a.answer,
             "score": a.score if (review_ok or q.type == "mcq") else None,
+            "max_score": q_max,
             "auto_graded": a.auto_graded,
+            "correct_answer": q.correct_answer if review_ok else None,
             "suggested_answer": q.suggested_answer if review_ok else None,
+            "learning_hint": learning_hint,
         })
+
+    pct_score = round((total_earned / total_possible) * 100, 1) if total_possible > 0 else (attempt.score or 0.0)
+
     return {
         "attempt_id": attempt.id,
         "status": attempt.status,
         "score": attempt.score if student_visible else None,
+        "percentage_score": pct_score if student_visible else None,
+        "raw_score": total_earned if student_visible else None,
+        "max_score": total_possible if student_visible else None,
         "auto_submitted": attempt.auto_submitted,
         "grading_complete": complete,
         "student_score_visible": student_visible,
@@ -219,6 +301,14 @@ async def list_quiz_attempts(
             .where(Student.id.in_(a.student_id for a in attempts))
         )
         names = dict(rows.all())
+    # Count distinct enrolled students in the course
+    from app.models.class_ import Enrollment
+    total_enrolled = (await db.scalar(
+        select(sa.func.count(sa.func.distinct(Enrollment.student_id)))
+        .join(ClassOccurrence, ClassOccurrence.id == Enrollment.occurrence_id)
+        .where(ClassOccurrence.course_id == quiz.course_id)
+    )) or 0
+
     out = []
     for a in attempts:
         complete = await _is_grading_complete(db, a.id)
@@ -232,5 +322,6 @@ async def list_quiz_attempts(
             "grading_complete": complete,
             "started_at": a.started_at,
             "submitted_at": a.submitted_at,
+            "total_enrolled": total_enrolled,
         })
     return out

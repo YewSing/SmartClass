@@ -46,6 +46,8 @@ class QuizQuestionOut(BaseModel):
     level: str
     source_material_id: Optional[int] = None
     topic: Optional[str] = None
+    score: float = 1.0
+    learning_hint: Optional[str] = None
     status: str
     created_at: Optional[datetime] = None
 
@@ -61,6 +63,7 @@ class EditQuizQuestionRequest(BaseModel):
     suggested_answer: Optional[str] = None
     level: Optional[str] = Field(None, pattern="^(beginner|intermediate|advanced)$")
     topic: Optional[str] = Field(None, max_length=255)
+    score: Optional[float] = Field(None, ge=0.1, le=100.0)
 
 
 class QuizOut(BaseModel):
@@ -113,6 +116,7 @@ class UpdateQuizDraftRequest(BaseModel):
     closes_at: Optional[datetime] = None
     attempts_allowed: Optional[int] = Field(None, ge=1, le=10)
     review_visible: Optional[bool] = None
+    question_ids: Optional[list[int]] = None
 
 
 class PublishDraftQuizRequest(BaseModel):
@@ -130,6 +134,7 @@ class CreateQuizQuestionRequest(BaseModel):
     suggested_answer: Optional[str] = None
     level: str = Field(pattern="^(beginner|intermediate|advanced)$")
     topic: Optional[str] = Field(None, max_length=255)
+    score: float = Field(1.0, ge=0.1, le=100.0)
 
 
 # ── LLM quick-add: "create 5 mcq, 2 short answer, 15min, valid two days" ────
@@ -197,11 +202,15 @@ class QuizAnswerOut(BaseModel):
     question_id: int
     answer: Optional[str] = None
     score: Optional[float] = None
+    max_score: Optional[float] = 1.0
     auto_graded: bool
     # per-question fields on the student result endpoint (hidden when review is off)
     question: Optional[str] = None
     type: Optional[str] = None
+    options: Optional[list[str]] = None
+    correct_answer: Optional[str] = None
     suggested_answer: Optional[str] = None
+    learning_hint: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -231,6 +240,9 @@ class QuizAttemptResultOut(BaseModel):
     attempt_id: int
     status: str
     score: Optional[float] = None
+    percentage_score: Optional[float] = None
+    raw_score: Optional[float] = None
+    max_score: Optional[float] = None
     auto_submitted: bool
     grading_complete: bool
     student_score_visible: bool
@@ -250,5 +262,6 @@ class QuizAttemptSummaryOut(BaseModel):
     grading_complete: bool
     started_at: Optional[datetime] = None
     submitted_at: Optional[datetime] = None
+    total_enrolled: Optional[int] = None
 
     model_config = {"from_attributes": True}

@@ -262,17 +262,19 @@ export default function CreateQuiz({ navigation, route }) {
   const [addType, setAddType] = useState('mcq')
   const [addText, setAddText] = useState('')
   const [addOptions, setAddOptions] = useState(['', '', '', ''])
-  const [addCorrect, setAddCorrect] = useState('A')
+  const [addCorrect, setAddCorrect] = useState(['A'])
   const [addSuggested, setAddSuggested] = useState('')
   const [addTopic, setAddTopic] = useState('')
+  const [addScore, setAddScore] = useState('1')
   const [addBusy, setAddBusy] = useState(false)
 
   // Edit question sheet
   const [editTarget, setEditTarget] = useState(null)
   const [editText, setEditText] = useState('')
   const [editOptions, setEditOptions] = useState([])
-  const [editCorrect, setEditCorrect] = useState('')
+  const [editCorrect, setEditCorrect] = useState([])
   const [editSuggested, setEditSuggested] = useState('')
+  const [editScore, setEditScore] = useState('1')
   const [editBusy, setEditBusy] = useState(false)
 
   // Quiz details (Moodle-style)
@@ -477,19 +479,20 @@ export default function CreateQuiz({ navigation, route }) {
         question: addText.trim(),
         level: genLevel,
         topic: addTopic.trim() || null,
+        score: Math.max(0.1, parseFloat(addScore || '1') || 1.0),
       }
       if (addType === 'mcq') {
         const options = addOptions.map(o => o.trim()).filter(Boolean)
         if (options.length < 2) { showToast('Give at least 2 options', 'error'); setAddBusy(false); return }
-        const correctIdx = 'ABCD'.indexOf(addCorrect)
+        const chosen = options.filter((_, idx) => addCorrect.includes('ABCD'[idx]))
         data.options = options
-        data.correct_answer = options[Math.min(correctIdx, options.length - 1)]
+        data.correct_answer = chosen.join(', ') || options[0]
       } else {
         data.suggested_answer = addSuggested.trim() || null
       }
       await createQuizQuestion(data)
       setAddVisible(false)
-      setAddText(''); setAddOptions(['', '', '', '']); setAddSuggested(''); setAddTopic('')
+      setAddText(''); setAddOptions(['', '', '', '']); setAddCorrect(['A']); setAddSuggested(''); setAddTopic(''); setAddScore('1')
       await loadDrafts()
       showToast('Question added as draft', 'success')
     } catch (e) {
@@ -503,19 +506,25 @@ export default function CreateQuiz({ navigation, route }) {
     setEditTarget(d)
     setEditText(d.question)
     setEditOptions(d.options ?? [])
-    setEditCorrect(d.correct_answer ?? '')
+    const correctList = (d.correct_answer || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+    const active = (d.options ?? []).filter(o => correctList.includes(o.trim().toLowerCase()))
+    setEditCorrect(active.length ? active : (d.options && d.options[0] ? [d.options[0]] : []))
     setEditSuggested(d.suggested_answer ?? '')
+    setEditScore(String(d.score ?? 1))
   }
 
   const handleEditSave = async () => {
     if (editBusy || !editTarget) return
     setEditBusy(true)
     try {
-      const data = { question: editText.trim() }
+      const data = {
+        question: editText.trim(),
+        score: Math.max(0.1, parseFloat(editScore || '1') || 1.0),
+      }
       if (editTarget.type === 'mcq') {
-        data.options = editOptions.map(o => o.trim()).filter(Boolean)
-        const idx = ('ABCD').indexOf(editCorrect)
-        data.correct_answer = data.options[Math.min(Math.max(idx, 0), data.options.length - 1)]
+        const options = editOptions.map(o => o.trim()).filter(Boolean)
+        data.options = options
+        data.correct_answer = editCorrect.filter(o => options.includes(o)).join(', ') || options[0]
       } else {
         data.suggested_answer = editSuggested.trim() || null
       }
@@ -549,9 +558,19 @@ export default function CreateQuiz({ navigation, route }) {
         ...detailsPayload(),
       })
       showToast(`Quiz published to ${created.length} class${created.length !== 1 ? 'es' : ''}`, 'success')
-      navigation.navigate('LiveResults', {
-        quizId: created[0].id, courseId: created[0].course_id,
-        courseCode: courseCodeState, courseName: courseNameState,
+      leaveAllowed.current = true
+      navigation.reset({
+        index: 1,
+        routes: [
+          { name: 'QuizList' },
+          {
+            name: 'LiveResults',
+            params: {
+              quizId: created[0].id, courseId: created[0].course_id,
+              courseCode: courseCodeState, courseName: courseNameState,
+            },
+          },
+        ],
       })
     } catch (e) {
       showToast(e.message || 'Could not publish quiz', 'error')
@@ -564,10 +583,18 @@ export default function CreateQuiz({ navigation, route }) {
     if (finishBusy || drafts.length === 0) return
     setFinishBusy(true)
     try {
-      await saveQuizDraft({
-        question_ids: drafts.map(d => d.id),
-        ...detailsPayload(),
-      })
+      if (currentDraftQuizId) {
+        await updateQuizDraft(currentDraftQuizId, {
+          ...detailsPayload(),
+          question_ids: drafts.map(d => d.id),
+        })
+      } else {
+        const created = await saveQuizDraft({
+          question_ids: drafts.map(d => d.id),
+          ...detailsPayload(),
+        })
+        if (created?.id) setCurrentDraftQuizId(created.id)
+      }
       showToast('Saved as draft — find it under Draft on the Quiz page', 'success')
       leaveAllowed.current = true
       if (afterAction) navigation.dispatch(afterAction)
@@ -583,7 +610,10 @@ export default function CreateQuiz({ navigation, route }) {
     if (finishBusy || !currentDraftQuizId) return
     setFinishBusy(true)
     try {
-      await updateQuizDraft(currentDraftQuizId, detailsPayload())
+      await updateQuizDraft(currentDraftQuizId, {
+        ...detailsPayload(),
+        question_ids: drafts.map(d => d.id),
+      })
       showToast('Draft updated', 'success')
       leaveAllowed.current = true
       navigation.goBack()
@@ -601,9 +631,18 @@ export default function CreateQuiz({ navigation, route }) {
       const created = await publishQuizDraft(currentDraftQuizId)
       showToast(`Quiz published to ${created.length} class${created.length !== 1 ? 'es' : ''}`, 'success')
       leaveAllowed.current = true
-      navigation.navigate('LiveResults', {
-        quizId: created[0].id, courseId: created[0].course_id,
-        courseCode: courseCodeState, courseName: courseNameState,
+      navigation.reset({
+        index: 1,
+        routes: [
+          { name: 'QuizList' },
+          {
+            name: 'LiveResults',
+            params: {
+              quizId: created[0].id, courseId: created[0].course_id,
+              courseCode: courseCodeState, courseName: courseNameState,
+            },
+          },
+        ],
       })
     } catch (e) {
       showToast(e.message || 'Could not publish draft', 'error')
@@ -657,41 +696,44 @@ export default function CreateQuiz({ navigation, route }) {
               <View style={styles.draftBody}>
                 <Text style={styles.draftQuestion} numberOfLines={2}>{d.question}</Text>
                 <View style={styles.optionsRow}>
-                  {(d.options ?? []).map((o, i) => (
-                    <View key={i} style={[styles.optionChip, d.correct_answer === o && styles.optionChipCorrect]}>
-                      <Text style={[styles.optionChipText, d.correct_answer === o && styles.optionChipTextCorrect]}>
-                        {String.fromCharCode(65 + i)}. {o}
-                      </Text>
-                    </View>
-                  ))}
+                  {(d.options ?? []).map((o, i) => {
+                    const correctList = (d.correct_answer || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+                    const isCorrect = correctList.includes(o.trim().toLowerCase())
+                    return (
+                      <View key={i} style={[styles.optionChip, isCorrect && styles.optionChipCorrect]}>
+                        <Text style={[styles.optionChipText, isCorrect && styles.optionChipTextCorrect]}>
+                          {String.fromCharCode(65 + i)}. {o}
+                        </Text>
+                      </View>
+                    )
+                  })}
                   {d.type === 'short_answer' && !!d.suggested_answer && (
                     <Text style={styles.idealAnswer} numberOfLines={3}>Ideal answer: {d.suggested_answer}</Text>
                   )}
                 </View>
                 <View style={styles.draftMeta}>
                   <Badge variant={d.status === 'approved' ? 'green' : 'gray'}>{d.status.charAt(0).toUpperCase() + d.status.slice(1)}</Badge>
-                  <Text style={styles.metaText}>{d.type === 'mcq' ? 'MCQ' : 'Short answer'} · {d.level} · {d.topic || '—'}</Text>
+                  <Text style={styles.metaText}>{d.type === 'mcq' ? 'MCQ' : 'Short answer'} · {d.score ?? 1} pt{d.score !== 1 ? 's' : ''} · {d.level} · {d.topic || '—'}</Text>
                 </View>
               </View>
               <View style={styles.draftActions}>
-                {d.status !== 'deleted' && (
+                {d.status === 'draft' && (
                   <>
                     <TouchableOpacity style={styles.iconBtn} onPress={() => openEdit(d)} testID={`quiz-edit-${d.id}`}>
                       <Ionicons name="create-outline" size={16} color={C.primary} />
                     </TouchableOpacity>
-                    {d.status === 'draft' ? (
-                      <TouchableOpacity style={styles.iconBtn} onPress={() => { approveQuizQuestion(d.id).then(() => loadDrafts()).then(() => showToast('Approved', 'success')).catch(e => showToast(e.message, 'error')) }} testID={`quiz-approve-${d.id}`}>
-                        <Ionicons name="checkmark-outline" size={16} color={C.green} />
-                      </TouchableOpacity>
-                    ) : (
-                      <TouchableOpacity style={styles.iconBtn} onPress={() => { approveQuizQuestion(d.id).then(() => loadDrafts()).then(() => showToast('Approval reverted — question back to draft', 'info')).catch(e => showToast(e.message, 'error')) }} testID={`quiz-unapprove-${d.id}`}>
-                        <Ionicons name="arrow-undo-outline" size={16} color={C.orange} />
-                      </TouchableOpacity>
-                    )}
+                    <TouchableOpacity style={styles.iconBtn} onPress={() => { approveQuizQuestion(d.id).then(() => loadDrafts()).then(() => showToast('Approved', 'success')).catch(e => showToast(e.message, 'error')) }} testID={`quiz-approve-${d.id}`}>
+                      <Ionicons name="checkmark-outline" size={16} color={C.green} />
+                    </TouchableOpacity>
                     <TouchableOpacity style={styles.iconBtn} onPress={() => { deleteQuizQuestion(d.id).then(() => loadDrafts()).catch(e => showToast(e.message, 'error')) }} testID={`quiz-delete-${d.id}`}>
                       <Ionicons name="trash-outline" size={16} color={C.red} />
                     </TouchableOpacity>
                   </>
+                )}
+                {d.status === 'approved' && (
+                  <TouchableOpacity style={styles.iconBtn} onPress={() => { approveQuizQuestion(d.id).then(() => loadDrafts()).then(() => showToast('Approval reverted — question back to draft', 'info')).catch(e => showToast(e.message, 'error')) }} testID={`quiz-unapprove-${d.id}`}>
+                    <Ionicons name="arrow-undo-outline" size={16} color={C.orange} />
+                  </TouchableOpacity>
                 )}
               </View>
             </View>
@@ -907,24 +949,32 @@ export default function CreateQuiz({ navigation, route }) {
           <TextInput style={[styles.input, { minHeight: 70 }]} value={addText} onChangeText={setAddText} multiline placeholder="Type the question…" placeholderTextColor={C.textHint} />
           {addType === 'mcq' ? (
             <>
-              <Text style={styles.subLabel}>Options (tap the letter to mark correct)</Text>
-              {addOptions.map((o, i) => (
-                <View key={i} style={styles.optionEditRow}>
-                  <TouchableOpacity
-                    style={[styles.letterChip, addCorrect === 'ABCD'[i] && styles.letterChipActive]}
-                    onPress={() => setAddCorrect('ABCD'[i])}
-                  >
-                    <Text style={[styles.letterText, addCorrect === 'ABCD'[i] && styles.letterTextActive]}>{'ABCD'[i]}</Text>
-                  </TouchableOpacity>
-                  <TextInput
-                    style={[styles.input, { flex: 1 }]}
-                    value={o}
-                    onChangeText={v => setAddOptions(prev => prev.map((x, j) => (j === i ? v : x)))}
-                    placeholder={`Option ${'ABCD'[i]}`}
-                    placeholderTextColor={C.textHint}
-                  />
-                </View>
-              ))}
+              <Text style={styles.subLabel}>Options (tap the letter to select/deselect as correct)</Text>
+              {addOptions.map((o, i) => {
+                const letter = 'ABCD'[i]
+                const active = addCorrect.includes(letter)
+                return (
+                  <View key={i} style={styles.optionEditRow}>
+                    <TouchableOpacity
+                      style={[styles.letterChip, active && styles.letterChipActive]}
+                      onPress={() => setAddCorrect(prev =>
+                        prev.includes(letter)
+                          ? prev.filter(x => x !== letter)
+                          : [...prev, letter]
+                      )}
+                    >
+                      <Text style={[styles.letterText, active && styles.letterTextActive]}>{letter}</Text>
+                    </TouchableOpacity>
+                    <TextInput
+                      style={[styles.input, { flex: 1 }]}
+                      value={o}
+                      onChangeText={v => setAddOptions(prev => prev.map((x, j) => (j === i ? v : x)))}
+                      placeholder={`Option ${letter}`}
+                      placeholderTextColor={C.textHint}
+                    />
+                  </View>
+                )
+              })}
             </>
           ) : (
             <>
@@ -932,8 +982,23 @@ export default function CreateQuiz({ navigation, route }) {
               <TextInput style={[styles.input, { minHeight: 60 }]} value={addSuggested} onChangeText={setAddSuggested} multiline placeholder="The ideal short answer…" placeholderTextColor={C.textHint} />
             </>
           )}
-          <Text style={styles.subLabel}>Topic (optional)</Text>
-          <TextInput style={styles.input} value={addTopic} onChangeText={setAddTopic} placeholder="e.g. Recursion" placeholderTextColor={C.textHint} />
+          <View style={styles.detailRow}>
+            <View style={styles.detailCol}>
+              <Text style={styles.subLabel}>Points / Score</Text>
+              <TextInput
+                style={styles.input}
+                value={addScore}
+                onChangeText={setAddScore}
+                keyboardType="numeric"
+                placeholder="1"
+                placeholderTextColor={C.textHint}
+              />
+            </View>
+            <View style={styles.detailCol}>
+              <Text style={styles.subLabel}>Topic (optional)</Text>
+              <TextInput style={styles.input} value={addTopic} onChangeText={setAddTopic} placeholder="e.g. Recursion" placeholderTextColor={C.textHint} />
+            </View>
+          </View>
           <View style={styles.btnRow}>
             <TouchableOpacity style={[styles.btn, styles.btnOutline]} onPress={() => setAddVisible(false)}>
               <Text style={styles.btnOutlineText}>Cancel</Text>
@@ -954,22 +1019,34 @@ export default function CreateQuiz({ navigation, route }) {
           <TextInput style={[styles.input, { minHeight: 70 }]} value={editText} onChangeText={setEditText} multiline />
           {editTarget?.type === 'mcq' ? (
             <>
-              <Text style={styles.subLabel}>Options (tap the letter to mark correct)</Text>
-              {editOptions.map((o, i) => (
-                <View key={i} style={styles.optionEditRow}>
-                  <TouchableOpacity
-                    style={[styles.letterChip, editCorrect === o && styles.letterChipActive]}
-                    onPress={() => setEditCorrect(o)}
-                  >
-                    <Text style={[styles.letterText, editCorrect === o && styles.letterTextActive]}>{'ABCD'[i] ?? '?'}</Text>
-                  </TouchableOpacity>
-                  <TextInput
-                    style={[styles.input, { flex: 1 }]}
-                    value={o}
-                    onChangeText={v => setEditOptions(prev => prev.map((x, j) => (j === i ? v : x)))}
-                  />
-                </View>
-              ))}
+              <Text style={styles.subLabel}>Options (tap the letter to select/deselect as correct)</Text>
+              {editOptions.map((o, i) => {
+                const letter = 'ABCD'[i] ?? '?'
+                const active = editCorrect.includes(o)
+                return (
+                  <View key={i} style={styles.optionEditRow}>
+                    <TouchableOpacity
+                      style={[styles.letterChip, active && styles.letterChipActive]}
+                      onPress={() => setEditCorrect(prev =>
+                        prev.includes(o)
+                          ? prev.filter(x => x !== o)
+                          : [...prev, o]
+                      )}
+                    >
+                      <Text style={[styles.letterText, active && styles.letterTextActive]}>{letter}</Text>
+                    </TouchableOpacity>
+                    <TextInput
+                      style={[styles.input, { flex: 1 }]}
+                      value={o}
+                      onChangeText={v => {
+                        const oldVal = editOptions[i]
+                        setEditOptions(prev => prev.map((x, j) => (j === i ? v : x)))
+                        setEditCorrect(prev => prev.map(x => x === oldVal ? v : x))
+                      }}
+                    />
+                  </View>
+                )
+              })}
             </>
           ) : (
             <>
@@ -977,6 +1054,17 @@ export default function CreateQuiz({ navigation, route }) {
               <TextInput style={[styles.input, { minHeight: 60 }]} value={editSuggested} onChangeText={setEditSuggested} multiline />
             </>
           )}
+          <View style={{ marginTop: 8 }}>
+            <Text style={styles.subLabel}>Points / Score</Text>
+            <TextInput
+              style={styles.input}
+              value={editScore}
+              onChangeText={setEditScore}
+              keyboardType="numeric"
+              placeholder="1"
+              placeholderTextColor={C.textHint}
+            />
+          </View>
           <View style={styles.btnRow}>
             <TouchableOpacity style={[styles.btn, styles.btnOutline]} onPress={() => setEditTarget(null)}>
               <Text style={styles.btnOutlineText}>Cancel</Text>

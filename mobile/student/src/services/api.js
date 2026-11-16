@@ -200,6 +200,10 @@ export const getStudentQuizzes = () => apiCall('GET', '/student/quizzes')
 export const startQuizAttempt = (quizId) =>
   apiCall('POST', `/student/quizzes/${quizId}/attempt`)
 
+// Save in-progress answers without submitting.
+export const saveQuizAttemptProgress = (attemptId, answers) =>
+  apiCall('PUT', `/student/quizzes/attempts/${attemptId}/answers`, { answers })
+
 // Submit the attempt; MCQ auto-graded, short answers scored later by the lecturer (FR-608).
 export const submitQuizAttempt = (attemptId, answers) =>
   apiCall('POST', `/student/quizzes/attempts/${attemptId}/submit`, { answers })

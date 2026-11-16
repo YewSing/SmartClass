@@ -97,6 +97,27 @@ async def start_quiz_attempt(
     return {"attempt_id": attempt.id, "started_at": attempt.started_at, "deadline": attempt.deadline}
 
 
+@router.put("/student/quizzes/attempts/{attempt_id}/answers")
+async def save_attempt_progress(
+    attempt_id: int,
+    body: SubmitAttemptRequest,
+    db: AsyncSession = Depends(get_db),
+    actor: User = Depends(_student),
+):
+    """Save in-progress answers for an active attempt without submitting."""
+    student = await _student_for_actor(db, actor)
+    from app.services.quiz_taking import save_attempt_progress as _svc_save_progress
+    try:
+        saved_count = await _svc_save_progress(
+            db, attempt_id,
+            [{"question_id": a.question_id, "answer": a.answer} for a in body.answers],
+            student.id,
+        )
+    except ValueError as exc:
+        raise _http_error(exc)
+    return {"saved_count": saved_count}
+
+
 @router.post("/student/quizzes/attempts/{attempt_id}/submit")
 async def submit_quiz_attempt(
     attempt_id: int,

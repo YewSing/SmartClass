@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useLecturer } from '../context/LecturerContext'
 import Topbar from '../components/Topbar'
 import Badge from '../components/Badge'
-import { getQuizAttempts, getUnscoredAnswers, scoreShortAnswer, suggestScore } from '../services/api'
+import { getQuizAttempts, getUnscoredAnswers, getAllAttemptAnswers, scoreShortAnswer, suggestScore } from '../services/api'
 import { C } from '../theme'
 
 /** Section card in the interaction style: colored title chip + right node (S29 pattern). */
@@ -35,6 +35,7 @@ export default function ResultsClosed({ navigation, route }) {
 
   const [attempt, setAttempt] = useState(null)
   const [unscored, setUnscored] = useState([])
+  const [allAnswers, setAllAnswers] = useState([])
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState(null)
   const [scoring, setScoring] = useState({}) // answerId -> busy
@@ -53,8 +54,12 @@ export default function ResultsClosed({ navigation, route }) {
   const loadUnscored = useCallback(async () => {
     if (!attemptId) return
     try {
-      const list = await getUnscoredAnswers(attemptId)
-      setUnscored(list)
+      const [uList, allList] = await Promise.all([
+        getUnscoredAnswers(attemptId),
+        getAllAttemptAnswers(attemptId).catch(() => []),
+      ])
+      setUnscored(uList)
+      setAllAnswers(allList)
     } catch (e) { setError(e.message || 'Could not load answers') }
   }, [attemptId])
 
@@ -166,7 +171,7 @@ export default function ResultsClosed({ navigation, route }) {
               badge="Short answers to score"
               right={unscored.length > 0 ? <Text style={styles.counter}>{unscored.length} waiting</Text> : null}
             >
-              {unscored.length === 0 && !complete && (
+              {unscored.length === 0 && (
                 <View style={styles.empty}>
                   <Ionicons name="checkmark-circle" size={28} color={C.green} />
                   <Text style={styles.emptyText}>All short answers are scored.</Text>
@@ -219,6 +224,55 @@ export default function ResultsClosed({ navigation, route }) {
             ))}
             </Section>
 
+            {/* All Questions & Answers Breakdown */}
+            {allAnswers.length > 0 && (
+              <Section tint="blue" badge="All student responses" right={<Text style={styles.counter}>{allAnswers.length} questions</Text>}>
+                {allAnswers.map((item, idx) => {
+                  const maxPts = item.max_score ?? 1.0
+                  const isCorrect = item.score != null && item.score >= maxPts
+                  const isWrong = item.score != null && item.score < maxPts
+                  const isUnscored = item.score == null
+                  return (
+                    <View key={item.answer_id || idx} style={styles.reviewCard}>
+                      <View style={styles.reviewHead}>
+                        <Text style={styles.reviewQ}>Q{idx + 1} · {item.type === 'mcq' ? 'MCQ' : 'Short answer'} · {item.score != null ? item.score : 0}/{maxPts} pts</Text>
+                        <View style={[styles.reviewBadge, {
+                          backgroundColor: isCorrect ? C.greenLt : (isWrong ? C.redLt : C.yellowLt),
+                        }]}>
+                          <Text style={[styles.reviewBadgeText, {
+                            color: isCorrect ? C.greenDk : (isWrong ? C.redDk : C.yellowDk),
+                          }]}>
+                            {isCorrect ? 'Correct' : (isWrong ? 'Incorrect' : 'Needs score')}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <Text style={styles.reviewQuestion}>{item.question}</Text>
+
+                      <View style={styles.reviewField}>
+                        <Text style={styles.reviewLabel}>Student Answer:</Text>
+                        <Text style={[styles.reviewAnswerVal, isWrong && { color: C.redDk }]}>{item.answer || '(unanswered)'}</Text>
+                      </View>
+
+                      {item.correct_answer && (
+                        <View style={styles.reviewField}>
+                          <Text style={styles.reviewLabel}>Correct Answer:</Text>
+                          <Text style={[styles.reviewAnswerVal, { color: C.greenDk }]}>{item.correct_answer}</Text>
+                        </View>
+                      )}
+
+                      {item.suggested_answer && (
+                        <View style={styles.reviewField}>
+                          <Text style={styles.reviewLabel}>Ideal Answer:</Text>
+                          <Text style={[styles.reviewAnswerVal, { color: C.textSub }]}>{item.suggested_answer}</Text>
+                        </View>
+                      )}
+                    </View>
+                  )
+                })}
+              </Section>
+            )}
+
             {complete && (
               <Section tint="green" badge="Grading">
                 <View style={styles.doneCard}>
@@ -259,6 +313,18 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 14, fontWeight: '800', color: C.text, marginBottom: 8 },
   empty: { alignItems: 'center', paddingVertical: 30, gap: 8 },
   emptyText: { fontSize: 14, color: C.textSub },
+  reviewCard: {
+    backgroundColor: C.gray50, borderRadius: 10, padding: 12, marginBottom: 8,
+    borderWidth: 1, borderColor: C.border,
+  },
+  reviewHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  reviewQ: { fontSize: 12, fontWeight: '800', color: C.textSub },
+  reviewBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 },
+  reviewBadgeText: { fontSize: 10, fontWeight: '800' },
+  reviewQuestion: { fontSize: 13, fontWeight: '700', color: C.text, marginBottom: 6 },
+  reviewField: { marginTop: 4 },
+  reviewLabel: { fontSize: 11, fontWeight: '700', color: C.textHint },
+  reviewAnswerVal: { fontSize: 13, fontWeight: '600', color: C.text, marginTop: 1 },
   answerCard: {
     backgroundColor: C.card, borderRadius: 10, padding: 12, marginBottom: 8,
     borderWidth: 1, borderColor: C.border,

@@ -12,6 +12,7 @@ Only approved questions can go into a quiz (server-enforced). Publish calls
 """
 
 
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -54,6 +55,14 @@ from app.services.quiz_service import generate_questions, quick_add_quiz
 router = APIRouter(tags=["quizzes"])
 
 _lecturer = require_role("lecturer")
+
+
+def _to_naive_utc(dt: Optional[datetime]) -> Optional[datetime]:
+    if dt is None:
+        return None
+    if dt.tzinfo is not None:
+        return dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
 
 
 async def _lecturer_for_actor(db: AsyncSession, actor: User) -> Lecturer:
@@ -167,6 +176,8 @@ async def edit_draft_question(
         q.level = body.level
     if body.topic is not None:
         q.topic = body.topic
+    if body.score is not None:
+        q.score = body.score
     await db.commit()
     await db.refresh(q)
     return QuizQuestionOut.model_validate(q)
@@ -235,7 +246,7 @@ async def _publish_for_course(
                 options=q.options, correct_answer=q.correct_answer,
                 suggested_answer=q.suggested_answer, level=q.level,
                 source_material_id=q.source_material_id, topic=q.topic,
-                status="approved",
+                score=q.score, learning_hint=q.learning_hint, status="approved",
             ))
         db.add_all(copies)
         await db.flush()
@@ -245,8 +256,8 @@ async def _publish_for_course(
         course_id=course_id,
         title=body.title,
         time_limit_minutes=body.time_limit_minutes,
-        opens_at=body.opens_at,
-        closes_at=body.closes_at,
+        opens_at=_to_naive_utc(body.opens_at),
+        closes_at=_to_naive_utc(body.closes_at),
         attempts_allowed=body.attempts_allowed,
         review_visible=body.review_visible,
         status="published",
@@ -269,6 +280,24 @@ async def publish_quiz(
     once (S35: one quiz per course — the question copies appear in each class).
     Emits quiz.published to the lecturer."""
     lecturer = await _lecturer_for_actor(db, actor)
+
+    # Validation: open time should not be earlier than now (allow 5-minute clock drift)
+    now = datetime.now()
+    if body.opens_at is not None:
+        naive_open = _to_naive_utc(body.opens_at)
+        if naive_open and naive_open < now - timedelta(minutes=5):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Open time cannot be in the past",
+            )
+    if body.opens_at is not None and body.closes_at is not None:
+        naive_open = _to_naive_utc(body.opens_at)
+        naive_close = _to_naive_utc(body.closes_at)
+        if naive_open and naive_close and naive_close <= naive_open:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Close time must be after open time",
+            )
 
     questions = (await db.execute(
         select(QuizQuestion).where(QuizQuestion.id.in_(body.question_ids))
@@ -300,6 +329,27 @@ async def publish_quiz(
     for c in extra:
         if not await _course_accessible(db, lecturer, c):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"You do not teach course {c}")
+
+    from app.models.knowledge import KbMaterial
+
+    mat_ids = [q.source_material_id for q in questions if q.source_material_id is not None]
+    mat_titles = {}
+    if mat_ids:
+        mats = (await db.execute(select(KbMaterial).where(KbMaterial.id.in_(mat_ids)))).scalars().all()
+        mat_titles = {m.id: m.title for m in mats}
+
+    for q in questions:
+        if not q.learning_hint:
+            mat_name = mat_titles.get(q.source_material_id) if q.source_material_id else None
+            parts = []
+            if mat_name:
+                parts.append(f"Review material: '{mat_name}'")
+            if q.topic:
+                parts.append(f"Topic: {q.topic}")
+                parts.append(f"Recommended search keyword: '{q.topic}' for online tutorials and videos")
+            elif q.question:
+                parts.append("Search the key concepts in this question to study related video guides.")
+            q.learning_hint = " · ".join(parts) if parts else "Review the lecture notes on this topic."
 
     quizzes = [await _publish_for_course(db, lecturer, course_id, questions, body, clone=False)]
     for c in extra:
@@ -372,6 +422,29 @@ async def list_course_quizzes(
     return out
 
 
+@router.get("/lecturer/quizzes/{quiz_id}/questions", response_model=list[QuizQuestionOut])
+async def list_quiz_questions_for_lecturer(
+    quiz_id: int,
+    db: AsyncSession = Depends(get_db),
+    actor: User = Depends(_lecturer),
+):
+    """Return all questions assigned to a specific quiz (for lecturer inspection/editing)."""
+    lecturer = await _lecturer_for_actor(db, actor)
+    quiz = await db.get(Quiz, quiz_id)
+    if not quiz:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz not found")
+    if not await _course_accessible(db, lecturer, quiz.course_id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not teach this course")
+
+    rows = (await db.execute(
+        select(QuizQuestion).where(
+            QuizQuestion.quiz_id == quiz.id,
+            QuizQuestion.status != "deleted",
+        ).order_by(QuizQuestion.id)
+    )).scalars().all()
+    return [QuizQuestionOut.model_validate(q) for q in rows]
+
+
 async def _draft_quiz_out(db: AsyncSession, q: Quiz) -> QuizOut:
     qcount = await db.scalar(
         select(sa.func.count(QuizQuestion.id)).where(
@@ -423,8 +496,8 @@ async def save_quiz_draft(
         course_id=questions[0].course_id,
         title=body.title,
         time_limit_minutes=body.time_limit_minutes,
-        opens_at=body.opens_at,
-        closes_at=body.closes_at,
+        opens_at=_to_naive_utc(body.opens_at),
+        closes_at=_to_naive_utc(body.closes_at),
         attempts_allowed=body.attempts_allowed,
         review_visible=body.review_visible,
         status="draft",
@@ -459,7 +532,26 @@ async def update_quiz_draft(
                   "attempts_allowed", "review_visible"):
         value = getattr(body, field)
         if value is not None:
+            if field in ("opens_at", "closes_at"):
+                value = _to_naive_utc(value)
             setattr(quiz, field, value)
+    if body.question_ids is not None:
+        # Unlink any existing draft questions not in the new list
+        await db.execute(
+            sa.update(QuizQuestion)
+            .where(
+                QuizQuestion.quiz_id == quiz.id,
+                QuizQuestion.id.notin_(body.question_ids),
+                QuizQuestion.status != "deleted",
+            )
+            .values(quiz_id=None)
+        )
+        # Link the new questions to this quiz
+        await db.execute(
+            sa.update(QuizQuestion)
+            .where(QuizQuestion.id.in_(body.question_ids))
+            .values(quiz_id=quiz.id)
+        )
     await db.commit()
     await db.refresh(quiz)
     return await _draft_quiz_out(db, quiz)
@@ -490,6 +582,27 @@ async def publish_draft_quiz(
     if not questions:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="The draft quiz has no questions")
 
+    from app.models.knowledge import KbMaterial
+
+    mat_ids = [q.source_material_id for q in questions if q.source_material_id is not None]
+    mat_titles = {}
+    if mat_ids:
+        mats = (await db.execute(select(KbMaterial).where(KbMaterial.id.in_(mat_ids)))).scalars().all()
+        mat_titles = {m.id: m.title for m in mats}
+
+    for q in questions:
+        if not q.learning_hint:
+            mat_name = mat_titles.get(q.source_material_id) if q.source_material_id else None
+            parts = []
+            if mat_name:
+                parts.append(f"Review material: '{mat_name}'")
+            if q.topic:
+                parts.append(f"Topic: {q.topic}")
+                parts.append(f"Recommended search keyword: '{q.topic}' for online tutorials and videos")
+            elif q.question:
+                parts.append("Search the key concepts in this question to study related video guides.")
+            q.learning_hint = " · ".join(parts) if parts else "Review the lecture notes on this topic."
+
     extra = [c for c in dict.fromkeys(body.course_ids) if c != quiz.course_id]
     for c in extra:
         if not await _course_accessible(db, lecturer, c):
@@ -505,7 +618,7 @@ async def publish_draft_quiz(
                 options=q.options, correct_answer=q.correct_answer,
                 suggested_answer=q.suggested_answer, level=q.level,
                 source_material_id=q.source_material_id, topic=q.topic,
-                status="approved",
+                score=q.score, learning_hint=q.learning_hint, status="approved",
             ))
         db.add_all(copies)
         await db.flush()
@@ -558,7 +671,7 @@ async def create_quiz_question(
         course_id=body.course_id, type=body.type, question=body.question,
         options=body.options, correct_answer=body.correct_answer,
         suggested_answer=body.suggested_answer, level=body.level,
-        topic=body.topic, status="draft",
+        topic=body.topic, score=body.score, status="draft",
     )
     db.add(q)
     await db.commit()
@@ -612,6 +725,19 @@ async def list_quiz_attempts_endpoint(
     lecturer = await _lecturer_for_actor(db, actor)
     rows = await list_quiz_attempts(db, quiz_id, lecturer)
     return [QuizAttemptSummaryOut.model_validate(r) for r in rows]
+
+
+@router.get("/lecturer/quizzes/attempts/{attempt_id}/all-answers",
+            response_model=list[dict])
+async def list_all_answers_for_attempt(
+    attempt_id: int,
+    db: AsyncSession = Depends(get_db),
+    actor: User = Depends(_lecturer),
+):
+    """All student answers (MCQ and Short Answer) on an attempt for lecturer review."""
+    lecturer = await _lecturer_for_actor(db, actor)
+    from app.services.quiz_grading import list_all_attempt_answers
+    return await list_all_attempt_answers(db, attempt_id, lecturer)
 
 
 @router.get("/lecturer/quizzes/attempts/{attempt_id}/answers",

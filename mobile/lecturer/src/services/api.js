@@ -517,6 +517,10 @@ export const publishQuiz = async ({ question_ids, time_limit_minutes, opens_at, 
 export const getCourseQuizzes = async (courseId) =>
   apiCall('GET', `/lecturer/courses/${courseId}/quizzes`)
 
+// Get all questions of a quiz for lecturer view.
+export const getQuizQuestionsForLecturer = async (quizId) =>
+  apiCall('GET', `/lecturer/quizzes/${quizId}/questions`)
+
 // Save a draft quiz set from the given question ids (review → publish later).
 export const saveQuizDraft = async ({ question_ids, title, time_limit_minutes, opens_at, closes_at, attempts_allowed, review_visible }) =>
   apiCall('POST', '/lecturer/quizzes/draft', {
@@ -546,6 +550,10 @@ export const quickAddQuiz = async (courseId, { prompt, material_ids, level }) =>
 // Attempts for a quiz the lecturer teaches (NFR-04) (FR-612 data).
 export const getQuizAttempts = async (quizId) =>
   apiCall('GET', `/lecturer/quizzes/${quizId}/attempts`)
+
+// All answers (MCQ + Short Answer) for an attempt (lecturer review).
+export const getAllAttemptAnswers = async (attemptId) =>
+  apiCall('GET', `/lecturer/quizzes/attempts/${attemptId}/all-answers`)
 
 // Unscored short answers on an attempt (FR-609).
 export const getUnscoredAnswers = async (attemptId) =>

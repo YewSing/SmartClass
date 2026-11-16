@@ -116,6 +116,17 @@ export default function QuizList({ navigation }) {
   const open = quizzes.filter(q => statusInfo(q).label === 'Open')
   const other = quizzes.filter(q => statusInfo(q).label !== 'Open')
 
+  // Group earlier & closed quizzes by course
+  const otherByCourse = {}
+  for (const q of other) {
+    const cid = q.course_id
+    if (!otherByCourse[cid]) otherByCourse[cid] = []
+    otherByCourse[cid].push(q)
+  }
+
+  const courseIds = Object.keys(otherByCourse)
+  const tints = ['purple', 'blue', 'orange', 'yellow', 'gray']
+
   return (
     <View style={styles.flex}>
       <Topbar title="Quiz" sub="Quizzes your lecturers published" />
@@ -138,10 +149,26 @@ export default function QuizList({ navigation }) {
             {open.map(renderItem)}
           </Section>
         )}
-        {!loading && !error && other.length > 0 && (
-          <Section tint="gray" badge="Earlier & closed">
-            {other.map(renderItem)}
-          </Section>
+        {!loading && !error && courseIds.length > 0 && (
+          <>
+            <Text style={styles.groupHeading}>Earlier & closed</Text>
+            {courseIds.map((cid, i) => {
+              const qList = otherByCourse[cid]
+              const cls = classMap[cid] ?? {}
+              const badgeLabel = cls.code ?? `Course #${cid}`
+              return (
+                <Section
+                  key={cid}
+                  tint={tints[i % tints.length]}
+                  badge={badgeLabel}
+                  right={<Text style={styles.counter}>{qList.length} quiz{qList.length !== 1 ? 'zes' : ''}</Text>}
+                >
+                  {cls.name && <Text style={styles.courseSubtitle}>{cls.name}</Text>}
+                  {qList.map(renderItem)}
+                </Section>
+              )
+            })}
+          </>
         )}
         <View style={{ height: 24 }} />
       </ScrollView>
@@ -165,6 +192,8 @@ const styles = StyleSheet.create({
   sectionBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   sectionBadgeText: { fontSize: 12, fontWeight: '800' },
   counter: { fontSize: 11, color: C.textHint, fontWeight: '600' },
+  groupHeading: { fontSize: 14, fontWeight: '800', color: C.textSub, marginTop: 8, marginBottom: 8 },
+  courseSubtitle: { fontSize: 13, fontWeight: '700', color: C.text, marginBottom: 6 },
   quizCard: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: C.gray50, borderRadius: 10, padding: 12, marginTop: 6,

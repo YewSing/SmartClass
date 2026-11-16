@@ -58,6 +58,8 @@ export default function QuizList({ navigation }) {
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState(null)
   const [draftOpen, setDraftOpen] = useState(false)
+  const [expandedCourseId, setExpandedCourseId] = useState(null)
+  const [courseFilters, setCourseFilters] = useState({}) // courseId -> 'all' | 'open' | 'closed' | 'scheduled'
 
   const loadData = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true)
@@ -85,6 +87,17 @@ export default function QuizList({ navigation }) {
       loadData()
     }, [loadData])
   )
+
+  const getQuizCategory = (quiz) => {
+    const closed = quiz.status === 'closed' ||
+      (quiz.closes_at && new Date(quiz.closes_at) < new Date())
+    if (closed) return 'closed'
+    const open = quiz.status === 'published' &&
+      (!quiz.opens_at || new Date(quiz.opens_at) <= new Date())
+    if (open) return 'open'
+    if (quiz.status === 'draft') return 'draft'
+    return 'scheduled'
+  }
 
   const allDrafts = Object.values(quizzesByCourse)
     .flat()
@@ -229,29 +242,81 @@ export default function QuizList({ navigation }) {
           </View>
         )}
         {courses.map((course, i) => {
-          const quizzes = quizzesByCourse[course.course_id] ?? []
+          const allQuizzes = quizzesByCourse[course.course_id] ?? []
+          const isExpanded = expandedCourseId === course.course_id
+          const activeFilter = courseFilters[course.course_id] ?? 'all'
+          const filteredQuizzes = allQuizzes.filter(q => {
+            if (activeFilter === 'all') return true
+            return getQuizCategory(q) === activeFilter
+          })
           const tints = ['blue', 'green', 'purple', 'yellow', 'orange']
+          const tint = tints[i % tints.length]
+
           return (
             <Section
               key={course.id}
-              tint={tints[i % tints.length]}
+              tint={tint}
               badge={course.code}
-              right={<Badge variant={course.type === 'LECTURE' ? 'blue' : 'green'} dot>
-                {course.enrolled_count != null ? course.enrolled_count : 0} students
-              </Badge>}
-            >
-              <Text style={styles.courseName}>{course.name}</Text>
-              {course.day_of_week && (
-                <Text style={styles.courseMeta}>
-                  {course.day_of_week} {course.start_time}–{course.end_time}{course.room ? ` · ${course.room}` : ''}
-                </Text>
-              )}
-              {quizzes.length === 0 ? (
-                <View style={styles.quizEmpty}>
-                  <Text style={styles.quizEmptyText}>No quizzes yet — use “Create quiz” to build one</Text>
+              right={
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Badge variant={course.type === 'LECTURE' ? 'blue' : 'green'} dot>
+                    {course.enrolled_count != null ? course.enrolled_count : 0} students
+                  </Badge>
+                  <Ionicons
+                    name={isExpanded ? 'chevron-down' : 'chevron-forward'}
+                    size={16}
+                    color={C.textHint}
+                  />
                 </View>
-              ) : (
-                quizzes.map(renderQuizRow)
+              }
+            >
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => setExpandedCourseId(prev => prev === course.course_id ? null : course.course_id)}
+                style={styles.courseHeaderTap}
+                testID={`course-card-${course.course_id}`}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.courseName}>{course.name}</Text>
+                  {course.day_of_week && (
+                    <Text style={styles.courseMeta}>
+                      {course.day_of_week} {course.start_time}–{course.end_time}{course.room ? ` · ${course.room}` : ''}
+                    </Text>
+                  )}
+                  <Text style={styles.courseCountHint}>
+                    {allQuizzes.length} quiz{allQuizzes.length !== 1 ? 'zes' : ''} · {isExpanded ? 'tap to close' : 'tap to view quizzes'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              {isExpanded && (
+                <View style={styles.expandedContent}>
+                  <View style={styles.filterPillsRow}>
+                    {['all', 'open', 'closed', 'scheduled'].map(f => (
+                      <TouchableOpacity
+                        key={f}
+                        style={[styles.filterPill, activeFilter === f && styles.filterPillActive]}
+                        onPress={() => setCourseFilters(prev => ({ ...prev, [course.course_id]: f }))}
+                      >
+                        <Text style={[styles.filterPillText, activeFilter === f && styles.filterPillTextActive]}>
+                          {f.charAt(0).toUpperCase() + f.slice(1)}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  {filteredQuizzes.length === 0 ? (
+                    <View style={styles.quizEmpty}>
+                      <Text style={styles.quizEmptyText}>
+                        {allQuizzes.length === 0
+                          ? 'No quizzes yet — use “Create quiz” to build one'
+                          : `No ${activeFilter} quizzes found`}
+                      </Text>
+                    </View>
+                  ) : (
+                    filteredQuizzes.map(renderQuizRow)
+                  )}
+                </View>
               )}
             </Section>
           )
@@ -337,7 +402,18 @@ const styles = StyleSheet.create({
   },
   sectionBadgeText: { fontSize: 12, fontWeight: '800' },
   courseName: { fontSize: 14, fontWeight: '800', color: C.text },
-  courseMeta: { fontSize: 11, color: C.textHint, marginTop: 2, marginBottom: 6 },
+  courseMeta: { fontSize: 11, color: C.textHint, marginTop: 2 },
+  courseCountHint: { fontSize: 11, color: C.primary, fontWeight: '600', marginTop: 4 },
+  courseHeaderTap: { paddingVertical: 4 },
+  expandedContent: { marginTop: 10, borderTopWidth: 1, borderTopColor: C.border, paddingTop: 10 },
+  filterPillsRow: { flexDirection: 'row', gap: 6, marginBottom: 8 },
+  filterPill: {
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 14,
+    backgroundColor: C.gray100, borderWidth: 1, borderColor: C.border,
+  },
+  filterPillActive: { backgroundColor: C.primary, borderColor: C.primary },
+  filterPillText: { fontSize: 11, fontWeight: '700', color: C.textSub },
+  filterPillTextActive: { color: '#fff' },
   quizCard: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: C.gray50, borderRadius: 10, padding: 10, marginTop: 6,
