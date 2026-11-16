@@ -85,6 +85,21 @@ def fake_chat(messages: list[dict]) -> str:
     """
     last = messages[-1]["content"]
     system = messages[0]["content"]
+    if "Extract the quiz spec" in last:   # S35 quick-add: "create 5 mcq, 15min, 2 days…"
+        return ('{"title": "Quick quiz", "mcq_count": 2, "short_answer_count": 1, '
+                '"time_limit_minutes": 15, "valid_days": 2, '
+                '"attempts_allowed": 1, "review_visible": true}')
+    if "You draft one exam question" in last:   # S35 quiz generation (grounded or not)
+        qtype = "short_answer" if "Question type: short_answer" in last else "mcq"
+        if qtype == "short_answer":
+            return ('{"question": "Explain boundary value analysis in one sentence.", '
+                    '"options": [], "correct_answer": null, '
+                    '"suggested_answer": "BVA tests the values at the edges of a range.", '
+                    '"level": "beginner", "topic": "boundary values"}')
+        return ('{"question": "Which structural coverage criterion is stronger?", '
+                '"options": ["statement", "branch", "neither", "both"], '
+                '"correct_answer": "branch", "suggested_answer": null, '
+                '"level": "beginner", "topic": "coverage"}')
     if "standalone search query" in system:
         return last.rsplit("Latest question:", 1)[-1].strip()
     if "Label the student's question" in system:   # topic label: the question's first words

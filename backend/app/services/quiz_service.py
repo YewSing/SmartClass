@@ -40,19 +40,42 @@ async def generate_questions(
     qtype: str,
     level: str,
     count: int,
+    query: str | None = None,
 ) -> list[QuizQuestion]:
     """Draft `count` questions from the selected materials and persist them as drafts.
 
-    Returns the created `QuizQuestion` rows (status "draft", quiz_id None).
+    `query` is the retrieval text for picking passages (FR-814): the lecturer's
+    instruction when one exists, otherwise each material's own title. Returns the
+    created `QuizQuestion` rows (status "draft", quiz_id None).
     """
+    # Retrieve with meaningful text: a bare "material 5" scores nothing in vector or
+    # keyword search, so every pool came back empty and questions fell back to the
+    # instruction alone. Without a query, use each material's own title/filename.
+    if query:
+        search_texts = {mid: query for mid in material_ids}
+    else:
+        from app.models.knowledge import KbMaterial
+        async with AsyncSessionLocal() as db:
+            rows = await db.execute(
+                select(KbMaterial.id, KbMaterial.title).where(KbMaterial.id.in_(material_ids))
+            )
+        title_map = dict(rows.all())
+        search_texts = {
+            mid: (title_map.get(mid) or f"material {mid}")
+            for mid in material_ids
+        }
+
     # Gather candidate passages per material. `search` is scoped to course_id; we keep
     # passages whose material_id matches the material we searched for. Each material is
     # asked for an equal share of `count` (ceil) — a material with no retrievable text
     # simply contributes nothing rather than stealing another's quota.
     quota = -(-count // len(material_ids))
+    # all materials share the same query, so one can dominate the top hits — ask for
+    # enough to cover every material's share before filtering by material_id
+    k = max(quota * len(material_ids), 8)
     per_material: dict[int, list] = {}
     for material_id in material_ids:
-        passages = await retrieval_api.search(course_id, f"material {material_id}", k=quota)
+        passages = await retrieval_api.search(course_id, search_texts[material_id], k=k)
         per_material[material_id] = [p for p in passages if p.material_id == material_id]
 
     created: list[QuizQuestion] = []
@@ -63,7 +86,7 @@ async def generate_questions(
             if not pool:
                 # re-search once before giving up on the material (the fake/live search
                 # may return one passage per call; asking again yields the next chunk)
-                passages = await retrieval_api.search(course_id, f"material {material_id}", k=quota)
+                passages = await retrieval_api.search(course_id, search_texts[material_id], k=k)
                 pool = [p for p in passages if p.material_id == material_id]
                 per_material[material_id] = pool
                 if not pool:
@@ -82,7 +105,7 @@ async def generate_questions(
             # skipped, or the lecturer would get fewer questions than asked
             generated = await llm.chat_json(
                 [{"role": "user", "content": prompt}],
-                validator=GeneratedQuestion,
+                validator=GeneratedQuestion.model_validate,
             )
 
             q = QuizQuestion(
@@ -127,7 +150,7 @@ async def parse_quick_add(prompt: str) -> QuickAddSpec:
     (malformed output retried once by the adapter, then LLMMalformedOutput)."""
     return await llm.chat_json(
         [{"role": "user", "content": _QUICK_ADD_PROMPT.format(prompt=prompt)}],
-        validator=QuickAddSpec,
+        validator=QuickAddSpec.model_validate,
     )
 
 
@@ -162,7 +185,7 @@ async def generate_questions_from_instruction(
         prompt = _INSTRUCTION_PROMPT.format(instruction=instruction[:2000], qtype=qtype, level=level)
         generated = await llm.chat_json(
             [{"role": "user", "content": prompt}],
-            validator=GeneratedQuestion,
+            validator=GeneratedQuestion.model_validate,
         )
         q = QuizQuestion(
             course_id=course_id,
@@ -201,6 +224,11 @@ async def quick_add_quiz(
     """
     spec = await parse_quick_add(prompt)
 
+    # A natural message may not state any counts ("make me a quiz about chapter 3").
+    # Rather than 422-ing, default to a small quiz: 3 MCQs.
+    if spec.mcq_count == 0 and spec.short_answer_count == 0:
+        spec.mcq_count = 3
+
     if material_ids:
         ids = material_ids
     else:
@@ -219,9 +247,15 @@ async def quick_add_quiz(
             continue
         if ids:
             # grounded: retrieval per material (FR-814 — materials are never parsed)
-            questions.extend(await generate_questions(course_id, ids, qtype, level, count))
+            questions.extend(await generate_questions(course_id, ids, qtype, level, count, query=prompt))
+            # the selected materials may have no retrievable text for this course (e.g.
+            # stale indexing) — fall back to the prompt alone rather than failing
+            if len(questions) == 0:
+                questions.extend(
+                    await generate_questions_from_instruction(course_id, prompt, qtype, level, count)
+                )
         else:
-            # no materials anywhere in the course: prompt + level only
+            # no materials selected: prompt + level only
             questions.extend(
                 await generate_questions_from_instruction(course_id, prompt, qtype, level, count)
             )

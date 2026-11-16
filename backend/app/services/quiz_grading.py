@@ -125,7 +125,7 @@ async def suggest_score(db: AsyncSession, answer_id: int) -> dict:
     )
     suggestion = await llm.chat_json(
         [{"role": "user", "content": prompt}],
-        validator=SuggestScoreOut,
+        validator=SuggestScoreOut.model_validate,
     )
     return {
         "suggested_score": suggestion.suggested_score,

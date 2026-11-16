@@ -377,11 +377,19 @@ export default function CreateQuiz({ navigation, route }) {
       if (quiz.closes_at) setClosesAt(dtLocal(new Date(quiz.closes_at)))
       showToast('AI drafted the quiz — review the questions below', 'success')
     } catch (e) {
-      const msg = e?.status === 503
-        ? 'The AI service is unavailable right now — check the backend LLM configuration (LLM_API_KEY) or try again later'
-        : e?.status === 502
-          ? 'The AI returned a malformed answer — please try again'
-          : (e.message || 'Could not build the quiz from that instruction')
+      let msg
+      if (e?.status === 503) {
+        msg = 'The AI service is unavailable right now — check the backend LLM configuration (LLM_API_KEY) or try again later'
+      } else if (e?.status === 502) {
+        msg = 'The AI returned a malformed answer — please try again'
+      } else if (e?.status === 422) {
+        // FastAPI validation errors come back as an array — show something readable
+        msg = typeof e.message === 'string' && !e.message.startsWith('[')
+          ? e.message
+          : 'Could not read that instruction — try e.g. "create 5 mcq, 2 short answer, duration 15min, valid two days from now"'
+      } else {
+        msg = e.message || 'Could not build the quiz from that instruction'
+      }
       showToast(msg, 'error')
     } finally {
       setQuickBusy(false)
