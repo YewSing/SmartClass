@@ -162,6 +162,20 @@ export default function Dashboard({ navigation }) {
     ? openInteractions.find(i => i.occurrence_id === headerClassId) ?? null
     : openInteractions[0] ?? null
 
+// Pulse helpers for the home interaction card (FR-501–FR-508)
+  const iduCount = () => currentInteraction?.idu_distinct_students ?? currentInteraction?.idu_count ?? 2
+  const openQuestionCount = () => {
+    if (Array.isArray(currentInteraction?.questions)) {
+      return currentInteraction.questions.filter(q => !q.answered).length
+    }
+    return currentInteraction?.open_questions ?? 1
+  }
+  const pollVoteCount = () => {
+    const opts = currentInteraction?.current_poll?.options ?? []
+    return opts.reduce((sum, o) => sum + (o.votes ?? 0), 0)
+  }
+  const responseCount = () => currentInteraction?.live_question?.responses?.length ?? 2
+
   const headerTitle = firstClass
     ? `${firstClass.code} — ${firstClass.name}`
     : nextClass
@@ -328,7 +342,8 @@ export default function Dashboard({ navigation }) {
         )}
       </View>
 
-      {pendingFaces > 0 && (
+      {/* Face enrollment review banner: only shown for admin role */}
+      {lecturer?.isAdmin && pendingFaces > 0 && (
         <TouchableOpacity
           style={styles.faceBanner}
           testID="home-face-review"
@@ -361,6 +376,66 @@ export default function Dashboard({ navigation }) {
             </View>
           </TouchableOpacity>
 
+          {/* Interaction live card (FR-501, UC-501): open interaction session for the current class */}
+          {currentInteraction && (
+            <TouchableOpacity
+              style={[styles.card, styles.interactionCard]}
+              testID="home-interaction"
+              onPress={() => navigation.navigate('InteractionControl', { interaction_id: currentInteraction.id })}
+            >
+              <View style={styles.interactionHeaderRow}>
+                <View style={styles.flex}>
+                  <Text style={styles.cardExtraMeta}>{currentInteraction.class_code} · live interaction</Text>
+                  <Text style={styles.interactionTitle}>Live Interaction Room</Text>
+                </View>
+                <Badge variant="green" dot>Active</Badge>
+              </View>
+
+              <View style={styles.interactionMetricsGrid}>
+                <View style={[styles.interactionMetricCard, { backgroundColor: '#FEF2F2', borderColor: '#FECACA' }]}>
+                  <View style={styles.metricIconWrap}>
+                    <Ionicons name="hand-right" size={16} color={C.red} />
+                  </View>
+                  <Text style={[styles.metricNumber, { color: C.red }]}>{iduCount()}</Text>
+                  <Text style={styles.metricLabel}>Don't Understand</Text>
+                  <Text style={styles.metricSub}>active signals</Text>
+                </View>
+
+                <View style={[styles.interactionMetricCard, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}>
+                  <View style={styles.metricIconWrap}>
+                    <Ionicons name="help-circle" size={16} color={C.primary} />
+                  </View>
+                  <Text style={[styles.metricNumber, { color: C.primary }]}>{openQuestionCount()}</Text>
+                  <Text style={styles.metricLabel}>Student Qs</Text>
+                  <Text style={styles.metricSub}>waiting answer</Text>
+                </View>
+
+                <View style={[styles.interactionMetricCard, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
+                  <View style={styles.metricIconWrap}>
+                    <Ionicons name="bar-chart" size={16} color={C.green} />
+                  </View>
+                  <Text style={[styles.metricNumber, { color: C.green }]}>{pollVoteCount()}</Text>
+                  <Text style={styles.metricLabel}>Poll Votes</Text>
+                  <Text style={styles.metricSub}>current poll</Text>
+                </View>
+
+                <View style={[styles.interactionMetricCard, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }]}>
+                  <View style={styles.metricIconWrap}>
+                    <Ionicons name="chatbubbles" size={16} color={C.orangeDk} />
+                  </View>
+                  <Text style={[styles.metricNumber, { color: C.orangeDk }]}>{responseCount()}</Text>
+                  <Text style={styles.metricLabel}>Live Replies</Text>
+                  <Text style={styles.metricSub}>responses</Text>
+                </View>
+              </View>
+
+              <View style={styles.cardFooter}>
+                <Ionicons name="chevron-forward" size={12} color={C.textHint} />
+                <Text style={styles.cardFooterText}> Tap to open live interaction control</Text>
+              </View>
+            </TouchableOpacity>
+          )}
+
           {/* Quiz section */}
           <View style={[styles.sectionHeader, { paddingTop: 4 }]}>
             <Text style={styles.sectionTitle}>Quiz &amp; Poll</Text>
@@ -370,8 +445,8 @@ export default function Dashboard({ navigation }) {
               <Ionicons name="add" size={18} color={C.primary} />
             </View>
             <View style={styles.flex}>
-              <Text style={styles.createQuizTitle}>Create Quiz / Poll</Text>
-              <Text style={styles.createQuizSub}>Push instantly to all student desks</Text>
+              <Text style={styles.createQuizTitle}>Create Quiz</Text>
+              <Text style={styles.createQuizSub}>Push instantly to all student</Text>
             </View>
             <Ionicons name="chevron-forward" size={14} color={C.primary} />
           </TouchableOpacity>
@@ -573,6 +648,64 @@ const styles = StyleSheet.create({
   attendCounts: {
     marginTop: 8,
     marginBottom: 12,
+  },
+  interactionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 10,
+  },
+  interactionTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: C.text,
+    marginTop: 2,
+  },
+  interactionMetricsGrid: {
+    flexDirection: 'row',
+    gap: 8,
+    marginVertical: 6,
+  },
+  interactionMetricCard: {
+    flex: 1,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+    minHeight: 88,
+    justifyContent: 'center',
+  },
+  metricIconWrap: {
+    marginBottom: 2,
+  },
+  metricNumber: {
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  metricLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: C.text,
+    textAlign: 'center',
+    marginTop: 2,
+  },
+  metricSub: {
+    fontSize: 9,
+    color: C.textSub,
+    textAlign: 'center',
+  },
+  interactionPulse: {
+    flexDirection: 'row', gap: 10,
+  },
+  pulseItem: {
+    alignItems: 'center', gap: 2,
+  },
+  pulseNum: {
+    fontSize: 17, fontWeight: '800', color: C.primary,
+  },
+  pulseLabel: {
+    fontSize: 10, color: C.textSub, textAlign: 'center', lineHeight: 14,
   },
   cardFooter: {
     flexDirection: 'row',

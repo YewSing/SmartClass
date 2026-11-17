@@ -1,12 +1,13 @@
 import 'react-native-url-polyfill/auto'
 import { registerRootComponent } from 'expo'
 import { useEffect, useState } from 'react'
-import { View, ActivityIndicator } from 'react-native'
+import { Platform, View, ActivityIndicator } from 'react-native'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { StudentProvider } from './src/context/StudentContext'
 import AppNavigator from './src/navigation/AppNavigator'
 import { initStorage } from './src/services/client'
 import { C } from './src/theme'
+import PhoneShell from './src/components/PhoneShell'
 
 function App() {
   const [ready, setReady] = useState(false)
@@ -23,11 +24,15 @@ function App() {
     )
   }
 
+  const inner = (
+    <StudentProvider>
+      <AppNavigator />
+    </StudentProvider>
+  )
+
   return (
     <SafeAreaProvider>
-      <StudentProvider>
-        <AppNavigator />
-      </StudentProvider>
+      {Platform.OS === 'web' ? <PhoneShell>{inner}</PhoneShell> : inner}
     </SafeAreaProvider>
   )
 }

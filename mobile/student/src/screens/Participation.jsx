@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useFocusEffect } from '@react-navigation/native'
 import { useStudent } from '../context/StudentContext'
+import Topbar from '../components/Topbar'
 import {
   getOpenInteractions,
   getInteractionState,
@@ -313,11 +314,11 @@ export default function Participation({ route }) {
   if (!selectedId) {
     return (
       <View style={styles.flex}>
-        <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-          <Text style={styles.headerTitle}>Class Interaction</Text>
-          <Text style={styles.headerSub}>Join a live session to ask questions, vote and react</Text>
-        </View>
-        {loading ? (
+      <Topbar
+        title="Interaction"
+        sub="Join a live session"
+      />
+      {loading ? (
           <View style={styles.empty}>
             <ActivityIndicator color={C.primary} />
           </View>
@@ -389,22 +390,21 @@ export default function Participation({ route }) {
 
   return (
     <View style={styles.flex}>
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity style={styles.back} onPress={leaveSession}>
-          <Ionicons name="chevron-back" size={24} color={C.textSub} />
-        </TouchableOpacity>
-        <View style={styles.headerBody}>
-          <Text style={styles.headerTitle} numberOfLines={1}>{current.class_name}</Text>
-          <Text style={styles.headerSub}>{current.class_code}</Text>
-        </View>
-        <View style={[styles.livePill, isLive ? styles.livePillOn : styles.livePillOff]}>
-          <View style={[styles.liveDot, isLive ? styles.liveDotOn : styles.liveDotOff]} />
-          <Text style={[styles.livePillText, isLive ? styles.livePillTextOn : styles.livePillTextOff]}>
-            {isLive ? 'Live' : 'Closed'}
-          </Text>
-        </View>
-      </View>
+      <Topbar
+        title={current.class_name}
+        sub={current.class_code}
+        onBack={leaveSession}
+        right={
+          <View style={styles.headerRight}>
+            <View style={[styles.livePill, isLive ? styles.livePillOn : styles.livePillOff]}>
+              <View style={[styles.liveDot, isLive ? styles.liveDotOn : styles.liveDotOff]} />
+              <Text style={[styles.livePillText, isLive ? styles.livePillTextOn : styles.livePillTextOff]}>
+                {isLive ? 'Live' : 'Closed'}
+              </Text>
+            </View>
+          </View>
+        }
+      />
 
       <ScrollView
         style={styles.flex}
@@ -680,6 +680,9 @@ export default function Participation({ route }) {
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: C.bg },
   flex1: { flex: 1 },
+  headerRight: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+  },
   content: { paddingBottom: 24 },
   header: {
     paddingHorizontal: 16,

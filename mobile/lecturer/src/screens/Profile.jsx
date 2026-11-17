@@ -111,8 +111,12 @@ export default function Profile({ navigation }) {
         {/* Account actions */}
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Account</Text>
-          {/* Lecturers' passwords belong to SPeCTRUM; only local admin accounts have one here */}
-          {ACTIONS.filter(a => a.type !== 'change-password' || lecturer?.isAdmin).map(a => (
+          {/* Lecturers' passwords belong to SPeCTRUM; face review & change password only for admin accounts */}
+          {ACTIONS.filter(a => {
+            if (a.screen === 'FaceVerification') return Boolean(lecturer?.isAdmin)
+            if (a.type === 'change-password') return Boolean(lecturer?.isAdmin)
+            return true
+          }).map(a => (
             <TouchableOpacity
               key={a.type ?? a.screen}
               style={[styles.actionRow, a.danger && styles.actionRowDanger]}

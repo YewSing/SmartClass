@@ -214,3 +214,7 @@ export const getQuizAttemptResult = (attemptId) =>
 
 // Quiz + its questions (answers stripped) for taking it (FR-606).
 export const getQuizDetail = (quizId) => apiCall('GET', `/student/quizzes/${quizId}`)
+
+// ─── Student Learning Analytics (FR-706, S43) ─────────────────────────────────
+
+export const getStudentAnalytics = async () => apiCall('GET', '/student/me/analytics')

@@ -5,9 +5,10 @@ import { C } from '../theme'
 // so both show the same five numbers. `counts` = { present, late, excused, absent, not_recorded };
 // "Not yet" only while the class is open.
 function Count({ n, label, color, testID }) {
+  const displayNum = Number.isFinite(Number(n)) ? Number(n) : 0
   return (
     <View style={styles.count}>
-      <Text style={[styles.countNum, { color }]} testID={testID}>{n}</Text>
+      <Text style={[styles.countNum, { color }]} testID={testID}>{displayNum}</Text>
       <Text style={styles.countLbl}>{label}</Text>
     </View>
   )

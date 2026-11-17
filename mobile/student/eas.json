@@ -1,0 +1,16 @@
+{
+  "cli": {
+    "version": ">=54.0.0"
+  },
+  "build": {
+    "web": {
+      "platform": "web",
+      "env": {
+        "EXPO_PUBLIC_SIMULATION": "1"
+      }
+    }
+  },
+  "submit": {
+    "web": {}
+  }
+}

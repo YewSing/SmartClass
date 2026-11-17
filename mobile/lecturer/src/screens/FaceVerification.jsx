@@ -38,8 +38,10 @@ function Fact({ label, value, ok }) {
 // and the decision. A rejection needs a reason the student will see (FR-114).
 function SubmissionCard({ sub, onDecided }) {
   const { showToast } = useLecturer()
-  const { selfies, card } = splitImages(sub.images)
+  const { selfies, card } = splitImages(sub.images ?? [])
   const matric = matricCheck(sub)
+  const coursesList = Array.isArray(sub.courses) ? sub.courses : []
+  const checkReasons = Array.isArray(sub.check_reasons) ? sub.check_reasons : []
   const [mode, setMode] = useState(null)        // null | 'approve' | 'reject'
   const [reason, setReason] = useState('')
   const [reasonErr, setReasonErr] = useState(null)
@@ -72,7 +74,7 @@ function SubmissionCard({ sub, onDecided }) {
       <View style={styles.cardHead}>
         <View style={styles.flex}>
           <Text style={styles.name} testID="face-submission-name">{sub.student_name}</Text>
-          <Text style={styles.meta}>{sub.matric_no} · {sub.courses.join(', ') || '—'}</Text>
+          <Text style={styles.meta}>{sub.matric_no} · {coursesList.join(', ') || '—'}</Text>
         </View>
         <Text style={styles.meta}>{when(sub.submitted_at)}</Text>
       </View>
@@ -113,9 +115,9 @@ function SubmissionCard({ sub, onDecided }) {
         <Fact label="Name on card" value={percent(sub.name_score)} />
       </View>
 
-      {sub.check_reasons.length > 0 && (
+      {checkReasons.length > 0 && (
         <View style={styles.reasons}>
-          {sub.check_reasons.map(r => (
+          {checkReasons.map(r => (
             <View key={r} style={styles.reasonChip}>
               <Text style={styles.reasonText}>{reasonLabel(r)}</Text>
             </View>

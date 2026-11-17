@@ -8,6 +8,9 @@
     "splash": { "backgroundColor": "#1B6EF3" },
     "android": { "adaptiveIcon": { "backgroundColor": "#1B6EF3" }, "package": "my.um.smartclass.lecturer" },
     "ios": { "supportsTablet": false, "bundleIdentifier": "my.um.smartclass.lecturer" },
-    "plugins": []
+    "plugins": [],
+    "web": {
+      "output": "single"
+    }
   }
 }

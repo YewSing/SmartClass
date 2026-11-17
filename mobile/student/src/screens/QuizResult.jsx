@@ -90,7 +90,7 @@ export default function QuizResult({ navigation, route }) {
                 <Text style={styles.note}>Grading is not complete yet — pull to refresh.</Text>
               )}
               {result.grading_complete && !result.student_score_visible && (
-                <Text style={styles.note}>Grading is complete, but your lecturer chose not to show the answers for this quiz.</Text>
+                <Text style={styles.note}>Your lecturer choose not to reveal the answer to review.</Text>
               )}
             </Section>
 

@@ -129,7 +129,10 @@ export default function QuizList({ navigation }) {
 
   return (
     <View style={styles.flex}>
-      <Topbar title="Quiz" sub="Quizzes your lecturers published" />
+      <Topbar
+        title="Quiz"
+        sub="Your quizzes"
+      />
       <ScrollView
         style={styles.flex}
         showsVerticalScrollIndicator={false}
