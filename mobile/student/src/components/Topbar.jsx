@@ -3,7 +3,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { C } from '../theme'
 
-export default function Topbar({ title, sub, onBack, right, icon }) {
+export default function Topbar({ title, sub, onBack, right }) {
   const insets = useSafeAreaInsets()
 
   return (
@@ -17,16 +17,7 @@ export default function Topbar({ title, sub, onBack, right, icon }) {
           <View style={styles.backPlaceholder} />
         )}
         <View style={styles.titleWrap}>
-          {icon ? (
-            <View style={styles.titleRow}>
-              <View style={styles.iconBg}>
-                <Ionicons name={icon} size={18} color={C.primary} />
-              </View>
-              <Text style={styles.title} numberOfLines={1}>{title}</Text>
-            </View>
-          ) : (
-            <Text style={styles.title} numberOfLines={1}>{title}</Text>
-          )}
+          <Text style={styles.title} numberOfLines={1}>{title}</Text>
           {sub ? <Text style={styles.sub} numberOfLines={1}>{sub}</Text> : null}
         </View>
         {right ? (
@@ -56,21 +47,11 @@ const styles = StyleSheet.create({
     width: 32,
     alignItems: 'flex-start',
   },
+  backPlaceholder: {
+    width: 32,
+  },
   titleWrap: {
     flex: 1,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  iconBg: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: C.blueLt,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   title: {
     fontSize: 16,

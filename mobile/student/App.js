@@ -23,15 +23,11 @@ function App() {
     )
   }
 
-  const inner = (
-    <StudentProvider>
-      <AppNavigator />
-    </StudentProvider>
-  )
-
   return (
     <SafeAreaProvider>
-      {inner}
+      <StudentProvider>
+        <AppNavigator />
+      </StudentProvider>
     </SafeAreaProvider>
   )
 }

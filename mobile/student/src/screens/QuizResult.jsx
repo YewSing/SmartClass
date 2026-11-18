@@ -90,11 +90,11 @@ export default function QuizResult({ navigation, route }) {
                 <Text style={styles.note}>Grading is not complete yet — pull to refresh.</Text>
               )}
               {result.grading_complete && !result.student_score_visible && (
-                <Text style={styles.note}>Your lecturer choose not to reveal the answer to review.</Text>
+                <Text style={styles.note}>Grading is complete, but your lecturer chose not to show the answers for this quiz.</Text>
               )}
             </Section>
 
-            {(result.answers ?? []).length > 0 && (result.student_score_visible || justSubmitted) && (
+            {result.student_score_visible && (result.answers ?? []).length > 0 && (
               <Section tint="blue" badge="Your answers">
                 {result.answers.map((a, i) => {
                   const maxPts = a.max_score ?? 1.0

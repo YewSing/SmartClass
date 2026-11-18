@@ -26,7 +26,6 @@ import Assistant from '../screens/Assistant'
 import AssistantPdf from '../screens/AssistantPdf'
 import Flashcards from '../screens/Flashcards'
 import Practice from '../screens/Practice'
-import Analytics from '../screens/Analytics'
 import FaceEnrolment from '../screens/FaceEnrolment'
 import FaceConsent from '../screens/FaceConsent'
 import FaceCapture from '../screens/FaceCapture'
@@ -40,12 +39,6 @@ function HomeStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="HomeScreen" component={Home} />
-      <Stack.Screen name="ProfileScreen" component={Profile} />
-      <Stack.Screen name="FaceEnrolment" component={FaceEnrolment} />
-      <Stack.Screen name="FaceConsent"   component={FaceConsent} />
-      <Stack.Screen name="FaceCapture"   component={FaceCapture} />
-      <Stack.Screen name="AttSessionDetail" component={AttSessionDetail} />
-      <Stack.Screen name="Participation" component={Participation} />
     </Stack.Navigator>
   )
 }
@@ -56,6 +49,15 @@ function AttendanceStack() {
       <Stack.Screen name="AttendanceScreen"  component={Attendance} />
       <Stack.Screen name="AttSessionDetail"  component={AttSessionDetail} />
       <Stack.Screen name="AttReportStatus"   component={AttReportStatus} />
+    </Stack.Navigator>
+  )
+}
+
+function ParticipationStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="ParticipationScreen" component={Participation} />
+      <Stack.Screen name="PartSessionPerf"     component={PartSessionPerf} />
     </Stack.Navigator>
   )
 }
@@ -81,10 +83,13 @@ function AssistantStack() {
   )
 }
 
-function AnalyticsStack() {
+function ProfileStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="AnalyticsScreen" component={Analytics} />
+      <Stack.Screen name="ProfileScreen" component={Profile} />
+      <Stack.Screen name="FaceEnrolment" component={FaceEnrolment} />
+      <Stack.Screen name="FaceConsent"   component={FaceConsent} />
+      <Stack.Screen name="FaceCapture"   component={FaceCapture} />
     </Stack.Navigator>
   )
 }
@@ -92,11 +97,12 @@ function AnalyticsStack() {
 // ─── Main tabs ────────────────────────────────────────────────────────────────
 
 const TAB_ICONS = {
-  Home:        { active: 'home',                inactive: 'home-outline' },
-  Attendance:  { active: 'calendar',            inactive: 'calendar-outline' },
-  Quiz:        { active: 'help-circle',         inactive: 'help-circle-outline' },
-  Assistant:   { active: 'sparkles',            inactive: 'sparkles-outline' },
-  Analytics:   { active: 'bar-chart',           inactive: 'bar-chart-outline' },
+  Home:          { active: 'home',                inactive: 'home-outline' },
+  Attendance:    { active: 'calendar',            inactive: 'calendar-outline' },
+  Quiz:          { active: 'help-circle',         inactive: 'help-circle-outline' },
+  Assistant:     { active: 'sparkles',            inactive: 'sparkles-outline' },
+  Participation: { active: 'stats-chart',         inactive: 'stats-chart-outline' },
+  Profile:       { active: 'person',              inactive: 'person-outline' },
 }
 
 function MainTabs() {
@@ -105,7 +111,6 @@ function MainTabs() {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarShowLabel: true,
         tabBarActiveTintColor: C.primary,
         tabBarInactiveTintColor: C.textHint,
         tabBarStyle: {
@@ -113,14 +118,11 @@ function MainTabs() {
           borderTopWidth: 1,
           borderTopColor: C.border,
           paddingBottom: 4 + bottom,
-          height: 74 + bottom,
+          height: 60 + bottom,
         },
-        tabBarLabelPosition: 'below-icon',
         tabBarLabelStyle: {
-          fontSize: 10,
+          fontSize: 11,
           fontWeight: '600',
-          textAlign: 'center',
-          marginTop: 2,
         },
         tabBarIcon: ({ focused, color, size }) => {
           const icons = TAB_ICONS[route.name]
@@ -133,7 +135,8 @@ function MainTabs() {
       <Tab.Screen name="Attendance"    component={AttendanceStack}    options={{ title: 'Attendance', tabBarTestID: 'tab-attendance' }} />
       <Tab.Screen name="Quiz"          component={QuizStack}          options={{ title: 'Quiz', tabBarTestID: 'tab-quiz' }} />
       <Tab.Screen name="Assistant"     component={AssistantStack}     options={{ title: 'Assistant' }} />
-      <Tab.Screen name="Analytics"     component={AnalyticsStack}     options={{ title: 'Analytics' }} />
+      <Tab.Screen name="Participation" component={ParticipationStack} options={{ title: 'Participation', tabBarTestID: 'tab-participation' }} />
+      <Tab.Screen name="Profile"       component={ProfileStack}       options={{ title: 'Profile' }} />
     </Tab.Navigator>
   )
 }

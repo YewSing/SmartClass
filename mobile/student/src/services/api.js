@@ -1,6 +1,7 @@
 import { apiCall, apiUpload, setToken, clearToken, setRefreshToken, clearRefreshToken } from './client'
 import { enrolmentParts } from './faceEnrolment'
 import { toCourseView } from './attendance'
+import { PART_SUMMARY, PARTICIPATION_GROUPS, SESSION_PERFS } from '../data/mockData'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -181,18 +182,14 @@ export const submitFaceEnrolment = (selfies, card, submitAnyway = false) =>
     return form
   })
 
-// ─── Participation history (Module 5, FR-509 read side) ──────────────────────
+// ─── Mocked (Module 3/4 — participation/quiz)─────────────────────────────────
 
-// One row per interaction session of the student's enrolled classes, newest first.
-export const getParticipationSessions = () =>
-  apiCall('GET', '/student/me/participation/sessions')
+const delay = (ms) => new Promise(res => setTimeout(res, ms))
 
-// Full detail of one session: own counts, polls with class distribution, live
-// questions, own questions.
-export const getSessionPerf = (interactionId) =>
-  apiCall('GET', `/student/me/participation/sessions/${interactionId}`)
-
-export const sendPasswordReset = async () => ({ success: true })
+export const getParticipationSummary = async () => { await delay(200); return PART_SUMMARY }
+export const getParticipationGroups  = async () => { await delay(300); return PARTICIPATION_GROUPS }
+export const getSessionPerf = async (perfKey) => { await delay(200); return SESSION_PERFS[perfKey] ?? null }
+export const sendPasswordReset = async () => { await delay(400); return { success: true } }
 
 // ─── Quizzes (Module 6, S36) ───────────────────────────────────────────────────
 
@@ -217,7 +214,3 @@ export const getQuizAttemptResult = (attemptId) =>
 
 // Quiz + its questions (answers stripped) for taking it (FR-606).
 export const getQuizDetail = (quizId) => apiCall('GET', `/student/quizzes/${quizId}`)
-
-// ─── Student Learning Analytics (FR-706, S43) ─────────────────────────────────
-
-export const getStudentAnalytics = async () => apiCall('GET', '/student/me/analytics')

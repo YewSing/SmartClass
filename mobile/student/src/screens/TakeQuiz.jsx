@@ -70,7 +70,7 @@ export default function TakeQuiz({ navigation, route }) {
         }
 
         setAttemptId(attId)
-        setDeadline(attDeadline ? new Date(attDeadline) : null)
+        setDeadline(new Date(attDeadline))
         setQuestions(detail.questions ?? [])
         if (detail.saved_answers && Object.keys(detail.saved_answers).length > 0) {
           setAnswers(detail.saved_answers)
@@ -148,7 +148,7 @@ export default function TakeQuiz({ navigation, route }) {
 
   // Countdown — auto-submit at zero (server also auto-submits expired attempts).
   useEffect(() => {
-    if (!deadline || isNaN(deadline.getTime())) return
+    if (!deadline) return
     const tick = () => {
       const left = Math.max(0, Math.floor((deadline.getTime() - Date.now()) / 1000))
       setRemaining(left)

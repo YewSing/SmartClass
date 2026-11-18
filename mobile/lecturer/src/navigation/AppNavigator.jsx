@@ -20,9 +20,7 @@ import Login from '../screens/Login'
 import Dashboard from '../screens/Dashboard'
 import Profile from '../screens/Profile'
 import ClassDetail from '../screens/ClassDetail'
-import InteractionList from '../screens/InteractionList'
 import InteractionControl from '../screens/InteractionControl'
-import InteractionDetail from '../screens/InteractionDetail'
 import AttendanceSessions from '../screens/AttendanceSessions'
 import AttendanceDetail from '../screens/AttendanceDetail'
 import QuizList from '../screens/QuizList'
@@ -51,7 +49,7 @@ const Tab   = createBottomTabNavigator()
 function useStackOptions() {
   const wide = useWideLayout()
   return wide
-    ? { headerShown: false, contentStyle: { width: '100%', maxWidth: '100%' } }
+    ? { headerShown: false, contentStyle: { width: '100%', maxWidth: CONTENT_MAX_WIDTH, alignSelf: 'center' } }
     : { headerShown: false }
 }
 
@@ -100,8 +98,7 @@ function AnalyticsStack() {
 function InteractionStack() {
   return (
     <Stack.Navigator screenOptions={useStackOptions()}>
-      <Stack.Screen name="InteractionList" component={InteractionList} />
-      <Stack.Screen name="InteractionDetail" component={InteractionDetail} />
+      <Stack.Screen name="InteractionControl" component={InteractionControl} />
     </Stack.Navigator>
   )
 }

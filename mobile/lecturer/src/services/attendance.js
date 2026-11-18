@@ -52,13 +52,12 @@ export function countStatuses(students) {
 // The five counts of a session from its API counts (Home pane), the same numbers the live roster
 // gives (countStatuses): the server's `absent` includes students not recorded yet (T38b).
 export function sessionCounts(session) {
-  const notYet = Number(session?.not_recorded) || 0
-  const absentTotal = Number(session?.absent) || 0
+  const notYet = session?.not_recorded ?? 0
   return {
-    present: Number(session?.present) || 0,
-    late: Number(session?.late) || 0,
-    excused: Number(session?.excused) || 0,
-    absent: Math.max(0, absentTotal - notYet),
+    present: session?.present ?? 0,
+    late: session?.late ?? 0,
+    excused: session?.excused ?? 0,
+    absent: Math.max(0, (session?.absent ?? 0) - notYet),
     not_recorded: notYet,
   }
 }

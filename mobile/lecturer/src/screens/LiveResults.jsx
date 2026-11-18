@@ -36,7 +36,6 @@ export default function LiveResults({ navigation, route }) {
   const { quizId, courseId, courseCode, courseName } = (route?.params ?? {})
 
   const [activeTab, setActiveTab] = useState('attempts') // 'questions' | 'attempts'
-  const [attemptFilter, setAttemptFilter] = useState('all') // 'all' | 'graded' | 'needsReview'
   const [attempts, setAttempts] = useState([])
   const [questions, setQuestions] = useState([])
   const [enrolledCount, setEnrolledCount] = useState(0)
@@ -86,18 +85,7 @@ export default function LiveResults({ navigation, route }) {
   const submitted = attempts.filter(a => a.status === 'submitted').length
   const autoSubmitted = attempts.filter(a => a.auto_submitted).length
   const scored = attempts.filter(a => a.score != null)
-  const numericScores = scored
-    .map(a => {
-      const v = typeof a.score === 'number' ? a.score : parseFloat(String(a.score ?? ''))
-      return Number.isFinite(v) ? v : null
-    })
-    .filter(v => v != null)
-  const avg = numericScores.length ? (numericScores.reduce((s, v) => s + v, 0) / numericScores.length).toFixed(0) : '--'
-
-  const gradedAttempts = attempts.filter(a => a.score != null)
-  const needsReviewAttempts = attempts.filter(
-    a => a.score == null && (a.status === 'submitted' || a.status === 'auto_submitted')
-  )
+  const avg = scored.length ? (scored.reduce((s, a) => s + a.score, 0) / scored.length).toFixed(0) : '--'
 
   const statusLabel = (s) => {
     switch (s) {
@@ -108,39 +96,20 @@ export default function LiveResults({ navigation, route }) {
     }
   }
 
-  const isNeedsReview = (a) => a.score == null && (a.status === 'submitted' || a.auto_submitted)
-
   const renderItem = ({ item: a }) => (
     <TouchableOpacity
-      style={[styles.row, isNeedsReview(a) && styles.rowNeedsReview]}
+      style={styles.row}
       onPress={() => navigation.navigate('ResultsClosed', { attemptId: a.attempt_id, quizId })}
     >
       <View style={styles.rowBody}>
-        {isNeedsReview(a) && (
-          <View style={styles.reviewTagRow}>
-            <Ionicons name="alert-circle" size={14} color={C.orangeDk} />
-            <Text style={styles.reviewTagText}>Pending review</Text>
-          </View>
-        )}
         <Text style={styles.rowStudent} numberOfLines={1}>{a.student_name || `Student #${String(a.student_id).slice(-4)}`}</Text>
         <Text style={styles.rowMeta}>
           {statusLabel(a.status)}{a.submitted_at ? ` · submitted` : ''}
         </Text>
       </View>
       <View style={styles.rowRight}>
-        <Badge
-          variant={
-            a.score == null && (a.status === 'submitted' || a.auto_submitted)
-              ? 'orange'
-              : a.status === 'submitted' || a.auto_submitted
-                ? 'green'
-                : 'blue'
-          }
-          dot
-        >
-          {a.score == null && (a.status === 'submitted' || a.auto_submitted)
-            ? 'Needs review'
-            : statusLabel(a.status)}
+        <Badge variant={a.status === 'submitted' || a.auto_submitted ? 'green' : 'blue'} dot>
+          {statusLabel(a.status)}
         </Badge>
         {a.score != null ? (
           <Text style={styles.rowScore}>{a.score}%</Text>
@@ -219,10 +188,6 @@ export default function LiveResults({ navigation, route }) {
                   <Text style={[styles.summaryNum, { color: C.textSub }]}>{avg}</Text>
                   <Text style={styles.summaryLbl}>Avg score</Text>
                 </View>
-                <View style={styles.summaryCell}>
-                  <Text style={[styles.summaryNum, { color: needsReviewAttempts.length > 0 ? C.orangeDk : C.textSub }]}>{needsReviewAttempts.length}</Text>
-                  <Text style={styles.summaryLbl}>Needs review</Text>
-                </View>
               </View>
               {autoSubmitted > 0 && (
                 <Text style={styles.hint}>{autoSubmitted} attempt{autoSubmitted !== 1 ? 's' : ''} auto-submitted after deadline.</Text>
@@ -245,41 +210,9 @@ export default function LiveResults({ navigation, route }) {
 
             {!loading && !error && attempts.length > 0 && (
               <>
-                <Text style={styles.listTitlePlain}>Attempts</Text>
-                <View style={styles.filterRow}>
-                  <TouchableOpacity
-                    style={[styles.filterChip, attemptFilter === 'all' && styles.filterChipActive]}
-                    onPress={() => setAttemptFilter('all')}
-                  >
-                    <Text style={[styles.filterChipText, attemptFilter === 'all' && styles.filterChipTextActive]}>
-                      All ({attempts.length})
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.filterChip, attemptFilter === 'graded' && styles.filterChipActive]}
-                    onPress={() => setAttemptFilter('graded')}
-                  >
-                    <Text style={[styles.filterChipText, attemptFilter === 'graded' && styles.filterChipTextActive]}>
-                      Graded ({gradedAttempts.length})
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.filterChip, attemptFilter === 'needsReview' && styles.filterChipActive]}
-                    onPress={() => setAttemptFilter('needsReview')}
-                  >
-                    <Text style={[styles.filterChipText, attemptFilter === 'needsReview' && styles.filterChipTextActive]}>
-                      Needs review ({needsReviewAttempts.length})
-                    </Text>
-                  </TouchableOpacity>
-                </View>
+                <Text style={styles.listTitle}>Attempts <Text style={styles.listSub}>tap a row to view / score answers</Text></Text>
                 <FlatList
-                  data={
-                    attemptFilter === 'graded'
-                      ? gradedAttempts
-                      : attemptFilter === 'needsReview'
-                        ? needsReviewAttempts
-                        : attempts
-                  }
+                  data={attempts}
                   keyExtractor={(_, i) => String(i)}
                   renderItem={renderItem}
                   ItemSeparatorComponent={() => <View style={styles.separator} />}
@@ -379,16 +312,6 @@ const styles = StyleSheet.create({
   emptyText: { fontSize: 15, fontWeight: '700', color: C.text },
   emptySub: { fontSize: 13, color: C.textSub },
   listTitle: { fontSize: 15, fontWeight: '800', color: C.text, marginTop: 10, marginBottom: 4 },
-  listTitlePlain: { fontSize: 15, fontWeight:'700', color: C.text, marginTop: 10, marginBottom: 8 },
-  filterRow: { flexDirection: 'row', gap: 6, marginBottom: 8, flexWrap: 'wrap' },
-  filterChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12,
-    backgroundColor: C.gray50, borderWidth: 1, borderColor: C.border,
-  },
-  filterChipActive: { backgroundColor: C.blueLt, borderColor: C.primary },
-  filterChipText: { fontSize: 11, color: C.textSub },
-  filterChipTextActive: { fontWeight: '700', color: C.primary },
   listSub: { fontSize: 12, color: C.textSub, marginBottom: 8 },
   separator: { height: 1, backgroundColor: C.border, marginHorizontal: 16 },
   tabBar: {
@@ -429,21 +352,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 12, backgroundColor: C.card,
     borderBottomWidth: 1, borderBottomColor: C.border,
   },
-  rowNeedsReview: {
-    backgroundColor: '#FFF7ED',
-    borderColor: C.orangeDk,
-    borderWidth: 1,
-  },
-  reviewTagRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: C.orangeLt, borderRadius: 8, paddingHorizontal: 8,
-    paddingVertical: 4, marginBottom: 6, alignSelf: 'flex-start',
-  },
-  reviewTagText: { fontSize: 10, fontWeight: '800', color: C.orangeDk },
   rowBody: { flex: 1, marginRight: 10 },
   rowStudent: { fontSize: 14, fontWeight: '700', color: C.text },
   rowMeta: { fontSize: 11, color: C.textHint, marginTop: 2 },
   rowRight: { alignItems: 'flex-end', minWidth: 110 },
   rowScore: { fontSize: 15, fontWeight: '800', color: C.text, marginTop: 2 },
-  needsReviewLabel: { fontSize: 10, fontWeight: '800', color: C.redDk, marginTop: 2 },
 })

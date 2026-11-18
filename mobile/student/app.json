@@ -14,9 +14,6 @@
         "microphonePermission": false,
         "recordAudioAndroid": false
       }]
-    ],
-    "web": {
-      "output": "single"
-    }
+    ]
   }
 }

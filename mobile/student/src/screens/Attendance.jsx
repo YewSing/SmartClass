@@ -6,7 +6,6 @@ import { Ionicons } from '@expo/vector-icons'
 import { useFocusEffect } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useStudent } from '../context/StudentContext'
-import Topbar from '../components/Topbar'
 import Badge from '../components/Badge'
 import { STATUSES, statusInfo } from '../services/attendance'
 import { C } from '../theme'
@@ -44,10 +43,11 @@ export default function Attendance({ navigation }) {
 
   return (
     <View style={styles.flex}>
-      <Topbar
-        title="Attendance"
-        sub="Rate per course"
-      />
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+        <Text style={styles.headerTitle}>My Attendance</Text>
+        <Text style={styles.headerSub}>Rate per course · Late counts as attended, Excused isn't counted</Text>
+      </View>
 
       {/* Filter pills */}
       <View style={styles.filterRow}>
@@ -159,6 +159,23 @@ export default function Attendance({ navigation }) {
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: C.bg },
+  header: {
+    backgroundColor: C.card,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+  },
+  headerTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: C.text,
+  },
+  headerSub: {
+    fontSize: 12,
+    color: C.textSub,
+    marginTop: 2,
+  },
   filterRow: {
     backgroundColor: C.card,
     borderBottomWidth: 1,

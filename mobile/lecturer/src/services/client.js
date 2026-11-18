@@ -1,15 +1,17 @@
 // Change EXPO_PUBLIC_API_URL in .env to your laptop's local IP
+import AsyncStorage from '@react-native-async-storage/async-storage'
 
 const BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://10.0.2.2:8000'
-
-
-// ─── Real network client ────────────────────────────────────────────────
 
 // In-memory cache so getToken() is synchronous after initStorage()
 let _token = null
 let _refreshToken = null
 
-export async function realInitStorage() {
+// ─── Storage init (call once on app startup) ──────────────────────────────────
+
+// AsyncStorage is backed by localStorage on web. If the browser blocks storage
+// (private window, blocked site data) the app still starts; tokens just live in memory.
+export async function initStorage() {
   try {
     _token = await AsyncStorage.getItem('token')
     _refreshToken = await AsyncStorage.getItem('refresh_token')
@@ -19,37 +21,39 @@ export async function realInitStorage() {
   }
 }
 
+// ─── Token accessors ──────────────────────────────────────────────────────────
+
 const ignore = () => {}
 
-export function realGetToken() { return _token }
+export function getToken() { return _token }
 
-export function realSetToken(t) {
+export function setToken(t) {
   _token = t
   AsyncStorage.setItem('token', t).catch(ignore)
 }
 
-export function realClearToken() {
+export function clearToken() {
   _token = null
   AsyncStorage.removeItem('token').catch(ignore)
 }
 
-export function realGetRefreshToken() { return _refreshToken }
+export function getRefreshToken() { return _refreshToken }
 
-export function realSetRefreshToken(t) {
+export function setRefreshToken(t) {
   _refreshToken = t
   AsyncStorage.setItem('refresh_token', t).catch(ignore)
 }
 
-export function realClearRefreshToken() {
+export function clearRefreshToken() {
   _refreshToken = null
   AsyncStorage.removeItem('refresh_token').catch(ignore)
 }
 
-// ─── Auth expiry listeners (replaces window.dispatchEvent) ────────────
+// ─── Auth expiry listeners (replaces window.dispatchEvent) ───────────────────
 
 const _authListeners = []
 
-export function realOnAuthExpired(fn) {
+export function onAuthExpired(fn) {
   _authListeners.push(fn)
   return () => {
     const idx = _authListeners.indexOf(fn)
@@ -61,14 +65,14 @@ function _fireAuthExpired() {
   _authListeners.forEach(fn => fn())
 }
 
-// ─── Singleton refresh promise ────────────────────────────────────────
+// ─── Singleton refresh promise ────────────────────────────────────────────────
 
 let _refreshPromise = null
 
-async function realDoRefresh() {
+async function _doRefresh() {
   if (_refreshPromise) return _refreshPromise
   _refreshPromise = (async () => {
-    const rt = realGetRefreshToken()
+    const rt = getRefreshToken()
     if (!rt) return false
     try {
       const res = await fetch(`${BASE}/auth/refresh`, {
@@ -78,7 +82,7 @@ async function realDoRefresh() {
       })
       if (!res.ok) return false
       const data = await res.json()
-      realSetToken(data.access_token)
+      setToken(data.access_token)
       return true
     } catch {
       return false
@@ -89,17 +93,19 @@ async function realDoRefresh() {
   return _refreshPromise
 }
 
-function realForceLogout() {
-  realClearToken()
-  realClearRefreshToken()
+function _forceLogout() {
+  clearToken()
+  clearRefreshToken()
   _fireAuthExpired()
 }
 
 // A 401 from a sign-in request means wrong credentials, not an expired session
 const LOGIN_PATHS = ['/auth/login', '/auth/moodle-login']
 
-export async function realApiCall(method, path, body, _isRetry = false) {
-  const token = realGetToken()
+// ─── API call ─────────────────────────────────────────────────────────────────
+
+export async function apiCall(method, path, body, _isRetry = false) {
+  const token = getToken()
   const res = await fetch(`${BASE}${path}`, {
     method,
     headers: {
@@ -110,9 +116,9 @@ export async function realApiCall(method, path, body, _isRetry = false) {
   })
 
   if (res.status === 401 && !_isRetry && !LOGIN_PATHS.includes(path)) {
-    const refreshed = await realDoRefresh()
-    if (refreshed) return realApiCall(method, path, body, true)
-    realForceLogout()
+    const refreshed = await _doRefresh()
+    if (refreshed) return apiCall(method, path, body, true)
+    _forceLogout()
     throw new Error('Session expired. Please log in again.')
   }
 
@@ -125,8 +131,7 @@ export async function realApiCall(method, path, body, _isRetry = false) {
   return res.status === 204 ? null : res.json()
 }
 
-export async function realApiCallRaw(method, path, _isRetry = false) {
-  const token = realGetToken()
+export async function apiCallRaw(method, path, _isRetry = false) {  const token = getToken()
   const res = await fetch(`${BASE}${path}`, {
     method,
     headers: {
@@ -136,9 +141,9 @@ export async function realApiCallRaw(method, path, _isRetry = false) {
   })
 
   if (res.status === 401 && !_isRetry && !LOGIN_PATHS.includes(path)) {
-    const refreshed = await realDoRefresh()
-    if (refreshed) return realApiCallRaw(method, path, true)
-    realForceLogout()
+    const refreshed = await _doRefresh()
+    if (refreshed) return apiCallRaw(method, path, true)
+    _forceLogout()
     throw new Error('Session expired. Please log in again.')
   }
 
@@ -149,36 +154,8 @@ export async function realApiCallRaw(method, path, _isRetry = false) {
   return res
 }
 
-export async function realRefreshAccessToken() {
-  return realDoRefresh()
+export async function refreshAccessToken() {
+  return _doRefresh()
 }
-
-// ─── Exported API (always the real backend) ───────────────────────────
-
-export async function initStorage() { return realInitStorage() }
-
-export function getToken() { return realGetToken() }
-
-export function setToken(t) { realSetToken(t) }
-
-export function clearToken() { realClearToken() }
-
-export function getRefreshToken() { return realGetRefreshToken() }
-
-export function setRefreshToken(t) { realSetRefreshToken(t) }
-
-export function clearRefreshToken() { realClearRefreshToken() }
-
-export function onAuthExpired(fn) { return realOnAuthExpired(fn) }
-
-export async function apiCall(method, path, body, _isRetry = false) {
-  return realApiCall(method, path, body, _isRetry)
-}
-
-export async function apiCallRaw(method, path, _isRetry = false) {
-  return realApiCallRaw(method, path, _isRetry)
-}
-
-export async function refreshAccessToken() { return realRefreshAccessToken() }
 
 export { BASE }
