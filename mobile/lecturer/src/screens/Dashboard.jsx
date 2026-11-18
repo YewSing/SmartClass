@@ -378,18 +378,21 @@ export default function Dashboard({ navigation }) {
 
           {/* Interaction live card (FR-501, UC-501): open interaction session for the current class */}
           {currentInteraction && (
-            <TouchableOpacity
-              style={[styles.card, styles.interactionCard]}
-              testID="home-interaction"
-              onPress={() => navigation.navigate('InteractionControl', { interaction_id: currentInteraction.id })}
-            >
-              <View style={styles.interactionHeaderRow}>
-                <View style={styles.flex}>
-                  <Text style={styles.cardExtraMeta}>{currentInteraction.class_code} · live interaction</Text>
-                  <Text style={styles.interactionTitle}>Live Interaction Room</Text>
-                </View>
-                <Badge variant="green" dot>Active</Badge>
+            <>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Interaction</Text>
               </View>
+              <TouchableOpacity
+                style={[styles.card, styles.interactionCard]}
+                testID="home-interaction"
+                onPress={() => navigation.navigate('InteractionControl', { interaction_id: currentInteraction.id })}
+              >
+                <View style={styles.interactionHeaderRow}>
+                  <View style={styles.flex}>
+                    <Text style={styles.cardExtraMeta}>{currentInteraction.class_code} · live </Text>
+                  </View>
+                  <Badge variant="green" dot>Active</Badge>
+                </View>
 
               <View style={styles.interactionMetricsGrid}>
                 <View style={[styles.interactionMetricCard, { backgroundColor: '#FEF2F2', borderColor: '#FECACA' }]}>
@@ -434,6 +437,7 @@ export default function Dashboard({ navigation }) {
                 <Text style={styles.cardFooterText}> Tap to open live interaction control</Text>
               </View>
             </TouchableOpacity>
+          </>
           )}
 
           {/* Quiz section */}
@@ -492,7 +496,7 @@ export default function Dashboard({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: C.bg },
+  flex: { flex: 1,  },
   content: {
     backgroundColor: C.bg,
     paddingHorizontal: 16,

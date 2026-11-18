@@ -492,6 +492,9 @@ export default function InteractionControl({ route, navigation }) {
               </View>
               {liveQuestion.responses?.length > 0 && (
                 <View style={styles.responseItem}>
+                  <Text style={styles.responseName}>
+                    {liveQuestion.responses[0].student_name ?? 'A student'}
+                  </Text>
                   <Text style={styles.responseText} numberOfLines={3}>
                     {liveQuestion.responses[0].response}
                   </Text>
@@ -888,6 +891,7 @@ const styles = StyleSheet.create({
   responsesTitle: { fontSize: 12, fontWeight: '700', color: C.textSub },
   responseItem: { paddingVertical: 8, backgroundColor: C.gray50, borderRadius: 8, marginBottom: 4, paddingHorizontal: 10 },
   responseText: { fontSize: 13, color: C.text },
+  responseName: { fontSize: 11, fontWeight: '800', color: C.primary, marginBottom: 2 },
   sheetItemName: { fontSize: 11, fontWeight: '700', color: C.primary, marginBottom: 2 },
   // Poll bars
   pollQuestion: { fontSize: 15, fontWeight: '600', color: C.text, marginBottom: 10, flexShrink: 1 },

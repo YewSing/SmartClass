@@ -7,7 +7,6 @@ import { Ionicons } from '@expo/vector-icons'
 import { useLecturer } from '../context/LecturerContext'
 import Topbar from '../components/Topbar'
 import Badge from '../components/Badge'
-import { ANALYTICS_PAR_BARS, ANALYTICS_PAR_LABELS, AT_RISK } from '../data/mockData'
 import { C } from '../theme'
 
 const MAX_H = 90
@@ -658,12 +657,7 @@ export default function Analytics({ navigation }) {
               <Text style={styles.chartSubtitle}>Proportion of enrolled students voting in polls and answering prompts</Text>
               <View style={{ height: 12 }} />
               <SessionBarChart
-                sessions={ANALYTICS_PAR_LABELS.map((label, idx) => ({
-                  session_id: idx + 1,
-                  label,
-                  present_count: Math.round((ANALYTICS_PAR_BARS[idx] / 100) * enrolled),
-                  rate: ANALYTICS_PAR_BARS[idx],
-                }))}
+                sessions={sessions}
                 enrolled={enrolled}
               />
             </View>
@@ -754,7 +748,7 @@ export default function Analytics({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: C.bg },
+  flex: { flex: 1},
   exportBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -871,7 +865,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 10,
-    backgroundColor: '#FEF2F2',
     borderWidth: 1,
     borderColor: '#FECACA',
     borderRadius: 10,

@@ -9,7 +9,7 @@ from sqlalchemy.engine import make_url
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.routers import auth, admin_users, admin_students, admin_courses, admin_moodle, admin_devices, device, classes, sessions, attendance, attendance_flags, attendance_stats, analytics, audit, face_review, assistant, student_face, face_verification, class_schedule, interactions, quizzes, quiz_taking
+from app.routers import auth, admin_users, admin_students, admin_courses, admin_moodle, admin_devices, device, classes, sessions, attendance, attendance_flags, attendance_stats, analytics, audit, face_review, assistant, student_face, face_verification, class_schedule, interactions, participation_history, quizzes, quiz_taking
 from app.services.attendance_flags import unmatched_face_cleanup_loop
 from app.services.attendance_moodle_sync import attendance_moodle_sync_loop
 from app.services.attendance_service import low_attendance_monitor
@@ -107,6 +107,7 @@ app.include_router(assistant.router)
 app.include_router(student_face.router)
 app.include_router(face_verification.router)
 app.include_router(interactions.router)
+app.include_router(participation_history.router)
 app.include_router(quizzes.router)
 app.include_router(quiz_taking.router)
 

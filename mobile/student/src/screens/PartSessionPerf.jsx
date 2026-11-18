@@ -1,28 +1,125 @@
+import { useState, useEffect } from 'react'
 import {
-  View, Text, ScrollView, StyleSheet,
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  ActivityIndicator,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import Topbar from '../components/Topbar'
-import { SESSION_PERFS } from '../data/mockData'
+import { getSessionPerf } from '../services/api'
 import { C } from '../theme'
 
 const PILL_STYLE = {
-  correct:     { bg: C.greenLt, color: C.greenDk },
-  wrong:       { bg: C.redLt,   color: C.redDk },
-  'poll-ans':  { bg: C.blueLt,  color: C.blueDk },
-  'no-answer': { bg: C.gray100, color: C.gray500 },
+  correct:  { bg: C.greenLt, color: C.greenDk },
+  wrong:    { bg: C.redLt,   color: C.redDk },
+  'poll-ans': { bg: C.blueLt, color: C.primary },
+  'no-answer': { bg: C.gray100, color: C.gray600 },
 }
 
-const STAT_COLORS = {
-  correct: C.green,
-  wrong:   C.red,
-  skipped: C.gray500,
-  score:   C.primary,
+const fmtTime = (iso) => {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+const fmtDate = (iso) => {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return d.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+    + ' · ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
 export default function PartSessionPerf({ route, navigation }) {
-  const perfKey = route.params?.perfKey ?? 'today'
-  const perf = SESSION_PERFS[perfKey] ?? SESSION_PERFS.today
+  const interactionId = route.params?.interactionId ?? null
+  const [perf, setPerf] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    let alive = true
+    setLoading(true)
+    if (interactionId == null) {
+      setError('No session selected.')
+      setLoading(false)
+      return
+    }
+    getSessionPerf(interactionId)
+      .then((data) => { if (alive) setPerf(data) })
+      .catch((e) => { if (alive) setError(e.message ?? 'Failed to load session') })
+      .finally(() => { if (alive) setLoading(false) })
+    return () => { alive = false }
+  }, [interactionId])
+
+  if (loading) {
+    return (
+      <View style={[styles.flex, styles.centered]}>
+        <ActivityIndicator color={C.primary} />
+        <Text style={styles.hintText}>Loading session…</Text>
+      </View>
+    )
+  }
+
+  if (error || !perf) {
+    return (
+      <View style={[styles.flex, styles.centered]}>
+        <Topbar title="Session Summary" onBack={() => navigation.goBack()} />
+        <Text style={styles.hintText}>{error ?? 'Session not found'}</Text>
+      </View>
+    )
+  }
+
+  const stats = perf.stats
+  const heroStats = [
+    ['votes', 'Poll Votes'],
+    ['responses', 'Responses'],
+    ['questions', 'Questions'],
+    ['idu_signals', 'IDU'],
+  ]
+  const available = perf.polls.length + perf.live_questions.length
+  const engaged = stats.votes + stats.responses
+  const ratePct = available ? Math.round((engaged / available) * 100) : 0
+  const rateColor = ratePct >= 60 ? C.green : ratePct > 0 ? C.orange : C.red
+
+  // Real activity items, newest activity first per category then interleaved.
+  const questions = [
+    ...perf.polls.map((p) => ({
+      key: `poll-${p.id}`,
+      type: 'poll',
+      typeLabel: 'Poll',
+      meta: `Poll · ${fmtTime(p.my_option ? perf.opened_at : perf.opened_at)}`,
+      question: p.question,
+      answerPill: p.my_option
+        ? { label: p.my_option, cls: 'poll-ans' }
+        : { label: '— No vote', cls: 'no-answer' },
+      timeBadge: p.is_open ? 'Poll open' : 'Poll closed',
+      timeBadgeIcon: p.is_open ? 'flash' : 'time-outline',
+      distribution: p.options,
+    })),
+    ...perf.live_questions.map((lq) => ({
+      key: `live-${lq.id}`,
+      type: 'quiz',
+      typeLabel: 'Live Q',
+      meta: `Live question · ${fmtTime(perf.opened_at)}`,
+      question: lq.question,
+      answerPill: lq.my_response
+        ? { label: lq.my_response, cls: 'correct' }
+        : { label: '— No response', cls: 'no-answer' },
+      timeBadge: lq.my_response ? 'Responded' : 'Not answered',
+      timeBadgeIcon: lq.my_response ? 'checkmark-circle' : 'close-circle',
+    })),
+    ...perf.my_questions.map((q) => ({
+      key: `q-${q.id}`,
+      type: 'quiz',
+      typeLabel: 'Question',
+      meta: `You asked${q.anonymous ? ' · anonymous' : ''}`,
+      question: q.text,
+      answerPill: { label: q.answered ? 'Answered' : 'Waiting', cls: q.answered ? 'correct' : 'no-answer' },
+      timeBadge: null,
+      timeBadgeIcon: null,
+    })),
+  ]
 
   return (
     <View style={styles.flex}>
@@ -30,52 +127,49 @@ export default function PartSessionPerf({ route, navigation }) {
       <ScrollView style={styles.flex} showsVerticalScrollIndicator={false}>
         {/* Hero */}
         <View style={styles.hero}>
-          <Text style={styles.heroClass}>{perf.classLabel}</Text>
-          <Text style={styles.heroTitle}>{perf.title}</Text>
+          <Text style={styles.heroClass}>{perf.class_code} · {perf.class_name}</Text>
+          <Text style={styles.heroTitle}>Interaction Session #{perf.id}</Text>
           <View style={styles.heroDateRow}>
             <Ionicons name="calendar-outline" size={11} color="#DBEAFE" />
-            <Text style={styles.heroDate}>{perf.date}</Text>
+            <Text style={styles.heroDate}>{fmtDate(perf.opened_at)}{perf.status === 'open' ? ' · Live' : ''}</Text>
           </View>
           <View style={styles.heroStats}>
-            {[['correct', 'Correct'], ['wrong', 'Wrong'], ['skipped', 'Skipped'], ['score', 'Score']].map(([k, l]) => (
+            {heroStats.map(([k, l]) => (
               <View key={k} style={styles.heroStatChip}>
-                <Text style={styles.heroStatNum}>{perf.stats[k]}</Text>
+                <Text style={styles.heroStatNum}>{stats[k]}</Text>
                 <Text style={styles.heroStatLbl}>{l}</Text>
               </View>
             ))}
           </View>
         </View>
 
-        {/* Score card */}
+        {/* Participation score card */}
         <View style={styles.scoreCard}>
-          <Text style={styles.scoreTitle}>Your score this session</Text>
+          <Text style={styles.scoreTitle}>Your participation this session</Text>
           <View style={styles.scoreRow}>
-            <Text style={[styles.scoreValue, { color: perf.scoreColor }]}>{perf.scoreValue}</Text>
-            <Text style={styles.classAvg}>Class avg: {perf.classAvg}</Text>
+            <Text style={[styles.scoreValue, { color: rateColor }]}>{ratePct}%</Text>
+            <Text style={styles.classAvg}>{perf.class_participants} classmate{perf.class_participants === 1 ? '' : 's'} participated</Text>
           </View>
           <View style={styles.scoreTrack}>
-            <View style={[styles.scoreFill, { width: perf.scoreWidth, backgroundColor: perf.scoreColor }]} />
+            <View style={[styles.scoreFill, { width: `${ratePct}%`, backgroundColor: rateColor }]} />
           </View>
           <View style={styles.scoreAxis}>
             <Text style={styles.axisText}>0%</Text>
-            <Text style={styles.axisText}>Class avg {perf.classAvg}</Text>
+            <Text style={styles.axisText}>{engaged} of {available} items</Text>
             <Text style={styles.axisText}>100%</Text>
           </View>
         </View>
 
-        {perf.warning && (
-          <View style={styles.warnBanner}>
-            <Ionicons name="warning-outline" size={15} color={C.yellow} style={{ marginTop: 1 }} />
-            <Text style={styles.warnText}>{perf.warning}</Text>
-          </View>
-        )}
-
         <Text style={styles.sectionTitle}>Questions & Responses</Text>
 
-        {perf.questions.map((q, i) => {
+        {questions.length === 0 && (
+          <Text style={styles.hintText}>No activity recorded in this session.</Text>
+        )}
+
+        {questions.map((q) => {
           const pill = PILL_STYLE[q.answerPill.cls] ?? { bg: C.gray100, color: C.gray600 }
           return (
-            <View key={i} style={styles.qRow}>
+            <View key={q.key} style={styles.qRow}>
               <View style={styles.qTopRow}>
                 <View style={[styles.typeChip, { backgroundColor: q.type === 'quiz' ? C.blueLt : C.purpleLt }]}>
                   <Ionicons
@@ -96,22 +190,21 @@ export default function PartSessionPerf({ route, navigation }) {
                 <View style={[styles.ansPill, { backgroundColor: pill.bg }]}>
                   <Text style={[styles.ansPillText, { color: pill.color }]}>{q.answerPill.label}</Text>
                 </View>
-                {q.correctRef && (
-                  <>
-                    <Ionicons name="arrow-forward" size={10} color={C.gray400} />
-                    <View style={[styles.ansPill, { backgroundColor: C.greenLt }]}>
-                      <Text style={[styles.ansPillText, { color: C.greenDk }]}>{q.correctRef}</Text>
-                    </View>
-                  </>
-                )}
-                <View style={styles.timeBadge}>
-                  {q.timeBadgeIcon && (
-                    <Ionicons name={q.timeBadgeIcon} size={10} color={q.timeBadgeColor ?? C.textSub} />
-                  )}
-                  <Text style={[styles.timeBadgeText, q.timeBadgeColor && { color: q.timeBadgeColor }]}>
-                    {q.timeBadge}
+                {q.distribution && (
+                  <Text style={styles.timeBadgeText}>
+                    {q.distribution.map((o) => `${o.option_text}: ${o.votes}`).join(' · ')}
                   </Text>
-                </View>
+                )}
+                {q.timeBadge && (
+                  <View style={styles.timeBadge}>
+                    {q.timeBadgeIcon && (
+                      <Ionicons name={q.timeBadgeIcon} size={10} color={C.textSub} />
+                    )}
+                    <Text style={styles.timeBadgeText}>
+                      {q.timeBadge}
+                    </Text>
+                  </View>
+                )}
               </View>
             </View>
           )
@@ -125,6 +218,8 @@ export default function PartSessionPerf({ route, navigation }) {
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: C.bg },
+  centered: { alignItems: 'center', justifyContent: 'center', gap: 8 },
+  hintText: { fontSize: 13, color: C.textSub, padding: 16 },
   hero: {
     backgroundColor: C.primary,
     padding: 18,
@@ -168,9 +263,10 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   heroStatLbl: {
-    fontSize: 10,
+    fontSize: 9,
     color: '#DBEAFE',
     marginTop: 2,
+    textAlign: 'center',
   },
   scoreCard: {
     backgroundColor: C.card,
@@ -218,23 +314,6 @@ const styles = StyleSheet.create({
   axisText: {
     fontSize: 10,
     color: C.textHint,
-  },
-  warnBanner: {
-    flexDirection: 'row',
-    gap: 8,
-    marginHorizontal: 16,
-    marginBottom: 4,
-    backgroundColor: C.yellowLt,
-    borderWidth: 1,
-    borderColor: C.yellow,
-    borderRadius: 10,
-    padding: 12,
-  },
-  warnText: {
-    flex: 1,
-    fontSize: 12,
-    color: C.yellowDk,
-    lineHeight: 18,
   },
   sectionTitle: {
     fontSize: 11,

@@ -344,7 +344,7 @@ export default function Home({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: C.bg },
+  flex: { flex: 1, backgroundColor: '#FFFFFF' },
   profileBtn: { padding: 6 },
   avatar: {
     width: 30,

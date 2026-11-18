@@ -94,7 +94,7 @@ export default function QuizResult({ navigation, route }) {
               )}
             </Section>
 
-            {result.student_score_visible && (result.answers ?? []).length > 0 && (
+            {(result.answers ?? []).length > 0 && (result.student_score_visible || justSubmitted) && (
               <Section tint="blue" badge="Your answers">
                 {result.answers.map((a, i) => {
                   const maxPts = a.max_score ?? 1.0

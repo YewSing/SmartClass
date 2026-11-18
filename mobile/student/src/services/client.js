@@ -1,8 +1,6 @@
 // Change EXPO_PUBLIC_API_URL in .env to your laptop's local IP
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import * as mock from './mockClient'
 
-const SIMULATION = process.env.EXPO_PUBLIC_SIMULATION === '1'
 const BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://10.0.2.2:8000'
 
 // ─── Real network client ────────────────────────────────────────────────
@@ -150,52 +148,32 @@ export async function realRefreshAccessToken() {
   return ok
 }
 
-// ─── Exported simulation-aware API ────────────────────────────────────
-// When EXPO_PUBLIC_SIMULATION=1 every call (including token storage) goes to
-// the in-memory mock client, so the app runs without a backend.
+// ─── Exported API (always the real backend) ───────────────────────────
 
-export async function initStorage() {
-  return SIMULATION ? mock.initStorage() : realInitStorage()
-}
+export async function initStorage() { return realInitStorage() }
 
-export function getToken() { return SIMULATION ? mock.getToken() : realGetToken() }
+export function getToken() { return realGetToken() }
 
-export function setToken(t) {
-  if (SIMULATION) { mock.setToken(t); return }
-  realSetToken(t)
-}
+export function setToken(t) { realSetToken(t) }
 
-export function clearToken() {
-  if (SIMULATION) { mock.clearToken(); return }
-  realClearToken()
-}
+export function clearToken() { realClearToken() }
 
-export function getRefreshToken() { return SIMULATION ? mock.getRefreshToken() : realGetRefreshToken() }
+export function getRefreshToken() { return realGetRefreshToken() }
 
-export function setRefreshToken(t) {
-  if (SIMULATION) { mock.setRefreshToken(t); return }
-  realSetRefreshToken(t)
-}
+export function setRefreshToken(t) { realSetRefreshToken(t) }
 
-export function clearRefreshToken() {
-  if (SIMULATION) { mock.clearRefreshToken(); return }
-  realClearRefreshToken()
-}
+export function clearRefreshToken() { realClearRefreshToken() }
 
-export function onAuthExpired(fn) {
-  return SIMULATION ? mock.onAuthExpired(fn) : realOnAuthExpired(fn)
-}
+export function onAuthExpired(fn) { return realOnAuthExpired(fn) }
 
 export async function apiCall(method, path, body, _isRetry = false) {
-  return SIMULATION ? mock.apiCall(method, path, body, _isRetry) : realApiCall(method, path, body, _isRetry)
+  return realApiCall(method, path, body, _isRetry)
 }
 
 export async function apiUpload(method, path, makeForm, _isRetry = false) {
-  return SIMULATION ? mock.apiUpload(method, path, makeForm, _isRetry) : realApiUpload(method, path, makeForm, _isRetry)
+  return realApiUpload(method, path, makeForm, _isRetry)
 }
 
-export async function refreshAccessToken() {
-  return SIMULATION ? mock.refreshAccessToken() : realRefreshAccessToken()
-}
+export async function refreshAccessToken() { return realRefreshAccessToken() }
 
-export { BASE, SIMULATION }
+export { BASE }

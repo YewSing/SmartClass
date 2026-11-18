@@ -51,7 +51,7 @@ const Tab   = createBottomTabNavigator()
 function useStackOptions() {
   const wide = useWideLayout()
   return wide
-    ? { headerShown: false, contentStyle: { width: '100%', maxWidth: CONTENT_MAX_WIDTH, alignSelf: 'center' } }
+    ? { headerShown: false, contentStyle: { width: '100%', maxWidth: '100%' } }
     : { headerShown: false }
 }
 
@@ -134,7 +134,7 @@ const TAB_ROOTS = {
   Quiz:       'QuizList',
   Assistant:  'LecturerAssistant',
   Analytics:  'AnalyticsScreen',
-  Interaction:'InteractionList',
+  Interaction:'InteractionControl',
 }
 
 function MainTabs() {

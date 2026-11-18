@@ -458,7 +458,7 @@ export default function Analytics({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: C.bg },
+  flex: { flex: 1, backgroundColor: '#FFFFFF' },
   content: { paddingHorizontal: 16, paddingBottom: 20 },
   tabsRow: {
     flexDirection: 'row',
