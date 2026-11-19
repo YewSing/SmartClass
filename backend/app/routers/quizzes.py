@@ -676,6 +676,13 @@ async def publish_draft_quiz(
         created.append(clone)
 
     await db.commit()
+    # Queue each published quiz for the Moodle mod_quiz push (FR-613 style; no-op
+    # when Moodle isn't configured), then try it at once in the background.
+    from app.services import quiz_moodle_sync
+    for q in created:
+        quiz_moodle_sync.queue_quiz(db, q)
+        await db.commit()
+        quiz_moodle_sync.sync_in_background(q.id)
     for q in created:
         await db.refresh(q)
         student_user_ids = (await db.execute(

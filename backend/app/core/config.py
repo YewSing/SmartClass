@@ -99,6 +99,8 @@ class Settings(BaseSettings):
     MOODLE_ATTENDANCE_RETRY_MAX_SECONDS: int = 3600    # backoff cap; retries never stop
     MOODLE_ATTENDANCE_CHECK_INTERVAL_SECONDS: int = 10800  # re-read synced sessions in Moodle this often (FR-320)
     MOODLE_ATTENDANCE_CHECK_DAYS: int = 30             # ...for sessions closed within this many days
+    # Published quizzes -> Moodle mod_quiz (push + attempt pull); same rules as above
+    MOODLE_QUIZ_SYNC_INTERVAL_SECONDS: int = 60
 
 
 settings = Settings()

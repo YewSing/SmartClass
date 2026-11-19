@@ -15,6 +15,7 @@ from app.services.attendance_moodle_sync import attendance_moodle_sync_loop
 from app.services.attendance_service import low_attendance_monitor
 from app.services.kb.sync import kb_sync_loop
 from app.services.moodle_sync import moodle_sync_loop
+from app.services.quiz_moodle_sync import quiz_moodle_sync_loop
 from app.services.session_schedule import session_scheduler_loop
 from app.websocket import router as ws_router
 
@@ -54,7 +55,8 @@ async def lifespan(app: FastAPI):
 
     tasks = [asyncio.create_task(low_attendance_monitor()), asyncio.create_task(kb_sync_loop()),
              asyncio.create_task(moodle_sync_loop()), asyncio.create_task(session_scheduler_loop()),
-             asyncio.create_task(attendance_moodle_sync_loop()), asyncio.create_task(unmatched_face_cleanup_loop())]
+             asyncio.create_task(attendance_moodle_sync_loop()), asyncio.create_task(quiz_moodle_sync_loop()),
+             asyncio.create_task(unmatched_face_cleanup_loop())]
     try:
         yield
     finally:

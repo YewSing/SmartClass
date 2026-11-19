@@ -25,6 +25,7 @@ $functions = [
     'core_course_get_contents', 'core_course_get_courses_by_field', 'core_user_get_users_by_field',
     'mod_attendance_add_session', 'mod_attendance_remove_session', 'mod_attendance_get_session',
     'mod_attendance_get_sessions', 'mod_attendance_update_user_status',
+    'local_smartclass_create_quiz', 'local_smartclass_quiz_attempts',
 ];
 if (!$DB->record_exists('modules', ['name' => 'attendance'])) {
     fwrite(STDERR, "mod_attendance is not installed; run setup.sh\n");

@@ -42,6 +42,8 @@ services:
       - moodle_data:/bitnami/moodle
       - moodle_moodledata:/bitnami/moodledata
       - ./scripts:/scripts:ro
+      # Top-level path: a mount under the read-only /scripts mount cannot be created.
+      - ./local/smartclass:/smartclass_local:ro
       - ./seed_config.json:/seed/seed_config.json:ro
       # Materials root, read-only. Only the course folders named in seed_config.json are ever read.
       - "${MATERIALS_ROOT:-C:/Users/user/Documents/UM Documents}:/materials:ro"
