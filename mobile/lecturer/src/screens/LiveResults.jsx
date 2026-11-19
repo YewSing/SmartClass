@@ -84,6 +84,16 @@ export default function LiveResults({ navigation, route }) {
   const started = attempts.filter(a => a.status === 'started').length
   const submitted = attempts.filter(a => a.status === 'submitted').length
   const autoSubmitted = attempts.filter(a => a.auto_submitted).length
+  // Short answers need manual lecturer grading: a submitted attempt is "Needs review"
+  // until every short-answer score is in (backend `grading_complete`).
+  const isSubmitted = (a) => a.status === 'submitted' || a.auto_submitted
+  const gradedAttempts = attempts.filter(a => isSubmitted(a) && a.grading_complete)
+  const needsReviewAttempts = attempts.filter(a => isSubmitted(a) && !a.grading_complete)
+  const [attemptFilter, setAttemptFilter] = useState('all') // 'all' | 'graded' | 'review'
+  const visibleAttempts =
+    attemptFilter === 'graded' ? gradedAttempts :
+    attemptFilter === 'review' ? needsReviewAttempts :
+    attempts
   const scored = attempts.filter(a => a.score != null)
   const avg = scored.length ? (scored.reduce((s, a) => s + a.score, 0) / scored.length).toFixed(0) : '--'
 
@@ -104,12 +114,22 @@ export default function LiveResults({ navigation, route }) {
       <View style={styles.rowBody}>
         <Text style={styles.rowStudent} numberOfLines={1}>{a.student_name || `Student #${String(a.student_id).slice(-4)}`}</Text>
         <Text style={styles.rowMeta}>
-          {statusLabel(a.status)}{a.submitted_at ? ` · submitted` : ''}
+          {statusLabel(a.status)}{' '}{new Date(a.submitted_at).toLocaleString('en-MY', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+          })}
         </Text>
       </View>
       <View style={styles.rowRight}>
-        <Badge variant={a.status === 'submitted' || a.auto_submitted ? 'green' : 'blue'} dot>
-          {statusLabel(a.status)}
+        <Badge
+          variant={isSubmitted(a) ? (!a.grading_complete ? 'orange' : 'green') : 'blue'}
+          dot
+        >
+          {isSubmitted(a) ? (!a.grading_complete ? 'Needs review' : 'Graded') : statusLabel(a.status)}
         </Badge>
         {a.score != null ? (
           <Text style={styles.rowScore}>{a.score}%</Text>
@@ -185,13 +205,14 @@ export default function LiveResults({ navigation, route }) {
                   <Text style={styles.summaryLbl}>Submitted</Text>
                 </View>
                 <View style={styles.summaryCell}>
+                  <Text style={[styles.summaryNum, { color: C.purple }]}>{needsReviewAttempts.length}</Text>
+                  <Text style={styles.summaryLbl}>Needs review</Text>
+                </View>
+                <View style={styles.summaryCell}>
                   <Text style={[styles.summaryNum, { color: C.textSub }]}>{avg}</Text>
                   <Text style={styles.summaryLbl}>Avg score</Text>
                 </View>
               </View>
-              {autoSubmitted > 0 && (
-                <Text style={styles.hint}>{autoSubmitted} attempt{autoSubmitted !== 1 ? 's' : ''} auto-submitted after deadline.</Text>
-              )}
             </Section>
 
             {loading && <View style={styles.loading}><ActivityIndicator size="large" color={C.primary} /></View>}
@@ -210,9 +231,35 @@ export default function LiveResults({ navigation, route }) {
 
             {!loading && !error && attempts.length > 0 && (
               <>
-                <Text style={styles.listTitle}>Attempts <Text style={styles.listSub}>tap a row to view / score answers</Text></Text>
+                <Text style={styles.listTitle}>Attempts</Text>
+                <View style={styles.filterRow}>
+                  <TouchableOpacity
+                    style={[styles.filterChip, attemptFilter === 'all' && styles.filterChipActive]}
+                    onPress={() => setAttemptFilter('all')}
+                  >
+                    <Text style={[styles.filterChipText, attemptFilter === 'all' && styles.filterChipTextActive]}>
+                      All ({attempts.length})
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.filterChip, attemptFilter === 'graded' && styles.filterChipActive]}
+                    onPress={() => setAttemptFilter('graded')}
+                  >
+                    <Text style={[styles.filterChipText, attemptFilter === 'graded' && styles.filterChipTextActive]}>
+                      Graded ({gradedAttempts.length})
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.filterChip, attemptFilter === 'review' && styles.filterChipActiveReview]}
+                    onPress={() => setAttemptFilter('review')}
+                  >
+                    <Text style={[styles.filterChipText, attemptFilter === 'review' && styles.filterChipTextActiveReview]}>
+                      Needs Review ({needsReviewAttempts.length})
+                    </Text>
+                  </TouchableOpacity>
+                </View>
                 <FlatList
-                  data={attempts}
+                  data={visibleAttempts}
                   keyExtractor={(_, i) => String(i)}
                   renderItem={renderItem}
                   ItemSeparatorComponent={() => <View style={styles.separator} />}
@@ -311,7 +358,17 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', paddingVertical: 40, gap: 8 },
   emptyText: { fontSize: 15, fontWeight: '700', color: C.text },
   emptySub: { fontSize: 13, color: C.textSub },
-  listTitle: { fontSize: 15, fontWeight: '800', color: C.text, marginTop: 10, marginBottom: 4 },
+  listTitle: { fontSize: 15, fontWeight: '700', color: C.text, marginTop: 10, marginBottom: 4 },
+  filterRow: { flexDirection: 'row', gap: 8, marginTop: 6, marginBottom: 8, paddingHorizontal: 16, flexWrap: 'wrap' },
+  filterChip: {
+    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16,
+    backgroundColor: C.card, borderWidth: 1, borderColor: C.border,
+  },
+  filterChipActive: { backgroundColor: C.greenLt, borderColor: C.green },
+  filterChipActiveReview: { backgroundColor: C.orangeLt, borderColor: C.orange },
+  filterChipText: { fontSize: 12, fontWeight: '700', color: C.textSub },
+  filterChipTextActive: { color: C.greenDk },
+  filterChipTextActiveReview: { color: C.orange },
   listSub: { fontSize: 12, color: C.textSub, marginBottom: 8 },
   separator: { height: 1, backgroundColor: C.border, marginHorizontal: 16 },
   tabBar: {

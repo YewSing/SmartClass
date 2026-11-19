@@ -42,6 +42,12 @@ class InteractionSession(Base):
     # Effective end of the session (set on open, moved by extend). Nullable so legacy rows
     # and sessions closed before this column keep working.
     ends_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # The attendance session of the same class time range. When set, the interaction
+    # session shares its lifecycle: ends_at follows the attendance session and the
+    # scheduler's R3 pass (or End Class) governs both.
+    attendance_session_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("attendance_sessions.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     closed_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
     closed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 

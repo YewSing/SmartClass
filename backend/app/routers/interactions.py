@@ -10,7 +10,7 @@ from responses when anonymous. New questions are broadcast on the interaction's 
 room after commit.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,6 +21,7 @@ from app.core.config import settings
 from app.core.database import after_commit, get_db
 from app.core.deps import ensure_teaches_occurrence, require_role
 from app.models.class_ import ClassOccurrence, Enrollment
+from app.models.session import AttendanceSession
 from app.models.interaction import InteractionSession
 from app.models.interaction_live import (
     InteractionIDUSignal,
@@ -222,18 +223,36 @@ async def open_interaction(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Class occurrence not found")
     await ensure_teaches_occurrence(db, actor, body.occurrence_id)
 
-    # Reuse the most recent interaction session for this occurrence so opening and closing the
-    # same class time range keeps a single record (same session id across reopens). Attendance
-    # and interaction sessions are reopened together from the Dashboard, so both stay in sync.
+    now = datetime.now()
+    today_start = datetime.combine(now.date(), time.min)
+    today_end = datetime.combine(now.date(), time.max)
+
+    # The attendance session of the same class time range drives the interaction
+    # session's lifetime: same ends_at, closed by the scheduler (R3) or End Class.
+    attendance = (await db.execute(
+        select(AttendanceSession).where(
+            AttendanceSession.occurrence_id == body.occurrence_id,
+            AttendanceSession.class_date == now.date(),
+        ).order_by(AttendanceSession.id.desc())
+    )).scalar_one_or_none()
+    if attendance is not None and attendance.ends_at and attendance.ends_at > now:
+        effective_end = attendance.ends_at
+    else:
+        effective_end = now + timedelta(minutes=settings.SESSION_DEFAULT_MINUTES)
+
+    # Reuse an interaction session on today's date so opening and closing the same class
+    # time range keeps a single record for that day.
     existing = (await db.execute(
         select(InteractionSession).where(
             InteractionSession.occurrence_id == body.occurrence_id,
+            InteractionSession.opened_at >= today_start,
+            InteractionSession.opened_at <= today_end,
         ).order_by(InteractionSession.id.desc())
     )).scalar_one_or_none()
-    now = datetime.now()
-    default_ends = now + timedelta(minutes=settings.SESSION_DEFAULT_MINUTES)
     if existing is not None:
         if existing.status == "open":
+            existing.ends_at = effective_end
+            existing.attendance_session_id = attendance.id if attendance else None
             interaction = await _load_interaction(db, existing.id)
         else:
             # closed -> reopen, same id, history (polls/questions/reactions) stays attached
@@ -241,7 +260,8 @@ async def open_interaction(
             existing.opened_at = now
             existing.closed_by = None
             existing.closed_at = None
-            existing.ends_at = existing.ends_at if existing.ends_at and existing.ends_at > now else default_ends
+            existing.ends_at = effective_end
+            existing.attendance_session_id = attendance.id if attendance else None
             await db.flush()
             interaction = await _load_interaction(db, existing.id)
     else:
@@ -249,13 +269,39 @@ async def open_interaction(
             occurrence_id=body.occurrence_id,
             status="open",
             opened_by=actor.id,
-            ends_at=default_ends,
+            ends_at=effective_end,
+            attendance_session_id=attendance.id if attendance else None,
         )
         db.add(interaction)
         await db.flush()
         interaction = await _load_interaction(db, interaction.id)
 
+    # One live interaction at a time: opening a session closes the lecturer's other
+    # open sessions (stale rows from earlier runs would otherwise pile up as "Live").
+    stale_opens = (await db.execute(
+        select(InteractionSession)
+        .join(ClassOccurrence, ClassOccurrence.id == InteractionSession.occurrence_id)
+        .where(
+            ClassOccurrence.lecturer_id == occurrence.lecturer_id,
+            InteractionSession.status == "open",
+            InteractionSession.id != interaction.id,
+        )
+    )).scalars().all()
+    for stale in stale_opens:
+        stale.status = "closed"
+        stale.closed_by = actor.id
+        stale.closed_at = now
+    await db.flush()
+
+    closed_ids = [s.id for s in stale_opens]
+
     async def _announce() -> None:
+        for closed_id in closed_ids:
+            await manager.broadcast(closed_id, {
+                "event": "interaction_closed",
+                "interaction_id": closed_id,
+                "status": "closed",
+            })
         await manager.broadcast(interaction.id, {
             "event": "interaction_opened",
             "interaction_id": interaction.id,
@@ -324,6 +370,12 @@ async def extend_interaction(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Session is not open")
     now = datetime.now()
     interaction.ends_at = (interaction.ends_at or now) + timedelta(minutes=body.minutes)
+    # Keep the linked attendance session at the same end time so the two stay in sync
+    # regardless of which endpoint (this one or the Dashboard +15) moved the end.
+    if interaction.attendance_session_id:
+        att = await db.get(AttendanceSession, interaction.attendance_session_id)
+        if att is not None and att.status == "open":
+            att.ends_at = interaction.ends_at
     await db.flush()
     interaction = await _load_interaction(db, interaction_id)
     return _interaction_out(interaction)
@@ -350,6 +402,32 @@ async def list_all_open_interactions(
         )
         .options(*_load_options())
         .order_by(InteractionSession.opened_at.desc())
+    )
+    return [_interaction_out(i) for i in result.scalars().all()]
+
+
+@router.get("/lecturer/interactions/sessions", response_model=list[StudentInteractionOut])
+async def list_all_interaction_sessions(
+    db: AsyncSession = Depends(get_db),
+    actor: User = Depends(_lecturer),
+):
+    """Every interaction session across the lecturer's classes, straight from the DB.
+
+    Open sessions first, then newest to oldest — the Interaction tab's list page.
+    """
+    lec = (await db.execute(select(Lecturer).where(Lecturer.user_id == actor.id))).scalar_one_or_none()
+    if not lec:
+        return []
+    result = await db.execute(
+        select(InteractionSession)
+        .join(ClassOccurrence, ClassOccurrence.id == InteractionSession.occurrence_id)
+        .where(ClassOccurrence.lecturer_id == lec.id)
+        .options(*_load_options())
+        .order_by(
+            (InteractionSession.status == "open").desc(),
+            InteractionSession.opened_at.desc(),
+            InteractionSession.id.desc(),
+        )
     )
     return [_interaction_out(i) for i in result.scalars().all()]
 

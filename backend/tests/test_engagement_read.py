@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 import pytest
 from sqlalchemy import select
 
-from app.models.class_ import ClassOccurrence, Enrollment
+from app.models.class_ import ClassOccurrence
 from app.models.quiz import Quiz, QuizQuestion
 from app.models.quiz_attempt import QuizAttempt, QuizAnswer
 
@@ -25,10 +25,8 @@ async def _setup(db_session, classroom):
     Returns (s1_id, s2_id, occurrence_id, course_id)."""
     s1 = classroom["student_ids"][0]
     s2 = classroom["student_ids"][1]
-    db_session.add_all([
-        Enrollment(student_id=s1, occurrence_id=classroom["occurrence_id"]),
-        Enrollment(student_id=s2, occurrence_id=classroom["occurrence_id"]),
-    ])
+    # s1/s2 are already enrolled by the classroom fixture — duplicate inserts would
+    # violate uq_enrollment_student_occurrence.
     # attendance closed session with one record (s1 present)
     sess = (
         await db_session.execute(
@@ -91,7 +89,7 @@ async def test_student_engagement_indicators(lecturer_client, classroom, db_sess
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert len(body) == 2
+    assert len(body) == 3  # every enrolled student of the class
     s1_row = [r for r in body if r["student_id"] == s1][0]
     assert s1_row["course_id"] == course_id
     assert s1_row["attendance"]["rate"] is not None

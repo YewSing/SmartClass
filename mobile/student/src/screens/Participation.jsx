@@ -90,7 +90,7 @@ function HistoryModal({ visible, onClose, title, data, empty, keyExtractor, rend
   )
 }
 
-export default function Participation({ route }) {
+export default function Participation({ route, navigation }) {
   const { showToast } = useStudent()
   const insets = useSafeAreaInsets()
   const wsRef = useRef(null)
@@ -234,7 +234,10 @@ export default function Participation({ route }) {
   const leaveSession = useCallback(() => {
     setSelectedId(null)
     clearState()
-  }, [clearState])
+    // Participation lives in the Home stack — the back button returns to Home.
+    if (navigation.canGoBack()) navigation.goBack()
+    else navigation.navigate('HomeScreen')
+  }, [clearState, navigation])
 
   const sendQuestion = useCallback(async () => {
     if (!myQuestion.trim() || !selectedId) return

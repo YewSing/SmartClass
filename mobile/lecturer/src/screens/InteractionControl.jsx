@@ -3,6 +3,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput,
   RefreshControl, Alert, ActivityIndicator, Modal, FlatList,
 } from 'react-native'
+import { useFocusEffect } from '@react-navigation/native'
 import { Ionicons } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Topbar from '../components/Topbar'
@@ -135,34 +136,32 @@ export default function InteractionControl({ route, navigation }) {
   const isOpen = interaction ? interaction.status === 'open' : true
 
   // Resolve the session from route params, or fall back to the lecturer's open sessions.
-  useEffect(() => {
-    let cancelled = false
-    setLoading(Boolean(paramInteractionId || paramOccurrenceId))
-    ;(async () => {
-      try {
-        if (paramInteractionId) {
-          const found = await getInteraction(paramInteractionId)
-          if (!cancelled) setInteraction(found)
-        } else if (paramOccurrenceId) {
-          const list = await getInteractions(paramOccurrenceId)
-          if (!cancelled) {
-            setInteraction(list.find(i => i.status === 'open') ?? list[0] ?? null)
-          }
-        } else {
-          const list = await getOpenInteractions()
-          if (!cancelled) {
-            setFallbackList(list)
-            if (list.length === 1) setInteraction(list[0])
-          }
-        }
-      } catch (e) {
-        if (!cancelled) showToast(e.message, 'error')
-      } finally {
-        if (!cancelled) setLoading(false)
+  const resolveSession = useCallback(async () => {
+    try {
+      if (paramInteractionId) {
+        const found = await getInteraction(paramInteractionId)
+        setInteraction(found)
+      } else if (paramOccurrenceId) {
+        const list = await getInteractions(paramOccurrenceId)
+        setInteraction(list.find(i => i.status === 'open') ?? list[0] ?? null)
+      } else {
+        const list = await getOpenInteractions()
+        setFallbackList(list)
+        if (list.length === 1) setInteraction(list[0])
       }
-    })()
-    return () => { cancelled = true }
+    } catch (e) {
+      showToast(e.message, 'error')
+    }
   }, [paramInteractionId, paramOccurrenceId, showToast])
+
+  useEffect(() => {
+    setLoading(Boolean(paramInteractionId || paramOccurrenceId))
+    resolveSession().finally(() => setLoading(false))
+  }, [resolveSession])
+
+  useFocusEffect(useCallback(() => {
+    resolveSession()
+  }, [resolveSession]))
 
   const loadLive = useCallback(async (id) => {
     if (!id) return
@@ -205,6 +204,10 @@ export default function InteractionControl({ route, navigation }) {
         switch (data.event) {
           case 'interaction_closed':
             setInteraction(prev => prev ? { ...prev, status: 'closed' } : prev)
+            scheduleReload()
+            break
+          case 'interaction_opened':
+            setInteraction(prev => prev ? { ...prev, status: 'open' } : prev)
             scheduleReload()
             break
           // question_asked / question_answered included: a student's new question
@@ -298,6 +301,9 @@ export default function InteractionControl({ route, navigation }) {
       showToast(e.message, 'error')
     }
   }, [interactionId, markQuestionAnswered, showToast, loadLive])
+
+  // Session open/close is controlled from the Home page (Start/End Class) and the
+  // scheduler's auto-close — this screen is the live view only.
 
   // Derived: newest first everywhere.
   const openQuestions = questions.filter(q => !q.answered)

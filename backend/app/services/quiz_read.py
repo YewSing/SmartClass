@@ -21,6 +21,13 @@ def _course_occurrences(db: AsyncSession, course_id: int):
     return select(ClassOccurrence.id).where(ClassOccurrence.course_id == course_id)
 
 
+def _course_filter(course_id: int):
+    """Filter condition matching Quiz.course_id == course_id or Quiz.course_id in course_occurrences."""
+    return (Quiz.course_id == course_id) | Quiz.course_id.in_(
+        select(ClassOccurrence.id).where(ClassOccurrence.course_id == course_id)
+    )
+
+
 async def quiz_result_per_student_per_question(
     db: AsyncSession, course_id: int, student_id: int
 ) -> list[dict]:
@@ -42,7 +49,7 @@ async def quiz_result_per_student_per_question(
         .where(
             QuizAttempt.student_id == student_id,
             QuizAttempt.status == "started",
-            Quiz.course_id.in_(occ_sub),
+            _course_filter(course_id),
             Quiz.status == "published",
         ).limit(1)
     )
@@ -58,7 +65,7 @@ async def quiz_result_per_student_per_question(
                 select(QuizAttempt.id).where(QuizAttempt.student_id == student_id)
             ),
             Quiz.status == "published",
-            Quiz.course_id.in_(occ_sub),
+            _course_filter(course_id),
         )
         .order_by(Quiz.id, QuizQuestion.id)
     )
@@ -99,7 +106,7 @@ async def quiz_results_per_student(
     quizzes = await db.execute(
         select(Quiz).where(
             Quiz.status == "published",
-            Quiz.course_id.in_(occ_sub),
+            _course_filter(course_id),
         ).order_by(Quiz.created_at.desc())
     )
     quiz_list = []
@@ -142,7 +149,7 @@ async def student_has_active_graded_attempt_in_course(
         .where(
             QuizAttempt.student_id == student_id,
             QuizAttempt.status == "started",
-            Quiz.course_id.in_(occ_sub),
+            _course_filter(course_id),
             Quiz.status == "published",
         ).limit(1)
     )
