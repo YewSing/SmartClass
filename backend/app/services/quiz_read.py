@@ -16,11 +16,6 @@ from app.models.quiz import Quiz, QuizQuestion
 from app.models.quiz_attempt import QuizAttempt, QuizAnswer
 
 
-def _course_occurrences(db: AsyncSession, course_id: int):
-    """Subquery of occurrence ids belonging to a course."""
-    return select(ClassOccurrence.id).where(ClassOccurrence.course_id == course_id)
-
-
 def _course_filter(course_id: int):
     """Filter condition matching Quiz.course_id == course_id or Quiz.course_id in course_occurrences."""
     return (Quiz.course_id == course_id) | Quiz.course_id.in_(
@@ -39,7 +34,6 @@ async def quiz_result_per_student_per_question(
     question, type, topic, source_material_id, correct (bool for mcq), score, answered,
     has_active_graded_attempt (in course).
     """
-    occ_sub = _course_occurrences(db, course_id)
 
     # Does the student have an active (started, not yet submitted) graded attempt in
     # any published quiz of this course?
@@ -101,7 +95,6 @@ async def quiz_results_per_student(
     Returns: student_id, course_id, quizzes (list with id, title, score, status,
     grading_complete), average_score across graded quizzes.
     """
-    occ_sub = _course_occurrences(db, course_id)
 
     quizzes = await db.execute(
         select(Quiz).where(
@@ -142,7 +135,6 @@ async def student_has_active_graded_attempt_in_course(
 ) -> bool:
     """Whether the student has a started (not yet submitted) attempt on a published
     quiz in the course — used by M8's quiz lock (FR-614 data)."""
-    occ_sub = _course_occurrences(db, course_id)
     active = await db.scalar(
         select(QuizAttempt.id)
         .join(Quiz, Quiz.id == QuizAttempt.quiz_id)

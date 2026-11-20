@@ -6,6 +6,8 @@ and publish emitting a quiz.published notification to the lecturer (priority imp
 No real channels are used.
 """
 
+from datetime import datetime, timedelta
+
 import pytest
 from sqlalchemy import select
 
@@ -134,10 +136,12 @@ async def test_publish_quiz(lecturer_client, classroom, db_session):
     # approve all via endpoint (already approved via _make_drafts, but re-approve is 409;
     # they're already approved, good)
 
+    opens_at = datetime.now() + timedelta(days=1)
+    closes_at = opens_at + timedelta(hours=2)
     resp = await lecturer_client.post(
         "/lecturer/quizzes",
         json={"question_ids": ids, "time_limit_minutes": 30,
-              "opens_at": "2026-11-20T08:00:00", "closes_at": "2026-11-20T10:00:00"},
+              "opens_at": opens_at.isoformat(), "closes_at": closes_at.isoformat()},
     )
     assert resp.status_code == 201, resp.text
     body = resp.json()[0]  # one quiz per course; this request publishes to a single course

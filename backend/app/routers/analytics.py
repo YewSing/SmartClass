@@ -564,7 +564,13 @@ async def student_self_analytics(
     Only the requesting student's data is returned; a student cannot read another
     student's indicators.
     """
-    return await student_self_view(db, actor.id)
+    student = (await db.execute(
+        select(Student).where(Student.user_id == actor.id)
+    )).scalar_one_or_none()
+    if student is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Student profile not found")
+    return await student_self_view(db, student.id)
 
 
 # ── CSV export for the Participation / Quiz / Students tabs (FR-704, FR-705) ──

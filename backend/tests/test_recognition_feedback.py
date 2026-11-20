@@ -357,15 +357,16 @@ async def test_send_to_user_reaches_only_that_user():
     assert broken not in mgr._user_connections[1]
 
 
-async def test_emit_logs_without_payload(caplog):
+async def test_emit_logs_without_payload(caplog, users):
     caplog.set_level(logging.INFO, logger="app.services.notify")
+    first, second = sorted((users["student"].id, users["lecturer"].id))
 
-    await notify.emit("attendance.recorded", [5, 3, 5], {"name": "Secret Name"})
+    await notify.emit("attendance.recorded", [second, first, second], {"name": "Secret Name"})
     records = [r for r in caplog.records if r.name == "app.services.notify"]
     assert len(records) == 1
     message = records[0].getMessage()
     assert "attendance.recorded" in message
-    assert "[3, 5]" in message
+    assert f"[{first}, {second}]" in message
     assert "Secret Name" not in caplog.text
 
     caplog.clear()

@@ -2,13 +2,14 @@
 import csv
 import io
 import json
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import pytest
 from sqlalchemy import select
 
 from app.models.attendance import AttendanceRecord
 from app.models.audit import AuditLog
+from app.models.session import AttendanceSession
 
 pytestmark = pytest.mark.db
 
@@ -146,14 +147,37 @@ async def test_session_csv_export(lecturer_client, classroom, db_session):
 
 
 async def test_occurrence_csv_export_with_date_range(lecturer_client, classroom, db_session):
-    first = await _open_session(lecturer_client, classroom)
-    await _add_record(db_session, first, classroom["student_ids"][0], "present")
-    await lecturer_client.put(f"/lecturer/sessions/{first}/close")
+    # A closed session on an earlier day; same-day reopens reuse one session (FR-316).
+    first_day = datetime.now() - timedelta(days=1)
+    first = AttendanceSession(
+        occurrence_id=classroom["occurrence_id"],
+        lecturer_id=classroom["lecturer_id"],
+        status="closed",
+        class_date=first_day.date(),
+        starts_at=first_day,
+        opened_at=first_day,
+        closed_at=first_day + timedelta(hours=1),
+        source="manual",
+    )
+    db_session.add(first)
+    await db_session.flush()
+    await _add_record(db_session, first.id, classroom["student_ids"][0], "present")
     second = await _open_session(lecturer_client, classroom)
     await _add_record(db_session, second, classroom["student_ids"][0], "present")
     await _add_record(db_session, second, classroom["student_ids"][1], "present")
     await lecturer_client.put(f"/lecturer/sessions/{second}/close")
-    await _open_session(lecturer_client, classroom)  # open sessions are not exported
+    # An open session is never exported; put it on another day so it cannot be reused.
+    tomorrow = datetime.now() + timedelta(days=1)
+    db_session.add(AttendanceSession(
+        occurrence_id=classroom["occurrence_id"],
+        lecturer_id=classroom["lecturer_id"],
+        status="open",
+        class_date=tomorrow.date(),
+        starts_at=tomorrow,
+        opened_at=tomorrow,
+        source="manual",
+    ))
+    await db_session.commit()
 
     url = f"/lecturer/occurrences/{classroom['occurrence_id']}/attendance/export"
     resp = await lecturer_client.get(url)
