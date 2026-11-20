@@ -1,0 +1,159 @@
+# Study tools in the chat (FR-810, FR-811): from the menu at the top right a student makes a
+# summary, flashcards (flipped full screen) and a practice set (answered full screen, score saved
+# on the chat message), then deletes the chat.
+# Run: bash scripts/e2e-mobile.sh student study-tools
+# Needs the dev database with indexed WIA2005 materials and the local Moodle up (student2 signs in
+# through it). The script starts the backend with LLM_FAKE=1, so the results are canned and no
+# real LLM is called.
+appId: host.exp.exponent
+---
+# The test emulator's Bluetooth service sometimes crashes at boot and its dialog covers the app
+- runFlow:
+    when:
+      visible: ".*keeps stopping"
+    commands:
+      - tapOn: "Close app"
+- extendedWaitUntil:
+    visible: "Welcome back|Continue|.*keeps stopping"
+    timeout: 180000
+# The test emulator's Bluetooth service sometimes crashes at boot and its dialog covers the app
+- runFlow:
+    when:
+      visible: ".*keeps stopping"
+    commands:
+      - tapOn: "Close app"
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+- extendedWaitUntil:
+    visible: "Welcome back"
+    timeout: 60000
+- tapOn:
+    id: "login-username"
+- inputText: "student2"
+- tapOn:
+    id: "login-password"
+- inputText: "Student123!"
+- hideKeyboard
+- tapOn: "Sign In"
+- extendedWaitUntil:
+    visible: "Assistant"
+    timeout: 60000
+- tapOn: "Assistant"
+
+# One screen: a course dropdown under the logo; pick WIA2005
+- extendedWaitUntil:
+    visible:
+      id: "assistant-course-picker"
+    timeout: 30000
+- tapOn:
+    id: "assistant-course-picker"
+- tapOn:
+    id: "course-option-WIA2005"
+- assertVisible: "Ask anything about WIA2005\\..*"
+
+- takeScreenshot: tools-0-start
+# Summary: pick the tool, a tag shows above the box, type the topic
+- tapOn:
+    id: "assistant-tools"
+- takeScreenshot: tools-1-menu
+- tapOn:
+    id: "tool-summary"
+- assertVisible:
+    id: "assistant-tool-tag"
+- tapOn:
+    id: "assistant-input"
+- inputText: "greedy algorithm"
+- hideKeyboard
+- tapOn:
+    id: "assistant-send"
+- extendedWaitUntil:
+    visible: "This is a test answer from your course materials \\[1\\]\\."
+    timeout: 60000
+# one-shot: the tag is gone after the result
+- assertNotVisible:
+    id: "assistant-tool-tag"
+
+# Flashcards: a compact card in the chat, studied full screen
+- tapOn:
+    id: "assistant-tools"
+- tapOn:
+    id: "tool-flashcards"
+- tapOn:
+    id: "assistant-input"
+- inputText: "boundary value analysis"
+- hideKeyboard
+- tapOn:
+    id: "assistant-send"
+- extendedWaitUntil:
+    visible: "1 flashcard"
+    timeout: 60000
+- takeScreenshot: tools-2-chat-with-cards
+- tapOn:
+    id: "open-flashcards"
+- extendedWaitUntil:
+    visible: "Card 1 of 1"
+    timeout: 10000
+- assertVisible: "What does boundary value analysis test\\?"
+- takeScreenshot: tools-3-flashcard
+- tapOn:
+    id: "study-card"
+- extendedWaitUntil:
+    visible: "The values at the edges of a range\\."
+    timeout: 10000
+- tapOn:
+    id: "flashcards-close"
+
+# Practice: answer full screen, the score is saved on the message
+- tapOn:
+    id: "assistant-tools"
+- tapOn:
+    id: "tool-practice_questions"
+- tapOn:
+    id: "assistant-input"
+- inputText: "coverage"
+- hideKeyboard
+- tapOn:
+    id: "assistant-send"
+- extendedWaitUntil:
+    visible: "1 practice question"
+    timeout: 60000
+- tapOn:
+    id: "open-practice"
+- extendedWaitUntil:
+    visible: "Which structural coverage criterion is stronger\\?"
+    timeout: 10000
+- tapOn:
+    id: "study-option-1"
+- extendedWaitUntil:
+    visible: "Correct"
+    timeout: 10000
+- tapOn:
+    id: "practice-next"
+- extendedWaitUntil:
+    visible: "1 / 1"
+    timeout: 10000
+- tapOn:
+    id: "practice-back"
+- extendedWaitUntil:
+    visible: ".*Last score 1 / 1.*"
+    timeout: 15000
+
+- takeScreenshot: tools-4-chat-with-score
+# Everything is in one chat in the history; delete it so runs don't leave chats behind
+- tapOn:
+    id: "assistant-history"
+- extendedWaitUntil:
+    visible: "Summary: greedy algorithm"
+    timeout: 15000
+- takeScreenshot: tools-5-history
+- longPressOn: "Summary: greedy algorithm"
+- tapOn:
+    id: "chat-delete"
+- tapOn:
+    id: "chat-delete-confirm"
+- extendedWaitUntil:
+    notVisible: "Summary: greedy algorithm"
+    timeout: 15000

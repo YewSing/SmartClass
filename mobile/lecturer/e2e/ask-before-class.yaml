@@ -1,0 +1,79 @@
+# AI Assistant — ask my materials + before next class (T102): a lecturer asks a question,
+# sees a citation and opens its source, then reads the seeded "before next class" summary.
+# Run: bash scripts/e2e-mobile.sh lecturer ask-before-class
+# Needs the local Moodle up (lecturer1 / Lecturer123!). The script starts the backend with
+# LLM_FAKE=1, so answers are canned and no real LLM is called.
+appId: host.exp.exponent
+---
+- extendedWaitUntil:
+    visible: "Welcome back|Continue|.*(Start now|Live session)"
+    timeout: 180000
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+- runFlow:
+    when:
+      visible: "Welcome back"
+    commands:
+      - tapOn:
+          id: "login-username"
+      - inputText: "lecturer1"
+      - tapOn:
+          id: "login-password"
+      - inputText: "Lecturer123!"
+      - hideKeyboard
+      - tapOn: "Sign In"
+- extendedWaitUntil:
+    visible: ".*(Start now|Live session)"
+    timeout: 60000
+
+# Open the AI Assistant tab
+- tapOn: "AI Assistant"
+- extendedWaitUntil:
+    visible:
+      id: "assistant-course-picker"
+    timeout: 20000
+
+# Ask my materials (FR-815)
+- tapOn:
+    id: "assistant-ask"
+- extendedWaitUntil:
+    visible: "Ask my materials"
+    timeout: 15000
+- tapOn:
+    id: "lecturer-ask-input"
+- inputText: "What is boundary value analysis?"
+- hideKeyboard
+- tapOn:
+    id: "lecturer-ask-send"
+- extendedWaitUntil:
+    visible: "This is a test answer from your course materials \\[1\\]\\."
+    timeout: 60000
+
+# The answer shows its citation (tapping it hands the file to another app, which Maestro can't follow)
+- assertVisible:
+    id: "lecturer-citation"
+
+# Leaving and coming back continues the same chat
+- back
+- tapOn:
+    id: "assistant-ask"
+- extendedWaitUntil:
+    visible: "What is boundary value analysis\\?"
+    timeout: 15000
+- back
+
+# Then read the before-next-class summary (FR-816)
+- extendedWaitUntil:
+    visible:
+      id: "assistant-before-class"
+    timeout: 15000
+- tapOn:
+    id: "assistant-before-class"
+- extendedWaitUntil:
+    visible: "Revisit"
+    timeout: 30000
+- assertVisible: "Boundary value analysis is covered in the notes \\[1\\]\\."
+- assertVisible: "Not covered by the materials"

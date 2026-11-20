@@ -1,0 +1,83 @@
+# Student "I'm here" flag (T45, FR-318, FR-319, FR-406): in an open class with no record the
+# student flags, sees "Waiting for your lecturer", then the lecturer's confirmation arrives live
+# over /ws/me; a simulated recognition in another class then shows the global banner.
+# Run: bash scripts/e2e-mobile.sh student flag
+# Needs the local Moodle up (student4 signs in) and student4/lecturer1 already in SmartClass.
+# flag.setup.sh seeds E2E045 (the flag) and E2E046 (the recognition) and starts the actor.
+appId: host.exp.exponent
+---
+- extendedWaitUntil:
+    visible: "Welcome back|Continue"
+    timeout: 180000
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+- extendedWaitUntil:
+    visible: "Welcome back"
+    timeout: 60000
+
+- tapOn:
+    id: "login-username"
+- inputText: "student4"
+- tapOn:
+    id: "login-password"
+- inputText: "Student123!"
+- hideKeyboard
+- tapOn: "Sign In"
+
+- extendedWaitUntil:
+    visible: "Profile"
+    timeout: 60000
+- tapOn:
+    id: "tab-attendance"
+- extendedWaitUntil:
+    visible:
+      id: "att-rate-E2E045"
+    timeout: 30000
+
+# The open E2E045 class: no record yet, so the flag button is offered
+- tapOn: "E2E045"
+- tapOn: "E2E045 · Lecture"
+- extendedWaitUntil:
+    visible:
+      id: "att-detail-status"
+      text: "Not yet recorded"
+    timeout: 30000
+- assertVisible: "Live Now"
+- tapOn:
+    id: "att-flag-button"
+
+# Pending, then the actor confirms 6 s later (no refresh: the event comes over /ws/me)
+- extendedWaitUntil:
+    visible:
+      id: "flag-status"
+      text: "Waiting for your lecturer"
+    timeout: 20000
+- takeScreenshot: flag-pending
+- extendedWaitUntil:
+    visible:
+      id: "flag-status"
+      text: "Confirmed"
+    timeout: 60000
+- assertVisible: ".*You're marked Present.*"
+- takeScreenshot: flag-confirmed
+
+# The actor's recognition in E2E046 10 s later: the global banner (FR-406)
+- extendedWaitUntil:
+    visible:
+      id: "recorded-banner-text"
+      text: "Attendance recorded for E2E046 · Present"
+    timeout: 60000
+- takeScreenshot: recorded-banner
+
+# Back on the E2E045 class: the confirmed flag is now Present and the button is gone
+- back
+- extendedWaitUntil:
+    visible:
+      id: "att-detail-status"
+      text: "Present"
+    timeout: 30000
+- assertNotVisible:
+    id: "att-flag-button"

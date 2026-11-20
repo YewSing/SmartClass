@@ -36,12 +36,21 @@ async function errorFor(status, readBody) {
 }
 
 async function openOnWeb(citation) {
-  const get = () => fetch(`${BASE}${citation.file_url}`, { headers: { Authorization: `Bearer ${getToken()}` } })
-  let res = await get()
-  if (res.status === 401 && await refreshAccessToken()) res = await get()
-  if (!res.ok) throw await errorFor(res.status, () => res.text())
-  const url = URL.createObjectURL(await res.blob())
-  window.open(`${url}#page=${citation.open_page}`, '_blank')
+  // Open the tab now, while the tap still counts as the user's: a tab opened after the download
+  // finishes is blocked as a pop-up by most browsers.
+  const tab = window.open('', '_blank')
+  try {
+    const get = () => fetch(`${BASE}${citation.file_url}`, { headers: { Authorization: `Bearer ${getToken()}` } })
+    let res = await get()
+    if (res.status === 401 && await refreshAccessToken()) res = await get()
+    if (!res.ok) throw await errorFor(res.status, () => res.text())
+    const target = `${URL.createObjectURL(await res.blob())}#page=${citation.open_page}`
+    if (tab) tab.location.href = target
+    else window.open(target, '_blank')
+  } catch (e) {
+    tab?.close()
+    throw e
+  }
 }
 
 async function download(citation) {
@@ -85,6 +94,17 @@ export async function openCitedSource(citation) {
   }
   if (!(await Sharing.isAvailableAsync())) throw new Error('No app on this phone can open this file.')
   await Sharing.shareAsync(uri, { mimeType: mime, dialogTitle: citation.title })
+}
+
+// Tapping a citation opens the file itself, with no passage screen in between (Yew Sing
+// 2026-11-13): a PDF opens in the app at the cited page; slides and Word files open in another
+// app (a new tab on web), and the chip already says which slide or section to go to.
+export function openCitation(citation, navigation) {
+  if (citation.location_type === 'page' && Platform.OS !== 'web') {
+    navigation.navigate('AssistantPdf', { citation })
+    return Promise.resolve()
+  }
+  return openCitedSource(citation)
 }
 
 // "slide 4" / "page 12" — where to look once the file is open

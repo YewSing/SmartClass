@@ -1,11 +1,13 @@
 import { useState, useCallback } from 'react'
 import {
-  View, Text, ScrollView, StyleSheet, RefreshControl,
+  View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
+import { useFocusEffect } from '@react-navigation/native'
 import { useStudent } from '../context/StudentContext'
 import Topbar from '../components/Topbar'
-import { findSession } from '../services/attendance'
+import Badge from '../components/Badge'
+import { findSession, canFlag, flagView } from '../services/attendance'
 import { C } from '../theme'
 
 const STATUS_CONFIG = {
@@ -29,7 +31,7 @@ const STATUS_CONFIG = {
   not_recorded: {
     rowBg: C.gray100, rowBorder: C.border, iconBg: C.gray400, icon: 'radio-button-on',
     labelColor: C.gray600,
-    info: 'This class is still running. Your status updates when the camera sees you or the lecturer marks you.',
+    info: 'This class is still running. Your status updates when the camera sees you or your lecturer confirms your flag.',
   },
 }
 
@@ -48,18 +50,35 @@ function InfoRow({ iconBg, icon, iconColor, label, value, valueBold, borderless 
 }
 
 export default function AttSessionDetail({ route, navigation }) {
-  const { state, loadAttendanceCourses } = useStudent()
+  const { state, loadAttendanceCourses, loadFlag, sendFlag } = useStudent()
   const { courseId, sessionId } = route.params ?? {}
+  const sid = Number(sessionId)
   const [refreshing, setRefreshing] = useState(false)
+  const [busy, setBusy] = useState(false)
 
   const found = findSession(state.attendanceCourses ?? [], courseId, sessionId)
   const session = found?.session
+  const flag = state.flags[sid] ?? null
+
+  useFocusEffect(useCallback(() => {
+    if (Number.isFinite(sid)) loadFlag(sid)
+  }, [loadFlag, sid]))
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
-    await loadAttendanceCourses()
+    await Promise.all([loadAttendanceCourses(), loadFlag(sid)])
     setRefreshing(false)
-  }, [loadAttendanceCourses])
+  }, [loadAttendanceCourses, loadFlag, sid])
+
+  const onFlag = async () => {
+    setBusy(true)
+    try {
+      await sendFlag(sid)
+      navigation.navigate('AttReportStatus', { sessionId: sid })
+    } catch { /* toast shown in context */ } finally {
+      setBusy(false)
+    }
+  }
 
   if (!session) {
     return (
@@ -74,6 +93,8 @@ export default function AttSessionDetail({ route, navigation }) {
 
   const cfg = STATUS_CONFIG[session.status] ?? STATUS_CONFIG.not_recorded
   const showCheckin = session.status === 'present' || session.status === 'late'
+  const view = flagView(flag)
+  const flaggable = canFlag(session, flag)
 
   return (
     <View style={styles.flex}>
@@ -105,6 +126,36 @@ export default function AttSessionDetail({ route, navigation }) {
               </View>
             )}
           </View>
+
+          {/* "I'm here — not recognised" (FR-318), or the flag's state (FR-319) */}
+          {flaggable && (
+            <View style={styles.flagCard}>
+              <Text style={styles.flagHint}>In class but the camera hasn't recorded you?</Text>
+              <TouchableOpacity
+                testID="att-flag-button"
+                style={[styles.flagBtn, busy && styles.flagBtnDisabled]}
+                disabled={busy}
+                onPress={onFlag}
+              >
+                <Ionicons name="hand-left-outline" size={16} color="#fff" />
+                <Text style={styles.flagBtnText}>
+                  {busy ? 'Sending…' : "I'm here — not recognised"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {!flaggable && view && (
+            <TouchableOpacity
+              testID="att-flag-row"
+              style={styles.flagRow}
+              onPress={() => navigation.navigate('AttReportStatus', { sessionId: sid })}
+            >
+              <Badge variant={view.badge} dot>{view.title}</Badge>
+              <Text style={styles.flagRowLabel}>Your flag</Text>
+              <Ionicons name="chevron-forward" size={16} color={C.textHint} />
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Session info */}
@@ -214,6 +265,45 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: C.redDk,
+  },
+  flagCard: {
+    marginTop: 12,
+    gap: 10,
+  },
+  flagHint: {
+    fontSize: 13,
+    color: C.textSub,
+  },
+  flagBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: C.primary,
+    borderRadius: 10,
+    paddingVertical: 12,
+  },
+  flagBtnDisabled: {
+    opacity: 0.5,
+  },
+  flagBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  flagRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: C.border,
+  },
+  flagRowLabel: {
+    flex: 1,
+    fontSize: 12,
+    color: C.textSub,
   },
   sectionTitle: {
     fontSize: 11,

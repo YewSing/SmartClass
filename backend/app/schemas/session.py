@@ -99,18 +99,3 @@ class SessionOverrideRequest(BaseModel):
     student_id: int
     status: str  # present | late | excused | absent
     reason: OverrideReason = None  # FR-305: optional, audited when given
-
-
-class FaceMatchRequest(BaseModel):
-    embedding: list[float]
-    session_id: int
-    dry_run: bool = False
-
-
-class FaceMatchResponse(BaseModel):
-    matched: bool
-    student_id: Optional[int] = None
-    student_name: Optional[str] = None
-    similarity: Optional[float] = None
-    already_present: bool = False
-    reason: Optional[str] = None  # "not_enrolled" when face matches but student not in class

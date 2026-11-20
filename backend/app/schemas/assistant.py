@@ -62,6 +62,9 @@ class MessageOut(BaseModel):
     citations: list[Citation] = []
     source_type: Optional[str] = None   # course | general | refused (assistant messages)
     created_at: datetime
+    kind: str = "chat"       # chat | summary | study_guide | flashcards | practice_questions
+    payload: Optional[dict] = None      # study tool data (cards / questions / last_score)
+    topic: Optional[str] = None         # short topic label (assistant messages), e.g. for videos
 
     model_config = {"from_attributes": True}
 
@@ -94,27 +97,15 @@ class SyncOut(BaseModel):
     statuses: dict[str, int]
 
 
-class SummaryCreate(BaseModel):
-    course_id: int
-    material_id: Optional[int] = None   # exactly one of material_id / topic
-    topic: Optional[str] = Field(default=None, max_length=200)
-    kind: Literal["summary", "study_guide"] = "summary"
+class ChatToolCreate(BaseModel):
+    """A study tool run inside a chat; the result is saved as a chat message."""
+    kind: Literal["summary", "study_guide", "flashcards", "practice_questions"]
+    topic: str = Field(min_length=1, max_length=200)
 
 
-class SummaryOut(BaseModel):
-    content: str
-    citations: list[Citation] = []
-    source_type: str            # course | general
-    kind: str
-    material_id: Optional[int] = None
-    topic: Optional[str] = None
-
-
-class StudyToolsCreate(BaseModel):
-    course_id: int
-    material_id: Optional[int] = None   # exactly one of material_id / topic
-    topic: Optional[str] = Field(default=None, max_length=200)
-    kind: Literal["flashcards", "practice_questions"]
+class PracticeScore(BaseModel):
+    correct: int = Field(ge=0)
+    total: int = Field(ge=1)
 
 
 # ── LLM JSON output validation (internal; the endpoint validates the LLM's JSON) ──
@@ -157,13 +148,6 @@ class PracticeQuestionOut(BaseModel):
     citation: Optional[Citation] = None
 
 
-class StudyToolsOut(BaseModel):
-    kind: str                   # flashcards | practice_questions
-    source_type: str            # course | general
-    cards: list[FlashcardOut] = []
-    questions: list[PracticeQuestionOut] = []
-
-
 class TopicCount(BaseModel):
     topic: str
     students: int
@@ -179,3 +163,28 @@ class TrendsOut(BaseModel):
     most_asked_topics: list[TopicCount]
     most_cited_materials: list[MaterialCount]
     topics_materials_dont_cover: list[TopicCount]
+
+
+class BeforeClassOut(BaseModel):
+    content: str                  # markdown note, or the "not enough questions yet" message
+    citations: list[Citation] = []
+    not_enough_data: bool = False
+
+
+class YoutubeVideo(BaseModel):
+    video_id: str
+    title: str
+    channel: str
+    url: str
+    thumbnail_url: Optional[str] = None
+
+
+class YoutubeCreate(BaseModel):
+    course_id: int
+    topic: str = Field(min_length=1, max_length=200)
+
+
+class YoutubeOut(BaseModel):
+    enabled: bool                 # False when YOUTUBE_API_KEY is not configured
+    videos: list[YoutubeVideo] = []
+    keywords: list[str] = []

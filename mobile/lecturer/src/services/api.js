@@ -233,6 +233,17 @@ export const getStudents = async (sessionId, { sessionOpen = false } = {}) => {
   return list.map((s, i) => studentAdapter(s, i, sessionOpen))
 }
 
+// "Says they're here" flags of one session, pending first (FR-318, FR-319)
+export const getSessionFlags = (sessionId) => apiCall('GET', `/lecturer/flags?session_id=${sessionId}`)
+
+export const confirmFlag = (flagId) => apiCall('POST', `/lecturer/flags/${flagId}/confirm`)
+
+export const rejectFlag = (flagId, reason) =>
+  apiCall('POST', `/lecturer/flags/${flagId}/reject`, { reason })
+
+// The closest unmatched crop (FR-407); needs the token, so it goes through AuthImage
+export const flagCropPath = (flagId) => `/lecturer/flags/${flagId}/crop`
+
 // Any of the four statuses, with an optional reason that is audited (FR-305)
 export const overrideAttendance = async (recordId, newStatus, sessionId, studentId, reason) => {
   const body = { status: newStatus, reason: cleanReason(reason) }
@@ -320,6 +331,70 @@ export const adminAuditLogs = async ({ page = 1, limit = 50 } = {}) =>
 export const adminLastSync = async () => apiCall('GET', '/admin/moodle/sync')
 
 export const adminSyncNow = async () => apiCall('POST', '/admin/moodle/sync')
+
+// Camera devices (FR-408). The key comes back only from register/regenerate and is never stored.
+export const adminListDevices = async () => apiCall('GET', '/admin/devices')
+export const adminRegisterDevice = async ({ name, room }) =>
+  apiCall('POST', '/admin/devices', { name: name.trim(), room: room.trim() })
+export const adminRegenerateDeviceKey = async (id) => apiCall('POST', `/admin/devices/${id}/regenerate-key`)
+
+// ─── AI Learning Assistant (Module 8) ────────────────────────────────────────
+
+// Courses the lecturer teaches, with how many materials are indexed (FR-815)
+export const getAssistantCourses = async () => {
+  const list = await apiCall('GET', '/lecturer/assistant/courses')
+  return list.map(c => ({
+    id: c.course_id,
+    code: c.code,
+    name: courseName(c.code, c.name),
+    indexedMaterials: c.indexed_materials ?? 0,
+  }))
+}
+
+// Each material's processing status (FR-804)
+export const getMaterials = async (courseId) => {
+  const list = await apiCall('GET', `/kb/courses/${courseId}/materials`)
+  return list.map(m => ({
+    id: m.id,
+    title: m.title,
+    fileName: m.file_name,
+    section: m.section_name ?? null,
+    status: m.status,
+    errorText: m.error_text ?? null,
+    units: m.unit_count ?? null,
+    chunks: m.chunk_count ?? 0,
+  }))
+}
+
+// "Sync now": pull changes from Moodle immediately (FR-803)
+export const syncMaterials = async (courseId) => apiCall('POST', `/kb/courses/${courseId}/sync`)
+
+// Anonymised question trends (FR-813, NFR-09)
+export const getQuestionTrends = async (courseId) => {
+  const t = await apiCall('GET', `/lecturer/assistant/trends/${courseId}`)
+  return {
+    mostAsked: t.most_asked_topics ?? [],
+    mostCited: t.most_cited_materials ?? [],
+    uncovered: t.topics_materials_dont_cover ?? [],
+  }
+}
+
+// "Ask my materials" (FR-815): the lecturer's own chat sessions for a course
+export const getLecturerSessions = async (courseId) =>
+  apiCall('GET', `/lecturer/assistant/sessions?course_id=${courseId}`)
+
+export const createLecturerSession = async (courseId) =>
+  apiCall('POST', '/lecturer/assistant/sessions', { course_id: courseId })
+
+export const getLecturerMessages = async (sessionId) =>
+  apiCall('GET', `/lecturer/assistant/sessions/${sessionId}/messages`)
+
+export const sendLecturerMessage = async (sessionId, content) =>
+  apiCall('POST', `/lecturer/assistant/sessions/${sessionId}/messages`, { content })
+
+// "Before next class" summary (FR-816)
+export const getBeforeClass = async (courseId) =>
+  apiCall('GET', `/lecturer/assistant/before-class/${courseId}`)
 
 // ─── Mocked (Module 3/4 — quiz) ────────────────────────
 

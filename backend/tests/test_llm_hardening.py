@@ -182,3 +182,64 @@ async def test_throttle_disabled_when_rpm_is_zero(monkeypatch):
     monkeypatch.setattr(llm, "_monotonic", lambda: 0.0)
     monkeypatch.setattr(llm, "_sleep", lambda d: pytest.fail("must not sleep"))
     await llm._throttle()  # no-op
+
+
+# ── thinking models that spend the whole budget on hidden reasoning ──────────
+
+def _cut_off():
+    """A reply whose max_tokens all went on reasoning: no text, finish_reason "length"."""
+    resp = _ok("")
+    resp.choices[0].finish_reason = "length"
+    return resp
+
+
+async def test_empty_reply_cut_off_by_length_retries_with_more_room(fake_client):
+    completions = fake_client([_cut_off(), _ok("the guide")])
+    seen = []
+    create = completions.create
+
+    async def spy(**kwargs):
+        seen.append(kwargs["max_tokens"])
+        return await create(**kwargs)
+
+    completions.create = spy
+    assert await llm.chat([{"role": "user", "content": "hi"}], max_tokens=1000) == "the guide"
+    assert seen == [1000, 3000]
+
+
+async def test_empty_reply_cut_off_twice_is_unavailable_not_empty(fake_client):
+    fake_client([_cut_off(), _cut_off()])
+    with pytest.raises(LLMUnavailable, match="ran out of room"):
+        await llm.chat([{"role": "user", "content": "hi"}], max_tokens=1000)
+
+
+async def test_empty_reply_that_finished_normally_is_returned_as_is(fake_client):
+    resp = _ok("")
+    resp.choices[0].finish_reason = "stop"
+    completions = fake_client([resp])
+    assert await llm.chat([{"role": "user", "content": "hi"}]) == ""
+    assert completions.calls == 1
+
+
+def test_rate_limiter_works_across_event_loops(monkeypatch):
+    """Two calls waiting on the limiter together (the topic label runs alongside the answer)
+    must not tie it to one event loop: the next loop (next test, next script run) still works."""
+    import asyncio
+
+    # at the limit (1 a minute): the 2nd call sleeps holding the lock, so the 3rd has to wait on it
+    monkeypatch.setattr(settings, "LLM_RPM", 1)
+
+    async def short_sleep(_seconds):
+        await asyncio.sleep(0)
+        llm._rate_times.clear()      # "a minute later"
+
+    monkeypatch.setattr(llm, "_sleep", short_sleep)
+    llm._rate_times.clear()
+
+    async def at_once():
+        await asyncio.gather(llm._throttle(), llm._throttle(), llm._throttle())
+
+    asyncio.run(at_once())
+    llm._rate_times.clear()
+    asyncio.run(at_once())   # raised "bound to a different event loop" before the fix
+    llm._rate_times.clear()

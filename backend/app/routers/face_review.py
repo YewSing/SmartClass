@@ -1,6 +1,7 @@
 """
-Face review queue — collects unrecognised faces flagged by the worker so an admin
-can manually identify and promote them to enrollment (UC-07 / UC-08 alt flow).
+Legacy face review queue: unrecognised faces the old face_worker reported. Since T46b nothing adds
+rows (the camera path is POST /device/faces, and unmatched crops go to the student flag queue, T43);
+no app calls the admin endpoints since frontend/admin was retired (T96); see PROGRESS.md Next.
 """
 from typing import Optional
 
@@ -10,9 +11,8 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text
 
-from app.core.database import after_commit, get_db
+from app.core.database import get_db
 from app.core.deps import require_role
-from app.models.camera import Camera
 from app.models.face_review import FaceReviewEntry
 from app.models.face import FaceEmbedding
 from app.models.user import User, Student
@@ -20,10 +20,7 @@ from app.models.attendance import AttendanceRecord
 from app.models.session import AttendanceSession
 from app.services import attendance_moodle_sync
 from app.services.audit_service import write_log
-from app.services.device_service import require_device
 from app.services.consent_service import require_active_consent
-from app.services.session_service import get_session_counts
-from app.websocket.manager import manager
 
 router = APIRouter(tags=["face-review"])
 
@@ -34,13 +31,6 @@ _GROUP_THRESHOLD = 0.35
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
-
-class FaceReviewCreate(BaseModel):
-    embedding: list[float]
-    session_id: Optional[int] = None
-    similarity: float = 0.0
-    camera_device_id: Optional[str] = None  # ignored: the authenticated device's id is stored
-
 
 class FaceReviewOut(BaseModel):
     id: int
@@ -61,101 +51,6 @@ class FaceReviewOut(BaseModel):
 class PromoteRequest(BaseModel):
     student_user_id: int
     mark_present: bool = False
-
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-async def _find_closest_enrolled(db: AsyncSession, embedding: list[float]) -> tuple[Optional[int], Optional[float]]:
-    """
-    Returns (user_id, confidence) of the enrolled student whose face embedding
-    is nearest to the given embedding, or (None, None) if no enrolled faces exist.
-    """
-    result = await db.execute(
-        text("""
-            SELECT s.user_id, (1 - (fe.embedding <=> CAST(:vec AS vector))) AS score
-            FROM face_embeddings fe
-            JOIN students s ON s.id = fe.student_id
-            ORDER BY fe.embedding <=> CAST(:vec AS vector)
-            LIMIT 1
-        """),
-        {"vec": str(embedding)},
-    )
-    row = result.fetchone()
-    if row is None:
-        return None, None
-    return int(row.user_id), float(row.score)
-
-
-# ── Internal endpoint (worker → backend) ─────────────────────────────────────
-
-@router.post("/internal/face-review", status_code=status.HTTP_204_NO_CONTENT)
-async def report_unrecognised_face(
-    body: FaceReviewCreate,
-    db: AsyncSession = Depends(get_db),
-    camera: Camera = Depends(require_device),
-):
-    """
-    Called by the camera device (its own X-Device-Key, FR-408) when it detects a face that scores below the match
-    threshold. Entries with similar embeddings are merged (occurrences++).
-    """
-    if len(body.embedding) != 512:
-        raise HTTPException(status_code=400, detail="Embedding must be 512-dimensional")
-
-    closest_user_id, closest_conf = await _find_closest_enrolled(db, body.embedding)
-
-    # Try to merge into an existing entry with similar embedding (same unrecognised person)
-    merge_result = await db.execute(
-        text(
-            "SELECT id, similarity FROM face_review_entries "
-            "WHERE (1 - (embedding <=> CAST(:vec AS vector))) >= :threshold "
-            "ORDER BY embedding <=> CAST(:vec AS vector) "
-            "LIMIT 1"
-        ),
-        {"vec": str(body.embedding), "threshold": _GROUP_THRESHOLD},
-    )
-    existing_row = merge_result.fetchone()
-
-    should_broadcast = not existing_row  # always broadcast for brand-new entries
-
-    if existing_row:
-        entry_result = await db.execute(
-            select(FaceReviewEntry).where(FaceReviewEntry.id == existing_row.id)
-        )
-        entry = entry_result.scalar_one()
-        entry.occurrences += 1
-        if body.similarity > entry.similarity:
-            entry.similarity = body.similarity
-            entry.embedding = body.embedding
-            # Better embedding means a better closest-match reading
-            entry.closest_match_student_id = closest_user_id
-            entry.closest_match_confidence = closest_conf
-        elif entry.closest_match_student_id is None and closest_user_id is not None:
-            entry.closest_match_student_id = closest_user_id
-            entry.closest_match_confidence = closest_conf
-        if body.session_id and entry.session_id != body.session_id:
-            # Entry is being reassigned to the current session — count changes
-            should_broadcast = True
-            entry.session_id = body.session_id
-    else:
-        db.add(FaceReviewEntry(
-            embedding=body.embedding,
-            session_id=body.session_id,
-            camera_device_id=camera.device_id,
-            similarity=body.similarity,
-            occurrences=1,
-            closest_match_student_id=closest_user_id,
-            closest_match_confidence=closest_conf,
-        ))
-
-    if should_broadcast and body.session_id:
-        await db.flush()
-        counts = await get_session_counts(body.session_id, db)
-        payload = {"event": "attendance_update", "session_id": body.session_id, "counts": counts}
-
-        async def _announce() -> None:
-            await manager.broadcast(payload["session_id"], payload)
-
-        after_commit(db, _announce)
 
 
 # ── Admin endpoints ───────────────────────────────────────────────────────────

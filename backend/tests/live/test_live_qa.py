@@ -53,11 +53,14 @@ async def course(synthetic_kb, db_session):
 @pytest.fixture
 def capture(monkeypatch):
     """Wraps llm.chat + retrieval so a test can record raw answer + passages."""
+    import app.services.kb.before_class as before_class_mod
     import app.services.kb.study_tools as study_tools_mod
     import app.services.kb.summarize as summarize_mod
     from app.services.kb.llm import chat as real_chat
     from app.services.kb.search import material_passages as real_material
     from app.services.kb.search import search_materials as real_search
+
+    real_sections = before_class_mod._sections_for_materials
 
     state = {"raw": None, "passages": []}
 
@@ -79,8 +82,14 @@ def capture(monkeypatch):
         state["passages"] = ps
         return ps
 
+    async def sections(db, material_ids):
+        ps = await real_sections(db, material_ids)
+        state["passages"] = ps
+        return ps
+
     monkeypatch.setattr(llm_mod, "chat", chat)
     monkeypatch.setattr(assistant_mod, "search_materials", search)
+    monkeypatch.setattr(before_class_mod, "_sections_for_materials", sections)
     for mod in (summarize_mod, study_tools_mod):
         monkeypatch.setattr(mod, "search_materials", search)
         monkeypatch.setattr(mod, "material_passages", material)
@@ -247,6 +256,56 @@ async def test_empty_course_gives_general_answer(classroom, capture, db_session)
 
     assert reply.source_type == SOURCE_GENERAL
     assert reply.citations == []
+
+
+# ── lecturer asks their own materials (FR-815, T100) ──────────────────────────
+
+async def test_lecturer_ask_materials_is_cited(synthetic_kb, course, capture, record, db_session):
+    reply = None
+    for _ in range(2):
+        session = ChatSession(lecturer_id=synthetic_kb["lecturer_id"], course_id=course.id)
+        db_session.add(session)
+        await db_session.flush()
+        reply = await answer_question(db_session, session, course, "What is boundary value analysis?")
+        if reply.source_type == SOURCE_COURSE and reply.citations:
+            break
+    record("lecturer:boundary value analysis", capture["raw"], capture["passages"], SOURCE_COURSE)
+
+    assert reply.source_type == SOURCE_COURSE, f"expected a course answer, got {reply.source_type!r}"
+    assert reply.citations, "lecturer answer must carry at least one citation"
+    material_ids = set(synthetic_kb["material_ids"].values())
+    assert {c["material_id"] for c in reply.citations} <= material_ids
+
+
+# ── "before next class" summary (FR-816, T101) ────────────────────────────────
+
+async def test_before_class_summary_is_grounded(synthetic_kb, classroom, course, capture,
+                                                record, db_session):
+    from app.services.kb.before_class import before_class_summary, reset_cache
+
+    reset_cache()
+    # Seed 3 distinct students asking the same topic (no LLM for the questions), so the
+    # aggregate reaches the 3-student minimum; the summary itself is one real LLM call.
+    topic = "Boundary Value Analysis"
+    material_id = synthetic_kb["material_ids"]["boundary-value-analysis"]
+    for sid in classroom["student_ids"]:
+        s = ChatSession(student_id=sid, course_id=course.id)
+        db_session.add(s)
+        await db_session.flush()
+        db_session.add(ChatMessage(session_id=s.id, role="user", content="some question"))
+        db_session.add(ChatMessage(session_id=s.id, role="assistant", content="answer",
+                                   source_type=SOURCE_COURSE, topic=topic,
+                                   citations=[{"material_id": material_id, "title": topic}]))
+    await db_session.commit()
+
+    result = await before_class_summary(db_session, course)
+    record("before-class", capture["raw"], capture["passages"], SOURCE_COURSE)
+
+    assert result["not_enough_data"] is False
+    assert result["content"], "the summary must have content"
+    assert result["citations"], "the summary must cite at least one material section"
+    material_ids = set(synthetic_kb["material_ids"].values())
+    assert {c["material_id"] for c in result["citations"]} <= material_ids
 
 
 # ── summaries / study guides (FR-810, T85) ────────────────────────────────────

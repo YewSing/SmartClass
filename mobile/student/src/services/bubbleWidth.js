@@ -3,7 +3,7 @@
 // a line the height doesn't include, and disappears. A fixed width avoids this, because height and
 // wrapping then come from the same width, so a wrapped word still shows.
 const SLACK = 8             // spare room, so a message that fits on one line stays on one line
-const LIST_PADDING = 24     // AssistantChat styles.list: padding 12 on each side
+const LIST_PADDING = 24     // Assistant styles.list: padding 12 on each side
 const BUBBLE_SHARE = 0.88   // styles.bubble: maxWidth 88%
 const BUBBLE_PADDING = 24   // styles.bubble: padding 12 on each side
 

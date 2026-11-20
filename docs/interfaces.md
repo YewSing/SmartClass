@@ -5,10 +5,11 @@ own. It is plain English on purpose: the code is the source of truth, this page 
 expect from it. Fields may be added; names are not changed without a note in
 `docs/requests-for-shino.md`.
 
-Two interfaces so far:
+Three interfaces so far:
 
 - **Attendance read interface for Module 7 (FR-313)** — below.
 - **Course knowledge base retrieval for Module 6 (FR-814, T88)** — below.
+- **Notification hook for Module 2 (FR-406, T44)** — below.
 
 ---
 
@@ -152,3 +153,39 @@ question references can point at the material:
 The search is hybrid (vector + keyword) and is scoped to `course_id`, so Module 6 gets
 only the materials of the course it is generating for. The function owns its own
 database session; the caller passes no session.
+
+---
+
+## Notification hook for Module 2 (FR-406, T44)
+
+**File:** `backend/app/services/notify.py`
+
+```python
+async def emit(event: str, user_ids: Iterable[int], payload: dict) -> None
+```
+
+Yew Sing's modules raise a notification event here and Module 2 delivers it (push, in-app or
+email). Until M2 replaces or wraps `emit`, it **logs only**. It **never raises**, so a
+notification can never fail the request that raised it. `user_ids` are `users.id`, not
+`students.id` or `lecturers.id`. The payload is never logged: it holds names and matric numbers
+(NFR-02 / PDPA).
+
+### Events currently raised
+
+| Event | To | Payload fields |
+|---|---|---|
+| `attendance.recorded` | the student | `session_id`, `course_code`, `course_name`, `status` (`present` \| `late`), `detected_at`, `source` (`recognition` \| `student_flag`), `message` |
+
+`attendance.flagged` and `face_enrolment.pending_review` / `face_enrolment.result` (R1 in
+`docs/requests-for-shino.md`) are not raised through `emit` yet.
+
+### Live channels (until M2)
+
+The apps can also listen on WebSockets directly:
+
+- Lecturers: `/ws/sessions/{id}?token=<access JWT>` — the session's live feed (`attendance_update`,
+  `attendance_flagged`, `attendance_flag_resolved`, `session_closed`, ...). Only the lecturer who
+  teaches the class may connect.
+- Students: `/ws/me?token=<access JWT>` — the student's own events (`connected`,
+  `attendance_recorded`, `attendance_flag_resolved`). Only an active student may connect; anyone
+  else is closed with code 1008.

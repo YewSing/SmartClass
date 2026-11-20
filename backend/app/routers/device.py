@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.camera import Camera
-from app.schemas.device import DeviceFacesResponse
+from app.schemas.device import DeviceFacesResponse, DeviceSessionOut
 from app.services import device_service, recognition_service
 
 router = APIRouter(prefix="/device", tags=["device"])
@@ -24,6 +24,23 @@ async def heartbeat(
         camera.ip_address = request.client.host[:50]
     await db.flush()
     return {"device_id": camera.device_id, "room": camera.room, "server_time": now}
+
+
+@router.get("/session", response_model=DeviceSessionOut)
+async def current_session(
+    camera: Camera = Depends(device_service.require_device),
+    db: AsyncSession = Depends(get_db),
+):
+    """The open session this device records into, found exactly as POST /device/faces finds it.
+
+    The device client polls this and opens its camera only while a session is open (FR-401).
+    404 when there is none.
+    """
+    session = await recognition_service.find_open_session(db, camera)
+    if session is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="No open session for this device's room")
+    return {"session_id": session.id, "occurrence_id": session.occurrence_id, "room": camera.room}
 
 
 @router.post("/faces", response_model=DeviceFacesResponse)

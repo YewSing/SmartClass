@@ -211,7 +211,7 @@ async def test_answer_cites_course_material_and_is_saved(student_client, classro
     assert cit["snippet"].startswith("Boundary value analysis")
 
     # The prompt carried the numbered passage and the stripped question
-    prompt = fake_llm.calls[-1]
+    prompt = [c for c in fake_llm.calls if "Course material passages" in c[-1]["content"]][-1]
     assert prompt[0]["role"] == "system" and "CS101 Intro to Testing" in prompt[0]["content"]
     assert "[1] Black-box testing, slides 4-6 (Week 4)" in prompt[-1]["content"]
     assert prompt[-1]["content"].endswith("Question: What is BVA?")
@@ -265,7 +265,9 @@ async def test_follow_up_is_rewritten_and_history_sent(student_client, classroom
     await student_client.post(url, json={"content": "What is BVA?"})
     await student_client.post(url, json={"content": "What are its drawbacks?"})
 
-    rewrite_call, answer_call = fake_llm.calls[-2], fake_llm.calls[-1]
+    # (the topic label call runs alongside the answer, so find the calls by their prompt)
+    rewrite_call = [c for c in fake_llm.calls if "standalone search query" in c[0]["content"]][-1]
+    answer_call = [c for c in fake_llm.calls if "Course material passages" in c[-1]["content"]][-1]
     assert "standalone search query" in rewrite_call[0]["content"]
     assert [m["role"] for m in answer_call] == ["system", "user", "assistant", "user"]  # history included
     queries = (await db_session.execute(select(ChatMessage.retrieval_query).where(ChatMessage.role == "user")

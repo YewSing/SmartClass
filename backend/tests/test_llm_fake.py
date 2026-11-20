@@ -97,3 +97,49 @@ async def test_fake_mode_without_materials_is_general(student_client, classroom,
     assert resp.status_code == 200, resp.text
     assert resp.json()["source_type"] == SOURCE_GENERAL
     assert resp.json()["citations"] == []
+
+
+@pytest.mark.db
+async def test_fake_mode_summary_and_study_tools_are_cited(student_client, classroom, db_session,
+                                                           fake_mode, fixed_query_embedding):
+    mat = await _add_material(db_session, classroom["course_id"], "Black-box testing",
+                              chunks=[("Boundary value analysis tests values at the edges.", 4, 6)])
+
+    # Study tools run inside a chat (the old /summaries and /study-tools endpoints were removed)
+    url = f"/student/assistant/sessions/{(await _new_chat(student_client, classroom['course_id']))['id']}/tools"
+
+    # summary (FR-810): the canned answer cites passage [1]
+    resp = await student_client.post(url, json={"topic": "boundary value analysis", "kind": "summary"})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["source_type"] == SOURCE_COURSE
+    assert body["content"] == llm.FAKE_COURSE_ANSWER
+    [cite] = body["citations"]
+    assert cite["material_id"] == mat.id
+
+    # flashcards (FR-811): the fake returns valid JSON, parsed into a real cited card
+    resp = await student_client.post(url, json={"topic": "boundary value analysis", "kind": "flashcards"})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["kind"] == "flashcards" and body["source_type"] == "course"
+    [card] = body["payload"]["cards"]
+    assert card["front"] and card["back"] and card["citation"]["material_id"] == mat.id
+
+    # practice questions: same, one question with four options
+    resp = await student_client.post(url, json={"topic": "boundary value analysis",
+                                                "kind": "practice_questions"})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["kind"] == "practice_questions" and body["source_type"] == "course"
+    [q] = body["payload"]["questions"]
+    assert q["stem"] and len(q["options"]) == 4 and q["answer"] == "branch"
+    assert q["citation"]["material_id"] == mat.id
+
+
+async def test_fake_topic_label_is_short_and_not_a_file_name(fake_mode):
+    from app.services.kb.assistant import _TOPIC_LABEL_PROMPT
+    out = await llm.chat([
+        {"role": "system", "content": f"{_TOPIC_LABEL_PROMPT}\n\nExisting topics:\n(none yet)"},
+        {"role": "user", "content": "what is boundary value analysis?"},
+    ])
+    assert out == "What is boundary value analysis"

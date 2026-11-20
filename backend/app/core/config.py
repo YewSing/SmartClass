@@ -18,7 +18,12 @@ class Settings(BaseSettings):
     FACE_VOTE_MAX_GAP_SECONDS: int = 10   # FR-404: frames further apart than this aren't "consecutive"
     DEVICE_MAX_CROPS: int = 10            # crops per POST /device/faces (one frame)
     DEVICE_MAX_CROP_BYTES: int = 2 * 1024 * 1024
-    FACE_COOLDOWN_SECONDS: int = 30
+    FACE_COOLDOWN_SECONDS: int = 30   # unused since T46b (old face_worker); kept so old .env files still load
+    # Unmatched face crops kept as evidence for "not recognised" flags (FR-407, FR-410, NFR-02)
+    FACE_UNMATCHED_RETENTION_DAYS: int = 7
+    FACE_UNMATCHED_CLEANUP_INTERVAL_SECONDS: int = 3600   # <= 0 disables the retention job
+    FACE_UNMATCHED_SAME_PERSON: float = 0.5   # cosine: a new crop this close to a kept one is not stored again
+    FACE_UNMATCHED_MAX_PER_SESSION: int = 200
     # PDPA face-data notice the student app shows (FR-109). Bump it when the wording changes.
     FACE_CONSENT_VERSION: str = "2026-11-v1"
 
@@ -54,6 +59,9 @@ class Settings(BaseSettings):
     LLM_MODEL: str = "deepseek-chat"
     LLM_TIMEOUT_SECONDS: float = 45.0
     LLM_MAX_OUTPUT_TOKENS: int = 1200
+    # Summaries, study guides, flashcards, practice and "before next class" write much more,
+    # and thinking models spend part of the budget on hidden reasoning first.
+    LLM_LONG_OUTPUT_TOKENS: int = 6000
     LLM_REASONING_EFFORT: str = ""   # e.g. "low" for Gemini thinking models; empty = not sent
     LLM_FAKE: bool = False           # E2E only: canned answers, no provider call (see llm.fake_chat)
     LLM_RPM: int = 10                # client-side requests-per-minute cap (provider free tier)
@@ -62,6 +70,10 @@ class Settings(BaseSettings):
     ASSISTANT_HISTORY_TURNS: int = 3          # previous Q/A pairs sent for follow-ups
     ASSISTANT_REWRITE_FOLLOWUPS: bool = True  # rewrite follow-ups into standalone retrieval queries
     ASSISTANT_TOP_K: int = 8
+
+    # YouTube suggestions (FR-812, Could Have). Empty key → the feature is off.
+    YOUTUBE_API_KEY: str = ""
+    YOUTUBE_MAX_RESULTS: int = 5
 
     # Local embeddings (fastembed / ONNX). Dimension must match kb_chunks.embedding.
     KB_EMBED_MODEL: str = "BAAI/bge-small-en-v1.5"

@@ -37,7 +37,7 @@
 3. System rewrites follow-up questions into stand-alone queries using the chat history.
 4. System retrieves the most relevant passages from that course's knowledge base only (FR-807).
 5. LLM answers from the passages. Each claim carries a citation (file + page/slide) (FR-805).
-6. App shows the answer. Tapping a citation shows the cited passage and can open the source: a PDF opens in the app at that page; PowerPoint and Word files open in another app (FR-809).
+6. App shows the answer. Tapping a citation opens the source directly: a PDF opens in the app at that page; PowerPoint and Word files open in another app (FR-809).
 
 **Alternative Flows:**
 - *Not covered by the materials:* the answer comes from general knowledge and is labelled "Not from your course materials" (FR-806, NFR-19).
@@ -60,9 +60,11 @@
 
 - **Actor:** Student
 - **Main Flow:**
-1. Student picks a material (or types a topic) and chooses "Summarise" or "Study guide".
+1. Student chooses "Summarise" from the study tools menu and types a topic.
 2. System retrieves the relevant passages and generates a structured summary with citations (FR-810).
-3. Student can save it into a chat session.
+3. The summary is saved as a message in the chat, so it stays in the history.
+
+(The student app dropped "Study guide" from the menu on 2026-11-14; the API still supports it.)
 
 ---
 

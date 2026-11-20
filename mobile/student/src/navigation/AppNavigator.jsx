@@ -7,6 +7,7 @@ import { useStudent } from '../context/StudentContext'
 import { navigationRef } from './navigationRef'
 import ToastContainer from '../components/Toast'
 import ModalRouter from '../components/Modals'
+import RecordedBanner from '../components/RecordedBanner'
 import { C } from '../theme'
 
 // ─── Screens ──────────────────────────────────────────────────────────────────
@@ -19,9 +20,9 @@ import Participation from '../screens/Participation'
 import PartSessionPerf from '../screens/PartSessionPerf'
 import Profile from '../screens/Profile'
 import Assistant from '../screens/Assistant'
-import AssistantChat from '../screens/AssistantChat'
-import AssistantSource from '../screens/AssistantSource'
 import AssistantPdf from '../screens/AssistantPdf'
+import Flashcards from '../screens/Flashcards'
+import Practice from '../screens/Practice'
 import FaceEnrolment from '../screens/FaceEnrolment'
 import FaceConsent from '../screens/FaceConsent'
 import FaceCapture from '../screens/FaceCapture'
@@ -62,9 +63,9 @@ function AssistantStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="AssistantScreen" component={Assistant} />
-      <Stack.Screen name="AssistantChat"   component={AssistantChat} />
-      <Stack.Screen name="AssistantSource" component={AssistantSource} />
       <Stack.Screen name="AssistantPdf"    component={AssistantPdf} />
+      <Stack.Screen name="Flashcards"      component={Flashcards} />
+      <Stack.Screen name="Practice"        component={Practice} />
     </Stack.Navigator>
   )
 }
@@ -143,6 +144,7 @@ export default function AppNavigator() {
   return (
     <NavigationContainer ref={navigationRef}>
       {state.isLoggedIn ? <MainTabs /> : <LoginStack />}
+      {state.isLoggedIn ? <RecordedBanner /> : null}
       <ToastContainer />
       <ModalRouter />
     </NavigationContainer>

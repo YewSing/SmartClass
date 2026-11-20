@@ -7,6 +7,25 @@ request, or by message to Yew Sing.
 
 ---
 
+## After pulling `main` (merge of 2026-11-14)
+
+This merge brings Yew Sing's attendance device work (T42-T46b) and the Module 8 AI Assistant
+(T90-T102). None of it changes Modules 2, 5, 6 or 7. To run it:
+
+1. `cd backend && pip install -r requirements.txt` (InsightFace and onnxruntime are now in it).
+2. `alembic upgrade head` (4 new migrations).
+3. Check `backend/.env` against `backend/.env.example`: the database is on port **5433**,
+   `INTERNAL_API_KEY` is no longer used, and `YOUTUBE_API_KEY` is new and optional. The backend
+   starts without Moodle, LLM or YouTube keys; those features just stay off.
+4. No new npm packages. Restart `uvicorn` after pulling (on Windows `--reload` can miss changes).
+
+Removed: the old `frontend/admin` site (admin pages are now in the lecturer web app), the
+`face_worker` service and `/internal/*` routes, and the old `/student/assistant/summaries` and
+`/student/assistant/study-tools` endpoints (study tools now run inside a chat:
+`POST /student/assistant/sessions/{id}/tools`). Setup steps are in `README.md`.
+
+---
+
 ## R1 — Notifications for face enrolment (M2) — opened 2026-11-10
 
 **Why:** a student self-enrols their face (FR-110). If the automatic checks fail, the submission
@@ -25,6 +44,8 @@ Notifications are Module 2.
 logs and the apps refresh their own screens. M2 replaces or wraps `emit` to deliver. The same
 hook will carry `attendance.recorded` (student) and `attendance.flagged` (lecturer), listed in
 `docs/requirements/functional-requirements.md` under Module 2.
+Built in T44 (2026-11-13): `emit` exists, logs only, and raises `attendance.recorded`; see
+`docs/interfaces.md`.
 
 **Question for Shino:** is `emit(event, user_ids, payload)` a shape that works for M2? If you
 prefer a different one (e.g. with a priority level: urgent / important / general), say so here

@@ -111,3 +111,61 @@ export function findSession(courses, courseId, sessionId) {
   }
   return null
 }
+
+// ─── "I'm here" flags (FR-318, FR-319, FR-406) ───────────────────────────────
+
+// The flag button: the class is open now, the student has no record and hasn't flagged it
+export function canFlag(session, flag) {
+  return !!session && session.isLive && session.status === 'not_recorded' && !flag
+}
+
+const FLAG_VIEWS = {
+  pending: {
+    title: 'Waiting for your lecturer',
+    sub: "Your lecturer will check you're in class and confirm it. Until then this class shows as not recorded, or Absent once it ends.",
+    badge: 'yellow',
+    icon: 'hourglass-outline',
+  },
+  confirmed: {
+    title: 'Confirmed',
+    badge: 'green',
+    icon: 'checkmark-circle-outline',
+  },
+  rejected: {
+    title: 'Not accepted',
+    badge: 'red',
+    icon: 'close-circle-outline',
+  },
+}
+
+// What the session detail and the flag status screen show for a flag
+export function flagView(flag) {
+  if (!flag) return null
+  const state = FLAG_VIEWS[flag.status] ? flag.status : 'pending'
+  const base = FLAG_VIEWS[state]
+  let sub = base.sub
+  if (state === 'confirmed') {
+    sub = `Your lecturer confirmed you were in class. You're marked ${statusInfo(flag.record_status ?? 'present').label}.`
+  } else if (state === 'rejected') {
+    sub = flag.reject_reason
+      ? `Your lecturer did not accept it: ${flag.reject_reason}`
+      : 'Your lecturer did not accept it.'
+  }
+  return {
+    state,
+    title: base.title,
+    sub,
+    badge: base.badge,
+    icon: base.icon,
+    classText: `${flag.class_code} — ${flag.class_name}`,
+    dateText: dateLabel(flag.class_date) || '—',
+    flaggedText: hhmm(flag.flagged_at) || '—',
+    resolvedText: flag.resolved_at ? hhmm(flag.resolved_at) : null,
+  }
+}
+
+// The global banner text for an attendance_recorded event (FR-406)
+export function recordedBannerText(event) {
+  const base = event?.message || `Attendance recorded for ${event?.course_code ?? ''}`
+  return `${base} · ${statusInfo(event?.status).label}`
+}

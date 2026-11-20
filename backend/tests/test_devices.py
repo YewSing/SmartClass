@@ -137,56 +137,17 @@ async def test_heartbeat_needs_a_valid_device_key(client, admin_client):
     assert (await admin_client.post("/device/heartbeat")).status_code == 422
 
 
-# ── Device endpoints use the device's own key, not the shared internal key ───
+# ── The old /internal/* recognition path is gone (T46b) ─────────────────────
 
-async def test_device_endpoints_refuse_the_old_shared_internal_key(client):
+async def test_device_endpoints_refuse_the_old_shared_internal_key(client, device):
     from app.core.config import settings
     shared = {"X-Internal-Key": settings.INTERNAL_API_KEY}
-    assert (await client.get("/internal/active-session", headers=shared)).status_code == 422
-    assert (await client.post("/internal/face-match", headers=shared,
-                              json={"embedding": [0.0] * 512, "session_id": 1})).status_code == 422
-    assert (await client.post("/internal/face-review", headers=shared,
-                              json={"embedding": [0.0] * 512})).status_code == 422
+    for headers in (shared, device["headers"]):
+        assert (await client.get("/internal/active-session", headers=headers)).status_code == 404
+        assert (await client.post("/internal/face-match", headers=headers,
+                                  json={"embedding": [0.0] * 512, "session_id": 1})).status_code == 404
+        assert (await client.post("/internal/face-review", headers=headers,
+                                  json={"embedding": [0.0] * 512})).status_code == 404
+    # The device path takes the device's own key, never the shared one
     bad = {"X-Device-Key": settings.INTERNAL_API_KEY}
-    assert (await client.get("/internal/active-session", headers=bad)).status_code == 401
-
-
-async def test_active_session_is_the_open_session_of_the_devices_room(
-    client, lecturer_client, classroom, device, admin_client
-):
-    assert (await client.get("/internal/active-session", headers=device["headers"])).status_code == 404
-
-    session_id = (await lecturer_client.post(
-        "/lecturer/sessions", json={"occurrence_id": classroom["occurrence_id"]})).json()["id"]
-    resp = await client.get("/internal/active-session", headers=device["headers"])
-    assert resp.status_code == 200, resp.text
-    assert resp.json()["session_id"] == session_id
-    assert resp.json()["camera_id"] == device["id"]
-
-    # A device in another room doesn't see DK1's session
-    other = await _register(admin_client, room="DK3")
-    assert (await client.get("/internal/active-session",
-                             headers={"X-Device-Key": other["key"]})).status_code == 404
-
-
-async def test_face_match_refuses_a_session_of_another_rooms_device(
-    client, lecturer_client, classroom, device, admin_client
-):
-    session_id = (await lecturer_client.post(
-        "/lecturer/sessions", json={"occurrence_id": classroom["occurrence_id"]})).json()["id"]
-    other = await _register(admin_client, room="DK3")
-    resp = await client.post("/internal/face-match", headers={"X-Device-Key": other["key"]},
-                             json={"embedding": [1.0] + [0.0] * 511, "session_id": session_id})
-    assert resp.status_code == 403
-    resp = await client.post("/internal/face-match", headers=device["headers"],
-                             json={"embedding": [1.0] + [0.0] * 511, "session_id": session_id})
-    assert resp.status_code == 200, resp.text
-
-
-async def test_face_review_records_the_authenticated_device(client, device, db_session):
-    from app.models.face_review import FaceReviewEntry
-    resp = await client.post("/internal/face-review", headers=device["headers"],
-                             json={"embedding": [1.0] + [0.0] * 511, "camera_device_id": "spoofed"})
-    assert resp.status_code == 204, resp.text
-    entry = (await db_session.execute(select(FaceReviewEntry))).scalar_one()
-    assert entry.camera_device_id == device["device_id"]
+    assert (await client.get("/device/session", headers=bad)).status_code == 401

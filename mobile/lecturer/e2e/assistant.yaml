@@ -1,0 +1,65 @@
+# AI Assistant (T91): a lecturer syncs materials and sees the materials' statuses and the
+# three anonymised question-trend lists.
+# Run: bash scripts/e2e-mobile.sh lecturer assistant
+# Needs the local Moodle up (lecturer1 / Lecturer123!) and the backend's MOODLE_URL pointing at it,
+# so "Sync materials" succeeds. assistant.setup.sh seeds one material + the question history.
+appId: host.exp.exponent
+---
+- extendedWaitUntil:
+    visible: "Welcome back|Continue|.*(Start now|Live session)"
+    timeout: 180000
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+- runFlow:
+    when:
+      visible: "Welcome back"
+    commands:
+      - tapOn:
+          id: "login-username"
+      - inputText: "lecturer1"
+      - tapOn:
+          id: "login-password"
+      - inputText: "Lecturer123!"
+      - hideKeyboard
+      - tapOn: "Sign In"
+- extendedWaitUntil:
+    visible: ".*(Start now|Live session)"
+    timeout: 60000
+
+# Open the AI Assistant tab
+- tapOn: "AI Assistant"
+- extendedWaitUntil:
+    visible:
+      id: "assistant-course-picker"
+    timeout: 20000
+
+# Sync materials (FR-803) and see the statuses
+- tapOn:
+    id: "assistant-sync"
+- extendedWaitUntil:
+    visible: "Materials synced.*"
+    timeout: 60000
+- extendedWaitUntil:
+    visible: "Testing notes \\(E2E\\)"
+    timeout: 30000
+- assertVisible: "Indexed"
+
+# All three anonymised trend lists (FR-813)
+- scrollUntilVisible:
+    element: "Most asked topics"
+    direction: DOWN
+    timeout: 20000
+- assertVisible: "Boundary value analysis"
+- scrollUntilVisible:
+    element: "Most cited materials"
+    direction: DOWN
+    timeout: 20000
+- assertVisible: "Testing notes \\(E2E\\)"
+- scrollUntilVisible:
+    element: "Topics the materials don't cover"
+    direction: DOWN
+    timeout: 20000
+- assertVisible: "quantum entanglement"

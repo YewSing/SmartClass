@@ -1,91 +1,138 @@
+import { useState, useCallback } from 'react'
 import {
-  View, Text, ScrollView, StyleSheet,
+  View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
+import { useFocusEffect } from '@react-navigation/native'
+import { useStudent } from '../context/StudentContext'
 import Topbar from '../components/Topbar'
+import { flagView } from '../services/attendance'
 import { C } from '../theme'
 
-const DETAILS = [
-  { label: 'Session',   value: 'Lec 8 — Requirements Eng.' },
-  { label: 'Date',      value: '29 Apr 2025' },
-  { label: 'Reason',    value: 'Face recognition did not detect me' },
-  { label: 'Submitted', value: '25 May 2025, 10:10 AM' },
-]
+const HERO_COLORS = {
+  pending:   { fg: C.yellow, bg: C.yellowLt },
+  confirmed: { fg: C.green,  bg: C.greenLt },
+  rejected:  { fg: C.red,    bg: C.redLt },
+}
 
-export default function AttReportStatus({ navigation }) {
+const REVIEW = {
+  pending:   { dot: C.gray300, icon: 'time-outline' },
+  confirmed: { dot: C.green,   icon: 'checkmark' },
+  rejected:  { dot: C.red,     icon: 'close' },
+}
+
+// The real state of the student's "I'm here" flag (FR-319). The context's SET_FLAG, from the
+// student's own websocket, re-renders this screen live when the lecturer decides.
+export default function AttReportStatus({ route, navigation }) {
+  const { state, loadFlag } = useStudent()
+  const { sessionId } = route.params ?? {}
+  const sid = Number(sessionId)
+  const flag = state.flags[sid] ?? null
+  const view = flagView(flag)
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+
+  useFocusEffect(useCallback(() => {
+    let gone = false
+    setLoading(true)
+    loadFlag(sid).finally(() => { if (!gone) setLoading(false) })
+    return () => { gone = true }
+  }, [loadFlag, sid]))
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true)
+    await loadFlag(sid)
+    setRefreshing(false)
+  }, [loadFlag, sid])
+
+  const colors = HERO_COLORS[view?.state] ?? HERO_COLORS.pending
+  const review = REVIEW[view?.state] ?? REVIEW.pending
+
+  const details = view ? [
+    { label: 'Class', value: view.classText },
+    { label: 'Date', value: view.dateText },
+    { label: 'Flagged at', value: view.flaggedText },
+    ...(view.resolvedText ? [{ label: 'Resolved at', value: view.resolvedText }] : []),
+  ] : []
+
+  let reviewTitle = 'Lecturer review'
+  let reviewTime = 'Waiting'
+  if (view?.state === 'confirmed') reviewTime = `Confirmed at ${view.resolvedText}`
+  if (view?.state === 'rejected') reviewTime = `Rejected at ${view.resolvedText}`
+
   return (
     <View style={styles.flex}>
-      <Topbar title="Report Status" sub="Lec 8 · WIA2005" onBack={() => navigation.goBack()} />
-      <ScrollView style={styles.flex} showsVerticalScrollIndicator={false}>
-        {/* Hero */}
-        <View style={styles.hero}>
-          <View style={styles.heroIcon}>
-            <Ionicons name="hourglass-outline" size={26} color={C.yellow} />
+      <Topbar title="Flag Status" sub={flag?.class_code} onBack={() => navigation.goBack()} />
+      <ScrollView
+        style={styles.flex}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} colors={[C.primary]} />}
+      >
+        {loading && !view ? (
+          <View style={styles.empty}>
+            <ActivityIndicator color={C.primary} />
           </View>
-          <Text style={styles.heroLabel}>Under Review</Text>
-          <Text style={styles.heroSub}>
-            Your report has been received and is awaiting review by your lecturer.
-          </Text>
-        </View>
-
-        {/* Report details */}
-        <View style={styles.card}>
-          <Text style={styles.cardLabel}>Report Details</Text>
-          {DETAILS.map(row => (
-            <View key={row.label} style={styles.detailRow}>
-              <Text style={styles.detailKey}>{row.label}</Text>
-              <Text style={styles.detailVal}>{row.value}</Text>
-            </View>
-          ))}
-          <View style={styles.detailRow}>
-            <Text style={styles.detailKey}>Ref. No.</Text>
-            <Text style={styles.refNo}>RPT-2025-04290012</Text>
+        ) : !view ? (
+          <View style={styles.empty}>
+            <Text style={styles.emptyText}>You haven't flagged this class.</Text>
           </View>
-        </View>
+        ) : (
+          <>
+            {/* Hero */}
+            <View style={styles.hero}>
+              <View style={[styles.heroIcon, { backgroundColor: colors.bg }]}>
+                <Ionicons name={view.icon} size={26} color={colors.fg} />
+              </View>
+              <Text testID="flag-status" style={styles.heroLabel}>{view.title}</Text>
+              <Text testID="flag-status-sub" style={styles.heroSub}>{view.sub}</Text>
+            </View>
 
-        {/* Progress timeline */}
-        <Text style={styles.sectionTitle}>Progress</Text>
-        <View style={styles.timeline}>
-          <View style={styles.tlItem}>
-            <View style={[styles.tlDot, { backgroundColor: C.green }]}>
-              <Ionicons name="checkmark" size={12} color="#fff" />
+            {/* Flag details */}
+            <View style={styles.card}>
+              <Text style={styles.cardLabel}>Flag details</Text>
+              {details.map(row => (
+                <View key={row.label} style={styles.detailRow}>
+                  <Text style={styles.detailKey}>{row.label}</Text>
+                  <Text style={styles.detailVal}>{row.value}</Text>
+                </View>
+              ))}
             </View>
-            <View style={styles.tlContent}>
-              <Text style={styles.tlTitle}>Report Submitted</Text>
-              <Text style={styles.tlTime}>25 May 2025 · 10:10 AM</Text>
-            </View>
-          </View>
 
-          <View style={styles.tlItem}>
-            <View style={[styles.tlDot, { backgroundColor: C.yellow }]}>
-              <Ionicons name="time-outline" size={12} color="#fff" />
+            {/* Progress timeline */}
+            <Text style={styles.sectionTitle}>Progress</Text>
+            <View style={styles.timeline}>
+              <View style={styles.tlItem}>
+                <View style={[styles.tlDot, { backgroundColor: C.green }]}>
+                  <Ionicons name="checkmark" size={12} color="#fff" />
+                </View>
+                <View style={styles.tlContent}>
+                  <Text style={styles.tlTitle}>Flagged</Text>
+                  <Text style={styles.tlTime}>{view.flaggedText}</Text>
+                </View>
+              </View>
+
+              <View style={styles.tlItem}>
+                <View style={[styles.tlDot, { backgroundColor: review.dot }]}>
+                  <Ionicons name={review.icon} size={12} color="#fff" />
+                </View>
+                <View style={styles.tlContent}>
+                  <Text style={styles.tlTitle}>{reviewTitle}</Text>
+                  <Text style={styles.tlTime}>{reviewTime}</Text>
+                  {view.state === 'rejected' && flag.reject_reason ? (
+                    <Text style={styles.tlNote}>{flag.reject_reason}</Text>
+                  ) : null}
+                </View>
+              </View>
             </View>
-            <View style={styles.tlContent}>
-              <Text style={styles.tlTitle}>Under Review</Text>
-              <Text style={styles.tlTime}>Pending · Awaiting lecturer action</Text>
-              <Text style={styles.tlNote}>
-                Your report has been forwarded to Dr. Tan Wei Lin for review. You will be notified once a decision is made.
+
+            <View style={styles.infoBanner}>
+              <Ionicons name="information-circle-outline" size={14} color={C.textHint} style={{ marginTop: 1 }} />
+              <Text style={styles.infoBannerText}>
+                Only your lecturer can confirm a flag. You can flag a class once, while it is running.
               </Text>
             </View>
-          </View>
-
-          <View style={styles.tlItem}>
-            <View style={[styles.tlDot, { backgroundColor: C.gray300 }]}>
-              <Ionicons name="checkmark-done" size={12} color="#fff" />
-            </View>
-            <View style={[styles.tlContent, { opacity: 0.45 }]}>
-              <Text style={styles.tlTitle}>Resolved</Text>
-              <Text style={styles.tlTime}>Awaiting review completion</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.infoBanner}>
-          <Ionicons name="information-circle-outline" size={14} color={C.textHint} style={{ marginTop: 1 }} />
-          <Text style={styles.infoBannerText}>
-            Resolution typically takes 1–3 business days. Your attendance status will be updated automatically if the report is approved.
-          </Text>
-        </View>
+          </>
+        )}
         <View style={{ height: 24 }} />
       </ScrollView>
     </View>
@@ -94,6 +141,15 @@ export default function AttReportStatus({ navigation }) {
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: C.bg },
+  empty: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 14,
+    color: C.textSub,
+    textAlign: 'center',
+  },
   hero: {
     alignItems: 'center',
     backgroundColor: C.card,
@@ -106,7 +162,6 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: C.yellowLt,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
@@ -157,11 +212,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: C.text,
     textAlign: 'right',
-  },
-  refNo: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: C.textHint,
   },
   sectionTitle: {
     fontSize: 11,
