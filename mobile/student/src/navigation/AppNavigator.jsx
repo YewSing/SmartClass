@@ -38,6 +38,7 @@ function HomeStack() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="HomeScreen" component={Home} />
       <Stack.Screen name="Notifications" component={Notifications} />
+      <Stack.Screen name="Profile" component={ProfileStack} />
     </Stack.Navigator>
   )
 }
@@ -90,7 +91,6 @@ const TAB_ICONS = {
   Attendance:    { active: 'calendar',            inactive: 'calendar-outline' },
   Assistant:     { active: 'sparkles',            inactive: 'sparkles-outline' },
   Participation: { active: 'stats-chart',         inactive: 'stats-chart-outline' },
-  Profile:       { active: 'person',              inactive: 'person-outline' },
 }
 
 function MainTabs() {
@@ -123,7 +123,6 @@ function MainTabs() {
       <Tab.Screen name="Attendance"    component={AttendanceStack}    options={{ title: 'Attendance', tabBarTestID: 'tab-attendance' }} />
       <Tab.Screen name="Assistant"     component={AssistantStack}     options={{ title: 'Assistant' }} />
       <Tab.Screen name="Participation" component={ParticipationStack} options={{ title: 'Participation' }} />
-      <Tab.Screen name="Profile"       component={ProfileStack}       options={{ title: 'Profile' }} />
     </Tab.Navigator>
   )
 }
