@@ -37,6 +37,7 @@ import AdminDevices from '../screens/AdminDevices'
 import LecturerAssistant from '../screens/LecturerAssistant'
 import LecturerAsk from '../screens/LecturerAsk'
 import BeforeClass from '../screens/BeforeClass'
+import Notifications from '../screens/Notifications'
 
 const Stack = createNativeStackNavigator()
 const Tab   = createBottomTabNavigator()
@@ -60,6 +61,7 @@ function HomeStack() {
       <Stack.Screen name="ClassDetail" component={ClassDetail} />
       <Stack.Screen name="AttendanceDetail" component={AttendanceDetail} />
       <Stack.Screen name="FaceVerification" component={FaceVerification} />
+      <Stack.Screen name="Notifications" component={Notifications} />
     </Stack.Navigator>
   )
 }

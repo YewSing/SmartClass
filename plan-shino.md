@@ -20,11 +20,15 @@ The old isolated mock screens become a coherent “live teaching command centre�
   Done when: `mobile/lecturer` Dashboard top card handles Start now, +15 minutes, and End class (with the existing finalisation warning/confirmation); it states that attendance and interaction share this session; `AttendanceDetail` has no lifecycle controls; use existing LecturerContext session actions and preserve all attendance/sync behaviour. Add/adjust unit + Playwright/Maestro coverage for dashboard start/extend/end and absence of controls in attendance detail.
   Status: complete — lecturer unit tests, Expo web export, and Playwright browser E2E pass.
 
-- [ ] **S02 [API] M2 notification foundation and dashboard reads.** Depends on: S01.
+- [x] **S02 [API] M2 notification foundation and dashboard reads.** Depends on: S01.
   Done when: additive notification model, event adapter around `notify.emit`, priority mapping, deduplication, read state, authenticated feed endpoints, and dashboard aggregates exist; M3 events from R1 work without edits to M3. Moodle announcements/deadlines are read-only sync data. Tests cover recipient isolation, priorities, read operations, and duplicate suppression.
+  Refresh decision: Moodle announcements/deadlines refresh only on successful Moodle login (FR-203). The snapshot includes its refresh time; Moodle tokens are never persisted. Manual/scheduled snapshot refresh is out of scope.
+  Verified: `scripts/check.sh` passed (709 backend tests plus both mobile unit suites); live Moodle login/snapshot test passed; follow-up reviewer PASS. Runtime migrations and Moodle allowlist applied.
 
-- [ ] **S03 [UI] M2 role dashboards and notification centre.** Depends on: S02.
-  Done when: student and lecturer dashboards satisfy FR-201/202/203/208/209 with real API state, the lecturer dashboard retains S01 as its top card, and a notification feed supports mark-one/all-read plus deep links. Old dashboard placeholders and mock data are removed only after replacement flows pass mobile and lecturer-web E2E.
+- [x] **S03 [UI] M2 role dashboards and notification centre.** Depends on: S02.
+  Done when: student and lecturer dashboards satisfy FR-201/202/203/208/209 with real API state, the lecturer dashboard retains S01 as its top card, and a notification feed as bell icon(student/lecturer mobile) or in side bar (lecturer web) supports mark-one/all-read plus deep links. Old dashboard placeholders and mock data are removed only after replacement flows pass mobile and lecturer-web E2E.
+  Lecturer scope clarification: Dashboard keeps the top shared-session command card and live attendance state; it intentionally does not add a Today list or a closed-session attendance summary. Closed records remain in Attendance.
+  Verified: student 65/65 and lecturer 55/55 unit tests, both Expo web exports, focused lecturer Playwright dashboard/notification/live-session flows, full `scripts/check.sh` (709 backend tests plus both mobile suites), and independent design evaluation PASS after refinement.
 
 - [ ] **S04 [API] M5 interaction session and real-time events.** Depends on: S01, S02.
   Done when: Shino-owned models/services/routes implement M5 keyed to `attendance_session_id`, access checks, anonymous-question privacy, questions/upvotes/moderation, polls, quick answers, reactions, confusion cooldown/spike, and websocket updates. Interaction is unavailable whenever the linked attendance session is not open and all live interaction closes when it closes. Tests cover lifecycle coupling, privacy, enrolment, cooldowns, live events, and audit events.

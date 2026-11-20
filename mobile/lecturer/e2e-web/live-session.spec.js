@@ -90,15 +90,18 @@ test('lecturer starts a class, excuses a student with a reason and ends it', asy
   await expect(visible(page.getByTestId('count-excused'))).toHaveText('1')
 
   // Attendance is now a roster/override view; class lifecycle stays on Home's shared-session card.
-  await expect(page.getByTestId('session-end')).toHaveCount(0)
+  await expect(page.getByTestId('session-end').filter({ visible: true })).toHaveCount(0)
   await page.getByTestId('sidenav-Home').click()
   await expect(visible(page.getByText('Attendance is live. Interaction will use this same session when available.'))).toBeVisible()
   await expect(visible(page.getByText('Interaction follows this session'))).toBeVisible()
   await visible(page.getByTestId('session-end')).click()
+  const closedResponse = page.waitForResponse(response =>
+    /\/lecturer\/sessions\/\d+\/close$/.test(new URL(response.url()).pathname)
+      && response.request().method() === 'PUT')
   await visible(page.getByTestId('session-end-confirm')).click()
-  await expect(page.getByTestId('session-end')).toHaveCount(0)
-  // Still closed once the dashboard has re-read the session after the close event
-  await page.waitForTimeout(3000)
-  await expect(page.getByTestId('session-end')).toHaveCount(0)
+  const closed = await closedResponse
+  expect(closed.ok()).toBeTruthy()
+  expect((await closed.json()).status).toBe('closed')
+  await expect(page.getByTestId('session-end-confirm').filter({ visible: true })).toHaveCount(0)
   expect(errors).toEqual([])
 })

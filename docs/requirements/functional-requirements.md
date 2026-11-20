@@ -66,7 +66,7 @@ Role-based dashboards plus push, email and in-app notifications with three prior
 |----|-------------|----------|-------|
 | FR-201 | The system shall show each student a dashboard with: today's classes and their attendance status, attendance rate per course (from FR-309), upcoming deadlines and latest announcements from Moodle, urgent and important notifications, and any classroom activity (live poll, live question, open quiz) running now. | Must Have | Student |
 | FR-202 | The system shall show each lecturer a dashboard with: today's classes, attendance overview of the current or latest session, participation summary (from Module 5), running and recent quizzes (from Module 6), at-risk alerts (from Module 7) and urgent and important notifications. | Must Have | Lecturer |
-| FR-203 | The system shall retrieve announcements (course news forum) and deadlines (assignment and calendar events) for the user's courses from Moodle on login and on each sync, and show them with course, title, date and a link back to Moodle. Announcements and deadlines are not copied into a separate editable store. | Must Have | System |
+| FR-203 | The system shall retrieve announcements (course news forum) and deadlines (assignment and calendar events) for the user's courses from Moodle on successful Moodle login, and show them with course, title, date and a link back to Moodle. A read-only per-user snapshot may be retained between logins, with its last refresh time. Manual and scheduled course/enrolment syncs do not refresh this snapshot. Moodle tokens are used transiently during login and are not persisted. (Login-only refresh confirmed by Shino, 2026-11-20.) | Must Have | System |
 
 ### 2B. Notification delivery
 

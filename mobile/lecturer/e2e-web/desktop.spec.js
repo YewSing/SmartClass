@@ -66,6 +66,10 @@ test('desktop: login reaches the dashboard with side navigation and no sideways 
   await signInLocal(page)
   await expect(page.getByTestId('sidenav-Home')).toBeVisible()
   await expect(visible(page.getByTestId('home-start-now').or(page.getByTestId('home-live-session')))).toBeVisible()
+  await expect(page.getByTestId('home-notifications')).toBeVisible()
+  const sessionCardBox = await page.getByTestId('home-class-card').boundingBox()
+  const followingSectionBox = await visible(page.getByText('Teaching insights', { exact: true })).boundingBox()
+  expect(sessionCardBox.y).toBeLessThan(followingSectionBox.y)
   expect(await horizontalOverflow(page)).toEqual([])
 
   // Side navigation instead of bottom tabs; content in a centred column.
@@ -83,6 +87,15 @@ test('desktop: login reaches the dashboard with side navigation and no sideways 
   expect(Math.max(...xs)).toBeGreaterThanOrEqual(232 + 40)
 
   expect(errors).toEqual([])
+})
+
+test('desktop: notification centre opens from the dashboard', async ({ page }) => {
+  await login(page)
+  await page.getByTestId('home-notifications').click()
+  await expect(page.getByText('Notifications', { exact: true })).toBeVisible()
+  await expect(page.getByText(/unread$/)).toBeVisible()
+  await page.getByLabel('Back').click()
+  await expect(page.getByTestId('home-notifications')).toBeVisible()
 })
 
 test('desktop: every screen and dialog opens without a runtime error', async ({ page }) => {

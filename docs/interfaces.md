@@ -1,5 +1,15 @@
 # Interfaces Yew Sing's modules give Shino's modules
 
+## M2 notification feed and dashboard reads (S02 complete)
+
+`notify.emit(event, user_ids, payload)` retains T44's signature and never raises to producers. It now persists one feed entry per active recipient and event subject/status. Producers can provide `event_id` or `dedupe_key` to distinguish repeated occurrences. Unsupported event types are caught by the hook and logged without payloads.
+
+Authenticated `GET /notifications` returns the caller's newest entries, with `limit` (1–200, default 50) and optional `before_id` pagination. `POST /notifications/{id}/read` returns 404 for another user's entry; `POST /notifications/read-all` affects only the caller. Feed fields are id, event_type, priority, title, message, link, created_at, read_at.
+
+`GET /student/me/dashboard` and `GET /lecturer/dashboard` enforce the corresponding role and derive course scope from current enrolments/lecturer assignments. Unavailable module aggregates are null; Moodle data reports `available: false` when no successful snapshot exists.
+
+The approved M1 login integration refreshes M2's per-user Moodle snapshot using the login token transiently. It reads news forum discussions and future course calendar events and stores only display data plus `refreshed_at` in `dashboard_moodle_cache`. The token is cleared after use. `moodle.available` indicates whether a snapshot exists; `refreshed_at` indicates its age. Moodle failure retains the previous snapshot. The service allowlist needs the added forum/calendar read functions. Per Shino's decision, refresh remains login-only; manual/scheduled course sync does not refresh this snapshot. Moodle tokens are not persisted.
+
 This page lists the Python functions Shino's modules may call to read data Yew Sing's modules
 own. It is plain English on purpose: the code is the source of truth, this page says what to
 expect from it. Fields may be added; names are not changed without a note in

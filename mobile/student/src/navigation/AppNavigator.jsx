@@ -26,6 +26,7 @@ import Practice from '../screens/Practice'
 import FaceEnrolment from '../screens/FaceEnrolment'
 import FaceConsent from '../screens/FaceConsent'
 import FaceCapture from '../screens/FaceCapture'
+import Notifications from '../screens/Notifications'
 
 const Stack = createNativeStackNavigator()
 const Tab   = createBottomTabNavigator()
@@ -36,6 +37,7 @@ function HomeStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="HomeScreen" component={Home} />
+      <Stack.Screen name="Notifications" component={Notifications} />
     </Stack.Navigator>
   )
 }

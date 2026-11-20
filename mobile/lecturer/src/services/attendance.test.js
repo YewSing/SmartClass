@@ -106,6 +106,7 @@ test('Home shows the same five counts as the live roster (T38b)', () => {
   const roster = ['present', 'present', 'late', 'absent', 'not_recorded', 'not_recorded'].map(status => ({ status }))
   assert.deepEqual(sessionCounts(session), countStatuses(roster))
   assert.deepEqual(sessionCounts({ present: 1, absent: 2 }), { present: 1, late: 0, excused: 0, absent: 2, not_recorded: 0 })
+  assert.deepEqual(sessionCounts({ present: 2, absent: 5, not_recorded: 3 }), { present: 2, late: 0, excused: 0, absent: 2, not_recorded: 3 })
   assert.deepEqual(sessionCounts(null), { present: 0, late: 0, excused: 0, absent: 0, not_recorded: 0 })
 })
 

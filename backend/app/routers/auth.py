@@ -74,6 +74,11 @@ async def moodle_login(body: MoodleLoginRequest, db: AsyncSession = Depends(get_
     if user is None:
         raise _INVALID_CREDS
     await moodle_sync.sync_user(db, user, profile.courses)  # FR-104, UC step 5
+    from app.services.dashboard_moodle import refresh
+    try:
+        await refresh(db, user.id, profile.dashboard_token, [c.id for c in profile.courses])
+    finally:
+        profile.dashboard_token = None
     await db.commit()
 
     result = await db.execute(

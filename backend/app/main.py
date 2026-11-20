@@ -6,6 +6,8 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from app.routers import notifications
+from app.routers import dashboard
 
 from app.routers import auth, admin_users, admin_students, admin_courses, admin_moodle, admin_devices, device, classes, sessions, attendance, attendance_flags, attendance_stats, analytics, audit, face_review, assistant, student_face, face_verification, class_schedule
 from app.services.attendance_flags import unmatched_face_cleanup_loop
@@ -53,6 +55,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="SmartClass API", version="0.1.0", lifespan=lifespan)
+app.include_router(notifications.router)
+app.include_router(dashboard.router)
 
 app.add_middleware(
     CORSMiddleware,

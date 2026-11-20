@@ -1,195 +1,30 @@
-import { useEffect, useState, useCallback } from 'react'
-import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet, RefreshControl,
-} from 'react-native'
+import { useCallback, useEffect, useState } from 'react'
+import { ActivityIndicator, Linking, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { LinearGradient } from 'expo-linear-gradient'
+import { useFocusEffect } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useStudent } from '../context/StudentContext'
-import Badge from '../components/Badge'
+import * as api from '../services/api'
+import { attendanceLabel, formatDashboardTime, formatMoodleDate, isDashboardStale, safeMoodleUrl } from '../services/dashboard'
 import { C } from '../theme'
 
-function greeting() {
-  const h = new Date().getHours()
-  if (h < 12) return 'Good morning,'
-  if (h < 17) return 'Good afternoon,'
-  return 'Good evening,'
+const Section=({title,children})=><><Text style={s.section}>{title}</Text>{children}</>
+const Empty=({title,text})=><View style={s.card}><Text style={s.cardTitle}>{title}</Text>{text?<Text style={s.meta}>{text}</Text>:null}</View>
+export default function Home({navigation}){
+  const {state,loadClasses}=useStudent(),insets=useSafeAreaInsets()
+  const [data,setData]=useState(null),[unread,setUnread]=useState(0),[loading,setLoading]=useState(true),[refreshing,setRefreshing]=useState(false),[error,setError]=useState('')
+  const load=useCallback(async(refresh=false)=>{refresh?setRefreshing(true):setLoading(true);setError('');try{const [summary,count]=await Promise.all([api.getDashboard(),api.getNotificationUnreadCount()]);setData(summary);setUnread(count)}catch{setError('Dashboard could not be refreshed. Last loaded information is kept on screen.')}finally{setLoading(false);setRefreshing(false)}},[])
+  useEffect(()=>{loadClasses()},[loadClasses]);useFocusEffect(useCallback(()=>{load()},[load]))
+  const openMoodle=async value=>{const url=safeMoodleUrl(value);if(url&&await Linking.canOpenURL(url))await Linking.openURL(url)}
+  const notices=data?.notifications??[],session=data?.session
+  return <ScrollView style={s.page} contentContainerStyle={[s.content,{paddingTop:insets.top+12}]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={()=>load(true)}/> }>
+    <View style={s.header}><View style={s.grow}><Text style={s.eyebrow}>SMARTCLASS STUDENT</Text><Text style={s.title}>Hello, {state.student?.name?.split(' ')[0]??'student'}</Text><Text style={s.meta}>Here’s what needs your attention today.</Text></View><TouchableOpacity style={s.bell} onPress={()=>navigation.navigate('Notifications')} testID="home-notifications"><Ionicons name="notifications-outline" size={22} color={C.text}/>{unread?<View style={s.badge}><Text style={s.badgeText}>{unread>9?'9+':unread}</Text></View>:null}</TouchableOpacity></View>
+    {error?<View style={s.error}><Text style={s.errorText}>{error}</Text><TouchableOpacity onPress={()=>load()}><Text style={s.retry}>Retry</Text></TouchableOpacity></View>:null}{loading&&!data?<ActivityIndicator style={{marginTop:50}} color={C.primary}/>:null}
+    {data?<>{notices.length?<Section title="Priority notices">{notices.map(n=><TouchableOpacity key={n.id} style={[s.notice,n.priority==='urgent'?s.urgent:s.important]} onPress={()=>navigation.navigate('Notifications')}><Ionicons name="alert-circle-outline" size={19} color={n.priority==='urgent'?C.redDk:C.orangeDk}/><View style={s.grow}><Text style={s.cardTitle}>{n.title}</Text><Text style={s.meta}>{n.message}</Text></View></TouchableOpacity>)}</Section>:null}
+      <Section title="Today">{data.today_classes.map(c=>{const current=session?.occurrence_id===c.occurrence_id;return <TouchableOpacity key={c.occurrence_id} style={s.card} onPress={()=>navigation.navigate('Attendance')}><View style={s.row}><View style={s.grow}><Text style={s.code}>{c.course_code}</Text><Text style={s.cardTitle}>{c.course_name}</Text><Text style={s.meta}>{[c.start_time&&c.end_time?`${c.start_time}–${c.end_time}`:null,c.room].filter(Boolean).join(' · ')||'Time and room pending'}</Text></View><View style={s.stateCol}>{current?<Text style={[s.status,session.status==='open'&&s.live]}>{session.status==='open'?'Live now':'Ended'}</Text>:null}<Text style={s.status}>{attendanceLabel(c.attendance_status)}</Text></View></View></TouchableOpacity>})}{!data.today_classes.length?<Empty title="No classes today" text="Use this time to review upcoming work."/>:null}</Section>
+      <Section title="Attendance by course">{data.attendance_rates.map(r=><View key={r.course_id} style={s.card}><View style={s.row}><View style={s.grow}><Text style={s.cardTitle}>{r.course_code}</Text><Text style={s.meta}>{r.attended??0} of {r.total??0} sessions attended</Text></View><Text style={s.rate}>{r.rate==null?'—':`${Math.round(r.rate)}%`}</Text></View></View>)}{!data.attendance_rates.length?<Empty title="No attendance data yet" text="Rates appear after your first recorded session."/>:null}</Section>
+      <Section title="SPeCTRUM"><Text style={s.meta}>{data.moodle.available?`${isDashboardStale(data.moodle.refreshed_at)?'May be outdated · ':''}Updated ${formatDashboardTime(data.moodle.refreshed_at)}`:'SPeCTRUM data is unavailable'}</Text>{data.moodle.available?<><Text style={s.groupLabel}>Upcoming deadlines</Text>{data.moodle.deadlines.map(x=><TouchableOpacity key={`d-${x.id}`} style={s.card} disabled={!safeMoodleUrl(x.link)} onPress={()=>openMoodle(x.link)}><View style={s.row}><Ionicons name="calendar-outline" size={18} color={C.orangeDk}/><View style={s.grow}><Text style={s.cardTitle}>{x.title}</Text><Text style={s.meta}>{x.course_code} · Due {formatMoodleDate(x.date)}</Text></View>{safeMoodleUrl(x.link)?<Ionicons name="open-outline" size={16} color={C.primary}/>:null}</View></TouchableOpacity>)}{!data.moodle.deadlines.length?<Empty title="No upcoming deadlines"/>:null}<Text style={s.groupLabel}>Announcements</Text>{data.moodle.announcements.map(x=><TouchableOpacity key={`a-${x.id}`} style={s.card} disabled={!safeMoodleUrl(x.link)} onPress={()=>openMoodle(x.link)}><View style={s.row}><Ionicons name="megaphone-outline" size={18} color={C.primary}/><View style={s.grow}><Text style={s.cardTitle}>{x.title}</Text><Text style={s.meta}>{x.course_code} · {formatMoodleDate(x.date)}</Text></View>{safeMoodleUrl(x.link)?<Ionicons name="open-outline" size={16} color={C.primary}/>:null}</View></TouchableOpacity>)}{!data.moodle.announcements.length?<Empty title="No recent announcements"/>:null}</>:null}</Section>
+      <Section title="Enrolled classes">{state.classes.map(c=><TouchableOpacity key={c.id} style={s.card} onPress={()=>navigation.navigate('Attendance')}><View style={s.row}><View style={s.grow}><Text style={s.code}>{c.code}</Text><Text style={s.cardTitle}>{c.name}</Text></View><Ionicons name="chevron-forward" size={17} color={C.gray400}/></View></TouchableOpacity>)}</Section></>:null}<View style={{height:20}}/>
+  </ScrollView>
 }
-
-export default function Home({ navigation }) {
-  const { state, loadClasses } = useStudent()
-  const { classes, student } = state
-  const insets = useSafeAreaInsets()
-
-  useEffect(() => { loadClasses() }, [loadClasses])
-
-  const [refreshing, setRefreshing] = useState(false)
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true)
-    await loadClasses()
-    setRefreshing(false)
-  }, [loadClasses])
-
-  return (
-    <View style={styles.flex}>
-      <ScrollView
-        style={styles.flex}
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} colors={[C.primary]} />}
-      >
-        {/* Greeting banner */}
-        <LinearGradient
-          colors={['#0D47A1', '#1565C0', '#1976D2']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[styles.banner, { paddingTop: insets.top + 20 }]}
-        >
-          <Text style={styles.greetingText}>{greeting()}</Text>
-          <Text style={styles.greetingName}>{student?.name ?? '—'}</Text>
-          <Text style={styles.greetingSub}>
-            {classes.length > 0
-              ? `${classes.length} enrolled class${classes.length !== 1 ? 'es' : ''}`
-              : 'Loading classes…'}
-          </Text>
-        </LinearGradient>
-
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>My Classes</Text>
-        </View>
-
-        {classes.map(cls => (
-          <TouchableOpacity
-            key={cls.id}
-            style={styles.classCard}
-            activeOpacity={0.7}
-            onPress={() => navigation.navigate('Attendance')}
-          >
-            <View style={[styles.accent, { backgroundColor: cls.accentColor }]} />
-            <View style={styles.classBody}>
-              <View style={styles.codeRow}>
-                <Text style={styles.classCode}>{cls.code}</Text>
-                <Badge variant={cls.type === 'LECTURE' ? 'blue' : 'green'}>
-                  {cls.type === 'LECTURE' ? 'Lecture' : (cls.label ?? 'Tutorial')}
-                </Badge>
-              </View>
-              <Text style={styles.classTitle}>{cls.name}</Text>
-              {cls.venue ? (
-                <View style={styles.metaRow}>
-                  <Ionicons name="location-outline" size={12} color={C.textSub} />
-                  <Text style={styles.metaText}>{cls.venue}</Text>
-                </View>
-              ) : null}
-            </View>
-            <View style={styles.cardArrow}>
-              <Ionicons name="chevron-forward" size={20} color={C.gray400} />
-            </View>
-          </TouchableOpacity>
-        ))}
-
-        {classes.length === 0 && (
-          <View style={styles.empty}>
-            <Text style={styles.emptyText}>No enrolled classes found.</Text>
-          </View>
-        )}
-
-        <View style={{ height: 24 }} />
-      </ScrollView>
-    </View>
-  )
-}
-
-const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: C.bg },
-  banner: {
-    paddingHorizontal: 20,
-    paddingBottom: 28,
-  },
-  greetingText: {
-    fontSize: 14,
-    color: '#DBEAFE',
-    fontWeight: '500',
-  },
-  greetingName: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#fff',
-    marginTop: 4,
-  },
-  greetingSub: {
-    fontSize: 13,
-    color: '#BFDBFE',
-    marginTop: 6,
-  },
-  sectionHeader: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 8,
-  },
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: C.textHint,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-  },
-  classCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: C.card,
-    marginHorizontal: 16,
-    marginBottom: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: C.border,
-    overflow: 'hidden',
-  },
-  accent: {
-    width: 5,
-    alignSelf: 'stretch',
-  },
-  classBody: {
-    flex: 1,
-    paddingVertical: 14,
-    paddingLeft: 14,
-    paddingRight: 6,
-  },
-  codeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 4,
-  },
-  classCode: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: C.primary,
-  },
-  classTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: C.text,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 6,
-  },
-  metaText: {
-    fontSize: 12,
-    color: C.textSub,
-  },
-  cardArrow: {
-    justifyContent: 'center',
-    paddingRight: 14,
-    paddingLeft: 4,
-  },
-  empty: {
-    padding: 40,
-    alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: 14,
-    color: C.textSub,
-  },
-})
+const s=StyleSheet.create({page:{flex:1,backgroundColor:C.bg},content:{paddingHorizontal:16,paddingBottom:20},header:{flexDirection:'row',alignItems:'center',gap:12,marginBottom:16},grow:{flex:1},eyebrow:{fontSize:10,fontWeight:'800',letterSpacing:1,color:C.primary},title:{fontSize:23,fontWeight:'800',color:C.text,marginTop:3},meta:{fontSize:12,color:C.textSub,lineHeight:17,marginTop:3},bell:{width:44,height:44,borderRadius:12,backgroundColor:C.card,borderWidth:1,borderColor:C.border,alignItems:'center',justifyContent:'center'},badge:{position:'absolute',right:3,top:3,minWidth:16,height:16,borderRadius:8,backgroundColor:C.red,alignItems:'center',justifyContent:'center'},badgeText:{fontSize:9,fontWeight:'800',color:'#fff'},section:{fontSize:11,fontWeight:'800',letterSpacing:.8,textTransform:'uppercase',color:C.textHint,marginTop:11,marginBottom:8},groupLabel:{fontSize:12,fontWeight:'700',color:C.text,marginTop:12,marginBottom:6},card:{padding:14,borderWidth:1,borderColor:C.border,borderRadius:12,backgroundColor:C.card,marginBottom:8},row:{flexDirection:'row',alignItems:'center',gap:10},stateCol:{alignItems:'flex-end',gap:5},code:{fontSize:11,fontWeight:'800',color:C.primary,marginBottom:2},cardTitle:{fontSize:14,fontWeight:'700',color:C.text},status:{fontSize:10,fontWeight:'700',color:C.blueDk,backgroundColor:C.blueLt,padding:6,borderRadius:7},live:{color:C.greenDk,backgroundColor:C.greenLt},rate:{fontSize:20,fontWeight:'800',color:C.primary},notice:{flexDirection:'row',gap:9,padding:13,borderRadius:11,borderLeftWidth:4,marginBottom:8},urgent:{backgroundColor:C.redLt,borderLeftColor:C.red},important:{backgroundColor:C.orangeLt,borderLeftColor:C.orange},error:{flexDirection:'row',alignItems:'center',gap:10,padding:11,borderRadius:10,backgroundColor:C.redLt},errorText:{flex:1,fontSize:12,color:C.redDk},retry:{fontSize:12,fontWeight:'800',color:C.redDk}})

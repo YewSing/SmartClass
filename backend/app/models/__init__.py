@@ -13,3 +13,5 @@ from app.models.audit import AuditLog  # noqa: F401
 from app.models.face_review import FaceReviewEntry  # noqa: F401
 from app.models.knowledge import KbMaterial, KbChunk  # noqa: F401
 from app.models.ai_chat import ChatSession, ChatMessage  # noqa: F401
+from app.models.notification import Notification  # noqa: F401
+from app.models.dashboard_cache import DashboardCache  # noqa: F401

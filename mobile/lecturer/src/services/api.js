@@ -127,6 +127,23 @@ export const changePassword = async (current, next) => {
 
 export const logout = async () => { clearToken(); clearRefreshToken() }
 
+// Role dashboard and notification centre (M2)
+export const getDashboard = () => apiCall('GET', '/lecturer/dashboard')
+export const getNotifications = (beforeId = null) =>
+  apiCall('GET', `/notifications?limit=50${beforeId != null ? `&before_id=${beforeId}` : ''}`)
+export const getNotificationUnreadCount = async () => {
+  let before = null, count = 0
+  do {
+    const page = await getNotifications(before)
+    count += page.filter(note => !note.read_at).length
+    if (page.length < 50) return count
+    before = page[page.length - 1].id
+  } while (before != null)
+  return count
+}
+export const markNotificationRead = (id) => apiCall('POST', `/notifications/${id}/read`)
+export const markAllNotificationsRead = () => apiCall('POST', '/notifications/read-all')
+
 // ─── Classes ──────────────────────────────────────────────────────────────────
 
 // Moodle full names often start with the code ("WIA2005 Algorithm Design"), and screens show both

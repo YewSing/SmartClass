@@ -110,13 +110,27 @@ export default function Dashboard({ navigation }) {
   const { sessions, classes, allClasses, lecturer } = state
   const insets = useSafeAreaInsets()
   const [starting, setStarting] = useState(false)
+  const [dashboard, setDashboard] = useState(null)
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [dashboardError, setDashboardError] = useState('')
+  const loadDashboard = useCallback(async () => {
+    try {
+      const [summary, count] = await Promise.all([api.getDashboard(), api.getNotificationUnreadCount()])
+      setDashboard(summary)
+      setUnreadCount(count)
+      setDashboardError('')
+    }
+    catch { setDashboardError('Dashboard summary could not be refreshed. Last loaded information is kept on screen.') }
+  }, [])
 
   useEffect(() => {
     loadClasses()
     loadAllClasses()
+    loadDashboard()
   }, [])
   // The schedule opens and closes classes by itself, so re-read the sessions on every visit
   useFocusEffect(useCallback(() => { loadSessions() }, [loadSessions]))
+  useFocusEffect(useCallback(() => { loadDashboard() }, [loadDashboard]))
 
   // Face enrolments waiting for this lecturer (FR-113); a failed count just hides the banner
   const [pendingFaces, setPendingFaces] = useState(0)
@@ -128,9 +142,9 @@ export default function Dashboard({ navigation }) {
   const [refreshing, setRefreshing] = useState(false)
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
-    await Promise.all([loadClasses(), loadSessions(), loadAllClasses(), loadPendingFaces()])
+    await Promise.all([loadClasses(), loadSessions(), loadAllClasses(), loadPendingFaces(), loadDashboard()])
     setRefreshing(false)
-  }, [loadClasses, loadSessions, loadAllClasses, loadPendingFaces])
+  }, [loadClasses, loadSessions, loadAllClasses, loadPendingFaces, loadDashboard])
 
   const activeSession = sessions.find(s => s.open)
   const sessionOpen   = Boolean(activeSession)
@@ -173,8 +187,16 @@ export default function Dashboard({ navigation }) {
   const headerClassId = activeSession?.class_id ?? firstClass?.id ?? nextClass?.id
   const openClass = (classId) => navigation.navigate('ClassDetail', { classId })
 
+  const sessionRoom = classes.find(c => c.id === (activeSession?.class_id ?? firstClass?.id))?.room
+    ?? allClasses.find(c => c.id === (activeSession?.class_id ?? firstClass?.id))?.room ?? null
+
   const headerMeta = sessionOpen
-    ? [activeSession.time, activeSession.room].filter(Boolean).join(' · ')
+    ? [
+        activeSession.starts_at && activeSession.ends_at
+          ? `${activeSession.starts_at.slice(11, 16)}–${activeSession.ends_at.slice(11, 16)}`
+          : activeSession.time,
+        sessionRoom,
+      ].filter(Boolean).join(' · ')
     : firstClass
     ? [
         firstClass.day_of_week,
@@ -202,11 +224,18 @@ export default function Dashboard({ navigation }) {
           </View>
           <Text style={styles.brandName}>SmartClass</Text>
         </View>
-        <TouchableOpacity style={styles.profileBtn} accessibilityLabel="Profile" onPress={() => navigation.navigate('Profile')}>
-          <Text style={styles.profileInitials}>{lecturer?.initials ?? 'ME'}</Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity style={styles.bellBtn} accessibilityLabel="Notifications" testID="home-notifications" onPress={() => navigation.navigate('Notifications')}>
+            <Ionicons name="notifications-outline" size={20} color={C.text} />
+            {unreadCount ? <View style={styles.unreadBadge}><Text style={styles.unreadText}>{unreadCount > 9 ? '9+' : unreadCount}</Text></View> : null}
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.profileBtn} accessibilityLabel="Profile" onPress={() => navigation.navigate('Profile')}>
+            <Text style={styles.profileInitials}>{lecturer?.initials ?? 'ME'}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
+      {dashboardError ? <View style={styles.dashboardError}><Ionicons name="cloud-offline-outline" size={16} color={C.redDk}/><Text style={styles.dashboardErrorText}>{dashboardError}</Text></View> : null}
       {/* Dash header card */}
       <View style={styles.dashHeader}>
         <View style={styles.dashHeaderTop}>
@@ -312,18 +341,6 @@ export default function Dashboard({ navigation }) {
         )}
       </View>
 
-      {pendingFaces > 0 && (
-        <TouchableOpacity
-          style={styles.faceBanner}
-          testID="home-face-review"
-          onPress={() => navigation.navigate('FaceVerification')}
-        >
-          <Ionicons name="id-card-outline" size={18} color={C.orangeDk} />
-          <Text style={styles.faceBannerText}>{pendingLabel(pendingFaces)}</Text>
-          <Ionicons name="chevron-forward" size={16} color={C.orangeDk} />
-        </TouchableOpacity>
-      )}
-
       {sessionOpen && (
         <>
           {/* Attendance */}
@@ -344,7 +361,33 @@ export default function Dashboard({ navigation }) {
               <Text style={styles.cardFooterText}> Tap to view full attendance</Text>
             </View>
           </TouchableOpacity>
+        </>
+      )}
 
+      {dashboard?.notifications?.length ? <>
+        <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Priority notices</Text></View>
+        {dashboard.notifications.map(note => <TouchableOpacity key={note.id} style={[styles.priorityNotice, note.priority === 'urgent' ? styles.priorityUrgent : styles.priorityImportant]} onPress={() => navigation.navigate('Notifications')}><Ionicons name="alert-circle-outline" size={18} color={note.priority === 'urgent' ? C.redDk : C.orangeDk}/><View style={styles.tappableText}><Text style={styles.cardExtraTitle}>{note.title}</Text><Text style={styles.cardExtraMeta}>{note.message}</Text></View><Ionicons name="chevron-forward" size={15} color={C.textHint}/></TouchableOpacity>)}
+      </> : null}
+
+      {dashboard ? <>
+        <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Teaching insights</Text></View>
+        <View style={styles.card}><Text style={styles.cardExtraTitle}>Participation, quizzes and at-risk students</Text><Text style={styles.cardExtraText}>These insights are not available yet. Attendance remains live in the shared class session above.</Text></View>
+      </> : null}
+
+      {pendingFaces > 0 && (
+        <TouchableOpacity
+          style={styles.faceBanner}
+          testID="home-face-review"
+          onPress={() => navigation.navigate('FaceVerification')}
+        >
+          <Ionicons name="id-card-outline" size={18} color={C.orangeDk} />
+          <Text style={styles.faceBannerText}>{pendingLabel(pendingFaces)}</Text>
+          <Ionicons name="chevron-forward" size={16} color={C.orangeDk} />
+        </TouchableOpacity>
+      )}
+
+      {sessionOpen && (
+        <>
           {/* Quiz section */}
           <View style={[styles.sectionHeader, { paddingTop: 4 }]}>
             <Text style={styles.sectionTitle}>Quiz &amp; Poll</Text>
@@ -431,6 +474,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 14,
   },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  bellBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: C.card, borderWidth: 1, borderColor: C.border, alignItems: 'center', justifyContent: 'center' },
+  unreadBadge: { position: 'absolute', right: -3, top: -3, minWidth: 16, height: 16, borderRadius: 8, backgroundColor: C.red, alignItems: 'center', justifyContent: 'center' },
+  unreadText: { color: '#fff', fontSize: 9, fontWeight: '800' },
+  dashboardError: { flexDirection: 'row', gap: 8, padding: 11, borderRadius: 10, backgroundColor: C.redLt, marginBottom: 10 },
+  dashboardErrorText: { flex: 1, color: C.redDk, fontSize: 12 },
+  priorityNotice: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', padding: 13, borderRadius: 11, borderLeftWidth: 4, marginBottom: 8 },
+  priorityUrgent: { backgroundColor: C.redLt, borderLeftColor: C.red },
+  priorityImportant: { backgroundColor: C.orangeLt, borderLeftColor: C.orange },
   brand: {
     flexDirection: 'row',
     alignItems: 'center',

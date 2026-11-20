@@ -1,8 +1,8 @@
 """Notification hook for Module 2 (Dashboard & Notifications, Shino).
 
 Raise an event about a user (`users.id`) here; Module 2 replaces or wraps `emit` to deliver it by
-push, in-app or email. Until then `emit` only logs, and never the payload: it holds names and
-matric numbers (NFR-02 / PDPA).
+push, in-app or email. M2 persists in-app messages and logs only the event and recipient IDs;
+payloads can hold names and matric numbers (NFR-02 / PDPA).
 
 Events raised today:
 
@@ -22,11 +22,13 @@ log = logging.getLogger(__name__)
 
 async def emit(event: str, user_ids: Iterable[int], payload: dict) -> None:
     """Raise a notification event for `user_ids` (users.id). Module 2 replaces or wraps this to
-    deliver push / in-app / email. Until then it only logs. Never raises."""
+    deliver push / in-app / email. M2 now persists in-app feed entries. Never raises."""
     try:
         ids = sorted(set(user_ids))
         if not ids:
             return
         log.info("notify %s -> users %s", event, ids)
+        from app.services.notification_service import deliver
+        await deliver(event, ids, payload)
     except Exception:
         log.warning("notify failed for %s", event)
