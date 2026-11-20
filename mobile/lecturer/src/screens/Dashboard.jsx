@@ -14,6 +14,7 @@ import { pendingLabel } from '../services/faceReview'
 import { C } from '../theme'
 
 const DAY_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const EXTEND_MINUTES = 15
 
 function nowHHMM() {
   const n = new Date()
@@ -45,9 +46,66 @@ function nextLabel(c) {
   return `${when} · ${c.start_time}–${c.end_time}`
 }
 
+function SharedSessionControls({ session, onExtend, onEnd }) {
+  const [busy, setBusy] = useState(false)
+  const [confirmEnd, setConfirmEnd] = useState(false)
+
+  const run = async (fn) => {
+    setBusy(true)
+    try { await fn() } catch { /* toast shown in context */ } finally { setBusy(false); setConfirmEnd(false) }
+  }
+
+  if (confirmEnd) {
+    return (
+      <View style={styles.endConfirm} testID="home-session-end-confirmation">
+        <Text style={styles.endConfirmText}>
+          End the shared class session? Anyone not recorded is marked Absent and attendance is sent to SPeCTRUM. Future interaction features will follow this same session.
+        </Text>
+        <View style={styles.commandRow}>
+          <TouchableOpacity style={styles.commandSecondary} onPress={() => setConfirmEnd(false)} disabled={busy}>
+            <Text style={styles.commandSecondaryText}>Keep running</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.commandDanger, busy && styles.btnDisabled]}
+            testID="session-end-confirm"
+            onPress={() => run(() => onEnd(session.id))}
+            disabled={busy}
+          >
+            <Ionicons name="stop-circle-outline" size={15} color="#fff" />
+            <Text style={styles.commandFilledText}>{busy ? 'Ending…' : 'End now'}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    )
+  }
+
+  return (
+    <View style={styles.commandRow}>
+      <TouchableOpacity
+        style={[styles.commandSecondary, busy && styles.btnDisabled]}
+        testID="session-extend"
+        onPress={() => run(() => onExtend(session.id, EXTEND_MINUTES))}
+        disabled={busy}
+      >
+        <Ionicons name="add-circle-outline" size={15} color={C.primary} />
+        <Text style={styles.commandSecondaryText}>+{EXTEND_MINUTES} min</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.commandDanger, busy && styles.btnDisabled]}
+        testID="session-end"
+        onPress={() => setConfirmEnd(true)}
+        disabled={busy}
+      >
+        <Ionicons name="stop-circle-outline" size={15} color="#fff" />
+        <Text style={styles.commandFilledText}>End class</Text>
+      </TouchableOpacity>
+    </View>
+  )
+}
+
 export default function Dashboard({ navigation }) {
   const {
-    state, loadClasses, loadAllClasses, loadSessions, doOpenSession, selectSession,
+    state, loadClasses, loadAllClasses, loadSessions, doOpenSession, doExtendSession, doCloseSession, selectSession,
   } = useLecturer()
   const { sessions, classes, allClasses, lecturer } = state
   const insets = useSafeAreaInsets()
@@ -104,16 +162,20 @@ export default function Dashboard({ navigation }) {
   const badgeVariant = sessionOpen ? 'green' : firstClass ? 'yellow' : 'gray'
   const badgeText    = sessionOpen ? 'Session Open' : firstClass ? 'Class Ongoing' : 'No Class Now'
 
-  const headerTitle = firstClass
+  const headerTitle = sessionOpen
+    ? [activeSession.class_code, activeSession.class_name].filter(Boolean).join(' — ')
+    : firstClass
     ? `${firstClass.code} — ${firstClass.name}`
     : nextClass
       ? `${nextClass.code} — ${nextClass.name}`
       : 'No classes this week'
 
-  const headerClassId = firstClass?.id ?? nextClass?.id
+  const headerClassId = activeSession?.class_id ?? firstClass?.id ?? nextClass?.id
   const openClass = (classId) => navigation.navigate('ClassDetail', { classId })
 
-  const headerMeta = firstClass
+  const headerMeta = sessionOpen
+    ? [activeSession.time, activeSession.room].filter(Boolean).join(' · ')
+    : firstClass
     ? [
         firstClass.day_of_week,
         firstClass.start_time && firstClass.end_time
@@ -187,6 +249,25 @@ export default function Dashboard({ navigation }) {
             </Text>
           </TouchableOpacity>
         </View>
+
+        {sessionOpen ? (
+          <>
+            <View style={styles.sharedSessionStatus}>
+              <View style={styles.sharedStatusItem}>
+                <View style={[styles.statusDot, { backgroundColor: C.green }]} />
+                <Text style={styles.sharedStatusText}>Attendance live</Text>
+              </View>
+              <View style={styles.sharedStatusItem}>
+                <View style={[styles.statusDot, { backgroundColor: C.primary }]} />
+                <Text style={styles.sharedStatusText}>Interaction follows this session</Text>
+              </View>
+            </View>
+            <Text style={styles.sharedSessionHint}>Attendance is live. Interaction will use this same session when available.</Text>
+            <SharedSessionControls session={activeSession} onExtend={doExtendSession} onEnd={doCloseSession} />
+          </>
+        ) : firstClass ? (
+          <Text style={styles.sharedSessionHint}>Starting this class opens attendance; interaction will use the same session when available.</Text>
+        ) : null}
 
         {!sessionOpen && (
           <>
@@ -440,6 +521,39 @@ const styles = StyleSheet.create({
   btnDisabled: {
     opacity: 0.45,
   },
+  sharedSessionStatus: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 14,
+  },
+  sharedStatusItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: C.gray50,
+    borderRadius: 7,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  statusDot: { width: 7, height: 7, borderRadius: 4 },
+  sharedStatusText: { fontSize: 11, fontWeight: '700', color: C.text },
+  sharedSessionHint: { fontSize: 12, color: C.textSub, marginTop: 8, lineHeight: 17 },
+  commandRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  commandSecondary: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
+    borderWidth: 1, borderColor: C.primary, borderRadius: 8, paddingVertical: 9, backgroundColor: C.card,
+  },
+  commandSecondaryText: { color: C.primary, fontWeight: '700', fontSize: 12 },
+  commandDanger: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
+    borderRadius: 8, paddingVertical: 9, backgroundColor: C.red,
+  },
+  commandFilledText: { color: '#fff', fontWeight: '700', fontSize: 12 },
+  endConfirm: {
+    marginTop: 12, padding: 10, borderRadius: 9, backgroundColor: C.redLt,
+    borderWidth: 1, borderColor: C.red,
+  },
+  endConfirmText: { color: C.redDk, fontSize: 12, lineHeight: 18 },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',

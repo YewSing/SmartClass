@@ -16,8 +16,9 @@ The old isolated mock screens become a coherent “live teaching command centre�
 
 ## Work sequence
 
-- [ ] **S01 [UI] Shared class-session command card.** Depends on: existing M3 T38b.
+- [x] **S01 [UI] Shared class-session command card.** Depends on: existing M3 T38b.
   Done when: `mobile/lecturer` Dashboard top card handles Start now, +15 minutes, and End class (with the existing finalisation warning/confirmation); it states that attendance and interaction share this session; `AttendanceDetail` has no lifecycle controls; use existing LecturerContext session actions and preserve all attendance/sync behaviour. Add/adjust unit + Playwright/Maestro coverage for dashboard start/extend/end and absence of controls in attendance detail.
+  Status: complete — lecturer unit tests, Expo web export, and Playwright browser E2E pass.
 
 - [ ] **S02 [API] M2 notification foundation and dashboard reads.** Depends on: S01.
   Done when: additive notification model, event adapter around `notify.emit`, priority mapping, deduplication, read state, authenticated feed endpoints, and dashboard aggregates exist; M3 events from R1 work without edits to M3. Moodle announcements/deadlines are read-only sync data. Tests cover recipient isolation, priorities, read operations, and duplicate suppression.

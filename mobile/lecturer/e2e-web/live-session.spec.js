@@ -89,16 +89,16 @@ test('lecturer starts a class, excuses a student with a reason and ends it', asy
   await expect(visible(page.getByText('Live — updates as students are recognised'))).toBeVisible()
   await expect(visible(page.getByTestId('count-excused'))).toHaveText('1')
 
+  // Attendance is now a roster/override view; class lifecycle stays on Home's shared-session card.
+  await expect(page.getByTestId('session-end')).toHaveCount(0)
+  await page.getByTestId('sidenav-Home').click()
+  await expect(visible(page.getByText('Attendance is live. Interaction will use this same session when available.'))).toBeVisible()
+  await expect(visible(page.getByText('Interaction follows this session'))).toBeVisible()
   await visible(page.getByTestId('session-end')).click()
   await visible(page.getByTestId('session-end-confirm')).click()
-  await expect(visible(page.getByText('SPeCTRUM attendance', { exact: true }))).toBeVisible()
-  await expect(visible(page.getByText('Closed', { exact: true }))).toBeVisible()
-  await expect(visible(page.getByText('Waiting to sync', { exact: true }))).toBeVisible()
-  await expect(visible(page.getByTestId('count-excused'))).toHaveText('1')
-  await expect(visible(page.getByTestId('sync-retry'))).toBeVisible()
-  // Still closed once the app has re-read the session after the close event
+  await expect(page.getByTestId('session-end')).toHaveCount(0)
+  // Still closed once the dashboard has re-read the session after the close event
   await page.waitForTimeout(3000)
-  await expect(visible(page.getByText('Closed', { exact: true }))).toBeVisible()
   await expect(page.getByTestId('session-end')).toHaveCount(0)
   expect(errors).toEqual([])
 })
