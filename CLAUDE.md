@@ -103,8 +103,8 @@ All requirements and use case specs live in `docs/`. Read the relevant FRs/UCs b
 ```
 docs/
 ├── requirements/
-│   ├── functional-requirements.md      # FR-1xx (M1), FR-3xx (M3), FR-4xx (M4), FR-8xx (M8); M2/5/6/7 placeholders
-│   └── non-functional-requirements.md  # NFR-01–NFR-30 (M1/3/4/8 + system-wide)
+│   ├── functional-requirements.md      # FR-1xx (M1), FR-2xx (M2), FR-3xx (M3), FR-4xx (M4), FR-5xx (M5), FR-6xx (M6), FR-7xx (M7), FR-8xx (M8)
+│   └── non-functional-requirements.md  # NFR-01–NFR-52 (all modules + system-wide, grouped by category)
 ├── product-walkthrough.md              # plain-language picture of the finished plan; Yew Sing's expectations
 ├── use-cases/
 │   ├── UC-M1-user-management.md
