@@ -94,6 +94,7 @@ def test_round_runs_shino_next_task_and_commits(loop):
     args = (repo / ".fake-args-1").read_text()
     assert "/shino-next-task" in args
     assert "Bash(git push*)" in args  # the session itself may not push
+    assert "Bash(git commit *)" in args  # ... but it may commit (a refused commit stalled S10)
     assert "progress-shino.md" in result.stdout  # the summary points at Shino's log
 
 
