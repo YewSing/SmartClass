@@ -55,9 +55,22 @@ export default function Home({ navigation }) {
   const { state, loadClasses } = useStudent(), insets = useSafeAreaInsets()
   const [data, setData] = useState(null), [unread, setUnread] = useState(0), [loading, setLoading] = useState(true), [refreshing, setRefreshing] = useState(false), [error, setError] = useState('')
   const load = useCallback(async (refresh = false) => { refresh ? setRefreshing(true) : setLoading(true); setError(''); try { const [summary, count] = await Promise.all([api.getDashboard(), api.getNotificationUnreadCount()]); setData(summary); setUnread(count) } catch { setError('Dashboard could not be refreshed. Last loaded information is kept on screen.') } finally { setLoading(false); setRefreshing(false) } }, [])
-  useEffect(() => { loadClasses() }, [loadClasses]); useFocusEffect(useCallback(() => { load() }, [load]))
+  useEffect(() => { loadClasses() }, [loadClasses])
+  useFocusEffect(useCallback(() => {
+    let active = true
+    load()
+    // Discovery covers any enrolled occurrence, including a class opened after Home loaded.
+    const timer = setInterval(async () => {
+      try {
+        const summary = await api.getDashboard()
+        if (active) setData(summary)
+      } catch { /* keep the last snapshot until the next refresh */ }
+    }, 15000)
+    return () => { active = false; clearInterval(timer) }
+  }, [load]))
   const openMoodle = async value => { const url = safeMoodleUrl(value); if (url && await Linking.canOpenURL(url)) await Linking.openURL(url) }
   const notices = data?.notifications ?? [], session = data?.session
+  const liveSessions = data?.live_sessions ?? []
 
   // Enrolled classes are grouped by course, not by weekly occurrence —
   // each course keeps every occurrence (Lecture / Tutorial) with its own time and room
@@ -100,6 +113,27 @@ export default function Home({ navigation }) {
     {loading && !data ? <ActivityIndicator style={{ marginTop: 50 }} color={C.primary}/> : null}
     {data ? <>
       {notices.length ? <Section title="Priority notices" accent={ACCENTS.today}>{notices.map(n => <TouchableOpacity key={n.id} style={[s.notice, n.priority === 'urgent' ? s.urgent : s.important]} onPress={() => navigation.navigate('Notifications')}><Ionicons name="alert-circle-outline" size={19} color={n.priority === 'urgent' ? C.redDk : C.orangeDk}/><View style={s.grow}><Text style={s.cardTitle}>{n.title}</Text><Text style={s.meta}>{n.message}</Text></View></TouchableOpacity>)}</Section> : null}
+
+      {liveSessions.length ? <Section title="Live classes" accent={ACCENTS.today}>
+        {liveSessions.map(live => <TouchableOpacity
+          key={live.id}
+          testID={`join-live-class-${live.course_code}`}
+          accessibilityRole="button"
+          accessibilityLabel={`Join live class ${live.course_code}`}
+          style={[s.card, s.cardAccent(C.green)]}
+          onPress={() => navigation.navigate('LiveClass', {
+            sessionId: live.id, courseCode: live.course_code, courseName: live.course_name,
+          })}
+        >
+          <View style={s.row}>
+            <View style={s.grow}>
+              <Text style={[s.code, { color: C.greenDk }]}>{live.course_code} · Live now</Text>
+              <Text style={s.cardTitle}>{live.course_name}</Text>
+            </View>
+            <Text style={[s.chip, s.chipLive]}>Join</Text>
+          </View>
+        </TouchableOpacity>)}
+      </Section> : null}
 
       <Section title="Today’s classes" accent={ACCENTS.today}>
         {data.today_classes.map(c => { const t = todayState(c); const chip = c.attendance_status ? statusChip(c.attendance_status) : null; return <TouchableOpacity key={c.occurrence_id} style={[s.card, s.cardAccent(ACCENTS.today.soft)]} onPress={() => openClass(c)}>

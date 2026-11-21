@@ -26,15 +26,18 @@ The old isolated mock screens become a coherent “live teaching command centre�
   Verified: `scripts/check.sh` passed (709 backend tests plus both mobile unit suites); live Moodle login/snapshot test passed; follow-up reviewer PASS. Runtime migrations and Moodle allowlist applied.
 
 - [x] **S03 [UI] M2 role dashboards and notification centre.** Depends on: S02.
-  Done when: student and lecturer dashboards satisfy FR-201/202/203/208/209 with real API state, the lecturer dashboard retains S01 as its top card, and a notification feed as bell icon(student/lecturer mobile) or in side bar (lecturer web) supports mark-one/all-read plus deep links. Old dashboard placeholders and mock data are removed only after replacement flows pass mobile and lecturer-web E2E.
+  Done when: student and lecturer dashboards satisfy FR-201/202/203/208/209 with real API state, the lecturer dashboard retains S01 as its top card, and a notification feed as bell icon supports mark-one/all-read plus deep links. Old dashboard placeholders and mock data are removed only after replacement flows pass mobile and lecturer-web E2E.
   Lecturer scope clarification: Dashboard keeps the top shared-session command card and live attendance state; it intentionally does not add a Today list or a closed-session attendance summary. Closed records remain in Attendance.
   Verified: student 65/65 and lecturer 55/55 unit tests, both Expo web exports, focused lecturer Playwright dashboard/notification/live-session flows, full `scripts/check.sh` (709 backend tests plus both mobile suites), and independent design evaluation PASS after refinement.
 
-- [ ] **S04 [API] M5 interaction session and real-time events.** Depends on: S01, S02.
+- [x] **S04 [API] M5 interaction session and real-time events.** Depends on: S01, S02.
   Done when: Shino-owned models/services/routes implement M5 keyed to `attendance_session_id`, access checks, anonymous-question privacy, questions/upvotes/moderation, polls, quick answers, reactions, confusion cooldown/spike, and websocket updates. Interaction is unavailable whenever the linked attendance session is not open and all live interaction closes when it closes. Tests cover lifecycle coupling, privacy, enrolment, cooldowns, live events, and audit events.
+  Verified: 15 focused interaction tests, 81 interaction/session/access regressions, final reviewer PASS, and full `scripts/check.sh` exit 0 (724 backend tests plus both mobile suites). Development migration `f5a6b7c8d9e0` applied; legacy tables preserved.
 
-- [ ] **S05 [UI] M5 lecturer moderation and student live participation.** Depends on: S04.
+- [x] **S05 [UI] M5 lecturer moderation and student live participation.** Depends on: S04.
   Done when: the shared live-session view exposes interaction controls/status from Dashboard, lecturers can moderate and read aggregates, students can ask/vote/react/respond/report confusion, and each state updates in real time. Post-session summary is read-only. Add lecturer web and both mobile E2E coverage.
+  Verification clarification: Shino waived emulator testing for this task. Use the seeded lecturer Playwright flow, both app unit suites and web exports, responsive visual review, and the repository check.
+  Verified: seeded lecturer Playwright passed, student 70/70 and lecturer 55/55 unit tests passed, both web exports passed, independent responsive review passed, and full `scripts/check.sh` exited 0 with 724 backend tests.
 
 - [ ] **S06 [API] M6 quiz authoring, delivery, and result interfaces.** Depends on: S02, M8 retrieval interface.
   Done when: quiz persistence, AI draft/review/publish workflow, game and graded attempts/timers, autosave, grading/result release, leaderboards, and M7/M8 read interfaces meet FR-601–621. Generation calls only `app.services.kb.retrieval_api.search`; quiz attempts and server timers are authoritative. Tests include permissions, timer expiry, one graded attempt, anonymous/public-result boundaries, and interfaces.

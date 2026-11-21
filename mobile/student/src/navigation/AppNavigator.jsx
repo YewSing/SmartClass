@@ -27,6 +27,7 @@ import FaceEnrolment from '../screens/FaceEnrolment'
 import FaceConsent from '../screens/FaceConsent'
 import FaceCapture from '../screens/FaceCapture'
 import Notifications from '../screens/Notifications'
+import LiveClass from '../screens/LiveClass'
 
 const Stack = createNativeStackNavigator()
 const Tab   = createBottomTabNavigator()
@@ -38,6 +39,7 @@ function HomeStack() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="HomeScreen" component={Home} />
       <Stack.Screen name="Notifications" component={Notifications} />
+      <Stack.Screen name="LiveClass" component={LiveClass} />
       <Stack.Screen name="Profile" component={ProfileStack} />
     </Stack.Navigator>
   )

@@ -341,6 +341,17 @@ export default function AttendanceDetail({ navigation }) {
         }
       />
 
+      {session?.status === 'closed' ? (
+        <TouchableOpacity
+          accessibilityRole="button"
+          testID="attendance-interaction-summary"
+          style={styles.interactionSummary}
+          onPress={() => navigation.navigate('ClassInteraction', { sessionId: session.id, className: session.class_name })}
+        >
+          <Text style={styles.interactionSummaryText}>View classroom interaction summary</Text>
+          <Ionicons name="chevron-forward" size={16} color={C.primary} />
+        </TouchableOpacity>
+      ) : null}
       <SectionList
         sections={sections}
         keyExtractor={s => s.id}
@@ -364,6 +375,11 @@ export default function AttendanceDetail({ navigation }) {
 }
 
 const styles = StyleSheet.create({
+  interactionSummary: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    minHeight: 44, paddingHorizontal: 16, backgroundColor: C.blueLt,
+  },
+  interactionSummaryText: { flexShrink: 1, color: C.blueDk, fontWeight: '700' },
   flex: { flex: 1, backgroundColor: C.bg },
   list: { flex: 1 },
   exportBtn: {

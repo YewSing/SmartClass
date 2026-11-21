@@ -1,5 +1,10 @@
 export function notificationRoute(link) {
   if (typeof link !== 'string' || !link.startsWith('/') || link.startsWith('//')) return null
+  const interaction = link.match(/^\/interaction\/sessions\/([1-9]\d*)$/)
+  if (interaction) {
+    const sessionId = Number(interaction[1])
+    return Number.isSafeInteger(sessionId) ? { screen: 'LiveClass', params: { sessionId } } : null
+  }
   const attendance = link.match(/^\/attendance\/sessions\/(\d+)$/)
   if (attendance) return { tab: 'Attendance' }
   if (link === '/attendance') return { tab: 'Attendance' }

@@ -137,6 +137,69 @@ Yew Sing did not edit `analytics.py` because M7 belongs to Shino.
 
 ---
 
+## Module 5 — shared-session interaction API and Module 7 reads (FR-501–FR-518)
+
+The student dashboard exposes `live_sessions`, a list of open sessions for the student's
+enrolled occurrences. Each entry includes `id`, `occurrence_id`, `status`, `ends_at`,
+`course_code`, and `course_name`. Question projections have an `upvoted_by_me` flag for
+the caller's own vote.
+
+All M5 state is keyed directly to `attendance_sessions.id`. There is no second class-session
+lifecycle: live writes are accepted only while `AttendanceSession.status == "open"`; `closed`,
+`needs_confirmation`, `cancelled`, and legacy sessions without an occurrence are read-only or
+unavailable. Lecturer access is checked against the session occurrence, and student access requires
+an enrolment in that exact occurrence.
+
+### HTTP surface
+
+Authenticated routes use `/interaction/sessions/{attendance_session_id}`:
+
+- `GET /` returns the caller-safe interaction state; `GET /questions`, `/polls`, and
+  `/quick-prompts` return the bounded collections separately.
+- Students can `POST /questions`, `PUT /questions/{id}/upvote`,
+  `PUT /polls/{id}/vote`, `POST /quick-prompts/{id}/answers`, `POST /reactions`, and
+  `POST /confusion` while the shared class session is open.
+- Lecturers can `PATCH /questions/{id}`, create/start/close polls, control result visibility,
+  create/close quick prompts, read quick answers, and read aggregate `/signals`.
+- `GET /summary` is lecturer-only and becomes available after the class session is no longer open.
+
+Polls have 2–6 unique options and one current ballot per student; a student may change it until the
+poll closes. Reactions and confusion presses use server-side configurable cooldowns. A confusion
+spike uses distinct enrolled students within the configured window/share and raises
+`confusion.spike` through `app.services.notify` only when the threshold is crossed.
+
+### Privacy boundary
+
+Anonymous-question authors are stored only for participation accounting. Their identity is omitted
+from every lecturer/student response and websocket event. Hidden questions are absent from student
+responses. Confusion is exposed to lecturers only as aggregate counts and minute buckets. Students
+cannot list classmates' quick answers or raw participation events.
+
+### Live channel
+
+`/interaction/sessions/{id}/ws?token=<access JWT>` accepts only the assigned lecturer or a student
+enrolled in that occurrence. It is separate from the lecturer-only attendance websocket, so its
+payloads never contain the attendance roster. Messages are privacy-safe invalidations (for example
+`interaction.questions_changed`, `interaction.polls_changed`, and
+`interaction.signals_changed`); clients re-read the authorized HTTP projection. Manual and scheduled
+class closure publish `interaction.session_status` after commit with only session ID and status.
+
+### Module 7 read interface
+
+**File:** `backend/app/services/interaction_read.py`
+
+```python
+async def student_counts(db, occurrence_id: int) -> list[dict]
+async def class_totals(db, occurrence_id: int) -> dict
+```
+
+`student_counts` returns per-student question, distinct-poll, quick-answer, reaction, and confusion
+counts. It deliberately excludes anonymous questions from individual figures (FR-713).
+`class_totals` may count anonymous questions but returns no author identity. These functions do not
+perform authorization; M7 must first enforce course ownership.
+
+---
+
 ## Module 8 → Module 6 — course knowledge base retrieval (FR-814)
 
 **File:** `backend/app/services/kb/retrieval_api.py`

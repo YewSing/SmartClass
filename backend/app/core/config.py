@@ -1,3 +1,4 @@
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -87,6 +88,13 @@ class Settings(BaseSettings):
     SESSION_SCHEDULER_INTERVAL_SECONDS: int = 60  # 0 disables the schedule job (the E2E backends turn it off)
     SESSION_DEFAULT_MINUTES: int = 120            # length of a "start now" class that has no schedule
     ATTENDANCE_LATE_AFTER_MINUTES: int = 15       # FR-302: a first recognition later than this after the effective start is Late
+
+    # Module 5 live interaction. Admission is still gated by AttendanceSession.status.
+    INTERACTION_REACTION_COOLDOWN_SECONDS: int = Field(default=5, ge=1)
+    INTERACTION_CONFUSION_COOLDOWN_SECONDS: int = Field(default=120, ge=1)
+    INTERACTION_CONFUSION_WINDOW_SECONDS: int = Field(default=120, ge=1)
+    INTERACTION_CONFUSION_SHARE: float = Field(default=0.25, gt=0, le=1)
+    INTERACTION_QUICK_ANSWER_MAX_LENGTH: int = Field(default=280, ge=1, le=1000)
 
     # Moodle (UM SPeCTRUM simulation) – source of courses and materials
     MOODLE_URL: str = "http://localhost:8080"

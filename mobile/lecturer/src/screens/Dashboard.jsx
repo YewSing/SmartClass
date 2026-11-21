@@ -59,7 +59,7 @@ function SharedSessionControls({ session, onExtend, onEnd }) {
     return (
       <View style={styles.endConfirm} testID="home-session-end-confirmation">
         <Text style={styles.endConfirmText}>
-          End the shared class session? Anyone not recorded is marked Absent and attendance is sent to SPeCTRUM. Future interaction features will follow this same session.
+          End the shared class session? Classroom interaction closes, anyone without a record is marked Absent, and attendance is sent to SPeCTRUM.
         </Text>
         <View style={styles.commandRow}>
           <TouchableOpacity style={styles.commandSecondary} onPress={() => setConfirmEnd(false)} disabled={busy}>
@@ -288,14 +288,25 @@ export default function Dashboard({ navigation }) {
               </View>
               <View style={styles.sharedStatusItem}>
                 <View style={[styles.statusDot, { backgroundColor: C.primary }]} />
-                <Text style={styles.sharedStatusText}>Interaction follows this session</Text>
+                <Text style={styles.sharedStatusText}>Interaction live</Text>
               </View>
             </View>
-            <Text style={styles.sharedSessionHint}>Attendance is live. Interaction will use this same session when available.</Text>
+            <TouchableOpacity
+              accessibilityRole="button"
+              testID="home-interaction"
+              style={styles.interactionLink}
+              onPress={() => navigation.navigate('ClassInteraction', {
+                sessionId: activeSession.id,
+                className: activeSession.class_name,
+              })}
+            >
+              <Ionicons name="chatbubbles-outline" size={16} color={C.primary} />
+              <Text style={styles.interactionLinkText}>Open classroom interaction</Text>
+            </TouchableOpacity>
             <SharedSessionControls session={activeSession} onExtend={doExtendSession} onEnd={doCloseSession} />
           </>
         ) : firstClass ? (
-          <Text style={styles.sharedSessionHint}>Starting this class opens attendance; interaction will use the same session when available.</Text>
+          <Text style={styles.sharedSessionHint}>Starting this class opens attendance and classroom interaction.</Text>
         ) : null}
 
         {!sessionOpen && (
@@ -444,6 +455,8 @@ export default function Dashboard({ navigation }) {
 }
 
 const styles = StyleSheet.create({
+  interactionLink: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start' },
+  interactionLinkText: { color: C.blueDk, fontSize: 14, fontWeight: '700' },
   flex: { flex: 1, backgroundColor: C.bg },
   content: {
     backgroundColor: C.bg,

@@ -12,6 +12,7 @@ class ConnectionManager:
     def __init__(self) -> None:
         self._connections: dict[int, set[WebSocket]] = {}
         self._user_connections: dict[int, set[WebSocket]] = {}
+        self._interaction_connections: dict[tuple[int, str], set[WebSocket]] = {}
 
     async def connect(self, session_id: int, ws: WebSocket) -> None:
         await ws.accept()
@@ -46,6 +47,31 @@ class ConnectionManager:
                 dead.add(ws)
         for ws in dead:
             self._user_connections.get(user_id, set()).discard(ws)
+
+    async def connect_interaction(self, session_id: int, role: str, ws: WebSocket) -> None:
+        await ws.accept()
+        self._interaction_connections.setdefault((session_id, role), set()).add(ws)
+
+    def disconnect_interaction(self, session_id: int, role: str, ws: WebSocket) -> None:
+        self._interaction_connections.get((session_id, role), set()).discard(ws)
+
+    async def broadcast_interaction(
+        self,
+        session_id: int,
+        payload: dict,
+        *,
+        roles: tuple[str, ...] = ("lecturer", "student"),
+    ) -> None:
+        for role in roles:
+            key = (session_id, role)
+            dead: set[WebSocket] = set()
+            for ws in list(self._interaction_connections.get(key, set())):
+                try:
+                    await ws.send_json(payload)
+                except Exception:
+                    dead.add(ws)
+            for ws in dead:
+                self._interaction_connections.get(key, set()).discard(ws)
 
 
 manager = ConnectionManager()

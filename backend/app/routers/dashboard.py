@@ -42,6 +42,7 @@ async def dashboard(db, user):
                         "course_code": moodle_ids[item["course_id"]].code}
                        for item in (cache.data.get(kind, []) if cache else []) if item["course_id"] in moodle_ids]
     ids = [o.id for o in occurrences]
+    occurrence_by_id = {o.id: o for o in occurrences}
     sessions = (await db.scalars(select(AttendanceSession).where(AttendanceSession.occurrence_id.in_(ids))
                                .order_by(AttendanceSession.id.desc()))).all()
     current = next((s for s in sessions if s.status == "open"), None)
@@ -77,6 +78,12 @@ async def dashboard(db, user):
                      "counts": await get_session_counts(latest.id, db) if user.role == "lecturer" else None}
                     if latest else None),
         "attendance_rates": [asdict(rate) for rate in await student_rates(db, student.id)] if student else [],
+        **({"live_sessions": [
+            {"id": s.id, "occurrence_id": s.occurrence_id, "status": s.status, "ends_at": s.ends_at,
+             "course_code": occurrence_by_id[s.occurrence_id].course.code,
+             "course_name": occurrence_by_id[s.occurrence_id].course.name}
+            for s in sessions if s.status == "open"
+        ]} if user.role == "student" else {}),
         "notifications": [NotificationOut.model_validate(n) for n in notes],
         "participation": None, "quizzes": None, "at_risk": None,
         "moodle": moodle,

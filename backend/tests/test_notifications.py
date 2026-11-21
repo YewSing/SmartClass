@@ -84,6 +84,10 @@ async def test_dashboard_student_status_and_lecturer_counts(classroom, student_c
     body = (await student_client.get("/student/me/dashboard")).json()
     assert body["session"]["attendance_status"] == "not_recorded"
     assert body["session"]["counts"] is None
+    assert body["live_sessions"] == [{
+        "id": session.id, "occurrence_id": occurrence.id, "status": "open", "ends_at": None,
+        "course_code": "CS101", "course_name": "Intro to Testing",
+    }]
     assert body["today_classes"][0]["attendance_status"] == "not_recorded"
     db_session.add(AttendanceRecord(session_id=session.id, student_id=classroom["student_ids"][0], status="late"))
     await db_session.commit()

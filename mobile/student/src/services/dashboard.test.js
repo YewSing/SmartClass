@@ -11,6 +11,13 @@ test('routes only known app-relative notification links', () => {
 
 test('formats attendance state for people', () => assert.equal(attendanceLabel('not_recorded'), 'Not recorded'))
 
+test('routes classroom notices by canonical session ID', () => {
+  assert.deepEqual(notificationRoute('/interaction/sessions/23'), { screen: 'LiveClass', params: { sessionId: 23 } })
+  assert.equal(notificationRoute('/interaction/sessions/0'), null)
+  assert.equal(notificationRoute('/interaction/sessions/9999999999999999'), null)
+  assert.equal(notificationRoute('/interaction/sessions/23?next=elsewhere'), null)
+})
+
 test('Moodle epoch dates and links are handled safely', () => {
   assert.notEqual(formatMoodleDate(1735689600), 'Date unavailable')
   assert.equal(formatMoodleDate(null), 'Date unavailable')

@@ -15,3 +15,11 @@ from app.models.knowledge import KbMaterial, KbChunk  # noqa: F401
 from app.models.ai_chat import ChatSession, ChatMessage  # noqa: F401
 from app.models.notification import Notification  # noqa: F401
 from app.models.dashboard_cache import DashboardCache  # noqa: F401
+from app.models.interaction import (  # noqa: F401
+    InteractionQuestion,
+    InteractionPoll,
+    InteractionBallot,
+    InteractionQuickPrompt,
+    InteractionQuickAnswer,
+    InteractionEvent,
+)

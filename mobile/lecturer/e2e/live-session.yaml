@@ -136,9 +136,20 @@ appId: host.exp.exponent
     id: "session-end"
 - tapOn: "Home"
 - extendedWaitUntil:
-    visible: "Attendance is live. Interaction will use this same session when available."
+    visible: "Interaction live"
     timeout: 15000
-- assertVisible: "Interaction follows this session"
+- tapOn:
+    id: "home-interaction"
+- extendedWaitUntil:
+    visible: "Classroom interaction"
+    timeout: 15000
+# Single-page interaction dashboard: all sections live on one page
+- scrollUntilVisible:
+    element: "Confusion timeline"
+    direction: DOWN
+    timeout: 10000
+- assertVisible: "Confusion timeline"
+- back
 
 # End the class: confirm, then it is closed and queued for SPeCTRUM
 - tapOn:

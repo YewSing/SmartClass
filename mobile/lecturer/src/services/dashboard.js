@@ -1,6 +1,11 @@
 export function notificationRoute(link) {
   if (typeof link !== 'string' || !link.startsWith('/') || link.startsWith('//')) return null
   if (link === '/face-verification') return { screen: 'FaceVerification' }
+  const interactionLink = link.match(/^\/interaction\/sessions\/([1-9]\d*)$/)
+  if (interactionLink) {
+    const sessionId = Number(interactionLink[1])
+    if (Number.isSafeInteger(sessionId)) return { screen: 'ClassInteraction', params: { sessionId } }
+  }
   if (/^\/quizzes\/\d+$/.test(link)) return { tab: 'Quiz', screen: 'QuizList' }
   const classLink = link.match(/^\/classes\/(\d+)$/)
   if (classLink) return { screen: 'ClassDetail', params: { classId: Number(classLink[1]) } }

@@ -27,6 +27,28 @@ Companion to [plan-shino.md](plan-shino.md). It follows the structure and eviden
 - Full Playwright run reached 28/30 before two stale assertions failed: one expected the removed Today heading and one assumed no other scheduled session could be open after closing the test session. Those assertions were corrected to match the clarified UI and to verify the exact close response; all affected focused specs then passed. Maestro was not run because no emulator/Expo Go session was available.
 - Next task: S04 M5 interaction API tied to `attendance_session_id`. No S04 implementation was started in this session.
 
+## S04 — shared-session interaction API — 2026-11-21 [x]
+
+- Added additive M5 persistence for questions, polls/current ballots, quick prompts/answers, and an append-only participation event stream. Migration `f5a6b7c8d9e0` follows the current M2 head and uses `m5_*` tables so it does not overwrite or delete legacy unversioned `interaction_*` tables already present in the development database; no M3 table or lifecycle field was changed.
+- Every live mutation locks and rechecks the canonical `AttendanceSession`, then enforces the assigned lecturer or exact occurrence enrolment. Any non-open attendance status rejects new questions, votes, answers, reactions, and confusion presses.
+- Anonymous question authors and confusion pressers remain stored for private accounting but are removed from lecturer/student projections, live events, notification payloads, and audit values. Question hide changes are audited.
+- Added poll start/close/result visibility, mutable ballots until close, quick answers, configurable reaction/confusion cooldowns, distinct-student confusion spike detection, M2 `poll.started` / `confusion.spike` delivery, lecturer aggregates and post-class summaries.
+- Added a role-separated interaction websocket. It emits only after-commit invalidations and a minimal class-status projection; manual close and scheduler close/needs-confirmation both end interaction without changing M3 close semantics.
+- Added `interaction_read.student_counts` / `class_totals` for future M7. Individual figures exclude anonymous questions; class totals may include them without author identity.
+- Final verification: 15 focused migration-backed interaction tests and 81 interaction/session/schedule/notification/access regression tests pass. Post-fix `scripts/check.sh` exited 0: test guard, Ruff, 724 backend tests (43 external/E2E deselected), and both mobile unit suites. Development database is at migration `f5a6b7c8d9e0`.
+- Review findings resolved and follow-up reviewer PASS: anonymous-only submissions no longer reveal authors through changes in individual M7 rows; spike counts and recipients follow current enrolment/lecturer assignment; unpublished polls remain private; websocket roles use current database authority; subscription and locked bootstrap handle concurrent close; both manual and scheduled opening transitions publish status.
+- Next: S05 lecturer moderation and student live participation UI. S04 introduces the API; app interaction screens and their browser/mobile E2E belong to S05.
+
+## S05 — classroom interaction screens — 2026-11-21 [x]
+
+- The lecturer enters interaction from the dashboard session card and can moderate questions, run polls, collect quick answers, and see aggregate feedback. A closed attendance record links to the read-only interaction summary.
+- Students can enter an open enrolled class from Home or a supported notification and participate in questions, polls, quick answers, reactions, and confusion feedback. Both apps subscribe to the shared session's state and disable writes when it ends.
+- The student dashboard adds scoped `live_sessions` and M5 questions add a viewer-only `upvoted_by_me` indicator. These additions use the existing schema and are recorded in `docs/interfaces.md`.
+- Final verification: 22 focused backend tests, 70 student unit tests, 55 lecturer unit tests, both Expo web exports, and the seeded lecturer Playwright flow passed. Independent review passed after fixing student refresh handling. The lecturer tabs now announce selected state. The full repository check exited 0 with Ruff, test guard, 724 backend tests (43 external/E2E deselected), both app suites, and lecturer web export.
+- Shino subsequently waived emulator testing. The Android attempt stopped during Maestro driver installation with an integrity verification timeout before app assertions ran. The test emulator was shut down and the runner performed fixture cleanup. Native execution remains unverified. Completion uses the browser flow, unit suites, web exports, responsive review, and repository check.
+- Responsive screenshots at 375, 768, and 1440 pixels were reviewed using synthetic classroom data. Review artifacts are in `C:/Users/User/AppData/Local/Temp/smartclass-s05-gguyaglf.vtb`. The frontend-design review identified and resolved student request starvation during bursts of invalidations and stale lifecycle handling after reconnect.
+- S06 quiz authoring and assessment APIs are the next task.
+
 ## Agreed shared-session behaviour
 
 | Lecturer action on Dashboard top card | Attendance (M3) | Interaction (M5) |

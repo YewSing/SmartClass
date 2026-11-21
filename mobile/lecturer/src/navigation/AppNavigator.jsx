@@ -22,6 +22,7 @@ import Profile from '../screens/Profile'
 import ClassDetail from '../screens/ClassDetail'
 import AttendanceSessions from '../screens/AttendanceSessions'
 import AttendanceDetail from '../screens/AttendanceDetail'
+import ClassInteraction from '../screens/ClassInteraction'
 import QuizList from '../screens/QuizList'
 import CreateQuiz from '../screens/CreateQuiz'
 import LiveResults from '../screens/LiveResults'
@@ -60,6 +61,7 @@ function HomeStack() {
       <Stack.Screen name="Profile"   component={Profile} />
       <Stack.Screen name="ClassDetail" component={ClassDetail} />
       <Stack.Screen name="AttendanceDetail" component={AttendanceDetail} />
+      <Stack.Screen name="ClassInteraction" component={ClassInteraction} />
       <Stack.Screen name="FaceVerification" component={FaceVerification} />
       <Stack.Screen name="Notifications" component={Notifications} />
     </Stack.Navigator>
@@ -71,6 +73,7 @@ function AttendanceStack() {
     <Stack.Navigator screenOptions={useStackOptions()}>
       <Stack.Screen name="AttendanceSessions" component={AttendanceSessions} />
       <Stack.Screen name="AttendanceDetail"   component={AttendanceDetail} />
+      <Stack.Screen name="ClassInteraction" component={ClassInteraction} />
     </Stack.Navigator>
   )
 }

@@ -8,4 +8,7 @@ test('routes only known lecturer notification links', () => {
   assert.equal(notificationRoute('/attendance/sessions/12'), null)
   assert.equal(notificationRoute('https://evil.example'), null)
   assert.equal(notificationRoute('/quiz/1'), null)
+  assert.deepEqual(notificationRoute('/interaction/sessions/42'), { screen: 'ClassInteraction', params: { sessionId: 42 } })
+  assert.equal(notificationRoute('/interaction/sessions/0'), null)
+  assert.equal(notificationRoute('/interaction/sessions/42/summary'), null)
 })

@@ -233,6 +233,17 @@ async def session_scheduler_loop() -> None:
                     "final": True,
                     "moodle_sync_status": sync_status,
                 })
+                await manager.broadcast_interaction(sid, {
+                    "event": "interaction.session_status",
+                    "attendance_session_id": sid,
+                    "status": "closed" if sid in report.closed else "needs_confirmation",
+                })
+            for sid in report.opened:
+                await manager.broadcast_interaction(sid, {
+                    "event": "interaction.session_status",
+                    "attendance_session_id": sid,
+                    "status": "open",
+                })
         except asyncio.CancelledError:
             raise
         except Exception as exc:

@@ -40,6 +40,8 @@ function Sheet({ visible, onClose, children }) {
   )
 }
 
+export { Sheet }
+
 // ─── Reusable sub-components ──────────────────────────────────────────────────
 
 function ModalTitle({ children }) {
