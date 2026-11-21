@@ -166,7 +166,8 @@ async def emit(event: str, user_ids: Iterable[int], payload: dict) -> None
 ```
 
 Yew Sing's modules raise a notification event here and Module 2 delivers it (push, in-app or
-email). Until M2 replaces or wraps `emit`, it **logs only**. It **never raises**, so a
+email). Since S10 it **stores an in-app notification** per recipient (`m2_notifications`, see
+"Module 2 notification events" below); push/email follow in S13/S14. It **never raises**, so a
 notification can never fail the request that raised it. `user_ids` are `users.id`, not
 `students.id` or `lecturers.id`. The payload is never logged: it holds names and matric numbers
 (NFR-02 / PDPA).
@@ -179,6 +180,38 @@ notification can never fail the request that raised it. `user_ids` are `users.id
 
 `attendance.flagged` and `face_enrolment.pending_review` / `face_enrolment.result` (R1 in
 `docs/requests-for-shino.md`) are not raised through `emit` yet.
+
+### Module 2 notification events (S10, Shino)
+
+`emit` calls `app/services/notifications/store.py::deliver`, which opens its **own** DB session, so
+call `emit` after your commit (an `after_commit` callback). The event registry is
+`app/services/notifications/registry.py`:
+
+- The **priority** comes from the event type only (FR-207); a `priority` in the payload is ignored.
+- `title`, `message`, `link` in the payload override the defaults (FR-205). Otherwise they are
+  filled from the payload fields below; a missing field falls back to fixed text (link: none).
+- `link` must be an app-relative path (`/quizzes/7`); external URLs, `//`, `..`, schemes or odd
+  characters are rejected and **nothing is stored** (logged as `UnsafeLink`).
+- **De-duplication (FR-216):** same event + recipient + subject inside the event's window is
+  dropped. Without the subject fields, identical title/message/link count as the same subject.
+- Unknown events and unknown recipients are logged and skipped. Only the rendered title,
+  message and link are stored, never the payload.
+
+| Event | Priority | Payload fields used | Subject | Window |
+|---|---|---|---|---|
+| `attendance.recorded` | general | `session_id`, `course_code`, `status` | `session_id` | 24 h |
+| `attendance.flagged` | important | `session_id`, `course_code`, `flag_id` | `flag_id` | 24 h |
+| `face_enrolment.pending_review` | important | `enrolment_id` | `enrolment_id` | 24 h |
+| `face_enrolment.result` | important | `enrolment_id`, `status` | `enrolment_id` + `status` | 24 h |
+| `quiz.published` | important | `quiz_id`, `quiz_title`, `course_code` | `quiz_id` | 24 h |
+| `quiz.deadline_reminder` | urgent | `quiz_id`, `quiz_title`, `remaining`, `reminder` | `quiz_id` + `reminder` | 3 d |
+| `quiz.graded` | important | `quiz_id`, `quiz_title` | `quiz_id` | 24 h |
+| `game.started` | urgent | `game_id`, `quiz_title`, `course_code` | `game_id` | 6 h |
+| `poll.started` | general | `poll_id`, `attendance_session_id`, `course_code` | `poll_id` | 6 h |
+| `confusion.spike` | urgent | `attendance_session_id`, `spike_id`, `course_code` | session + `spike_id` | 6 h |
+| `at_risk.alert` | important | `alert_id`, `course_id`, `course_code` | `alert_id` | 30 d |
+| `moodle.deadline_reminder` | important | `moodle_event_id`, `title`, `course_code`, `remaining`, `reminder` | event + `reminder` | 3 d |
+| `announcement.posted` | important | `announcement_id`, `title`, `message` | `announcement_id` | 24 h |
 
 ### Live channels (until M2)
 

@@ -36,7 +36,7 @@ Run the loop with `/shino-run-plan [rounds]` (or `bash scripts/shino/run-tasks.s
 
 ## 1. Module 2 — Dashboard and Notifications
 
-- [ ] **S10 [API] Notification store and event interface (FR-205, FR-206, FR-207, FR-216).** Depends on: S04.
+- [x] **S10 [API] Notification store and event interface (FR-205, FR-206, FR-207, FR-216).** Depends on: S04.
   Done when: `m2_notifications` (recipient user, event, priority, title, message, link, subject key, read_at, created_at) with migration; `app/services/notifications/` has an event registry mapping every FR-206 event to its priority, default title/message and app-relative link; `notify.emit(event, user_ids, payload)` persists through it (an additive change to `notify.py` as agreed in R1; existing callers unchanged); unknown events are logged, not raised; duplicates by (event, recipient, subject, window) are dropped; unsafe/external links are rejected. Tests: each FR-206 event maps to a priority, dedup within/after the window, `attendance.recorded` from M3 lands without editing M3, payload never stored raw.
 - [ ] **S11 [API] Feed and read state (FR-208, FR-209).** Depends on: S10.
   Done when: `GET /notifications` (newest first, cursor pagination, unread count), `GET /notifications/priority` (unread urgent+important for the dashboard), `POST /notifications/{id}/read`, `POST /notifications/read-all`; a user never sees or marks another user's notification (404). Tests for ordering, pagination, counts, isolation.
@@ -63,7 +63,7 @@ Run the loop with `/shino-run-plan [rounds]` (or `bash scripts/shino/run-tasks.s
 ## 2. Module 5 — Classroom Interaction
 
 - [ ] **S30 [OPUS] [API] Interaction session tied to the class session (FR-501, FR-502).** Depends on: S21.
-  Done when: `m5_interaction_sessions` keyed to `attendance_session_id`; the teaching lecturer can open/close interaction only while the attendance session is `open`; it is treated as closed the moment the attendance session is not `open` (checked on every write, under a row lock), and a background sweep closes it within 30 s for clients; only enrolled students and the teaching lecturer can join (403 otherwise). No M3 code changes. Tests: lifecycle, closing class closes interaction, access matrix.
+  Done when: `m5_interaction_sessions` keyed to `attendance_session_id`; the interaction is open/close  only follow the attendance session; it is treated as closed the moment the attendance session is not `open` (checked on every write, under a row lock), and a background sweep closes it within 30 s for clients; only enrolled students and the teaching lecturer can join (403 otherwise). No M3 code changes. Tests: lifecycle, closing class closes interaction, access matrix.
 - [ ] **S31 [API] Live questions (FR-503–FR-506).** Depends on: S30.
   Done when: students ask (optionally anonymous), upvote once, list by votes then time; the lecturer marks answered, pins, hides (hide audited, NFR-06); anonymous identity appears in no response, event or audit value. Tests including the anonymity check on every response shape.
 - [ ] **S32 [API] Polls (FR-507–FR-509).** Depends on: S30.
