@@ -48,22 +48,26 @@ if [ -n "$(git status --porcelain -- ../mobile/lecturer/src ../mobile/lecturer/A
   rm -rf "$out"
 fi
 
-# ── live LLM suite (T82): run at most once per KB code state ──────────────────
-# A round that changes app/services/kb/ (or a prompt) runs `pytest -m live` once; the
-# hash of that directory is stored in .claude/.live-pass so the Stop hook and the loop
-# script (which call check.sh several times) don't burn the daily quota. If the
-# provider's daily quota is exhausted the live tests skip with LLM_QUOTA and we report
+# ── live LLM suite (T82): run at most once per AI code state ──────────────────
+# A round that changes app/services/kb/ or app/services/quiz/ (M6 prompts, S03) runs
+# `pytest -m live` once; the hash of those directories is stored in .claude/.live-pass so
+# the Stop hook and the loop script (which call check.sh several times) don't burn the
+# daily quota. New untracked files there count as a change too. If the provider's daily
+# quota is exhausted the live tests skip with LLM_QUOTA and we report
 # "LIVE TESTS PENDING (quota)" instead of failing the round.
+live_dirs=(app/services/kb app/services/quiz)
 live_hash() {
   python -c "import hashlib, pathlib; h=hashlib.sha256(); \
-    [h.update(p.read_bytes()) for p in sorted(pathlib.Path('app/services/kb').rglob('*.py'))]; \
+    [h.update(p.read_bytes()) for d in ('app/services/kb', 'app/services/quiz') \
+     for p in sorted(pathlib.Path(d).rglob('*.py'))]; \
     print(h.hexdigest())"
 }
 passfile="../.claude/.live-pass"
 base="${SMARTCLASS_BASE:-HEAD}"
-kb_changed="$(git diff --name-only "$base" -- app/services/kb | grep -c . || true)"
-if [ "$kb_changed" -gt 0 ] && [ "$(live_hash)" != "$(cat "$passfile" 2>/dev/null || true)" ]; then
-  echo "== live LLM tests (kb changed)"
+ai_changed="$( { git diff --name-only "$base" -- "${live_dirs[@]}" 2>/dev/null || true; \
+  git ls-files --others --exclude-standard -- "${live_dirs[@]}"; } | grep -c . || true)"
+if [ "$ai_changed" -gt 0 ] && [ "$(live_hash)" != "$(cat "$passfile" 2>/dev/null || true)" ]; then
+  echo "== live LLM tests (kb/quiz changed)"
   # -rs prints the skip reasons, so "LLM_QUOTA" shows up in the summary when quota is gone
   # "|| rc=$?" keeps set -e from exiting here before the output is printed
   rc=0; live_out="$(python -m pytest -m live -q -rs -p no:cacheprovider 2>&1)" || rc=$?
