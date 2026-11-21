@@ -10,6 +10,9 @@ Yew Sing's log is [PROGRESS.md](PROGRESS.md); never edit it. Test removals need 
 ## Next
 <!-- Follow-up ideas found during tasks that are out of the current task's scope. -->
 
+- LOOP (2026-11-21): S02's post-commit `check.sh` failed only in the live LLM suite, which ran because S02 restored `app/services/kb/integrations.py` (now identical to `origin/main`). All failures were Yew Sing's assistant test answering "general" instead of "course" for an in-syllabus question (5/28, then 2/28 on re-run): model variance, not S02. Rounds after S02 don't touch `kb/`, so it doesn't re-trigger. Mention it to Yew Sing.
+- LOOP (2026-11-21): `scripts/check.sh` now caches a pass inside the loop (`.claude/.check-pass`, fingerprint = round base + code tree), so the Stop hook and post-commit runs on unchanged code take seconds. Test: `backend/tests/test_check_cache.py`.
+
 ### Requests for Yew Sing
 <!-- Interface gaps in M1/M3/M4/M8 that a task needed. Copy each to docs/requests-for-shino.md style when sending. -->
 

@@ -4,6 +4,33 @@
 # triggered separately below, at most once per KB code state (see T82).
 set -euo pipefail
 cd "$(dirname "$0")/../backend"
+
+# ── pass cache (task loop only) ────────────────────────────────────────────────
+# In a loop round check.sh runs several times on the same code (the session, the Stop hook,
+# the loop script after the commit). When it already passed on exactly this code and round
+# base, say so and stop. Fingerprint = round base + tree of the code on disk (tracked and
+# untracked, minus plan/progress files and .claude/), built in a throwaway index.
+fingerprint() {
+  local idx root; idx=$(mktemp); root=$(git rev-parse --show-toplevel)
+  cp "$root/.git/index" "$idx" 2>/dev/null || true
+  (
+    cd "$root"
+    export GIT_INDEX_FILE="$idx"
+    git add -A . > /dev/null 2>&1
+    git rm -r -q --cached --ignore-unmatch -- PLAN.md PROGRESS.md plan-shino.md progress-shino.md .claude > /dev/null 2>&1
+    echo "${SMARTCLASS_BASE:-HEAD} $(git write-tree)"
+  )
+  rm -f "$idx"
+}
+pass_stamp="../.claude/.check-pass"
+fp=""
+if [ "${SMARTCLASS_LOOP:-}" = "1" ]; then
+  fp="$(fingerprint || true)"
+  if [ -n "$fp" ] && [ "$fp" = "$(cat "$pass_stamp" 2>/dev/null || true)" ]; then
+    echo "== check.sh already passed on this exact code (cached; edit any code file to re-run)"
+    exit 0
+  fi
+fi
 echo "== test guard"
 python ../scripts/test_guard.py
 echo "== ruff"
@@ -51,3 +78,6 @@ if [ "$kb_changed" -gt 0 ] && [ "$(live_hash)" != "$(cat "$passfile" 2>/dev/null
     exit 1
   fi
 fi
+
+# Record the pass for the cache above (only reached when every check passed).
+if [ -n "$fp" ]; then mkdir -p ../.claude && echo "$fp" > "$pass_stamp"; fi
