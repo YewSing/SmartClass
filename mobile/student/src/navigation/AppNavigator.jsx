@@ -28,6 +28,8 @@ import FaceConsent from '../screens/FaceConsent'
 import FaceCapture from '../screens/FaceCapture'
 import Notifications from '../screens/Notifications'
 import LiveClass from '../screens/LiveClass'
+import QuizList from '../screens/QuizList'
+import QuizAttempt from '../screens/QuizAttempt'
 
 const Stack = createNativeStackNavigator()
 const Tab   = createBottomTabNavigator()
@@ -40,6 +42,8 @@ function HomeStack() {
       <Stack.Screen name="HomeScreen" component={Home} />
       <Stack.Screen name="Notifications" component={Notifications} />
       <Stack.Screen name="LiveClass" component={LiveClass} />
+      <Stack.Screen name="QuizList" component={QuizList} />
+      <Stack.Screen name="QuizAttempt" component={QuizAttempt} />
       <Stack.Screen name="Profile" component={ProfileStack} />
     </Stack.Navigator>
   )

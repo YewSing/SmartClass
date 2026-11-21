@@ -23,3 +23,4 @@ from app.models.interaction import (  # noqa: F401
     InteractionQuickAnswer,
     InteractionEvent,
 )
+from app.models.quiz import Quiz, QuizAttempt  # noqa: F401

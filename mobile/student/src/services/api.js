@@ -68,6 +68,15 @@ export const getNotificationUnreadCount = async () => {
 export const markNotificationRead = (id) => apiCall('POST', `/notifications/${id}/read`)
 export const markAllNotificationsRead = () => apiCall('POST', '/notifications/read-all')
 
+// Module 6: quizzes are delivered by the server; answers are autosaved per question.
+export const getQuizzes = () => apiCall('GET', '/quizzes')
+export const startQuizAttempt = id => apiCall('POST', `/quizzes/${id}/attempts`)
+export const saveQuizAnswer = (quizId, attemptId, index, answer) =>
+  apiCall('PUT', `/quizzes/${quizId}/attempts/${attemptId}/answers/${index}`, { answer })
+export const submitQuizAttempt = (quizId, attemptId) => apiCall('POST', `/quizzes/${quizId}/attempts/${attemptId}/submit`)
+export const getQuizResult = id => apiCall('GET', `/quizzes/${id}/results/me`)
+export const getGameLeaderboard = id => apiCall('GET', `/quizzes/${id}/leaderboard`)
+
 // ─── Classes ──────────────────────────────────────────────────────────────────
 
 export const getEnrolledClasses = async () => {

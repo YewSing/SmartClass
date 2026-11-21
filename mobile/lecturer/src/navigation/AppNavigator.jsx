@@ -25,9 +25,6 @@ import AttendanceDetail from '../screens/AttendanceDetail'
 import ClassInteraction from '../screens/ClassInteraction'
 import QuizList from '../screens/QuizList'
 import CreateQuiz from '../screens/CreateQuiz'
-import LiveResults from '../screens/LiveResults'
-import ResultsClosed from '../screens/ResultsClosed'
-import Breakdown from '../screens/Breakdown'
 import Analytics from '../screens/Analytics'
 import FaceVerification from '../screens/FaceVerification'
 import AdminAccounts from '../screens/AdminAccounts'
@@ -83,9 +80,6 @@ function QuizStack() {
     <Stack.Navigator screenOptions={useStackOptions()}>
       <Stack.Screen name="QuizList"     component={QuizList} />
       <Stack.Screen name="CreateQuiz"    component={CreateQuiz} />
-      <Stack.Screen name="LiveResults"   component={LiveResults} />
-      <Stack.Screen name="ResultsClosed" component={ResultsClosed} />
-      <Stack.Screen name="Breakdown"     component={Breakdown} />
     </Stack.Navigator>
   )
 }

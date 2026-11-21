@@ -7,6 +7,7 @@ export function notificationRoute(link) {
   }
   const attendance = link.match(/^\/attendance\/sessions\/(\d+)$/)
   if (attendance) return { tab: 'Attendance' }
+  if (/^\/quizzes\/\d+$/.test(link)) return { screen: 'QuizList' }
   if (link === '/attendance') return { tab: 'Attendance' }
   return null
 }

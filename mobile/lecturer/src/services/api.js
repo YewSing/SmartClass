@@ -1,10 +1,7 @@
 import { apiCall, apiCallRaw, getToken, setToken, clearToken, setRefreshToken, clearRefreshToken, BASE } from './client'
 import { saveCsv } from './saveCsv'
 import { dayMonth, hhmm, minutesBetween, rosterStatus, cleanReason } from './attendance'
-import {
-  QUIZZES, BREAKDOWN_ROWS,
-  ANALYTICS_PAR_BARS, ANALYTICS_PAR_LABELS,
-} from '../data/mockData'
+import { ANALYTICS_PAR_BARS, ANALYTICS_PAR_LABELS } from '../data/mockData'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -415,14 +412,14 @@ export const getBeforeClass = async (courseId) =>
 
 // ─── Mocked (Module 3/4 — quiz) ────────────────────────
 
-const delay = (ms) => new Promise(res => setTimeout(res, ms))
-
-export const getQuizzes        = async (_id)  => { await delay(300); return QUIZZES }
-export const createQuiz        = async (data) => { await delay(400); return { id: `q${Date.now()}`, ...data, status: 'draft' } }
-export const pushQuiz          = async (_id)  => { await delay(300); return { success: true } }
-export const closeQuiz         = async (_id)  => { await delay(300); return { success: true } }
-export const getBreakdown      = async (_id)  => { await delay(300); return BREAKDOWN_ROWS }
-export const resetConfusion    = async ()     => { await delay(300); return { success: true } }
+export const getQuizzes = () => apiCall('GET', '/quizzes')
+export const createQuiz = data => apiCall('POST', '/quizzes', data)
+export const draftQuiz = data => apiCall('POST', '/quizzes/draft', data)
+export const updateQuiz = (id, data) => apiCall('PATCH', `/quizzes/${id}`, data)
+export const publishQuiz = id => apiCall('POST', `/quizzes/${id}/publish`)
+export const startQuiz = id => apiCall('POST', `/quizzes/${id}/start`)
+export const nextQuizQuestion = id => apiCall('POST', `/quizzes/${id}/next`)
+export const closeQuiz = id => apiCall('POST', `/quizzes/${id}/close`)
 
 // Module 5 interaction adapters for the live-control screen.
 const interactionPath = (sessionId, suffix = '') => `/interaction/sessions/${sessionId}${suffix}`
