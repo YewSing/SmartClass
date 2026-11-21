@@ -22,10 +22,8 @@ import Profile from '../screens/Profile'
 import ClassDetail from '../screens/ClassDetail'
 import AttendanceSessions from '../screens/AttendanceSessions'
 import AttendanceDetail from '../screens/AttendanceDetail'
-import ClassInteraction from '../screens/ClassInteraction'
-import QuizList from '../screens/QuizList'
-import CreateQuiz from '../screens/CreateQuiz'
-import Analytics from '../screens/Analytics'
+import AnalyticsHome from '../screens/AnalyticsHome'
+import ComingSoon from '../components/ComingSoon'
 import FaceVerification from '../screens/FaceVerification'
 import AdminAccounts from '../screens/AdminAccounts'
 import AdminAudit from '../screens/AdminAudit'
@@ -35,7 +33,6 @@ import AdminDevices from '../screens/AdminDevices'
 import LecturerAssistant from '../screens/LecturerAssistant'
 import LecturerAsk from '../screens/LecturerAsk'
 import BeforeClass from '../screens/BeforeClass'
-import Notifications from '../screens/Notifications'
 
 const Stack = createNativeStackNavigator()
 const Tab   = createBottomTabNavigator()
@@ -58,9 +55,7 @@ function HomeStack() {
       <Stack.Screen name="Profile"   component={Profile} />
       <Stack.Screen name="ClassDetail" component={ClassDetail} />
       <Stack.Screen name="AttendanceDetail" component={AttendanceDetail} />
-      <Stack.Screen name="ClassInteraction" component={ClassInteraction} />
       <Stack.Screen name="FaceVerification" component={FaceVerification} />
-      <Stack.Screen name="Notifications" component={Notifications} />
     </Stack.Navigator>
   )
 }
@@ -70,16 +65,19 @@ function AttendanceStack() {
     <Stack.Navigator screenOptions={useStackOptions()}>
       <Stack.Screen name="AttendanceSessions" component={AttendanceSessions} />
       <Stack.Screen name="AttendanceDetail"   component={AttendanceDetail} />
-      <Stack.Screen name="ClassInteraction" component={ClassInteraction} />
     </Stack.Navigator>
   )
+}
+
+// Quizzes (Module 6) are being rebuilt (plan-shino.md S02)
+function QuizHome() {
+  return <ComingSoon title="Quizzes" icon="help-circle-outline" />
 }
 
 function QuizStack() {
   return (
     <Stack.Navigator screenOptions={useStackOptions()}>
-      <Stack.Screen name="QuizList"     component={QuizList} />
-      <Stack.Screen name="CreateQuiz"    component={CreateQuiz} />
+      <Stack.Screen name="QuizHome" component={QuizHome} />
     </Stack.Navigator>
   )
 }
@@ -87,7 +85,7 @@ function QuizStack() {
 function AnalyticsStack() {
   return (
     <Stack.Navigator screenOptions={useStackOptions()}>
-      <Stack.Screen name="AnalyticsScreen" component={Analytics} />
+      <Stack.Screen name="AnalyticsScreen" component={AnalyticsHome} />
     </Stack.Navigator>
   )
 }
@@ -116,7 +114,7 @@ const TAB_ICONS = {
 const TAB_ROOTS = {
   Home:       'Dashboard',
   Attendance: 'AttendanceSessions',
-  Quiz:       'QuizList',
+  Quiz:       'QuizHome',
   Assistant:  'LecturerAssistant',
   Analytics:  'AnalyticsScreen',
 }

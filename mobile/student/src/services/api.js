@@ -1,7 +1,6 @@
 import { apiCall, apiUpload, setToken, clearToken, setRefreshToken, clearRefreshToken } from './client'
 import { enrolmentParts } from './faceEnrolment'
 import { toCourseView } from './attendance'
-import { PART_SUMMARY, PARTICIPATION_GROUPS, SESSION_PERFS } from '../data/mockData'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -50,32 +49,6 @@ export const getStudent = async () => {
 
 
 export const logout = async () => { clearToken(); clearRefreshToken() }
-
-// Role dashboard and notification centre (M2)
-export const getDashboard = () => apiCall('GET', '/student/me/dashboard')
-export const getNotifications = (beforeId = null) =>
-  apiCall('GET', `/notifications?limit=50${beforeId != null ? `&before_id=${beforeId}` : ''}`)
-export const getNotificationUnreadCount = async () => {
-  let before = null, count = 0
-  do {
-    const page = await getNotifications(before)
-    count += page.filter(note => !note.read_at).length
-    if (page.length < 50) return count
-    before = page[page.length - 1].id
-  } while (before != null)
-  return count
-}
-export const markNotificationRead = (id) => apiCall('POST', `/notifications/${id}/read`)
-export const markAllNotificationsRead = () => apiCall('POST', '/notifications/read-all')
-
-// Module 6: quizzes are delivered by the server; answers are autosaved per question.
-export const getQuizzes = () => apiCall('GET', '/quizzes')
-export const startQuizAttempt = id => apiCall('POST', `/quizzes/${id}/attempts`)
-export const saveQuizAnswer = (quizId, attemptId, index, answer) =>
-  apiCall('PUT', `/quizzes/${quizId}/attempts/${attemptId}/answers/${index}`, { answer })
-export const submitQuizAttempt = (quizId, attemptId) => apiCall('POST', `/quizzes/${quizId}/attempts/${attemptId}/submit`)
-export const getQuizResult = id => apiCall('GET', `/quizzes/${id}/results/me`)
-export const getGameLeaderboard = id => apiCall('GET', `/quizzes/${id}/leaderboard`)
 
 // ─── Classes ──────────────────────────────────────────────────────────────────
 
@@ -176,60 +149,3 @@ export const submitFaceEnrolment = (selfies, card, submitAnyway = false) =>
     for (const [name, value] of enrolmentParts(selfies, card, submitAnyway)) form.append(name, value)
     return form
   })
-
-// ─── Mocked (Module 3/4 — participation/quiz)─────────────────────────────────
-
-const delay = (ms) => new Promise(res => setTimeout(res, ms))
-
-export const getParticipationSummary = async () => { await delay(200); return PART_SUMMARY }
-export const getParticipationGroups  = async () => { await delay(300); return PARTICIPATION_GROUPS }
-export const getSessionPerf = async (perfKey) => { await delay(200); return SESSION_PERFS[perfKey] ?? null }
-export const sendPasswordReset = async () => { await delay(400); return { success: true } }
-
-// Module 5 live-class adapters.  These keep the screen focused on one active
-// lecturer prompt/poll while using the current interaction-session contract.
-const interactionPath = (sessionId, suffix = '') => `/interaction/sessions/${sessionId}${suffix}`
-const optionRows = (poll) => (poll?.options ?? []).map((option_text, id) => ({
-  id,
-  option_text,
-  votes: poll.results?.option_counts?.[id] ?? 0,
-}))
-const activeLast = (items) => [...items].reverse().find(item => item.status === 'open') ?? null
-
-export const getOpenInteractions = async () => [] // LiveClass is entered from the live session on Home.
-export const getInteractionState = async (sessionId) => {
-  const state = await apiCall('GET', interactionPath(sessionId))
-  const sourcePoll = activeLast(state.polls ?? [])
-  const sourcePrompt = activeLast(state.quick_prompts ?? [])
-  return {
-    ...state,
-    current_poll: sourcePoll && {
-      ...sourcePoll,
-      question: sourcePoll.prompt,
-      is_open: sourcePoll.status === 'open',
-      options: optionRows(sourcePoll),
-      my_option_id: sourcePoll.my_option_indexes?.[0] ?? null,
-    },
-    live_question: sourcePrompt && {
-      ...sourcePrompt,
-      question: sourcePrompt.prompt,
-      is_active: sourcePrompt.status === 'open',
-      my_response: sourcePrompt.answered_by_me ? 'Response sent' : null,
-    },
-    my_questions: state.questions?.filter(question => question.is_mine) ?? [],
-    idu_distinct_students: 0,
-    idu_has_signal: false,
-  }
-}
-export const askInteractionQuestion = (sessionId, body) =>
-  apiCall('POST', interactionPath(sessionId, '/questions'), body)
-export const respondToLiveQuestion = (sessionId, promptId, text) =>
-  apiCall('POST', interactionPath(sessionId, `/quick-prompts/${promptId}/answers`), { text })
-export const voteInteractionPoll = (pollId, optionId, sessionId) => {
-  if (!Number.isSafeInteger(sessionId)) throw new Error('Live poll session is unavailable.')
-  return apiCall('PUT', interactionPath(sessionId, `/polls/${pollId}/vote`), { option_indexes: [Number(optionId)] })
-}
-export const sendInteractionReaction = (sessionId, kind) =>
-  apiCall('POST', interactionPath(sessionId, '/reactions'), { kind })
-export const sendInteractionIDU = (sessionId) =>
-  apiCall('POST', interactionPath(sessionId, '/confusion'), {})

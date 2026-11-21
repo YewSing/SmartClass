@@ -20,8 +20,6 @@ const initialState = {
   selectedSession: null,
   students: [],
   flags: [],
-  analytics: null,
-  analyticsLoading: false,
   modal: null,
   toasts: [],
   loading: false,
@@ -78,10 +76,6 @@ function reducer(state, action) {
     case 'UPSERT_FLAG':
       if (action.payload.session_id !== state.selectedSession?.id) return state
       return { ...state, flags: upsertFlag(state.flags, action.payload) }
-    case 'SET_ANALYTICS':
-      return { ...state, analytics: action.payload, analyticsLoading: false }
-    case 'SET_ANALYTICS_LOADING':
-      return { ...state, analyticsLoading: action.payload }
     case 'UPDATE_STUDENT': {
       // payload: { session_id, record_id, student_id, status, detected_at?, overridden }
       // Only the roster on screen changes; an update for another session is ignored.
@@ -307,17 +301,6 @@ export function LecturerProvider({ children }) {
     dispatch({ type: 'SET_SELECTED_SESSION', payload: session })
   }, [])
 
-  const loadAnalytics = useCallback(async (occurrenceId, dateParams = {}) => {
-    dispatch({ type: 'SET_ANALYTICS_LOADING', payload: true })
-    try {
-      const data = await api.getAnalytics(occurrenceId, dateParams)
-      dispatch({ type: 'SET_ANALYTICS', payload: data })
-    } catch (e) {
-      dispatch({ type: 'SET_ANALYTICS_LOADING', payload: false })
-      showToast(e.message, 'error')
-    }
-  }, [showToast])
-
   const exportCsv = useCallback(async ({ scope, id, filename, dateParams = {} }) => {
     try {
       const message = scope === 'session'
@@ -465,7 +448,6 @@ export function LecturerProvider({ children }) {
     doRejectFlag,
     overrideStudent,
     selectSession,
-    loadAnalytics,
     exportCsv,
   }
 

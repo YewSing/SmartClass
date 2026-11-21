@@ -66,10 +66,6 @@ test('desktop: login reaches the dashboard with side navigation and no sideways 
   await signInLocal(page)
   await expect(page.getByTestId('sidenav-Home')).toBeVisible()
   await expect(visible(page.getByTestId('home-start-now').or(page.getByTestId('home-live-session')))).toBeVisible()
-  await expect(page.getByTestId('home-notifications')).toBeVisible()
-  const sessionCardBox = await page.getByTestId('home-class-card').boundingBox()
-  const followingSectionBox = await visible(page.getByText('Teaching insights', { exact: true })).boundingBox()
-  expect(sessionCardBox.y).toBeLessThan(followingSectionBox.y)
   expect(await horizontalOverflow(page)).toEqual([])
 
   // Side navigation instead of bottom tabs; content in a centred column.
@@ -87,15 +83,6 @@ test('desktop: login reaches the dashboard with side navigation and no sideways 
   expect(Math.max(...xs)).toBeGreaterThanOrEqual(232 + 40)
 
   expect(errors).toEqual([])
-})
-
-test('desktop: notification centre opens from the dashboard', async ({ page }) => {
-  await login(page)
-  await page.getByTestId('home-notifications').click()
-  await expect(page.getByText('Notifications', { exact: true })).toBeVisible()
-  await expect(page.getByText(/unread$/)).toBeVisible()
-  await page.getByLabel('Back').click()
-  await expect(page.getByTestId('home-notifications')).toBeVisible()
 })
 
 test('desktop: every screen and dialog opens without a runtime error', async ({ page }) => {
@@ -120,28 +107,15 @@ test('desktop: every screen and dialog opens without a runtime error', async ({ 
     await visible(page.getByLabel('Back')).click()
   }
 
-  // Quiz (UI mock): list → create → live results → closed results → breakdown
+  // Quiz: being rebuilt (plan-shino.md S02), so a "Coming soon" placeholder
   await page.getByTestId('sidenav-Quiz').click()
-  await expectScreen(page, 'Quiz & Poll')
-  await visible(page.getByText('Create', { exact: true })).click()
-  await expectScreen(page, 'Create Quiz / Poll')
-  await visible(page.getByLabel('Back')).click()
-  await visible(page.getByText(/fixed-length sprints/)).click()
-  await visible(page.getByText('Live Results', { exact: true })).click()
-  await expectScreen(page, 'Live Results')
-  await visible(page.getByLabel('Back')).click()
-  await visible(page.getByText(/SOLID stand for/)).click()
-  await visible(page.getByText('View Results', { exact: true })).click()
-  await expectScreen(page, 'Quiz Results')
-  await visible(page.getByLabel('Back')).click()
-  await visible(page.getByText(/SOLID stand for/)).click()
-  await visible(page.getByText('Breakdown', { exact: true })).click()
-  await expectScreen(page, 'Response Breakdown')
-  await visible(page.getByLabel('Back')).click()
+  await expectScreen(page, 'Quizzes')
+  await expect(visible(page.getByTestId('coming-soon'))).toBeVisible()
 
-  // Analytics
+  // Analytics: placeholder plus the attendance report export
   await page.getByTestId('sidenav-Analytics').click()
-  await expectScreen(page, 'Analytics & Reports')
+  await expectScreen(page, 'Attendance report')
+  await expect(visible(page.getByTestId('coming-soon'))).toBeVisible()
 
   // Sign out from the side navigation returns to the login page
   await page.getByLabel('Sign out').click()

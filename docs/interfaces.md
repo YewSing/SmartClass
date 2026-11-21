@@ -1,15 +1,5 @@
 # Interfaces Yew Sing's modules give Shino's modules
 
-## M2 notification feed and dashboard reads (S02 complete)
-
-`notify.emit(event, user_ids, payload)` retains T44's signature and never raises to producers. It now persists one feed entry per active recipient and event subject/status. Producers can provide `event_id` or `dedupe_key` to distinguish repeated occurrences. Unsupported event types are caught by the hook and logged without payloads.
-
-Authenticated `GET /notifications` returns the caller's newest entries, with `limit` (1–200, default 50) and optional `before_id` pagination. `POST /notifications/{id}/read` returns 404 for another user's entry; `POST /notifications/read-all` affects only the caller. Feed fields are id, event_type, priority, title, message, link, created_at, read_at.
-
-`GET /student/me/dashboard` and `GET /lecturer/dashboard` enforce the corresponding role and derive course scope from current enrolments/lecturer assignments. Unavailable module aggregates are null; Moodle data reports `available: false` when no successful snapshot exists.
-
-The approved M1 login integration refreshes M2's per-user Moodle snapshot using the login token transiently. It reads news forum discussions and future course calendar events and stores only display data plus `refreshed_at` in `dashboard_moodle_cache`. The token is cleared after use. `moodle.available` indicates whether a snapshot exists; `refreshed_at` indicates its age. Moodle failure retains the previous snapshot. The service allowlist needs the added forum/calendar read functions. Per Shino's decision, refresh remains login-only; manual/scheduled course sync does not refresh this snapshot. Moodle tokens are not persisted.
-
 This page lists the Python functions Shino's modules may call to read data Yew Sing's modules
 own. It is plain English on purpose: the code is the source of truth, this page says what to
 expect from it. Fields may be added; names are not changed without a note in
@@ -134,69 +124,7 @@ still treats the removed `unidentified` status as absent. Since T30, Late counts
 `/student/me/attendance/courses`. Suggested fix: build the counts from `student_rates`,
 `course_rates` or `course_records` instead of counting `AttendanceRecord` rows directly.
 Yew Sing did not edit `analytics.py` because M7 belongs to Shino.
-
----
-
-## Module 5 — shared-session interaction API and Module 7 reads (FR-501–FR-518)
-
-The student dashboard exposes `live_sessions`, a list of open sessions for the student's
-enrolled occurrences. Each entry includes `id`, `occurrence_id`, `status`, `ends_at`,
-`course_code`, and `course_name`. Question projections have an `upvoted_by_me` flag for
-the caller's own vote.
-
-All M5 state is keyed directly to `attendance_sessions.id`. There is no second class-session
-lifecycle: live writes are accepted only while `AttendanceSession.status == "open"`; `closed`,
-`needs_confirmation`, `cancelled`, and legacy sessions without an occurrence are read-only or
-unavailable. Lecturer access is checked against the session occurrence, and student access requires
-an enrolment in that exact occurrence.
-
-### HTTP surface
-
-Authenticated routes use `/interaction/sessions/{attendance_session_id}`:
-
-- `GET /` returns the caller-safe interaction state; `GET /questions`, `/polls`, and
-  `/quick-prompts` return the bounded collections separately.
-- Students can `POST /questions`, `PUT /questions/{id}/upvote`,
-  `PUT /polls/{id}/vote`, `POST /quick-prompts/{id}/answers`, `POST /reactions`, and
-  `POST /confusion` while the shared class session is open.
-- Lecturers can `PATCH /questions/{id}`, create/start/close polls, control result visibility,
-  create/close quick prompts, read quick answers, and read aggregate `/signals`.
-- `GET /summary` is lecturer-only and becomes available after the class session is no longer open.
-
-Polls have 2–6 unique options and one current ballot per student; a student may change it until the
-poll closes. Reactions and confusion presses use server-side configurable cooldowns. A confusion
-spike uses distinct enrolled students within the configured window/share and raises
-`confusion.spike` through `app.services.notify` only when the threshold is crossed.
-
-### Privacy boundary
-
-Anonymous-question authors are stored only for participation accounting. Their identity is omitted
-from every lecturer/student response and websocket event. Hidden questions are absent from student
-responses. Confusion is exposed to lecturers only as aggregate counts and minute buckets. Students
-cannot list classmates' quick answers or raw participation events.
-
-### Live channel
-
-`/interaction/sessions/{id}/ws?token=<access JWT>` accepts only the assigned lecturer or a student
-enrolled in that occurrence. It is separate from the lecturer-only attendance websocket, so its
-payloads never contain the attendance roster. Messages are privacy-safe invalidations (for example
-`interaction.questions_changed`, `interaction.polls_changed`, and
-`interaction.signals_changed`); clients re-read the authorized HTTP projection. Manual and scheduled
-class closure publish `interaction.session_status` after commit with only session ID and status.
-
-### Module 7 read interface
-
-**File:** `backend/app/services/interaction_read.py`
-
-```python
-async def student_counts(db, occurrence_id: int) -> list[dict]
-async def class_totals(db, occurrence_id: int) -> dict
-```
-
-`student_counts` returns per-student question, distinct-poll, quick-answer, reaction, and confusion
-counts. It deliberately excludes anonymous questions from individual figures (FR-713).
-`class_totals` may count anonymous questions but returns no author identity. These functions do not
-perform authorization; M7 must first enforce course ownership.
+(2026-11-21: `analytics.py` was removed in plan-shino.md S02; the rebuilt M7 reads `attendance_read`.)
 
 ---
 

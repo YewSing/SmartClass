@@ -23,21 +23,7 @@ async def get_active_attempt(student_id: int, course_id: int) -> ActiveAttempt |
     While one exists, the assistant refuses to answer for that course (quiz lock).
     TODO(M6): replace with a query on quiz_attempts once Shino's tables exist.
     """
-    # Local imports keep the Module 8 interface usable before the M6 tables migrate.
-    from sqlalchemy import select
-    from app.core.database import AsyncSessionLocal
-    from app.models.quiz import Quiz, QuizAttempt
-    async with AsyncSessionLocal() as db:
-        found = (await db.execute(
-            select(QuizAttempt, Quiz).join(Quiz, Quiz.id == QuizAttempt.quiz_id).where(
-                QuizAttempt.student_id == student_id, Quiz.course_id == course_id,
-                Quiz.quiz_type == "graded", QuizAttempt.status == "in_progress",
-            )
-        )).first()
-        if not found:
-            return None
-        attempt, quiz = found
-        return ActiveAttempt(attempt.id, quiz.id, [str(q.get("text", "")) for q in quiz.questions])
+    return None
 
 
 # ── Provided to Module 6 / Module 7 ── sample data until implemented ─────────

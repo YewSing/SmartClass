@@ -51,7 +51,7 @@ Built in T44 (2026-11-13): `emit` exists, logs only, and raises `attendance.reco
 prefer a different one (e.g. with a priority level: urgent / important / general), say so here
 before T44 is built.
 
-**Status / reply:** Accepted unchanged by M2. S02 now persists `attendance.recorded` through the T44 hook and accepts the documented face event payloads. Remaining producer events can use the same signature. In-app delivery is implemented; push/email and dashboard UI are subsequent work.
+**Status / reply:** open
 
 ---
 
@@ -67,7 +67,8 @@ student, rates, and consecutive absences, described in `docs/interfaces.md`.
 **Needed from M7:** read attendance through those functions instead of counting `AttendanceRecord`
 rows directly. Tell Yew Sing if M7 needs anything the interface doesn't give.
 
-**Status / reply:** Accepted. M7 will consume `attendance_read.py`; S08 covers the legacy Late/Excused calculation and lecturer ownership defects.
+**Status / reply:** accepted (Shino, 2026-11-21). The old `routers/analytics.py` was removed in
+plan-shino.md S02; the rebuilt M7 (S60) reads attendance only through `attendance_read`.
 
 ---
 
@@ -75,3 +76,5 @@ rows directly. Tell Yew Sing if M7 needs anything the interface doesn't give.
 
 - `GET /lecturer/analytics` (M7) lets any lecturer read any class's analytics (NFR-04). Details
   and the suggested fix are under Module 7 in `docs/requirements/functional-requirements.md`.
+  Reply (Shino, 2026-11-21): the endpoint was removed in plan-shino.md S02; the rebuilt class
+  views (S61) check `ensure_teaches_occurrence` (FR-714).

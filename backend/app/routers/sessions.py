@@ -142,16 +142,6 @@ async def open_session(
     session = await session_schedule.start_now(
         db, occ, lec, session_schedule.clock(), body.duration_minutes
     )
-    opened_session_id = session.id
-
-    async def _announce_interaction_open() -> None:
-        await manager.broadcast_interaction(opened_session_id, {
-            "event": "interaction.session_status",
-            "attendance_session_id": opened_session_id,
-            "status": "open",
-        })
-
-    after_commit(db, _announce_interaction_open)
 
     result = await db.execute(
         select(AttendanceSession)
@@ -194,11 +184,6 @@ async def close_session(
 
     async def _announce() -> None:   # after commit, so a screen that re-reads sees it closed
         await manager.broadcast(session_id, payload)
-        await manager.broadcast_interaction(session_id, {
-            "event": "interaction.session_status",
-            "attendance_session_id": session_id,
-            "status": "closed",
-        })
 
     after_commit(db, _announce)
 

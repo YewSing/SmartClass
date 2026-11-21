@@ -1,7 +1,6 @@
 import { apiCall, apiCallRaw, getToken, setToken, clearToken, setRefreshToken, clearRefreshToken, BASE } from './client'
 import { saveCsv } from './saveCsv'
 import { dayMonth, hhmm, minutesBetween, rosterStatus, cleanReason } from './attendance'
-import { ANALYTICS_PAR_BARS, ANALYTICS_PAR_LABELS } from '../data/mockData'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -123,23 +122,6 @@ export const changePassword = async (current, next) => {
 }
 
 export const logout = async () => { clearToken(); clearRefreshToken() }
-
-// Role dashboard and notification centre (M2)
-export const getDashboard = () => apiCall('GET', '/lecturer/dashboard')
-export const getNotifications = (beforeId = null) =>
-  apiCall('GET', `/notifications?limit=50${beforeId != null ? `&before_id=${beforeId}` : ''}`)
-export const getNotificationUnreadCount = async () => {
-  let before = null, count = 0
-  do {
-    const page = await getNotifications(before)
-    count += page.filter(note => !note.read_at).length
-    if (page.length < 50) return count
-    before = page[page.length - 1].id
-  } while (before != null)
-  return count
-}
-export const markNotificationRead = (id) => apiCall('POST', `/notifications/${id}/read`)
-export const markAllNotificationsRead = () => apiCall('POST', '/notifications/read-all')
 
 // ─── Classes ──────────────────────────────────────────────────────────────────
 
@@ -282,13 +264,10 @@ export const exportOccurrenceCsv = async (occId, filename, dateParams = {}) => {
   return saveCsv(csvText, filename)
 }
 
-// ─── Analytics ────────────────────────────────────────────────────────────────
-
-export const getAnalytics = async (occurrenceId, dateParams = {}) => {
-  const qs = Object.keys(dateParams).length
-    ? '&' + Object.entries(dateParams).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&')
-    : ''
-  return apiCall('GET', `/lecturer/analytics?occurrence_id=${occurrenceId}${qs}`)
+// Students × closed sessions of one class over an optional { from, to } range (FR-310)
+export const getClassAttendanceReport = async (occId, { from, to } = {}) => {
+  const qs = [from && `from=${encodeURIComponent(from)}`, to && `to=${encodeURIComponent(to)}`].filter(Boolean).join('&')
+  return apiCall('GET', `/lecturer/classes/${occId}/attendance/report${qs ? `?${qs}` : ''}`)
 }
 
 // ─── Face verification queue (FR-113) ────────────────────────────────────────
@@ -409,75 +388,3 @@ export const sendLecturerMessage = async (sessionId, content) =>
 // "Before next class" summary (FR-816)
 export const getBeforeClass = async (courseId) =>
   apiCall('GET', `/lecturer/assistant/before-class/${courseId}`)
-
-// ─── Mocked (Module 3/4 — quiz) ────────────────────────
-
-export const getQuizzes = () => apiCall('GET', '/quizzes')
-export const createQuiz = data => apiCall('POST', '/quizzes', data)
-export const draftQuiz = data => apiCall('POST', '/quizzes/draft', data)
-export const updateQuiz = (id, data) => apiCall('PATCH', `/quizzes/${id}`, data)
-export const publishQuiz = id => apiCall('POST', `/quizzes/${id}/publish`)
-export const startQuiz = id => apiCall('POST', `/quizzes/${id}/start`)
-export const nextQuizQuestion = id => apiCall('POST', `/quizzes/${id}/next`)
-export const closeQuiz = id => apiCall('POST', `/quizzes/${id}/close`)
-
-// Module 5 interaction adapters for the live-control screen.
-const interactionPath = (sessionId, suffix = '') => `/interaction/sessions/${sessionId}${suffix}`
-const mapPoll = poll => ({
-  ...poll,
-  question: poll.prompt,
-  is_open: poll.status === 'open',
-  options: (poll.options ?? []).map((option_text, id) => ({
-    id,
-    option_text,
-    votes: poll.results?.option_counts?.[id] ?? 0,
-  })),
-})
-
-export const getInteraction = async sessionId => ({
-  ...(await apiCall('GET', interactionPath(sessionId))),
-  id: sessionId,
-})
-export const getOpenInteractions = async () => []
-export const getInteractions = async () => []
-export const getPolls = async sessionId => (await apiCall('GET', interactionPath(sessionId, '/polls'))).map(mapPoll).reverse()
-export const getLiveQuestion = async sessionId => {
-  const state = await apiCall('GET', interactionPath(sessionId))
-  const prompt = [...(state.quick_prompts ?? [])].reverse()[0]
-  return prompt && {
-    ...prompt,
-    question: prompt.prompt,
-    is_active: prompt.status === 'open',
-    responses: [],
-  }
-}
-export const getQuestions = sessionId => apiCall('GET', interactionPath(sessionId, '/questions'))
-export const getReactions = async sessionId => {
-  const signals = await apiCall('GET', interactionPath(sessionId, '/signals'))
-  return Object.entries(signals.reactions ?? {}).map(([reaction, count]) => ({ reaction, count }))
-}
-export const getIduCount = async sessionId => {
-  const signals = await apiCall('GET', interactionPath(sessionId, '/signals'))
-  return {
-    distinct_students: signals.active_confused_students ?? 0,
-    rate: signals.confusion_rate ?? 0,
-  }
-}
-export const createPoll = async (sessionId, { question, options }) => {
-  // A push replaces the class's active poll; completed polls remain in history.
-  const existing = await getPolls(sessionId)
-  await Promise.all(existing.filter(poll => poll.is_open).map(poll => closePoll(sessionId, poll.id)))
-  const poll = await apiCall('POST', interactionPath(sessionId, '/polls'), { prompt: question, options })
-  return apiCall('POST', interactionPath(sessionId, `/polls/${poll.id}/start`))
-}
-export const closePoll = (sessionId, pollId) => apiCall('POST', interactionPath(sessionId, `/polls/${pollId}/close`))
-export const postLiveQuestion = async (sessionId, prompt) => {
-  const state = await apiCall('GET', interactionPath(sessionId))
-  await Promise.all((state.quick_prompts ?? [])
-    .filter(item => item.status === 'open')
-    .map(item => apiCall('POST', interactionPath(sessionId, `/quick-prompts/${item.id}/close`))))
-  return apiCall('POST', interactionPath(sessionId, '/quick-prompts'), { prompt })
-}
-export const markQuestionAnswered = (sessionId, questionId) =>
-  apiCall('PATCH', interactionPath(sessionId, `/questions/${questionId}`), { answered: true })
-export const getAnalyticsPar   = async ()     => ({ bars: ANALYTICS_PAR_BARS, labels: ANALYTICS_PAR_LABELS })

@@ -16,8 +16,7 @@ import Home from '../screens/Home'
 import Attendance from '../screens/Attendance'
 import AttSessionDetail from '../screens/AttSessionDetail'
 import AttReportStatus from '../screens/AttReportStatus'
-import Participation from '../screens/Participation'
-import PartSessionPerf from '../screens/PartSessionPerf'
+import ComingSoon from '../components/ComingSoon'
 import Profile from '../screens/Profile'
 import Assistant from '../screens/Assistant'
 import AssistantPdf from '../screens/AssistantPdf'
@@ -26,10 +25,6 @@ import Practice from '../screens/Practice'
 import FaceEnrolment from '../screens/FaceEnrolment'
 import FaceConsent from '../screens/FaceConsent'
 import FaceCapture from '../screens/FaceCapture'
-import Notifications from '../screens/Notifications'
-import LiveClass from '../screens/LiveClass'
-import QuizList from '../screens/QuizList'
-import QuizAttempt from '../screens/QuizAttempt'
 
 const Stack = createNativeStackNavigator()
 const Tab   = createBottomTabNavigator()
@@ -40,11 +35,6 @@ function HomeStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="HomeScreen" component={Home} />
-      <Stack.Screen name="Notifications" component={Notifications} />
-      <Stack.Screen name="LiveClass" component={LiveClass} />
-      <Stack.Screen name="QuizList" component={QuizList} />
-      <Stack.Screen name="QuizAttempt" component={QuizAttempt} />
-      <Stack.Screen name="Profile" component={ProfileStack} />
     </Stack.Navigator>
   )
 }
@@ -59,11 +49,15 @@ function AttendanceStack() {
   )
 }
 
+// Participation, live class, quizzes and insights (Modules 5–7) are being rebuilt (plan-shino.md S02)
+function Participation() {
+  return <ComingSoon title="Participation" icon="stats-chart-outline" />
+}
+
 function ParticipationStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="ParticipationScreen" component={Participation} />
-      <Stack.Screen name="PartSessionPerf"     component={PartSessionPerf} />
     </Stack.Navigator>
   )
 }
@@ -97,6 +91,7 @@ const TAB_ICONS = {
   Attendance:    { active: 'calendar',            inactive: 'calendar-outline' },
   Assistant:     { active: 'sparkles',            inactive: 'sparkles-outline' },
   Participation: { active: 'stats-chart',         inactive: 'stats-chart-outline' },
+  Profile:       { active: 'person',              inactive: 'person-outline' },
 }
 
 function MainTabs() {
@@ -129,6 +124,7 @@ function MainTabs() {
       <Tab.Screen name="Attendance"    component={AttendanceStack}    options={{ title: 'Attendance', tabBarTestID: 'tab-attendance' }} />
       <Tab.Screen name="Assistant"     component={AssistantStack}     options={{ title: 'Assistant' }} />
       <Tab.Screen name="Participation" component={ParticipationStack} options={{ title: 'Participation' }} />
+      <Tab.Screen name="Profile"       component={ProfileStack}       options={{ title: 'Profile' }} />
     </Tab.Navigator>
   )
 }

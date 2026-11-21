@@ -131,32 +131,16 @@ appId: host.exp.exponent
     id: "count-excused"
     text: "1"
 
-# Lifecycle controls stay on Dashboard's shared class-session card.
-- assertNotVisible:
-    id: "session-end"
-- tapOn: "Home"
-- extendedWaitUntil:
-    visible: "Interaction live"
-    timeout: 15000
-- tapOn:
-    id: "home-interaction"
-- extendedWaitUntil:
-    visible: "Classroom interaction"
-    timeout: 15000
-# Single-page interaction dashboard: all sections live on one page
-- scrollUntilVisible:
-    element: "Confusion timeline"
-    direction: DOWN
-    timeout: 10000
-- assertVisible: "Confusion timeline"
-- back
-
 # End the class: confirm, then it is closed and queued for SPeCTRUM
 - tapOn:
     id: "session-end"
 - tapOn:
     id: "session-end-confirm"
 - extendedWaitUntil:
-    notVisible:
-      id: "session-end"
+    visible: "SPeCTRUM attendance"
     timeout: 20000
+- assertVisible: "Closed"
+- assertVisible: "Waiting to sync"
+- assertVisible:
+    id: "count-excused"
+    text: "1"

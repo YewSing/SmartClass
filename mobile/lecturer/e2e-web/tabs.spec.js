@@ -50,13 +50,15 @@ for (const { name, size, press } of LAYOUTS) {
 
     test('the same holds for a page deeper inside another tab', async ({ page }) => {
       await login(page)
-      await press(page, 'Quiz')
-      await visible(page.getByText('Create', { exact: true })).click()
-      await expect(visible(page.getByText('Create Quiz / Poll', { exact: true }))).toBeVisible()
+      // The quiz tab is a one-page placeholder now (plan-shino.md S02), so use the assistant's
+      // "Before next class" page as the deeper page.
+      await press(page, 'Assistant')
+      await visible(page.getByTestId('assistant-before-class')).click()
+      await expect(visible(page.getByLabel('Back'))).toBeVisible()
       await press(page, 'Analytics')
-      await press(page, 'Quiz')
-      await expect(visible(page.getByText('Quiz & Poll', { exact: true }))).toBeVisible()
-      await expect(page.getByText('Create Quiz / Poll', { exact: true }).filter({ visible: true })).toHaveCount(0)
+      await press(page, 'Assistant')
+      await expect(visible(page.getByTestId('assistant-before-class'))).toBeVisible()
+      await expect(page.getByLabel('Back').filter({ visible: true })).toHaveCount(0)
     })
   })
 }

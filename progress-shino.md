@@ -13,6 +13,20 @@ Yew Sing's log is [PROGRESS.md](PROGRESS.md); never edit it. Test removals need 
 ### Requests for Yew Sing
 <!-- Interface gaps in M1/M3/M4/M8 that a task needed. Copy each to docs/requests-for-shino.md style when sending. -->
 
+### S02 notes (2026-11-21)
+- **Dev DB downgrade (Shino runs this once; the loop does not touch the dev DB).** The dev DB is at the removed revision `f5a6b7c8d9e0` (`alembic current` fails with "Can't locate revision"). From `backend/`, put the three removed files back temporarily, downgrade, then delete them:
+  `git show dfefa19:backend/alembic/versions/e3f4a5b6c7d8_notifications.py > alembic/versions/e3f4a5b6c7d8_notifications.py`
+  `git show dfefa19:backend/alembic/versions/e4f5a6b7c8d9_dashboard_cache.py > alembic/versions/e4f5a6b7c8d9_dashboard_cache.py`
+  `git show dfefa19:backend/alembic/versions/f5a6b7c8d9e0_interaction.py > alembic/versions/f5a6b7c8d9e0_interaction.py`
+  `alembic downgrade b5c6d7e8f9a0` then `rm alembic/versions/e3f4a5b6c7d8_notifications.py alembic/versions/e4f5a6b7c8d9_dashboard_cache.py alembic/versions/f5a6b7c8d9e0_interaction.py` and check `alembic current` prints `b5c6d7e8f9a0 (head)`. (`a6b7c8d9e0f1_quizzes` was never applied to the dev DB.)
+- **Kept endpoints:** none. No M1/M3/M4/M8 screen or test called the removed notification, dashboard, interaction, quiz or `/lecturer/analytics` endpoints; the lecturer Analytics tab keeps only M3's attendance report export (`GET /lecturer/classes/{id}/attendance/report` + CSV), which is Yew Sing's.
+- **M1/M3/M8 code reverted to Yew Sing's version:** login no longer refreshes a Moodle dashboard snapshot (`auth.py`, `moodle_auth.py`, Moodle WS allowlist in `configure_moodle.php`), sessions/scheduler no longer broadcast interaction status, `kb/integrations.get_active_attempt` returns `None` again (M6 quiz lock comes back in S47), `notify.emit` logs only.
+- TEST-CHANGE: backend/tests/test_notifications.py (test_policy_and_stable_attendance_subject, test_external_notification_link_is_rejected, test_recurring_events_and_custom_title, test_feed_deduplicates_and_isolates_recipients, test_read_all_only_changes_caller, test_dashboard_role_and_priority_scope, test_dashboard_student_status_and_lecturer_counts) - pre-plan M2 feed/dashboard code removed in S02; rebuilt test-first in S10/S11/S18.
+- TEST-CHANGE: backend/tests/test_dashboard_moodle.py (test_fetch_only_news_and_requested_course_events, test_partial_calendar_warning_is_not_a_successful_snapshot, test_refresh_failure_preserves_snapshot, test_snapshot_filters_removed_enrolments, test_refresh_persists_content_without_credentials, test_live_moodle_login_populates_dashboard_snapshot) - pre-plan M2 Moodle snapshot removed in S02; rebuilt in S16.
+- TEST-CHANGE: backend/tests/test_interaction.py (all 15 tests: access/lifecycle, questions, polls, quick answers, reactions, confusion, summary/M7 read, websocket) - pre-plan M5 code removed in S02; rebuilt in S30–S36.
+- TEST-CHANGE: mobile JS tests lecturer `services/dashboard.test.js`, student `services/dashboard.test.js`, `interactionEvents.test.js`, `interactionRefresh.test.js` and Maestro `student/e2e/interaction.yaml` - they tested removed pre-plan M2/M5 client code; rebuilt with S19/S20/S38.
+- TEST-CHANGE: lecturer `e2e-web/desktop.spec.js` (Quiz/Analytics part of "every screen opens") and `e2e-web/tabs.spec.js` ("page deeper inside another tab") - the quiz/analytics mock screens they walked through are now "Coming soon" placeholders; desktop now checks the placeholders, tabs uses the Assistant tab's "Before next class" page as the deeper page (same tab-reset behaviour).
+
 ## Log
 
 ### S01 — Shino task loop — 2026-11-21
@@ -20,3 +34,9 @@ Yew Sing's log is [PROGRESS.md](PROGRESS.md); never edit it. Test removals need 
 - Decisions: fresh start; earlier M2/M5/M6/M7 code is removed in S02, not reused. Both loops share `.claude/.loop.lock`, so only one runs at a time (they share the test DB).
 - Interface changes: `scripts/test_guard.py` also accepts `TEST-CHANGE:` in progress-shino.md (additive).
 - Tests: `backend/tests/test_shino_loop_script.py`.
+
+### S02 — Clean slate for M2/M5/M6/M7 — 2026-11-21
+- Changed: removed all pre-plan M2/M5/M6/M7 backend code (notification/dashboard/interaction/quiz routers, services, models, schemas, 4 migrations, legacy `routers/analytics.py` + `schemas/analytics.py`) and their tests; M1/M3/M8 files are back to Yew Sing's last commit `45888be` (backend identical); lecturer Quiz tab and student Participation tab show a shared `ComingSoon` placeholder, lecturer Analytics shows it plus M3's attendance report export. Removal list, kept endpoints (none), dev-DB downgrade and TEST-CHANGE lines: "S02 notes" under Next.
+- Decisions: restored one assertion the pre-plan work had dropped from lecturer `attendance.test.js`; `tabs.spec.js` uses the Assistant tab's "Before next class" page as its deeper page.
+- Interface/schema changes: `GET /lecturer/analytics` and all M2/M5/M6 endpoints gone; Alembic head is `b5c6d7e8f9a0` (one head); `notify.emit` logs only; replies added to R2 and the analytics issue in `docs/requests-for-shino.md`.
+- Tests: check.sh normal stages pass; live stage (triggered because `kb/integrations.py` reverted to Yew Sing's b62d2c3 version) failed 5/28, then 2/28 on re-run, always `test_in_syllabus_is_grounded` returning `general` (Yew Sing's M8 model flakiness, not this change); Playwright desktop/tabs/export 11/11 pass. **[~] manual check:** close the open WIA0000 session 16 in the dev DB, then run `npm run e2e:web -- live-session.spec.js`, and re-run `pytest -m live` once so `.claude/.live-pass` gets recorded.

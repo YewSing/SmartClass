@@ -8,7 +8,6 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useLecturer } from '../context/LecturerContext'
-import { navigateTo } from '../navigation/navigationRef'
 import { useWideLayout } from '../hooks/useWideLayout'
 import { C } from '../theme'
 import Badge from './Badge'
@@ -39,8 +38,6 @@ function Sheet({ visible, onClose, children }) {
     </Modal>
   )
 }
-
-export { Sheet }
 
 // ─── Reusable sub-components ──────────────────────────────────────────────────
 
@@ -89,117 +86,6 @@ function BtnDanger({ label, onPress, icon }) {
 
 function BtnRow({ children }) {
   return <View style={styles.btnRow}>{children}</View>
-}
-
-// ─── ConfusionResetModal ───────────────────────────────────────────────────────
-
-function ConfusionResetModal({ visible, onClose }) {
-  return (
-    <Sheet visible={visible} onClose={onClose}>
-      <ModalTitle>Reset Confusion Counter</ModalTitle>
-      <Text style={styles.bodyText}>
-        This will reset the confusion counter to 0%. Students' "I Don't Understand" signals will be cleared. Historical IDU logs are preserved.
-      </Text>
-      <View style={styles.warningBox}>
-        <Ionicons name="warning-outline" size={14} color={C.yellowDk} />
-        <Text style={[styles.warningText, { marginLeft: 6 }]}>
-          Current rate: <Text style={{ fontWeight: '700' }}>34%</Text> · 8 signals this session
-        </Text>
-      </View>
-      <BtnRow>
-        <BtnOutline label="Cancel" onPress={onClose} />
-        <BtnPrimary label="Confirm Reset" icon="refresh-outline" onPress={onClose} />
-      </BtnRow>
-    </Sheet>
-  )
-}
-
-// ─── QuizModal ─────────────────────────────────────────────────────────────────
-
-function QuizModal({ visible, onClose, quiz }) {
-  if (!quiz) return null
-
-  if (quiz.status === 'active') return (
-    <Sheet visible={visible} onClose={onClose}>
-      <View style={styles.rowBetween}>
-        <Badge variant="blue" dot>Active</Badge>
-        <Text style={styles.metaText}>Today, {quiz.time} · {quiz.timer}</Text>
-      </View>
-      <Text style={styles.quizQuestion}>{quiz.question}</Text>
-      <View style={styles.optionBox}>
-        {quiz.options.map((o, i) => (
-          <Text key={i} style={styles.optionText}>
-            {String.fromCharCode(65 + i)}. {i === quiz.correct ? <Text style={{ fontWeight: '700' }}>{o} ✓</Text> : o}
-          </Text>
-        ))}
-      </View>
-      <View style={[styles.rowGap, { marginBottom: 14 }]}>
-        <View style={styles.greenDot} />
-        <Text style={styles.metaText}>Answered: {quiz.answered} / {quiz.total} students</Text>
-      </View>
-      <BtnRow>
-        <BtnDanger label="Close Early" icon="stop-outline" onPress={onClose} />
-        <BtnPrimary label="Live Results" icon="bar-chart-outline" onPress={() => { onClose(); navigateTo('LiveResults') }} />
-      </BtnRow>
-      <Divider />
-      <BtnOutline label="Dismiss" onPress={onClose} />
-    </Sheet>
-  )
-
-  if (quiz.status === 'closed') return (
-    <Sheet visible={visible} onClose={onClose}>
-      <View style={styles.rowBetween}>
-        <Badge variant="gray">Closed</Badge>
-        <Text style={styles.metaText}>Today, {quiz.time} · {quiz.timer}</Text>
-      </View>
-      <Text style={styles.quizQuestion}>{quiz.question}</Text>
-      <View style={styles.statsRow}>
-        <View style={styles.statCell}>
-          <Text style={[styles.statNum, { color: C.green }]}>{quiz.correct_count}</Text>
-          <Text style={[styles.statLbl, { color: C.greenDk }]}>Correct</Text>
-        </View>
-        <View style={styles.statCell}>
-          <Text style={[styles.statNum, { color: C.red }]}>{quiz.wrong_count}</Text>
-          <Text style={[styles.statLbl, { color: C.redDk }]}>Incorrect</Text>
-        </View>
-        <View style={styles.statCell}>
-          <Text style={[styles.statNum, { color: C.gray400 }]}>{quiz.unanswered_count}</Text>
-          <Text style={[styles.statLbl, { color: C.gray500 }]}>Unanswered</Text>
-        </View>
-      </View>
-      <BtnRow>
-        <BtnOutline label="View Results" icon="bar-chart-outline" onPress={() => { onClose(); navigateTo('ResultsClosed') }} />
-        <BtnPrimary label="Breakdown" icon="list-outline" onPress={() => { onClose(); navigateTo('Breakdown') }} />
-      </BtnRow>
-      <Divider />
-      <BtnOutline label="Dismiss" onPress={onClose} />
-    </Sheet>
-  )
-
-  return (
-    <Sheet visible={visible} onClose={onClose}>
-      <View style={styles.rowBetween}>
-        <Badge variant="yellow">Draft</Badge>
-        <Text style={styles.metaText}>Today, {quiz.time}</Text>
-      </View>
-      <Text style={styles.quizQuestion}>{quiz.question}</Text>
-      <View style={styles.optionBox}>
-        {quiz.options.map((o, i) => (
-          <Text key={i} style={styles.optionText}>
-            {String.fromCharCode(65 + i)}. {i === quiz.correct ? <Text style={{ fontWeight: '700' }}>{o} ✓</Text> : o}
-          </Text>
-        ))}
-      </View>
-      <BtnPrimary label="Push to All Desks" icon="send-outline" onPress={onClose} />
-      <View style={{ height: 8 }} />
-      <BtnRow>
-        <BtnOutline label="Edit" icon="create-outline" onPress={() => { onClose(); navigateTo('CreateQuiz') }} />
-        <BtnDanger label="Delete" icon="trash-outline" onPress={onClose} />
-      </BtnRow>
-      <Divider />
-      <BtnOutline label="Dismiss" onPress={onClose} />
-    </Sheet>
-  )
 }
 
 // ─── StudentModal ──────────────────────────────────────────────────────────────
@@ -568,8 +454,6 @@ export default function ModalRouter() {
 
   return (
     <>
-      <ConfusionResetModal visible={type === 'confusion-reset'} onClose={closeModal} />
-      <QuizModal visible={type === 'quiz'} onClose={closeModal} quiz={type === 'quiz' ? data : null} />
       <StudentModal visible={type === 'student'} onClose={closeModal} data={type === 'student' ? data : null} overrideStudent={overrideStudent} />
       <WeeklyScheduleModal visible={type === 'weekly-schedule'} onClose={closeModal} data={type === 'weekly-schedule' ? data : null} />
       <ExportModal visible={type === 'export'} onClose={closeModal} data={data} />
@@ -770,81 +654,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 10,
     marginBottom: 12,
-  },
-  warningBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: C.yellowLt,
-    borderWidth: 1,
-    borderColor: C.yellow,
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 16,
-  },
-  warningText: {
-    fontSize: 13,
-    color: C.yellowDk,
-    flex: 1,
-  },
-  rowBetween: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  rowGap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  metaText: {
-    fontSize: 12,
-    color: C.textSub,
-  },
-  quizQuestion: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: C.text,
-    lineHeight: 22,
-    marginBottom: 12,
-  },
-  optionBox: {
-    backgroundColor: C.gray50,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
-    gap: 8,
-  },
-  optionText: {
-    fontSize: 13,
-    color: C.text,
-    lineHeight: 22,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    backgroundColor: C.gray50,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 14,
-  },
-  statCell: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  statNum: {
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  statLbl: {
-    fontSize: 11,
-    fontWeight: '700',
-    marginTop: 2,
-  },
-  greenDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: C.green,
   },
   studentHeader: {
     flexDirection: 'row',

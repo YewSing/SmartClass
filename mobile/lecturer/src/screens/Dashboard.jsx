@@ -14,7 +14,6 @@ import { pendingLabel } from '../services/faceReview'
 import { C } from '../theme'
 
 const DAY_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-const EXTEND_MINUTES = 15
 
 function nowHHMM() {
   const n = new Date()
@@ -46,91 +45,20 @@ function nextLabel(c) {
   return `${when} · ${c.start_time}–${c.end_time}`
 }
 
-function SharedSessionControls({ session, onExtend, onEnd }) {
-  const [busy, setBusy] = useState(false)
-  const [confirmEnd, setConfirmEnd] = useState(false)
-
-  const run = async (fn) => {
-    setBusy(true)
-    try { await fn() } catch { /* toast shown in context */ } finally { setBusy(false); setConfirmEnd(false) }
-  }
-
-  if (confirmEnd) {
-    return (
-      <View style={styles.endConfirm} testID="home-session-end-confirmation">
-        <Text style={styles.endConfirmText}>
-          End the shared class session? Classroom interaction closes, anyone without a record is marked Absent, and attendance is sent to SPeCTRUM.
-        </Text>
-        <View style={styles.commandRow}>
-          <TouchableOpacity style={styles.commandSecondary} onPress={() => setConfirmEnd(false)} disabled={busy}>
-            <Text style={styles.commandSecondaryText}>Keep running</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.commandDanger, busy && styles.btnDisabled]}
-            testID="session-end-confirm"
-            onPress={() => run(() => onEnd(session.id))}
-            disabled={busy}
-          >
-            <Ionicons name="stop-circle-outline" size={15} color="#fff" />
-            <Text style={styles.commandFilledText}>{busy ? 'Ending…' : 'End now'}</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    )
-  }
-
-  return (
-    <View style={styles.commandRow}>
-      <TouchableOpacity
-        style={[styles.commandSecondary, busy && styles.btnDisabled]}
-        testID="session-extend"
-        onPress={() => run(() => onExtend(session.id, EXTEND_MINUTES))}
-        disabled={busy}
-      >
-        <Ionicons name="add-circle-outline" size={15} color={C.primary} />
-        <Text style={styles.commandSecondaryText}>+{EXTEND_MINUTES} min</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[styles.commandDanger, busy && styles.btnDisabled]}
-        testID="session-end"
-        onPress={() => setConfirmEnd(true)}
-        disabled={busy}
-      >
-        <Ionicons name="stop-circle-outline" size={15} color="#fff" />
-        <Text style={styles.commandFilledText}>End class</Text>
-      </TouchableOpacity>
-    </View>
-  )
-}
-
 export default function Dashboard({ navigation }) {
   const {
-    state, loadClasses, loadAllClasses, loadSessions, doOpenSession, doExtendSession, doCloseSession, selectSession,
+    state, loadClasses, loadAllClasses, loadSessions, doOpenSession, selectSession,
   } = useLecturer()
   const { sessions, classes, allClasses, lecturer } = state
   const insets = useSafeAreaInsets()
   const [starting, setStarting] = useState(false)
-  const [dashboard, setDashboard] = useState(null)
-  const [unreadCount, setUnreadCount] = useState(0)
-  const [dashboardError, setDashboardError] = useState('')
-  const loadDashboard = useCallback(async () => {
-    try {
-      const [summary, count] = await Promise.all([api.getDashboard(), api.getNotificationUnreadCount()])
-      setDashboard(summary)
-      setUnreadCount(count)
-      setDashboardError('')
-    }
-    catch { setDashboardError('Dashboard summary could not be refreshed. Last loaded information is kept on screen.') }
-  }, [])
 
   useEffect(() => {
     loadClasses()
     loadAllClasses()
-    loadDashboard()
   }, [])
   // The schedule opens and closes classes by itself, so re-read the sessions on every visit
   useFocusEffect(useCallback(() => { loadSessions() }, [loadSessions]))
-  useFocusEffect(useCallback(() => { loadDashboard() }, [loadDashboard]))
 
   // Face enrolments waiting for this lecturer (FR-113); a failed count just hides the banner
   const [pendingFaces, setPendingFaces] = useState(0)
@@ -142,9 +70,9 @@ export default function Dashboard({ navigation }) {
   const [refreshing, setRefreshing] = useState(false)
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
-    await Promise.all([loadClasses(), loadSessions(), loadAllClasses(), loadPendingFaces(), loadDashboard()])
+    await Promise.all([loadClasses(), loadSessions(), loadAllClasses(), loadPendingFaces()])
     setRefreshing(false)
-  }, [loadClasses, loadSessions, loadAllClasses, loadPendingFaces, loadDashboard])
+  }, [loadClasses, loadSessions, loadAllClasses, loadPendingFaces])
 
   const activeSession = sessions.find(s => s.open)
   const sessionOpen   = Boolean(activeSession)
@@ -176,28 +104,16 @@ export default function Dashboard({ navigation }) {
   const badgeVariant = sessionOpen ? 'green' : firstClass ? 'yellow' : 'gray'
   const badgeText    = sessionOpen ? 'Session Open' : firstClass ? 'Class Ongoing' : 'No Class Now'
 
-  const headerTitle = sessionOpen
-    ? [activeSession.class_code, activeSession.class_name].filter(Boolean).join(' — ')
-    : firstClass
+  const headerTitle = firstClass
     ? `${firstClass.code} — ${firstClass.name}`
     : nextClass
       ? `${nextClass.code} — ${nextClass.name}`
       : 'No classes this week'
 
-  const headerClassId = activeSession?.class_id ?? firstClass?.id ?? nextClass?.id
+  const headerClassId = firstClass?.id ?? nextClass?.id
   const openClass = (classId) => navigation.navigate('ClassDetail', { classId })
 
-  const sessionRoom = classes.find(c => c.id === (activeSession?.class_id ?? firstClass?.id))?.room
-    ?? allClasses.find(c => c.id === (activeSession?.class_id ?? firstClass?.id))?.room ?? null
-
-  const headerMeta = sessionOpen
-    ? [
-        activeSession.starts_at && activeSession.ends_at
-          ? `${activeSession.starts_at.slice(11, 16)}–${activeSession.ends_at.slice(11, 16)}`
-          : activeSession.time,
-        sessionRoom,
-      ].filter(Boolean).join(' · ')
-    : firstClass
+  const headerMeta = firstClass
     ? [
         firstClass.day_of_week,
         firstClass.start_time && firstClass.end_time
@@ -224,18 +140,11 @@ export default function Dashboard({ navigation }) {
           </View>
           <Text style={styles.brandName}>SmartClass</Text>
         </View>
-        <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.bellBtn} accessibilityLabel="Notifications" testID="home-notifications" onPress={() => navigation.navigate('Notifications')}>
-            <Ionicons name="notifications-outline" size={20} color={C.text} />
-            {unreadCount ? <View style={styles.unreadBadge}><Text style={styles.unreadText}>{unreadCount > 9 ? '9+' : unreadCount}</Text></View> : null}
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.profileBtn} accessibilityLabel="Profile" onPress={() => navigation.navigate('Profile')}>
-            <Text style={styles.profileInitials}>{lecturer?.initials ?? 'ME'}</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity style={styles.profileBtn} accessibilityLabel="Profile" onPress={() => navigation.navigate('Profile')}>
+          <Text style={styles.profileInitials}>{lecturer?.initials ?? 'ME'}</Text>
+        </TouchableOpacity>
       </View>
 
-      {dashboardError ? <View style={styles.dashboardError}><Ionicons name="cloud-offline-outline" size={16} color={C.redDk}/><Text style={styles.dashboardErrorText}>{dashboardError}</Text></View> : null}
       {/* Dash header card */}
       <View style={styles.dashHeader}>
         <View style={styles.dashHeaderTop}>
@@ -278,36 +187,6 @@ export default function Dashboard({ navigation }) {
             </Text>
           </TouchableOpacity>
         </View>
-
-        {sessionOpen ? (
-          <>
-            <View style={styles.sharedSessionStatus}>
-              <View style={styles.sharedStatusItem}>
-                <View style={[styles.statusDot, { backgroundColor: C.green }]} />
-                <Text style={styles.sharedStatusText}>Attendance live</Text>
-              </View>
-              <View style={styles.sharedStatusItem}>
-                <View style={[styles.statusDot, { backgroundColor: C.primary }]} />
-                <Text style={styles.sharedStatusText}>Interaction live</Text>
-              </View>
-            </View>
-            <TouchableOpacity
-              accessibilityRole="button"
-              testID="home-interaction"
-              style={styles.interactionLink}
-              onPress={() => navigation.navigate('ClassInteraction', {
-                sessionId: activeSession.id,
-                className: activeSession.class_name,
-              })}
-            >
-              <Ionicons name="chatbubbles-outline" size={16} color={C.primary} />
-              <Text style={styles.interactionLinkText}>Open classroom interaction</Text>
-            </TouchableOpacity>
-            <SharedSessionControls session={activeSession} onExtend={doExtendSession} onEnd={doCloseSession} />
-          </>
-        ) : firstClass ? (
-          <Text style={styles.sharedSessionHint}>Starting this class opens attendance and classroom interaction.</Text>
-        ) : null}
 
         {!sessionOpen && (
           <>
@@ -352,6 +231,18 @@ export default function Dashboard({ navigation }) {
         )}
       </View>
 
+      {pendingFaces > 0 && (
+        <TouchableOpacity
+          style={styles.faceBanner}
+          testID="home-face-review"
+          onPress={() => navigation.navigate('FaceVerification')}
+        >
+          <Ionicons name="id-card-outline" size={18} color={C.orangeDk} />
+          <Text style={styles.faceBannerText}>{pendingLabel(pendingFaces)}</Text>
+          <Ionicons name="chevron-forward" size={16} color={C.orangeDk} />
+        </TouchableOpacity>
+      )}
+
       {sessionOpen && (
         <>
           {/* Attendance */}
@@ -371,47 +262,6 @@ export default function Dashboard({ navigation }) {
               <Ionicons name="chevron-forward" size={12} color={C.textHint} />
               <Text style={styles.cardFooterText}> Tap to view full attendance</Text>
             </View>
-          </TouchableOpacity>
-        </>
-      )}
-
-      {dashboard?.notifications?.length ? <>
-        <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Priority notices</Text></View>
-        {dashboard.notifications.map(note => <TouchableOpacity key={note.id} style={[styles.priorityNotice, note.priority === 'urgent' ? styles.priorityUrgent : styles.priorityImportant]} onPress={() => navigation.navigate('Notifications')}><Ionicons name="alert-circle-outline" size={18} color={note.priority === 'urgent' ? C.redDk : C.orangeDk}/><View style={styles.tappableText}><Text style={styles.cardExtraTitle}>{note.title}</Text><Text style={styles.cardExtraMeta}>{note.message}</Text></View><Ionicons name="chevron-forward" size={15} color={C.textHint}/></TouchableOpacity>)}
-      </> : null}
-
-      {dashboard ? <>
-        <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Teaching insights</Text></View>
-        <View style={styles.card}><Text style={styles.cardExtraTitle}>Participation, quizzes and at-risk students</Text><Text style={styles.cardExtraText}>These insights are not available yet. Attendance remains live in the shared class session above.</Text></View>
-      </> : null}
-
-      {pendingFaces > 0 && (
-        <TouchableOpacity
-          style={styles.faceBanner}
-          testID="home-face-review"
-          onPress={() => navigation.navigate('FaceVerification')}
-        >
-          <Ionicons name="id-card-outline" size={18} color={C.orangeDk} />
-          <Text style={styles.faceBannerText}>{pendingLabel(pendingFaces)}</Text>
-          <Ionicons name="chevron-forward" size={16} color={C.orangeDk} />
-        </TouchableOpacity>
-      )}
-
-      {sessionOpen && (
-        <>
-          {/* Quiz section */}
-          <View style={[styles.sectionHeader, { paddingTop: 4 }]}>
-            <Text style={styles.sectionTitle}>Quiz &amp; Poll</Text>
-          </View>
-          <TouchableOpacity style={styles.createQuizBtn} onPress={() => navigation.navigate('Quiz', { screen: 'CreateQuiz' })}>
-            <View style={styles.createQuizIcon}>
-              <Ionicons name="add" size={18} color={C.primary} />
-            </View>
-            <View style={styles.flex}>
-              <Text style={styles.createQuizTitle}>Create Quiz / Poll</Text>
-              <Text style={styles.createQuizSub}>Push instantly to all student desks</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={14} color={C.primary} />
           </TouchableOpacity>
         </>
       )}
@@ -455,8 +305,6 @@ export default function Dashboard({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  interactionLink: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start' },
-  interactionLinkText: { color: C.blueDk, fontSize: 14, fontWeight: '700' },
   flex: { flex: 1, backgroundColor: C.bg },
   content: {
     backgroundColor: C.bg,
@@ -487,15 +335,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 14,
   },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  bellBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: C.card, borderWidth: 1, borderColor: C.border, alignItems: 'center', justifyContent: 'center' },
-  unreadBadge: { position: 'absolute', right: -3, top: -3, minWidth: 16, height: 16, borderRadius: 8, backgroundColor: C.red, alignItems: 'center', justifyContent: 'center' },
-  unreadText: { color: '#fff', fontSize: 9, fontWeight: '800' },
-  dashboardError: { flexDirection: 'row', gap: 8, padding: 11, borderRadius: 10, backgroundColor: C.redLt, marginBottom: 10 },
-  dashboardErrorText: { flex: 1, color: C.redDk, fontSize: 12 },
-  priorityNotice: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', padding: 13, borderRadius: 11, borderLeftWidth: 4, marginBottom: 8 },
-  priorityUrgent: { backgroundColor: C.redLt, borderLeftColor: C.red },
-  priorityImportant: { backgroundColor: C.orangeLt, borderLeftColor: C.orange },
   brand: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -586,39 +425,6 @@ const styles = StyleSheet.create({
   btnDisabled: {
     opacity: 0.45,
   },
-  sharedSessionStatus: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 14,
-  },
-  sharedStatusItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: C.gray50,
-    borderRadius: 7,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-  },
-  statusDot: { width: 7, height: 7, borderRadius: 4 },
-  sharedStatusText: { fontSize: 11, fontWeight: '700', color: C.text },
-  sharedSessionHint: { fontSize: 12, color: C.textSub, marginTop: 8, lineHeight: 17 },
-  commandRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
-  commandSecondary: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
-    borderWidth: 1, borderColor: C.primary, borderRadius: 8, paddingVertical: 9, backgroundColor: C.card,
-  },
-  commandSecondaryText: { color: C.primary, fontWeight: '700', fontSize: 12 },
-  commandDanger: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
-    borderRadius: 8, paddingVertical: 9, backgroundColor: C.red,
-  },
-  commandFilledText: { color: '#fff', fontWeight: '700', fontSize: 12 },
-  endConfirm: {
-    marginTop: 12, padding: 10, borderRadius: 9, backgroundColor: C.redLt,
-    borderWidth: 1, borderColor: C.red,
-  },
-  endConfirmText: { color: C.redDk, fontSize: 12, lineHeight: 18 },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -656,35 +462,6 @@ const styles = StyleSheet.create({
   cardFooterText: {
     fontSize: 12,
     color: C.textHint,
-  },
-  createQuizBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: C.card,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: C.border,
-    gap: 12,
-  },
-  createQuizIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: C.blueLt,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  createQuizTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: C.text,
-  },
-  createQuizSub: {
-    fontSize: 12,
-    color: C.textSub,
-    marginTop: 1,
   },
   cardDivider: {
     height: 1,

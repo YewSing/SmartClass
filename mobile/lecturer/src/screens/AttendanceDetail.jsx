@@ -17,6 +17,7 @@ import { C } from '../theme'
 
 const AVATAR_BG_CYCLE = [C.blueLt, C.greenLt, C.orangeLt]
 const AVATAR_CLR_CYCLE = [C.blueDk, C.greenDk, C.orangeDk]
+const EXTEND_MINUTES = 15
 
 function SmallBtn({ label, icon, onPress, variant = 'outline', disabled, testID }) {
   const v = {
@@ -34,6 +35,39 @@ function SmallBtn({ label, icon, onPress, variant = 'outline', disabled, testID 
       {icon ? <Ionicons name={icon} size={15} color={v[2]} /> : null}
       <Text style={v[1]}>{label}</Text>
     </TouchableOpacity>
+  )
+}
+
+// Live controls while the class runs: extend or end early (FR-315)
+function OpenControls({ session }) {
+  const { doExtendSession, doCloseSession } = useLecturer()
+  const [busy, setBusy] = useState(false)
+  const [confirmEnd, setConfirmEnd] = useState(false)
+
+  const run = async (fn) => {
+    setBusy(true)
+    try { await fn() } catch { /* toast shown in context */ } finally { setBusy(false); setConfirmEnd(false) }
+  }
+
+  if (confirmEnd) {
+    return (
+      <View style={styles.block}>
+        <Text style={styles.blockText}>End the class now? Anyone not recorded is marked Absent and the marks are sent to SPeCTRUM.</Text>
+        <View style={styles.btnRow}>
+          <SmallBtn label="Keep running" onPress={() => setConfirmEnd(false)} disabled={busy} />
+          <SmallBtn label={busy ? 'Ending…' : 'End now'} icon="stop-circle-outline" variant="danger" testID="session-end-confirm"
+            disabled={busy} onPress={() => run(() => doCloseSession(session.id))} />
+        </View>
+      </View>
+    )
+  }
+  return (
+    <View style={styles.btnRow}>
+      <SmallBtn label={`+${EXTEND_MINUTES} min`} icon="add-circle-outline" testID="session-extend" disabled={busy}
+        onPress={() => run(() => doExtendSession(session.id, EXTEND_MINUTES))} />
+      <SmallBtn label="End class" icon="stop-circle-outline" variant="danger" testID="session-end" disabled={busy}
+        onPress={() => setConfirmEnd(true)} />
+    </View>
   )
 }
 
@@ -282,6 +316,7 @@ export default function AttendanceDetail({ navigation }) {
             <Text style={styles.liveText}>Live — updates as students are recognised</Text>
           </View>
         ) : null}
+        {open ? <OpenControls session={session} /> : null}
       </View>
       {status === 'needs_confirmation' ? <ConfirmHeld session={session} /> : null}
       {status === 'closed' ? <SyncStatus session={session} /> : null}
@@ -341,17 +376,6 @@ export default function AttendanceDetail({ navigation }) {
         }
       />
 
-      {session?.status === 'closed' ? (
-        <TouchableOpacity
-          accessibilityRole="button"
-          testID="attendance-interaction-summary"
-          style={styles.interactionSummary}
-          onPress={() => navigation.navigate('ClassInteraction', { sessionId: session.id, className: session.class_name })}
-        >
-          <Text style={styles.interactionSummaryText}>View classroom interaction summary</Text>
-          <Ionicons name="chevron-forward" size={16} color={C.primary} />
-        </TouchableOpacity>
-      ) : null}
       <SectionList
         sections={sections}
         keyExtractor={s => s.id}
@@ -375,11 +399,6 @@ export default function AttendanceDetail({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  interactionSummary: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    minHeight: 44, paddingHorizontal: 16, backgroundColor: C.blueLt,
-  },
-  interactionSummaryText: { flexShrink: 1, color: C.blueDk, fontWeight: '700' },
   flex: { flex: 1, backgroundColor: C.bg },
   list: { flex: 1 },
   exportBtn: {
