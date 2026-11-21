@@ -17,6 +17,7 @@ from app.schemas.auth import (
 from app.core.security import hash_password
 from app.services import face_enrolment_service, moodle_auth, moodle_sync
 from app.services.audit_service import write_log
+from app.services.dashboard import moodle_snapshot
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +76,7 @@ async def moodle_login(body: MoodleLoginRequest, db: AsyncSession = Depends(get_
         raise _INVALID_CREDS
     await moodle_sync.sync_user(db, user, profile.courses)  # FR-104, UC step 5
     await db.commit()
+    await moodle_snapshot.refresh_on_login(user.id, profile)  # M2 FR-203 (S16); never fails the login
 
     result = await db.execute(
         select(User)

@@ -16,3 +16,4 @@ from app.models.ai_chat import ChatSession, ChatMessage  # noqa: F401
 from app.models.notification import Notification  # noqa: F401
 from app.models.push_token import PushToken  # noqa: F401
 from app.models.notification_preference import NotificationPreference  # noqa: F401
+from app.models.moodle_snapshot import MoodleSnapshot  # noqa: F401

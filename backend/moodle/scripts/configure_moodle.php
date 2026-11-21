@@ -25,6 +25,8 @@ $functions = [
     'core_course_get_contents', 'core_course_get_courses_by_field', 'core_user_get_users_by_field',
     'mod_attendance_add_session', 'mod_attendance_remove_session', 'mod_attendance_get_session',
     'mod_attendance_get_sessions', 'mod_attendance_update_user_status',
+    // M2 dashboard snapshot on login (FR-203), read with the user's own token
+    'mod_forum_get_forums_by_courses', 'mod_forum_get_forum_discussions', 'core_calendar_get_calendar_events',
 ];
 if (!$DB->record_exists('modules', ['name' => 'attendance'])) {
     fwrite(STDERR, "mod_attendance is not installed; run setup.sh\n");

@@ -283,6 +283,27 @@ Nothing is queued or replayed for closed connections: on (re)connect the client 
   `NOTIFICATION_RETENTION_INTERVAL_SECONDS` (default 86400; ≤ 0 turns the job off); a retention of
   ≤ 0 days deletes nothing.
 
+### Moodle announcements and deadlines snapshot (S16, Shino)
+
+- **M1 hook (additive):** `moodle_auth.MoodleProfile.moodle_token` (repr-hidden) carries the user's
+  own token out of `authenticate`; `POST /auth/moodle-login` calls
+  `services/dashboard/moodle_snapshot.refresh_on_login(user_id, profile)` once after its commit, which
+  clears the token from the profile. It never raises, so login never fails because of it (FR-203).
+- With that token only (never the service token; no token → nothing fetched) it reads the news
+  forums' discussions (`mod_forum_get_forums_by_courses`, `mod_forum_get_forum_discussions`) and
+  course calendar events from now to `MOODLE_SNAPSHOT_DEADLINE_DAYS` ahead
+  (`core_calendar_get_calendar_events`; these three are in the `smartclass` service allowlist in
+  `backend/moodle/scripts/configure_moodle.php`; real SPeCTRUM needs the same).
+- Saved all at once in `m2_moodle_snapshot` (one row per user: `announcements`, `deadlines` JSON
+  lists, `refreshed_at` naive MYT). Any error, Moodle warning, bad shape or timeout
+  (`MOODLE_SNAPSHOT_TIMEOUT_SECONDS`, default 8) keeps the previous row. Course syncs never refresh it.
+- Item: `{course_id (Moodle id), course_code, course_name, id, title (plain text), date (ISO with
+  +08:00), link}`; deadlines also `type` (e.g. `assign`, may be null). Announcements newest first,
+  deadlines soonest first, each capped at `MOODLE_SNAPSHOT_MAX_ITEMS` (30). Links use
+  `MOODLE_PUBLIC_URL` (empty = `MOODLE_URL`).
+- Read: `await moodle_snapshot.get_snapshot(db, user_id)` → `{announcements, deadlines, refreshed_at}`
+  or `None` (no successful refresh yet). No endpoint yet (S18 dashboard).
+
 ### Live channels (until M2)
 
 The apps can also listen on WebSockets directly:

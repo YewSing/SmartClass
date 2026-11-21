@@ -99,6 +99,11 @@ class Settings(BaseSettings):
     MOODLE_ATTENDANCE_RETRY_MAX_SECONDS: int = 3600    # backoff cap; retries never stop
     MOODLE_ATTENDANCE_CHECK_INTERVAL_SECONDS: int = 10800  # re-read synced sessions in Moodle this often (FR-320)
     MOODLE_ATTENDANCE_CHECK_DAYS: int = 30             # ...for sessions closed within this many days
+    # M2 Moodle snapshot on login (FR-203, S16): announcements + deadlines read with the user's token
+    MOODLE_SNAPSHOT_TIMEOUT_SECONDS: float = 8.0       # whole refresh; past it login goes on, old snapshot kept
+    MOODLE_SNAPSHOT_DEADLINE_DAYS: int = 30            # deadlines from now to this many days ahead
+    MOODLE_SNAPSHOT_MAX_ITEMS: int = 30                # per list (announcements, deadlines)
+    MOODLE_PUBLIC_URL: str = ""                        # base for links shown to users; empty = MOODLE_URL
 
     # ── Module 2: push notifications (FR-210) ───────────────────────────────
     EXPO_PUSH_URL: str = "https://exp.host/--/api/v2/push/send"

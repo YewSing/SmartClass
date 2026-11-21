@@ -37,6 +37,8 @@ class MoodleProfile:
     teaches: bool
     fields: dict = field(default_factory=dict)   # moodle_sync.profile_fields() of the user record
     courses: list[MoodleCourse] = field(default_factory=list)
+    # The user's own token, for M2's login snapshot only (FR-203); cleared there, never stored or logged
+    moodle_token: str | None = field(default=None, repr=False, compare=False)
 
 
 async def get_user_token(username: str, password: str, base_url: str | None = None) -> str:
@@ -90,4 +92,6 @@ async def read_profile(token: str, base_url: str | None = None) -> MoodleProfile
 
 async def authenticate(username: str, password: str) -> MoodleProfile:
     token = await get_user_token(username, password)
-    return await read_profile(token)
+    profile = await read_profile(token)
+    profile.moodle_token = token
+    return profile

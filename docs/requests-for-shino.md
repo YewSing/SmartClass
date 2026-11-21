@@ -72,6 +72,20 @@ plan-shino.md S02; the rebuilt M7 (S60) reads attendance only through `attendanc
 
 ---
 
+## Note for Yew Sing — M2 hook in Moodle login (FR-203) — 2026-11-22
+
+Shino's S16 adds two small, additive changes to M1 so the dashboard can show Moodle announcements
+and deadlines (FR-203): `MoodleProfile.moodle_token` (the user's own token, hidden from `repr`, set
+in `moodle_auth.authenticate`) and one call in `POST /auth/moodle-login` after its commit,
+`moodle_snapshot.refresh_on_login(user.id, profile)`, which clears the token and never raises. Login
+behaviour is unchanged (your `test_moodle_login.py` passes unchanged). `configure_moodle.php` also
+allows `mod_forum_get_forums_by_courses`, `mod_forum_get_forum_discussions` and
+`core_calendar_get_calendar_events` in the `smartclass` service. Details in `docs/interfaces.md`.
+
+**Status / reply:** open (for information)
+
+---
+
 ## Open issue already raised
 
 - `GET /lecturer/analytics` (M7) lets any lecturer read any class's analytics (NFR-04). Details
