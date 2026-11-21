@@ -15,6 +15,7 @@ from sqlalchemy import and_, case, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.notification import Notification
+from app.schemas.notification import NotificationOut
 from app.services.notifications import store
 
 PINNED = ("urgent", "important")      # FR-208: shown at the top of the dashboard until read
@@ -23,6 +24,14 @@ PRIORITY_LIMIT = 50
 
 class BadCursor(ValueError):
     pass
+
+
+def out(n: Notification) -> NotificationOut:
+    """The API shape of a notification (feed, read endpoints and the live channel)."""
+    return NotificationOut(
+        id=n.id, event=n.event, priority=n.priority, title=n.title, message=n.message,
+        link=n.link, read=n.read_at is not None, read_at=n.read_at, created_at=n.created_at,
+    )
 
 
 def encode_cursor(n: Notification) -> str:

@@ -65,3 +65,9 @@ Yew Sing's log is [PROGRESS.md](PROGRESS.md); never edit it. Test removals need 
 - Decisions: any active role has a feed; keyset cursor on (created_at, id) as opaque base64, bad cursor → 422; priority list = unread urgent then important, max 50; read is idempotent (first `read_at` kept); someone else's id → 404; read endpoints return the new `unread_count` (S12 can reuse it).
 - Interface/schema changes: new endpoints (documented in `docs/interfaces.md` "Notification feed API"); no schema change.
 - Tests: `tests/test_notifications_feed.py` (19: ordering incl. ties, pagination across ties and new arrivals, counts, priority scope, read/read-all, isolation, auth, emit → feed). Next: S12 websocket.
+
+### S12 — Live notifications over websocket — 2026-11-22
+- Changed: `services/notifications/live.py` (per-user hub, `publish` called by `store.deliver` after its commit, `publish_unread_count`); `WS /notifications/ws?token=` in `routers/notifications.py`; read/read-all queue an `unread_count` message via `after_commit`; `feed.out` shared by REST and WS.
+- Decisions: bad/expired/refresh token, role mismatch or inactive user → accepted then closed 1008 (so clients see the code); `connected` carries the current unread count; nothing queued or replayed; live failures are logged, never fail the event. Single uvicorn worker assumed (as M3).
+- Interface/schema changes: new WS endpoint and message types in `docs/interfaces.md` "Live notifications"; no schema change.
+- Tests: `tests/test_notifications_live.py` (12, in-process ASGI websocket client: 1008 cases, right user/all connections only, sent after commit, dedup sends nothing, reconnect not stale, read updates); check.sh passes (784). Next: S13 push; reviewer note: no per-socket send timeout, fine at this scale.

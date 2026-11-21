@@ -225,6 +225,20 @@ else's (or a missing) id → 404. Item: `{id, event, priority, title, message, l
 | `POST /notifications/{id}/read` | `{notification, unread_count}`; idempotent, keeps the first `read_at` |
 | `POST /notifications/read-all` | `{marked, unread_count}` |
 
+### Live notifications (S12, Shino)
+
+`WS /notifications/ws?token=<access JWT>` — any active user, own notifications only (FR-213). A
+missing, bad, expired or refresh token, a role that doesn't match the user, or an inactive user:
+the socket is accepted and closed with **1008**. Messages (server → client; client text is ignored):
+
+- `{type:"connected", unread_count}` — once, on connect.
+- `{type:"notification", notification:<feed item>, unread_count}` — each new notification, sent to
+  every open connection of the recipient only, after `notify.emit` has committed it.
+- `{type:"unread_count", unread_count}` — after a read / read-all that changed something.
+
+Nothing is queued or replayed for closed connections: on (re)connect the client re-reads
+`GET /notifications`. The hub lives in the API process (single uvicorn worker).
+
 ### Live channels (until M2)
 
 The apps can also listen on WebSockets directly:
