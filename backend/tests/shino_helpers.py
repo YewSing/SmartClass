@@ -175,11 +175,13 @@ class FakeExpoPush:
 
 @pytest.fixture(autouse=True)
 async def _drain_push(_db_isolation):
-    """Let background Expo pushes (S13) finish before `_db_isolation` truncates the tables."""
+    """Let background Expo pushes (S13) and emails (S14) finish before `_db_isolation` truncates
+    the tables."""
     yield
-    from app.services.notifications import push
+    from app.services.notifications import mailer, push
 
     await push.drain()
+    await mailer.drain()
 
 
 @pytest.fixture
@@ -280,6 +282,15 @@ def _fake_smtp_class(sink: FakeSMTPSink, ssl: bool):
         close = quit
 
     return FakeSMTP
+
+
+@pytest.fixture(autouse=True)
+def _no_real_smtp(monkeypatch):
+    """Email (S14) stays off in tests even if a dev `.env` sets SMTP_HOST; tests that need it turn
+    it on themselves together with `fake_smtp`."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "SMTP_HOST", "")
 
 
 @pytest.fixture

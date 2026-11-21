@@ -108,5 +108,17 @@ class Settings(BaseSettings):
     # FR-210: urgent/important are pushed on Android; iOS gets them in-app and by email
     PUSH_PLATFORMS: str = "android"
 
+    # ── Module 2: email for urgent/important notifications (FR-211) ─────────
+    SMTP_HOST: str = ""                # empty disables email
+    SMTP_PORT: int = 587
+    SMTP_SECURITY: str = "starttls"    # starttls | ssl | none
+    SMTP_USERNAME: str = ""            # empty = no login
+    SMTP_PASSWORD: str = ""            # never logged
+    SMTP_FROM: str = "SmartClass <no-reply@smartclass.local>"
+    SMTP_TIMEOUT_SECONDS: float = 15.0
+    EMAIL_MAX_RETRIES: int = 3         # retries after the first try, per background send
+    EMAIL_RETRY_DELAY_SECONDS: float = 5.0   # doubles after each retry
+    EMAIL_LINK_BASE_URL: str = ""      # e.g. https://smartclass.example; empty = no link in the email
+
 
 settings = Settings()

@@ -255,6 +255,19 @@ Nothing is queued or replayed for closed connections: on (re)connect the client 
   `DeviceNotRegistered` deletes the token; network/HTTP failures are logged and dropped (no retry).
   Config: `EXPO_ACCESS_TOKEN` (optional bearer), `EXPO_PUSH_TIMEOUT_SECONDS`, `PUSH_ENABLED`.
 
+### Email for urgent/important (S14, Shino)
+
+- After `notify.emit` commits, **urgent and important** notifications are emailed (FR-211) in a
+  background task (`app/services/notifications/mailer.py`, stdlib `smtplib` in a thread) to the
+  recipient's `users.email`; inactive users are skipped; general ones are never emailed. Off while
+  `SMTP_HOST` is empty. Subject `[SmartClass] <title>` (`[SmartClass] Urgent: <title>` for urgent;
+  CR/LF stripped), body = message + the link when `EMAIL_LINK_BASE_URL` is set.
+- Temporary failures (disconnect, timeout, 4xx) are retried at most `EMAIL_MAX_RETRIES` times per
+  send (delay `EMAIL_RETRY_DELAY_SECONDS`, doubling); a 5xx recipient rejection drops only that
+  message; a login/sender failure stops the send. Logs hold counts and exception names only.
+- Config: `SMTP_HOST`, `SMTP_PORT` (587), `SMTP_SECURITY` (`starttls` | `ssl` | `none`),
+  `SMTP_USERNAME` (empty = no login), `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_TIMEOUT_SECONDS`.
+
 ### Live channels (until M2)
 
 The apps can also listen on WebSockets directly:

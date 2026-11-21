@@ -373,6 +373,7 @@ async def student_client(users):
 # lets shino_llm record only passing live tests). See tests/shino_helpers.py.
 from tests.shino_helpers import (  # noqa: E402,F401
     _drain_push,
+    _no_real_smtp,
     fake_expo_push,
     fake_smtp,
     pytest_runtest_makereport,
