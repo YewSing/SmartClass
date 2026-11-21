@@ -132,6 +132,12 @@ Long jobs run as one task per fresh session. Start everything with `/run-plan [r
 - On Windows use the Bash tool (Git Bash) for commands, not PowerShell.
 - Stay inside the task's scope; note follow-up ideas in PROGRESS.md under "Next" instead of doing them.
 
+## Shino's Task Loop (plan-shino.md / progress-shino.md)
+Shino's modules (M2, M5, M6, M7) have their own loop with the same rules as above, on files that never touch Yew Sing's:
+- Task list `plan-shino.md` (tasks `Sxx`, read its Guardrails first), log `progress-shino.md` (`TEST-CHANGE:` lines go here).
+- Start with `/shino-run-plan [rounds] [hybrid]` (5 rounds at most unless Shino asks for more). It runs `bash scripts/shino/run-tasks.sh` (one fresh Opus session per task running `/shino-next-task`; hybrid: `/shino-plan-task` + OpenCode with `scripts/shino/opencode/`). The reviewer is the `shino-reviewer` agent.
+- Both loops share `.claude/.loop.lock` and the test DB, so only one runs at a time on a machine. `scripts/check.sh`, the Stop hook and `scripts/test_guard.py` are shared.
+
 ## Merging to main
 Shino builds on `main` or her own branches, so only finished, checked work goes there.
 1. Yew Sing says "prepare the merge" or runs `/prepare-merge`, or Claude suggests it at a milestone.

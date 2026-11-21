@@ -1,330 +1,145 @@
 # PLAN — Shino's modules (M2, M5, M6, M7)
 
-Scope: Dashboard & Notifications, Classroom Interaction, AI Quiz & Assessment, and Learning Analytics. This is deliberately separate from [PLAN.md](PLAN.md), which remains Yew Sing's plan for M1/M3/M4/M8. Follow the same task-loop, test, E2E, interface, and progress rules in `CLAUDE.md`.
-
-## Guardrails and integration contract
-
-- Do not rewrite or take ownership of M1/M3/M4/M8. Consume their documented interfaces only: notification hook (`docs/requests-for-shino.md`), attendance read interface and KB retrieval (`docs/interfaces.md`).
-- `AttendanceSession` is the single class-session source of truth. M5 data is keyed to `attendance_session_id`; it never starts, extends, or ends an independent class session.
-- Lecturer class lifecycle controls belong in the **top session card on Dashboard**. It opens, extends, and ends the shared class session. Attendance detail remains focused on live roster, overrides, history, and SPeCTRUM sync.
-- Opening a class makes attendance and interaction available; extending changes the common session end time; ending closes attendance and interaction work together. M5 must derive availability from the attendance session's `open` status and react to its public close event/state, without altering M3's close semantics.
-- Preserve all existing M3 APIs, websocket events, tests, and E2E flows. Any additive cross-module contract is documented in `docs/interfaces.md` and `progress-shino.md`.
-
-## Product and UI direction
-
-The old isolated mock screens become a coherent “live teaching command centre”: a calm, information-dense desktop lecturer workspace that also collapses cleanly to phone cards. The dashboard session card is the operational anchor; beneath it, attendance, interaction, live quiz, at-risk signals, and notifications show only actionable state. Student screens use the same current-class context, prioritising one clear action over decorative cards. Use the existing React Native/Expo design system and navigation patterns; do not introduce a second visual system or duplicate route state.
-
-Global UI Design Guidelines — Application-Wide Design System
-
-Use the attached screenshot as the primary visual reference for the overall design language of the entire application.
-
-This design guideline applies to ALL pages, modules, dashboards, forms, tables, dialogs, navigation elements, and interactive components across the application.
-
-The screenshot should be treated as a reference for visual styling, typography, spacing, colors, and component appearance — NOT as a reference for page content or information architecture.
-
-The goal is to establish a consistent, modern, clean, and professional visual identity throughout the entire application.
-
-1. Overall Design Philosophy
-
-Adopt a modern, minimalist educational SaaS dashboard aesthetic.
-
-The overall interface should feel:
-
-Clean and professional.
-Modern and lightweight.
-Friendly and approachable.
-Well-structured and easy to navigate.
-Consistent across all pages and modules.
-Visually balanced without unnecessary decoration.
-
-Prioritise usability, readability, consistency, and clear visual hierarchy.
-
-Avoid overly complicated layouts, excessive decorative elements, heavy shadows, unnecessary gradients, and visually overwhelming components.
-
-2. Color System
-
-Maintain a consistent application-wide color palette based on the reference screenshot.
-
-Primary colors:
-
-Primary blue for important actions, navigation highlights, links, and interactive elements.
-White for the main page background.
-Very light grey or cool grey for secondary backgrounds and subtle visual separation.
-Dark navy or near-black for primary text.
-Muted grey for secondary text, descriptions, and timestamps.
-
-Semantic colors:
-
-Green for success, active, online, and live states.
-Red for errors, destructive actions, and important warnings.
-Amber or yellow for pending states and attention indicators.
-Blue for informational states.
-
-Use soft tinted backgrounds for status indicators and highlighted components.
-
-Keep the color palette consistent across all pages. Do not introduce unrelated colors without a functional reason.
-
-3. Typography System
-
-Typography must be consistent throughout the entire application.
-
-Use a clean, modern sans-serif font that matches the reference screenshot and the existing application.
-
-Establish a clear typography hierarchy:
-
-Page titles: Medium to semibold, clearly distinguishable without being excessively large.
-Section headings: Semibold with moderate font sizes.
-Subheadings: Medium weight.
-Body text: Regular weight for comfortable reading.
-Supporting descriptions: Smaller font sizes with muted colours.
-Labels and metadata: Compact and readable.
-Buttons: Medium font weight.
-
-Important typography rules:
-
-Do NOT make every text element bold.
-Avoid excessively heavy font weights.
-Use regular and medium weights for most content.
-Reserve semibold or bold for important headings and key information.
-Use font size, weight, colour, and spacing to create hierarchy instead of relying on bold typography alone.
-Maintain consistent line heights and text spacing.
-
-The interface should look refined and readable rather than thick, heavy, or visually crowded.
-
-4. Spacing & Layout System
-
-Use a consistent spacing system across all pages.
-
-Maintain consistent horizontal page margins.
-Use balanced vertical spacing between sections.
-Keep related elements visually grouped.
-Align headings, content, and actions consistently.
-Avoid unnecessary empty space.
-Avoid overcrowding content.
-Use whitespace to establish hierarchy and improve readability.
-Maintain consistent internal padding across similar components.
-
-Layouts should be responsive and adapt naturally to different screen sizes.
-
-Do not force every page into the same layout. Each page may have its own information architecture, but the spacing, alignment principles, and visual language should remain consistent.
-
-5. Cards & Containers
-
-Follow the lightweight container style shown in the reference screenshot.
-
-Preferred styling:
-
-White backgrounds.
-Subtle light-grey borders.
-Moderate corner radius.
-Minimal or no shadows.
-Consistent border thickness.
-Soft tinted backgrounds for highlighted content.
-Consistent padding and spacing.
-
-Avoid:
-
-Heavy shadows.
-Thick borders.
-Excessively rounded containers.
-Too many nested cards.
-Putting every individual element inside a separate card.
-
-Use cards when they help group related information, not simply to decorate the page.
-
-6. Buttons & Interactive Components
-
-All buttons and interactive elements should follow a consistent design language.
-
-Primary buttons:
-
-Primary blue background.
-White text.
-Clear visual emphasis.
-Consistent height and padding.
-
-Secondary buttons:
-
-White or light background.
-Subtle border.
-Dark text.
-
-Tertiary buttons:
-
-Minimal styling.
-Text buttons or simple icon buttons where appropriate.
-
-Interactive states:
-
-Default.
-Hover.
-Active.
-Selected.
-Disabled.
-Loading.
-Success.
-
-Use subtle transitions and clear feedback.
-
-Ensure buttons have consistent corner radii, typography, padding, and alignment throughout the application.
-
-Not every button should be visually prominent. Establish a clear distinction between primary, secondary, and tertiary actions.
-
-7. Icons & Visual Elements
-
-Use a consistent icon style throughout the application.
-
-Prefer clean, minimal outline icons.
-Use consistent icon sizes and stroke weights.
-Align icons properly with their labels.
-Use icons to improve clarity, not merely for decoration.
-Use small status indicators where appropriate.
-Avoid mixing unrelated icon styles.
-
-Icons should feel like part of one unified design system.
-
-8. Badges, Status Indicators & Labels
-
-Use compact and subtle badges for statuses and categories.
-
-Examples include:
-
-Active
-Completed
-Pending
-Live
-Available
-Unavailable
-
-Use soft background colors with appropriately contrasting text.
-
-Avoid oversized or overly saturated badges.
-
-Maintain consistent badge heights, padding, typography, and corner radii across all modules.
-
-9. Forms, Inputs & Tables
-
-Apply the same visual language to all forms, input fields, dropdowns, checkboxes, radio buttons, and tables.
-
-Forms:
-
-Clean input fields with subtle borders.
-Consistent heights and padding.
-Clear labels and helper text.
-Consistent spacing between fields.
-Clearly distinguishable focus and error states.
-
-Tables:
-
-Clean and readable layouts.
-Subtle dividers.
-Clear column headings.
-Appropriate row spacing.
-Avoid excessive borders and unnecessary decoration.
-
-All components should feel visually consistent regardless of which module they belong to.
-
-10. Responsive Design
-
-The application must maintain a consistent design language across desktop, tablet, and mobile.
-
-Use responsive layouts appropriate to the content.
-Maintain readable typography at different screen sizes.
-Ensure consistent spacing and alignment.
-Adapt multi-column layouts naturally on smaller screens.
-Prevent horizontal overflow.
-Ensure interactive elements have comfortable touch targets.
-Keep navigation and important actions accessible.
-
-Do not simply shrink desktop layouts to fit mobile. Adapt the layout while preserving the same visual identity.
-
-11. Consistency Across the Entire Application
-
-This is one of the most important requirements.
-
-Every page should look like it belongs to the same application.
-
-Maintain consistency in:
-
-Typography and font weights.
-Primary and secondary colors.
-Page backgrounds.
-Spacing and alignment.
-Border radius.
-Card and container styling.
-Button appearance.
-Icon style.
-Input field styling.
-Badges and status indicators.
-Hover, focus, and active states.
-Modal and popup appearance.
-
-Individual pages may have different layouts depending on their functionality, but they must share the same underlying visual design language.
-
-Avoid introducing a completely different visual style when developing new pages or modules.
-
-12. Implementation Guidelines
-
-Before making UI changes:
-
-Inspect the existing application and identify its current design patterns.
-Use the attached screenshot as the primary visual styling reference.
-Identify reusable components and existing styles.
-Reuse existing components wherever possible.
-Consolidate inconsistent styling where necessary.
-Apply the design guidelines consistently across the requested pages.
-Avoid unnecessarily changing existing functionality or application logic.
-
-Where appropriate, establish reusable design tokens or shared components for colors, typography, spacing, buttons, cards, inputs, and badges.
-
-Do not duplicate different styling rules for components that should look the same.
-
-Final requirement: Treat this as the application's global visual design standard, not a page-specific redesign. Every existing and newly developed page should follow this design language while retaining its own appropriate content structure and functionality.
-
-## Work sequence
-
-- [~] **S01 [UI] Shared class-session command card.** Depends on: existing M3 T38b.
-  Done when: `mobile/lecturer` Dashboard top card handles Start now, +15 minutes, and End class (with the existing finalisation warning/confirmation); it states that attendance and interaction share this session; `AttendanceDetail` has no lifecycle controls; use existing LecturerContext session actions and preserve all attendance/sync behaviour. Add/adjust unit + Playwright/Maestro coverage for dashboard start/extend/end and absence of controls in attendance detail.
-  Status: `[~]` done but optional manual phone/Maestro confirmation still pending (progress-shino.md, 2026-11-20); lecturer unit tests, Expo web export, and Playwright browser E2E (`mobile/lecturer/e2e-web/live-session.spec.js`, `desktop.spec.js`) pass.
-  Test map: lecturer web E2E `mobile/lecturer/e2e-web/`; backend tests for S02/S04 in `backend/tests/test_notifications.py`, `test_dashboard_moodle.py`, `test_interaction.py`; student Maestro flow `mobile/student/e2e/interaction.yaml` (+ `interaction_fixture.py`, `interaction.setup.sh`) — emulator run waived for S05 (Maestro driver install timed out); completed via Playwright + unit suites + responsive review.
-
-- [x] **S02 [API] M2 notification foundation and dashboard reads.** Depends on: S01.
-  Done when: additive notification model, event adapter around `notify.emit`, priority mapping, deduplication, read state, authenticated feed endpoints, and dashboard aggregates exist; M3 events from R1 work without edits to M3. Moodle announcements/deadlines are read-only sync data. Tests cover recipient isolation, priorities, read operations, and duplicate suppression.
-  Refresh decision: Moodle announcements/deadlines refresh only on successful Moodle login (FR-203). The snapshot includes its refresh time; Moodle tokens are never persisted. Manual/scheduled snapshot refresh is out of scope.
-  Verified: `scripts/check.sh` passed (709 backend tests plus both mobile unit suites); live Moodle login/snapshot test passed; follow-up reviewer PASS. Runtime migrations and Moodle allowlist applied.
-
-- [x] **S03 [UI] M2 role dashboards and notification centre.** Depends on: S02.
-  Done when: student and lecturer dashboards satisfy FR-201/202/203/208/209 with real API state, the lecturer dashboard retains S01 as its top card, and a notification feed as bell icon supports mark-one/all-read plus deep links. Old dashboard placeholders and mock data are removed only after replacement flows pass mobile and lecturer-web E2E.
-  Lecturer scope clarification: Dashboard keeps the top shared-session command card and live attendance state; it intentionally does not add a Today list or a closed-session attendance summary. Closed records remain in Attendance.
-  Verified: student 65/65 and lecturer 55/55 unit tests, both Expo web exports, focused lecturer Playwright dashboard/notification/live-session flows, full `scripts/check.sh` (709 backend tests plus both mobile suites), and independent design evaluation PASS after refinement.
-
-- [x] **S04 [API] M5 interaction session and real-time events.** Depends on: S01, S02.
-  Done when: Shino-owned models/services/routes implement M5 keyed to `attendance_session_id`, access checks, anonymous-question privacy, questions/upvotes/moderation, polls, quick answers, reactions, confusion cooldown/spike, and websocket updates. Interaction is unavailable whenever the linked attendance session is not open and all live interaction closes when it closes. Tests cover lifecycle coupling, privacy, enrolment, cooldowns, live events, and audit events.
-  Verified: 15 focused interaction tests, 81 interaction/session/access regressions, final reviewer PASS, and full `scripts/check.sh` exit 0 (724 backend tests plus both mobile suites). Development migration `f5a6b7c8d9e0` applied; legacy tables preserved.
-
-- [x] **S05 [UI] M5 lecturer moderation and student live participation.** Depends on: S04.
-  Done when: the shared live-session view exposes interaction controls/status from Dashboard, lecturers can moderate and read aggregates, students can ask/vote/react/respond/report confusion, and each state updates in real time. Post-session summary is read-only. Add lecturer web and both mobile E2E coverage.
-  Verification clarification: Shino waived emulator testing for this task. Use the seeded lecturer Playwright flow, both app unit suites and web exports, responsive visual review, and the repository check.
-  Verified: seeded lecturer Playwright passed, student 70/70 and lecturer 55/55 unit tests passed, both web exports passed, independent responsive review passed, and full `scripts/check.sh` exited 0 with 724 backend tests.
-
-- [ ] **S06 [API] M6 quiz authoring, delivery, and result interfaces.** Depends on: S02, M8 retrieval interface.
-  Done when: quiz persistence, AI draft/review/publish workflow, game and graded attempts/timers, autosave, grading/result release, leaderboards, and M7/M8 read interfaces meet FR-601–621. Generation calls only `app.services.kb.retrieval_api.search`; quiz attempts and server timers are authoritative. Tests include permissions, timer expiry, one graded attempt, anonymous/public-result boundaries, and interfaces.
-
-- [ ] **S07 [UI] M6 replacement lecturer and student quiz journeys.** Depends on: S06.
-  Done when: legacy mock `Quiz*`, `LiveResults`, `ResultsClosed`, and student quiz placeholders are replaced with real authoring/review, live-game, graded attempt, result, and leaderboard flows. The UI distinguishes game from graded quizzes and never exposes a graded ranking. Test the happy paths in lecturer web and student mobile.
-
-- [ ] **S08 [API] M7 indicators, access control, and early warning.** Depends on: S04, S06.
-  Done when: M7 reads attendance only through `attendance_read.py`, interaction through M5's read interface, and quiz outcomes through M6's read interface. It fixes current `GET /lecturer/analytics` ownership enforcement with `ensure_teaches_occurrence`, handles Late/Excused correctly, prevents anonymous-question identity leakage, evaluates configurable rules, emits `at_risk.alert`, and audits updates. Tests cover all FR-701–715 rules and cross-lecturer denial.
-
-- [ ] **S09 [UI] M7 lecturer analytics and student learning insights.** Depends on: S08.
-  Done when: real course/student analytics replace hard-coded charts; lecturer screens show trends, evidence, at-risk actions and threshold controls; students see only their own attendance, engagement, performance, and topic mastery with “not enough data” states. Add mobile/web E2E and export coverage where implemented.
-
-- [ ] **S10 [CHECK] Integration, visual QA, and handover.** Depends on: S03, S05, S07, S09.
-  Done when: all stated checks pass, the lecturer desktop/mobile and student live-class flows are visually reviewed, no M1/M3/M4/M8 files were changed except approved additive integration wiring, and `progress-shino.md` has final interfaces, tests, and known limitations.
-
-## Required first replies
-
-Before S02, update only the Status / reply fields in `docs/requests-for-shino.md`:
-
-- R1: confirm M2 will adapt the existing `notify.emit(event, user_ids, payload)` hook, with M2 resolving priority/title/message/link.
-- R2: confirm M7 will use `attendance_read.py` and will fix the existing access/control calculation defects as S08.
+Fresh start (2026-11-21): earlier M2/M5/M6/M7 code is not trusted and is not built on. Every module is rebuilt here, test first. Yew Sing's plan for M1/M3/M4/M8 is [PLAN.md](PLAN.md); never edit it.
+
+Spec: `docs/requirements/functional-requirements.md` (FR-2xx, FR-5xx, FR-6xx, FR-7xx), `docs/requirements/non-functional-requirements.md`. Interfaces from Yew Sing's modules: `docs/interfaces.md`. Rules: `CLAUDE.md` → "Task Loop Rules" (read `PLAN.md` as this file and `PROGRESS.md` as [progress-shino.md](progress-shino.md)).
+
+Run the loop with `/shino-run-plan [rounds]` (or `bash scripts/shino/run-tasks.sh <rounds>`). One task per fresh session (`/shino-next-task`), reviewed by the `shino-reviewer` agent.
+
+**Legend:** `[ ]` todo · `[x]` done · `[~]` done but needs a manual check (see progress-shino.md) · `[!]` blocked
+
+**Tags:** `[API]` backend · `[UI]` mobile/web, done only when its E2E flow passes (Playwright for lecturer web, Maestro for mobile) · `[INFRA]` tooling · `[HUMAN]` the loop skips it; Shino does it · `[OPUS]` in the hybrid loop, Claude Opus builds it fully (hard design, timers, websockets, LLM prompts)
+
+**Picking rule:** the first `[ ]` task, top to bottom, whose `Depends on` tasks are all `[x]` or `[~]` and which isn't `[HUMAN]`. **A `[HUMAN] Checkpoint` stops the loop:** no task below an unticked checkpoint may start. Other `[HUMAN]` tasks are simply skipped.
+
+## Guardrails
+
+- **Ownership.** Never change M1/M3/M4/M8 code (auth, Moodle sync, attendance, sessions, face, KB/assistant) except an additive hook the task names. Consume only their documented interfaces: `app/services/notify.py::emit` (FR-205 hook, R1), `app/services/attendance_read.py` (FR-313, R2), `app/services/kb/retrieval_api.py::search` (FR-814), `app.core.deps.ensure_teaches_occurrence`. If an interface is missing something, write a request in progress-shino.md `## Next` ("Requests for Yew Sing") and stub your side.
+- **One class session.** M3's `AttendanceSession` is the only class session. M5 interaction is keyed to `attendance_session_id`, is open only while that session is `open`, and never opens, extends or closes it.
+- **Privacy.** Anonymous questions and confusion presses never show identity (FR-504, FR-515, FR-713). Graded quiz results are private and never ranked (FR-605, FR-613). Unreleased marks/answers stay hidden (FR-618). Students never receive correct answers before they are revealed. Every lecturer endpoint checks the lecturer teaches the class (NFR-04); students reach only enrolled courses and their own data.
+- **Tests.** Normal tests never call Moodle, the LLM, Expo Push or SMTP: mocks (respx, fakes) or recorded fixtures. New LLM prompts get `@pytest.mark.live` cases in `backend/tests/live/` on the synthetic test course plus fixtures in `backend/tests/fixtures/llm/`. Never weaken or skip a test (`scripts/test_guard.py` accepts a `TEST-CHANGE:` line in progress-shino.md).
+- **Real time.** Websocket events go out only after the DB commit (`app.core.database.after_commit`).
+- **Migrations.** Every model change has a new Alembic migration on the current head; one head only. Shino's tables are prefixed `m2_`, `m5_`, `m6_`, `m7_`.
+- **UI.** Use the apps' existing components (`src/components/ui/`), theme and navigation. Clean, light, consistent: white cards with subtle borders, one primary blue, soft status badges, regular/medium text weights. Lecturer screens work at 1280 px in the browser and at phone width.
+
+---
+
+## 0. Foundation
+
+- [x] **S01 [INFRA] Shino task loop.** Depends on: —.
+  Done when: `scripts/shino/run-tasks.sh`, `/shino-run-plan`, `/shino-next-task`, `/shino-plan-task`, the `shino-reviewer` agent, `scripts/shino/opencode/*.md`, this file and progress-shino.md exist; `backend/tests/test_shino_loop_script.py` passes; test_guard accepts `TEST-CHANGE:` in progress-shino.md.
+- [ ] **S02 [OPUS] [INFRA] Clean slate for M2/M5/M6/M7.** Depends on: S01.
+  Done when: no pre-plan M2/M5/M6/M7 implementation remains: the legacy `routers/analytics.py` and any notification/dashboard/interaction/quiz routers, services, models, schemas and their tests are removed (each removed test has a `TEST-CHANGE:` line), except what an M1/M3/M4/M8 app screen or test still calls (list each kept endpoint in progress-shino.md with its caller); `notify.emit` is the logging-only T44 hook again; the mock screens and mock data for Shino's areas (lecturer `QuizList`, `CreateQuiz`, `LiveResults`, `ResultsClosed`, `Breakdown`, `Analytics`, and any interaction/notification screens; student `Participation`, `PartSessionPerf`, quiz/live-class/notification screens) are replaced by one shared "Coming soon" placeholder per app, with navigation still working; if a removed migration was applied to the dev DB, progress-shino.md gives the exact `alembic downgrade` command for Shino (the loop does not downgrade the dev DB); one Alembic head; `bash scripts/check.sh` passes; Yew Sing's E2E flows (`login`, `live-session`, `assistant`) are unchanged.
+- [ ] **S03 [INFRA] Test helpers for Shino's modules.** Depends on: S02.
+  Done when: `backend/tests/shino_helpers.py` (or conftest fixtures) builds a course with one lecturer, ≥4 enrolled students, a non-enrolled student, a second lecturer who doesn't teach it, and an open `AttendanceSession` (using M3's service, not raw SQL that bypasses it); a fake Expo Push server (respx) and a fake SMTP sink; an LLM fixture helper for Shino's prompts (`tests/fixtures/llm/m6/`, replay by default, record with a flag); `scripts/check.sh` also triggers the live suite when `backend/app/services/quiz/` changes (same once-per-state rule as `app/services/kb`). A sample test per helper passes.
+- [ ] **S04 [HUMAN] Checkpoint: review S01–S03.** Shino (or a Claude review session) reads the S02 removal list and the helpers, then ticks `[x]`.
+
+## 1. Module 2 — Dashboard and Notifications
+
+- [ ] **S10 [API] Notification store and event interface (FR-205, FR-206, FR-207, FR-216).** Depends on: S04.
+  Done when: `m2_notifications` (recipient user, event, priority, title, message, link, subject key, read_at, created_at) with migration; `app/services/notifications/` has an event registry mapping every FR-206 event to its priority, default title/message and app-relative link; `notify.emit(event, user_ids, payload)` persists through it (an additive change to `notify.py` as agreed in R1; existing callers unchanged); unknown events are logged, not raised; duplicates by (event, recipient, subject, window) are dropped; unsafe/external links are rejected. Tests: each FR-206 event maps to a priority, dedup within/after the window, `attendance.recorded` from M3 lands without editing M3, payload never stored raw.
+- [ ] **S11 [API] Feed and read state (FR-208, FR-209).** Depends on: S10.
+  Done when: `GET /notifications` (newest first, cursor pagination, unread count), `GET /notifications/priority` (unread urgent+important for the dashboard), `POST /notifications/{id}/read`, `POST /notifications/read-all`; a user never sees or marks another user's notification (404). Tests for ordering, pagination, counts, isolation.
+- [ ] **S12 [OPUS] [API] Live notifications over websocket (FR-213).** Depends on: S11.
+  Done when: `WS /notifications/ws?token=` authenticates with the access token, rejects bad/expired tokens (1008), and sends `{type:"notification", ...}` plus the new unread count to every open connection of the recipient after commit. Tests: delivery to the right user only, not before commit, reconnect gets nothing stale.
+- [ ] **S13 [API] Push tokens and Expo push (FR-210, FR-212).** Depends on: S10.
+  Done when: `POST /me/push-tokens` / `DELETE /me/push-tokens/{token}` (validated Expo token format, one row per device); urgent and important notifications are sent through the Expo Push API in a background task (batching, `DeviceNotRegistered` deletes the token, network failure doesn't fail the request); general ones are not pushed. Tests with respx only.
+- [ ] **S14 [API] Email for urgent/important (FR-211).** Depends on: S10.
+  Done when: SMTP settings in config (off when unset); urgent/important notifications are emailed to the user's email in the background, general never; failures are logged and retried at most N times; no secrets in logs. Tests with the fake SMTP sink.
+- [ ] **S15 [API] Preferences and retention (FR-214, FR-218).** Depends on: S13, S14.
+  Done when: `GET/PUT /me/notification-preferences` turns push/email off for general only (urgent/important can't be turned off: 422); a daily job deletes notifications older than `NOTIFICATION_RETENTION_DAYS` (default 90). Tests for both, clock monkeypatched.
+- [ ] **S16 [OPUS] [API] Moodle announcements and deadlines on login (FR-203).** Depends on: S10.
+  Done when: on successful Moodle login the user's course news-forum posts and upcoming assignment/calendar events are fetched with the user's own transient token and saved as a per-user read-only snapshot (`m2_moodle_snapshot`, with refreshed_at); the token is never stored or logged; a Moodle failure keeps the previous snapshot and never fails login. The only M1 change is one additive call in the login route, noted in progress-shino.md and `docs/requests-for-shino.md`. Tests with respx; one `moodle` test against the local Moodle.
+- [ ] **S17 [API] Lecturer announcements (FR-217).** Depends on: S10, S16.
+  Done when: `POST /lecturer/classes/{occurrence_id}/announcements {title, message, post_to_moodle}` (teaching lecturer only) notifies the class's students as *important*; with `post_to_moodle` it is posted to the course news forum, failures retried with backoff, status visible in `GET .../announcements`. Tests with respx; a `moodle` test for the forum post.
+- [ ] **S18 [API] Dashboard reads (FR-201, FR-202).** Depends on: S11, S16.
+  Done when: `GET /student/me/dashboard` returns today's classes with the student's attendance status, attendance rate per course (via `attendance_read`), Moodle deadlines and announcements with refreshed_at, and unread urgent/important notifications; `GET /lecturer/dashboard` returns today's classes, the current/latest session's attendance counts (via `attendance_read`), and unread urgent/important notifications. Fields from M5/M6/M7 are present and `null` until S80 fills them. Tests for both roles and isolation.
+- [ ] **S19 [UI] Notification centre and push registration (both apps).** Depends on: S12, S13, S15.
+  Done when: both apps show a bell with the unread count on the home screen, a feed screen (pull to refresh, mark one/all read, tap opens the deep link), live updates through the websocket, a preferences screen; the phone apps register the Expo push token after login and remove it on logout. Maestro `notifications.yaml` (student) and Playwright `notifications.spec.js` (lecturer) pass.
+- [ ] **S20 [UI] Student and lecturer dashboards.** Depends on: S18, S19.
+  Done when: the student Home and lecturer Dashboard show the S18 data with loading, empty and error states, Moodle items open the Moodle link, priority notifications sit at the top until read (FR-208). Maestro `dashboard.yaml` and Playwright `dashboard.spec.js` pass at phone width and 1280 px.
+- [ ] **S21 [HUMAN] Checkpoint: notifications on a real phone.** Shino logs in on Android, checks a push arrives and the dashboard is right, then ticks `[x]`.
+
+## 2. Module 5 — Classroom Interaction
+
+- [ ] **S30 [OPUS] [API] Interaction session tied to the class session (FR-501, FR-502).** Depends on: S21.
+  Done when: `m5_interaction_sessions` keyed to `attendance_session_id`; the teaching lecturer can open/close interaction only while the attendance session is `open`; it is treated as closed the moment the attendance session is not `open` (checked on every write, under a row lock), and a background sweep closes it within 30 s for clients; only enrolled students and the teaching lecturer can join (403 otherwise). No M3 code changes. Tests: lifecycle, closing class closes interaction, access matrix.
+- [ ] **S31 [API] Live questions (FR-503–FR-506).** Depends on: S30.
+  Done when: students ask (optionally anonymous), upvote once, list by votes then time; the lecturer marks answered, pins, hides (hide audited, NFR-06); anonymous identity appears in no response, event or audit value. Tests including the anonymity check on every response shape.
+- [ ] **S32 [API] Polls (FR-507–FR-509).** Depends on: S30.
+  Done when: lecturer creates (2–6 options, single/multiple), starts, closes; students vote once and may change until close; live results to the lecturer; lecturer chooses whether students see results; `poll.started` notification. Tests.
+- [ ] **S33 [API] Quick answers, reactions and confusion (FR-510–FR-512, FR-514, FR-515).** Depends on: S30.
+  Done when: quick questions with length-limited text answers (lecturer sees the list, anonymous to the class); reactions with a per-student cooldown; "I don't understand" with optional topic tag, configurable cooldown (default 2 min), lecturer sees count and timeline only; `confusion.spike` to the lecturer when presses in the window reach the configured share (defaults 2 min / 25%), once per spike. Tests with the clock monkeypatched.
+- [ ] **S34 [API] Event log and M7 read interface (FR-513, FR-517, FR-713).** Depends on: S31, S32, S33.
+  Done when: every interaction event is stored (type, student, session, time); `app/services/interaction_read.py` gives per-student counts (polls answered, questions excluding anonymous ones, reactions, confusion) and class totals (including anonymous questions without identity), documented in `docs/interfaces.md`; nothing is graded. Tests.
+- [ ] **S35 [OPUS] [API] Interaction websocket (FR-516).** Depends on: S34.
+  Done when: `WS /interaction/{attendance_session_id}/ws?token=` with role-separated payloads (students never get identities or hidden items), after-commit invalidation events for questions, polls, quick answers, reactions, confusion, and a `closed` event when the class ends. Tests.
+- [ ] **S36 [API] After class: summary, CSV, my questions (FR-518–FR-520).** Depends on: S34.
+  Done when: lecturer summary (questions asked/answered, poll results, reactions, confusion timeline), CSV export without anonymous identities (cells starting with `= + - @` escaped), students list their own past questions with answered status. Tests.
+- [ ] **S37 [UI] Lecturer live interaction.** Depends on: S35, S36, S20.
+  Done when: from the dashboard's current class the lecturer opens interaction, moderates questions, runs polls and quick questions, sees reactions and the confusion timeline live, and opens the after-class summary/CSV. Playwright `interaction.spec.js` passes at 1280 px and phone width.
+- [ ] **S38 [UI] Student live class.** Depends on: S35, S36, S20.
+  Done when: during an open class a student joins from Home, asks (anonymous option), upvotes, votes, answers quick questions, reacts, presses "I don't understand", sees updates live and a closed state when class ends, and sees their past questions. Maestro `interaction.yaml` passes.
+- [ ] **S39 [HUMAN] Checkpoint: interaction in a real class.** Shino runs one class with a few phones, then ticks `[x]`.
+
+## 3. Module 6 — AI Quiz and Assessment
+
+- [ ] **S40 [API] Quiz model and lecturer CRUD (FR-605, FR-606 settings).** Depends on: S39.
+  Done when: `m6_quizzes`, `m6_questions` (type mcq/short, text, options, answer, suggested answer, topic, source file + page, origin `from_material`/`extended`, explanation, order, approved), `m6_attempts`, `m6_answers` with migration and pydantic schemas; the teaching lecturer creates/reads/updates/deletes draft quizzes and their settings (title, type, timer mode, timer seconds, open/close, shuffle, release, speed bonus); a game quiz forces per-question timers. Tests: validation and access matrix.
+- [ ] **S41 [OPUS] [API] AI draft from a prompt (FR-601–FR-603).** Depends on: S40.
+  Done when: `POST /lecturer/quizzes/draft {course_id, prompt, material_ids?}` reads settings from the prompt, retrieves passages only through `retrieval_api.search`, and asks the LLM (existing `app/services/kb/llm.py` adapter) for JSON questions that are validated (counts, option indexes, required fields) before saving as an unapproved draft; each question is tagged topic + source + origin with an explanation citing the source; "only the material" mode produces no `extended` questions; LLM failures give a clear 502/503 and save nothing. Code in `app/services/quiz/`. Replay-fixture tests and `live` tests on the synthetic course (structure and grounding).
+- [ ] **S42 [API] Draft review and refinement (FR-604).** Depends on: S41.
+  Done when: edit, delete, reorder, add, approve/unapprove questions; regenerate one question and refine the draft with a further prompt (LLM, validated, fixtures + live cases); questions can't change once the quiz has attempts (409). Tests.
+- [ ] **S43 [API] Publish and student quiz cards (FR-606, FR-607).** Depends on: S42.
+  Done when: publish needs ≥1 approved question and only approved ones are published; unpublish/close; `quiz.published` to enrolled students; `GET /student/me/quizzes` lists cards for enrolled courses with state (upcoming, open, attempted, closed) and never includes answers. Tests.
+- [ ] **S44 [OPUS] [API] Graded attempts and server timers (FR-607, FR-608).** Depends on: S43.
+  Done when: one graded attempt per student; answers autosave; whole-quiz or per-question timers are enforced on the server (late answers rejected, expired attempts auto-submitted on next touch and by a background sweep); resuming after a disconnect never extends time; shuffle is stable per attempt. Tests with the clock monkeypatched, including concurrent submits.
+- [ ] **S45 [API] Grading (FR-616, FR-617).** Depends on: S44.
+  Done when: MCQ graded on submit; short answers graded by the LLM against the suggested answer with score, reason and confidence (validated JSON, fixtures + live cases); low-confidence scores are flagged; the lecturer can change a short-answer score with feedback, audited with old/new score; `quiz.graded` sent when results are released. Tests.
+- [ ] **S46 [API] Results release and lecturer results (FR-618, FR-619).** Depends on: S45.
+  Done when: the lecturer releases marks, answers, both or neither; students see only released parts; lecturer results show submissions, score distribution, average, per-question correct rate and most-missed questions. Tests including hidden parts never leaking.
+- [ ] **S47 [API] Read interfaces for M7 and M8 (FR-609, FR-620, FR-621).** Depends on: S46.
+  Done when: `app/services/quiz_read.py` provides `has_active_graded_attempt(student_id, course_id)`, per-student answers with topic/source/quiz type, graded scores with dates and game participation by topic; documented in `docs/interfaces.md`; a line added to `docs/requests-for-shino.md` telling Yew Sing FR-820–FR-824 can now use it. Tests.
+- [ ] **S48 [OPUS] [API] Live game engine (FR-610–FR-612).** Depends on: S43.
+  Done when: the lecturer starts a game quiz (`game.started`), releases one question at a time with a server countdown, can pause, skip, end; students answer once per question; late joiners enter at the current question; after each question the correct answer, class answer split and explanation are revealed; scoring is base points plus an optional speed bonus; a game websocket pushes state after commit and never sends the correct answer early. Tests with the clock monkeypatched.
+- [ ] **S49 [API] Leaderboards (FR-613, FR-614).** Depends on: S48.
+  Done when: per-question and final game leaderboard (top five + own rank), nickname or opt-out per student, a course leaderboard summing game points; graded quizzes have no leaderboard endpoint (404). Tests.
+- [ ] **S50 [UI] Lecturer quiz authoring and review.** Depends on: S42, S43, S20.
+  Done when: the lecturer writes a prompt, sees the filled settings and draft questions with topic/source/origin labels, edits/reorders/regenerates/refines/approves, and publishes. Playwright `quiz-authoring.spec.js` passes with `LLM_FAKE=1`.
+- [ ] **S51 [UI] Student graded quiz and results.** Depends on: S44, S46, S20.
+  Done when: quiz cards on the student app, a timed attempt with autosave and resume, auto-submit at time up, and the released result view. Maestro `quiz-graded.yaml` passes.
+- [ ] **S52 [UI] Live game (lecturer host and student play, FR-615).** Depends on: S48, S49, S50.
+  Done when: the lecturer hosts from the browser (question, live answer counts, pause/skip/end, reveal, leaderboard); students play on the phone with countdown, correct/wrong feedback, streak indicator and a final podium. Playwright `quiz-game.spec.js` and Maestro `quiz-game.yaml` pass.
+- [ ] **S53 [UI] Lecturer results and short-answer review.** Depends on: S46, S50.
+  Done when: results screen (distribution, averages, per-question correct rate, most-missed) and flagged short answers the lecturer can re-score with feedback; release controls. Playwright `quiz-results.spec.js` passes.
+- [ ] **S54 [HUMAN] Checkpoint: quizzes in class.** Shino runs a game quiz and a graded quiz with a few phones, then ticks `[x]`.
+
+## 4. Module 7 — Learning Analytics and Early Warning
+
+- [ ] **S60 [API] Indicators (FR-701, FR-702, FR-706, FR-713).** Depends on: S54.
+  Done when: `app/services/analytics/indicators.py` computes per student per course every FR-702 figure, reading only `attendance_read`, `interaction_read` and `quiz_read` (Late counts as attended, Excused is not an absence); "not enough data" below configurable minimums; anonymous questions only in class totals. Tests per indicator with built fixtures.
+- [ ] **S61 [API] Lecturer class and student views (FR-703, FR-704, FR-707, FR-714, FR-716).** Depends on: S60.
+  Done when: class dashboard (attendance trend by session, participation trend, quiz performance by quiz and topic, at-risk count, most-missed topics, lowest-engagement sessions), student-level view, CSV export; lecturers who don't teach the class get 403 via `ensure_teaches_occurrence`, admins see all. Tests including cross-lecturer denial.
+- [ ] **S62 [API] Student's own insights (FR-705).** Depends on: S60.
+  Done when: `GET /student/me/insights?course_id=` returns only the caller's attendance, engagement, quiz performance and topic mastery (graded and game separately); any attempt to read another student's data is impossible by construction. Tests.
+- [ ] **S63 [API] At-risk rules and thresholds (FR-708, FR-709, FR-715).** Depends on: S60.
+  Done when: rules (a)–(d) with defaults in config and per-course overrides in `m7_rule_settings` (teaching lecturer only, each change audited); each rule can be turned off; rules skip "not enough data". Tests for every rule at, below and above the threshold.
+- [ ] **S64 [OPUS] [API] Evaluation and alerts (FR-710, FR-711).** Depends on: S63, S47.
+  Done when: rules are evaluated after an attendance session is finalised (by observing M3 state or an additive hook named in the task notes, no M3 behaviour change), after a quiz is graded, and daily; `m7_alerts` stores rule + evidence; `at_risk.alert` goes to the lecturer the first time a rule fires and not again until it clears and recurs. Tests with the clock monkeypatched.
+- [ ] **S65 [API] Alert list and follow-up (FR-712, FR-715).** Depends on: S64.
+  Done when: per-course at-risk list with rules and evidence; acknowledge / followed up / dismissed with optional note, audited. Tests.
+- [ ] **S66 [UI] Lecturer analytics.** Depends on: S61, S65, S20.
+  Done when: class dashboard charts, student drill-down, at-risk list with actions, threshold settings, CSV export. Playwright `analytics.spec.js` passes at 1280 px and phone width.
+- [ ] **S67 [UI] Student insights.** Depends on: S62, S20.
+  Done when: the student sees their own attendance, engagement, quiz performance and topic mastery per course, with "not enough data" states. Maestro `insights.yaml` passes.
+- [ ] **S68 [HUMAN] Checkpoint: analytics with real data.** Shino checks the numbers against a class she ran, then ticks `[x]`.
+
+## 5. Integration and wrap-up
+
+- [ ] **S80 [API] [UI] Dashboards complete (FR-201, FR-202).** Depends on: S36, S49, S65.
+  Done when: the S18 `null` fields are filled: student sees running classroom activity (live poll/question, open quiz); lecturer sees the participation summary, running and recent quizzes and at-risk alerts; both dashboards show them. Backend tests plus the S20 E2E flows extended.
+- [ ] **S81 [OPUS] [API] Deadline and quiz reminders (FR-215).** Depends on: S16, S43.
+  Done when: reminders before a Moodle deadline and before an open quiz closes (configurable, default 24 h and 1 h) via `quiz.deadline_reminder` / Moodle deadline events, each sent once per user per window (FR-216). Tests with the clock monkeypatched.
+- [ ] **S90 [INFRA] Docs refresh.** Depends on: S80, S81.
+  Done when: `docs/interfaces.md` covers every Shino interface, `README.md` has M2/M5/M6/M7 setup (SMTP, push), `docs/requests-for-shino.md` replies are current, and progress-shino.md lists known limitations.
+- [ ] **S91 [HUMAN] Final checkpoint and merge.** Shino runs everything end to end, then says "prepare the merge" (`/prepare-merge`).

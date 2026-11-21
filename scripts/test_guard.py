@@ -5,7 +5,8 @@ Compares the working tree (committed + uncommitted) against SMARTCLASS_BASE
   - deleted test files under backend/tests/
   - removed `def test_...` functions
   - added skip/xfail markers or pytest.skip() calls
-Allowed only when PROGRESS.md gained a line starting with "TEST-CHANGE:" since the base,
+Allowed only when PROGRESS.md (or Shino's progress-shino.md) gained a line starting with
+"TEST-CHANGE:" since the base,
 explaining why (the reviewer then checks the reason).
 
 Usage: python scripts/test_guard.py   (run from anywhere inside the repo)
@@ -58,16 +59,16 @@ def main() -> int:
 
     if not problems:
         return 0
-    progress_diff = git("diff", base, "--", "PROGRESS.md")
+    progress_diff = git("diff", base, "--", "PROGRESS.md", "progress-shino.md")
     if re.search(r"^\+.*TEST-CHANGE:", progress_diff, re.MULTILINE):
-        print("test guard: test removals/skips found, justified by a TEST-CHANGE note in PROGRESS.md:")
+        print("test guard: test removals/skips found, justified by a TEST-CHANGE note in PROGRESS.md / progress-shino.md:")
         for p in problems:
             print("  -", p)
         return 0
     print("test guard FAILED: tests were removed or skipped without justification.")
     for p in problems:
         print("  -", p)
-    print("Restore them, or (only if genuinely required) add a line 'TEST-CHANGE: <test> - <why>' to PROGRESS.md.")
+    print("Restore them, or (only if genuinely required) add a line 'TEST-CHANGE: <test> - <why>' to PROGRESS.md (or progress-shino.md).")
     return 1
 
 
