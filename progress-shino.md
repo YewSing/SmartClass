@@ -59,3 +59,9 @@ Yew Sing's log is [PROGRESS.md](PROGRESS.md); never edit it. Test removals need 
 - Decisions: priority only from the event type; payload `title`/`message`/`link` override the defaults (FR-205); an unsafe link (external, `//`, `..`, `%`, scheme) stores nothing; no subject fields → subject = hash of the text. M3's fixed `message` ("Attendance recorded for X") overrides the template, so the status isn't shown; fine for now.
 - Interface/schema changes: new table `m2_notifications`; event table with priorities/fields/windows in `docs/interfaces.md`. `emit` must be called after commit (it opens its own session). No M3 code changed.
 - Tests: `tests/test_notifications_store.py` (31: priorities, templates, unsafe links, dedup within/after window and per recipient, unknown events/users, payload never stored or logged, M3 `broadcast_attendance_update` lands a row); check.sh passes. Next: S11 feed; S12–S14 hang delivery off `deliver`'s returned ids.
+
+### S11 — Feed and read state — 2026-11-22
+- Changed: `routers/notifications.py` (`GET /notifications`, `GET /notifications/priority`, `POST /notifications/{id}/read`, `POST /notifications/read-all`), `services/notifications/feed.py`, `schemas/notification.py`; registered in `main.py`.
+- Decisions: any active role has a feed; keyset cursor on (created_at, id) as opaque base64, bad cursor → 422; priority list = unread urgent then important, max 50; read is idempotent (first `read_at` kept); someone else's id → 404; read endpoints return the new `unread_count` (S12 can reuse it).
+- Interface/schema changes: new endpoints (documented in `docs/interfaces.md` "Notification feed API"); no schema change.
+- Tests: `tests/test_notifications_feed.py` (19: ordering incl. ties, pagination across ties and new arrivals, counts, priority scope, read/read-all, isolation, auth, emit → feed). Next: S12 websocket.

@@ -213,6 +213,18 @@ call `emit` after your commit (an `after_commit` callback). The event registry i
 | `moodle.deadline_reminder` | important | `moodle_event_id`, `title`, `course_code`, `remaining`, `reminder` | event + `reminder` | 3 d |
 | `announcement.posted` | important | `announcement_id`, `title`, `message` | `announcement_id` | 24 h |
 
+### Notification feed API (S11, Shino)
+
+Any signed-in active user (student, lecturer, admin); only the caller's own notifications. Someone
+else's (or a missing) id → 404. Item: `{id, event, priority, title, message, link, read, read_at, created_at}`.
+
+| Endpoint | Returns |
+|---|---|
+| `GET /notifications?limit=20&cursor=` | `{items, next_cursor, unread_count}`: newest first (`created_at`, then `id`); `limit` 1–100; pass `next_cursor` back for older items, `null` = last page; bad cursor → 422 |
+| `GET /notifications/priority` | `{items, unread_count}`: unread urgent first, then important, newest first within each, at most 50 (FR-208) |
+| `POST /notifications/{id}/read` | `{notification, unread_count}`; idempotent, keeps the first `read_at` |
+| `POST /notifications/read-all` | `{marked, unread_count}` |
+
 ### Live channels (until M2)
 
 The apps can also listen on WebSockets directly:

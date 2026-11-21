@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.routers import auth, admin_users, admin_students, admin_courses, admin_moodle, admin_devices, device, classes, sessions, attendance, attendance_flags, attendance_stats, audit, face_review, assistant, student_face, face_verification, class_schedule
+from app.routers import auth, admin_users, admin_students, admin_courses, admin_moodle, admin_devices, device, classes, sessions, attendance, attendance_flags, attendance_stats, audit, face_review, assistant, student_face, face_verification, class_schedule, notifications
 from app.services.attendance_flags import unmatched_face_cleanup_loop
 from app.services.attendance_moodle_sync import attendance_moodle_sync_loop
 from app.services.attendance_service import low_attendance_monitor
@@ -90,6 +90,7 @@ app.include_router(face_review.router)
 app.include_router(assistant.router)
 app.include_router(student_face.router)
 app.include_router(face_verification.router)
+app.include_router(notifications.router)
 
 # pdf.js for the student app's in-app PDF viewer (FR-809). It's a public library with no course data.
 mimetypes.add_type("text/javascript", ".js")   # Windows can map .js to text/plain, which blocks the worker
