@@ -120,5 +120,9 @@ class Settings(BaseSettings):
     EMAIL_RETRY_DELAY_SECONDS: float = 5.0   # doubles after each retry
     EMAIL_LINK_BASE_URL: str = ""      # e.g. https://smartclass.example; empty = no link in the email
 
+    # ── Module 2: notification retention (FR-218) ───────────────────────────
+    NOTIFICATION_RETENTION_DAYS: int = 90                   # older notifications are deleted
+    NOTIFICATION_RETENTION_INTERVAL_SECONDS: int = 86400    # daily job; <= 0 disables it
+
 
 settings = Settings()

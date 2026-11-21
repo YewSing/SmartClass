@@ -3,8 +3,8 @@
 `store.deliver` calls `schedule(ids)` after its commit. The send runs in a background task (stdlib
 `smtplib` in a worker thread), so a slow or unreachable mail server never delays or fails the
 request that raised the event. Only urgent and important notifications are emailed, to the
-recipient's registered address (`users.email`); general ones never are. Email is off while
-`SMTP_HOST` is empty.
+recipient's registered address (`users.email`); general ones only to users who turned general
+email on (FR-214, S15; off by default). Email is off while `SMTP_HOST` is empty.
 
 Temporary failures (connection lost, timeouts, 4xx replies) are retried at most
 `EMAIL_MAX_RETRIES` times per send, with a doubling delay; what is still unsent after that is
@@ -28,6 +28,7 @@ from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.models.notification import Notification
 from app.models.user import User
+from app.services.notifications import preferences
 
 log = logging.getLogger(__name__)
 
@@ -91,7 +92,7 @@ async def _messages(ids: list[int]) -> list[EmailMessage]:
             select(Notification, User.email)
             .join(User, User.id == Notification.user_id)
             .where(Notification.id.in_(ids),
-                   Notification.priority.in_(EMAILED_PRIORITIES),
+                   preferences.channel_filter("email"),
                    User.status == "active")
             .order_by(Notification.id)
         )).all()

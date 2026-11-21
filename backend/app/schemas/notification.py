@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 
 
 class NotificationOut(BaseModel):
@@ -54,6 +54,39 @@ class PushTokenOut(BaseModel):
     platform: str
     created_at: datetime
     last_seen_at: datetime
+
+
+class ChannelPrefs(BaseModel):
+    urgent: bool = True
+    important: bool = True
+    general: bool = False
+
+
+class NotificationPrefsOut(BaseModel):
+    """S15 (FR-214). urgent/important are always true."""
+    push: ChannelPrefs
+    email: ChannelPrefs
+
+
+class ChannelPrefsIn(BaseModel):
+    """Omitted keys keep their value. urgent/important may only be sent as true (FR-214)."""
+    model_config = ConfigDict(extra="forbid")
+    urgent: Optional[StrictBool] = None
+    important: Optional[StrictBool] = None
+    general: Optional[StrictBool] = None
+
+    @field_validator("urgent", "important")
+    @classmethod
+    def _always_on(cls, v: Optional[bool]) -> Optional[bool]:
+        if v is False:
+            raise ValueError("urgent and important notifications can't be turned off")
+        return v
+
+
+class NotificationPrefsIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    push: Optional[ChannelPrefsIn] = None
+    email: Optional[ChannelPrefsIn] = None
 
 
 class ReadAllOut(BaseModel):

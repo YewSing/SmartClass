@@ -19,6 +19,7 @@ class Notification(Base):
         CheckConstraint("priority IN ('urgent','important','general')", name="ck_m2_notifications_priority"),
         Index("ix_m2_notifications_user_created", "user_id", "created_at"),
         Index("ix_m2_notifications_dedup", "user_id", "event", "subject_key", "created_at"),
+        Index("ix_m2_notifications_created", "created_at"),     # retention purge (FR-218, S15)
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)

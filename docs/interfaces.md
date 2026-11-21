@@ -251,7 +251,7 @@ Nothing is queued or replayed for closed connections: on (re)connect the client 
 - After `notify.emit` commits, **urgent and important** notifications are sent through the Expo Push
   API (`EXPO_PUSH_URL`) in a background task, in batches of ≤100, to the recipients' tokens whose
   platform is in `PUSH_PLATFORMS` (default `android`; FR-210: iOS gets in-app + email). General ones
-  are never pushed. Message: `title`, `body`, `data:{notification_id, event, priority, link}`.
+  are pushed only to users who turned general push on (S15). Message: `title`, `body`, `data:{notification_id, event, priority, link}`.
   `DeviceNotRegistered` deletes the token; network/HTTP failures are logged and dropped (no retry).
   Config: `EXPO_ACCESS_TOKEN` (optional bearer), `EXPO_PUSH_TIMEOUT_SECONDS`, `PUSH_ENABLED`.
 
@@ -259,7 +259,8 @@ Nothing is queued or replayed for closed connections: on (re)connect the client 
 
 - After `notify.emit` commits, **urgent and important** notifications are emailed (FR-211) in a
   background task (`app/services/notifications/mailer.py`, stdlib `smtplib` in a thread) to the
-  recipient's `users.email`; inactive users are skipped; general ones are never emailed. Off while
+  recipient's `users.email`; inactive users are skipped; general ones only to users who turned
+  general email on (S15). Off while
   `SMTP_HOST` is empty. Subject `[SmartClass] <title>` (`[SmartClass] Urgent: <title>` for urgent;
   CR/LF stripped), body = message + the link when `EMAIL_LINK_BASE_URL` is set.
 - Temporary failures (disconnect, timeout, 4xx) are retried at most `EMAIL_MAX_RETRIES` times per
@@ -267,6 +268,20 @@ Nothing is queued or replayed for closed connections: on (re)connect the client 
   message; a login/sender failure stops the send. Logs hold counts and exception names only.
 - Config: `SMTP_HOST`, `SMTP_PORT` (587), `SMTP_SECURITY` (`starttls` | `ssl` | `none`),
   `SMTP_USERNAME` (empty = no login), `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_TIMEOUT_SECONDS`.
+
+### Preferences and retention (S15, Shino)
+
+- `GET /me/notification-preferences` — any signed-in active user (FR-214). Returns
+  `{push:{urgent,important,general}, email:{urgent,important,general}}`; `urgent`/`important` are
+  always `true`; `general` defaults to `false` (FR-210/FR-211 send only urgent/important by default).
+- `PUT /me/notification-preferences` — same shape, every key optional (omitted = unchanged), strict
+  booleans, unknown keys → 422. `urgent`/`important` set to `false` → **422** (nothing saved). Turning
+  `general` on makes general notifications go out on that channel too; off stops them.
+  Stored in `m2_notification_preferences` (one row per user, no row = defaults).
+- Retention (FR-218): a daily job (`services/notifications/retention.py`, started in `main.py`)
+  deletes notifications older than `NOTIFICATION_RETENTION_DAYS` (default 90), read or not.
+  `NOTIFICATION_RETENTION_INTERVAL_SECONDS` (default 86400; ≤ 0 turns the job off); a retention of
+  ≤ 0 days deletes nothing.
 
 ### Live channels (until M2)
 

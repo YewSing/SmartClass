@@ -3,9 +3,9 @@
 `deliver` is what `app.services.notify.emit` calls. It opens its own database session (events are
 raised after the caller's commit), stores one row per recipient and drops duplicates: the same
 event, recipient and subject inside the event's window (FR-216). After the commit the new rows go
-out live to the recipients' open screens (`live.publish`, FR-213) and, if urgent or important,
-to their phones through Expo push and by email in the background (`push.schedule`, FR-210;
-`mailer.schedule`, FR-211).
+out live to the recipients' open screens (`live.publish`, FR-213) and, if urgent or important
+(or general for users who opted in, FR-214), to their phones through Expo push and by email in
+the background (`push.schedule`, FR-210; `mailer.schedule`, FR-211).
 """
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from app.core.database import AsyncSessionLocal
 from app.core.timezone import now_myt
 from app.models.notification import Notification
 from app.models.user import User
-from app.services.notifications import registry
+from app.services.notifications import preferences, registry
 
 log = logging.getLogger(__name__)
 
@@ -75,8 +75,20 @@ async def deliver(event: str, user_ids: Iterable[int], payload: dict) -> list[in
     from app.services.notifications import live, mailer, push   # lazy: live imports feed -> store
 
     await live.publish(new_ids)
-    if rendered.priority in push.PUSHED_PRIORITIES:
-        push.schedule(new_ids)  # urgent/important to the phones, in the background (FR-210)
-    if rendered.priority in mailer.EMAILED_PRIORITIES:
-        mailer.schedule(new_ids)  # ...and by email, in the background (FR-211)
+    # Urgent/important always go to the phones and by email, in the background (FR-210, FR-211);
+    # general ones only to the recipients who turned that channel on (FR-214, filtered in the send).
+    if rendered.priority in push.PUSHED_PRIORITIES or await _any_opted_in(new_ids, "push"):
+        push.schedule(new_ids)
+    if rendered.priority in mailer.EMAILED_PRIORITIES or await _any_opted_in(new_ids, "email"):
+        mailer.schedule(new_ids)
     return new_ids
+
+
+async def _any_opted_in(notification_ids: list[int], channel: str) -> bool:
+    """Has any recipient of these (general) notifications turned `channel` on? (FR-214)"""
+    if not notification_ids:
+        return False
+    async with AsyncSessionLocal() as db:
+        hit = await db.scalar(select(Notification.id).where(
+            Notification.id.in_(notification_ids), preferences.channel_filter(channel)).limit(1))
+    return hit is not None

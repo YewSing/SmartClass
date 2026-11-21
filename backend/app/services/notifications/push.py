@@ -1,9 +1,10 @@
 """Expo push for urgent and important notifications (FR-210, FR-212) — S13.
 
 `store.deliver` calls `schedule(ids)` after its commit. The send runs in a background task, so a
-slow or unreachable Expo never delays or fails the request that raised the event. Only urgent and
-important notifications are pushed (general ones stay in-app), and only to tokens whose platform
-is in `PUSH_PLATFORMS` (Android by default: on iOS they arrive in-app and by email, FR-210).
+slow or unreachable Expo never delays or fails the request that raised the event. Urgent and
+important notifications are pushed; general ones only to users who turned general push on
+(FR-214, S15; off by default). Only tokens whose platform is in `PUSH_PLATFORMS` are used
+(Android by default: on iOS they arrive in-app and by email, FR-210).
 
 Messages go to `EXPO_PUSH_URL` in batches of at most 100 (Expo's limit). A `DeviceNotRegistered`
 ticket deletes that token. Network or HTTP failures are logged (no token, no secret) and dropped.
@@ -22,6 +23,7 @@ from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.models.notification import Notification
 from app.models.push_token import PushToken
+from app.services.notifications import preferences
 
 log = logging.getLogger(__name__)
 
@@ -65,7 +67,7 @@ async def _messages(ids: list[int]) -> list[dict]:
             select(Notification, PushToken.token)
             .join(PushToken, PushToken.user_id == Notification.user_id)
             .where(Notification.id.in_(ids),
-                   Notification.priority.in_(PUSHED_PRIORITIES),
+                   preferences.channel_filter("push"),
                    PushToken.platform.in_(_platforms()))
             .order_by(Notification.id, PushToken.id)
         )).all()
