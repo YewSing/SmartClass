@@ -3,7 +3,8 @@
 `deliver` is what `app.services.notify.emit` calls. It opens its own database session (events are
 raised after the caller's commit), stores one row per recipient and drops duplicates: the same
 event, recipient and subject inside the event's window (FR-216). After the commit the new rows go
-out live to the recipients' open screens (`live.publish`, FR-213).
+out live to the recipients' open screens (`live.publish`, FR-213) and, if urgent or important,
+to their phones through Expo push in the background (`push.schedule`, FR-210).
 """
 from __future__ import annotations
 
@@ -70,7 +71,9 @@ async def deliver(event: str, user_ids: Iterable[int], payload: dict) -> list[in
         new_ids = [row.id for row in rows]
 
     # Only after the commit: a client that re-reads its feed on the event must see the row (FR-213).
-    from app.services.notifications import live   # lazy: live imports feed, which imports store
+    from app.services.notifications import live, push   # lazy: live imports feed, which imports store
 
     await live.publish(new_ids)
+    if rendered.priority in push.PUSHED_PRIORITIES:
+        push.schedule(new_ids)  # urgent/important to the phones, in the background (FR-210)
     return new_ids

@@ -14,3 +14,4 @@ from app.models.face_review import FaceReviewEntry  # noqa: F401
 from app.models.knowledge import KbMaterial, KbChunk  # noqa: F401
 from app.models.ai_chat import ChatSession, ChatMessage  # noqa: F401
 from app.models.notification import Notification  # noqa: F401
+from app.models.push_token import PushToken  # noqa: F401

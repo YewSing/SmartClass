@@ -71,3 +71,9 @@ Yew Sing's log is [PROGRESS.md](PROGRESS.md); never edit it. Test removals need 
 - Decisions: bad/expired/refresh token, role mismatch or inactive user → accepted then closed 1008 (so clients see the code); `connected` carries the current unread count; nothing queued or replayed; live failures are logged, never fail the event. Single uvicorn worker assumed (as M3).
 - Interface/schema changes: new WS endpoint and message types in `docs/interfaces.md` "Live notifications"; no schema change.
 - Tests: `tests/test_notifications_live.py` (12, in-process ASGI websocket client: 1008 cases, right user/all connections only, sent after commit, dedup sends nothing, reconnect not stale, read updates); check.sh passes (784). Next: S13 push; reviewer note: no per-socket send timeout, fine at this scale.
+
+### S13 — Push tokens and Expo push — 2026-11-22
+- Changed: `m2_push_tokens` model + migration `f8a9b0c1d2e3` (head); `routers/push_tokens.py` (`POST /me/push-tokens` atomic upsert, `DELETE /me/push-tokens/{token}`); `services/notifications/push.py` (background send after `store.deliver` commits, batches of 100, `DeviceNotRegistered` deletes the token, failures logged without token/secret); `EXPO_*`/`PUSH_*` settings.
+- Decisions: only urgent/important, only `PUSH_PLATFORMS` (default `android`, FR-210: iOS in-app + email); a token used by another account moves to the caller; someone else's token → 404; no retry on network failure; tests drain pending pushes before truncation (autouse `_drain_push`).
+- Interface/schema changes: new table `m2_push_tokens`, endpoints + push message shape in `docs/interfaces.md` "Push tokens and Expo push"; `FakeExpoPush.requests` added (additive).
+- Tests: `tests/test_notifications_push.py` (30, respx only: format/platform 422s, one row per device, concurrent registration, ownership, priorities, iOS, dedup, batching, DeviceNotRegistered, network/500, background, auth header); check.sh passes (814). Next: S14 email.

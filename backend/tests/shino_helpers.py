@@ -143,6 +143,7 @@ class FakeExpoPush:
     ticket per message (`{"status":"ok","id":...}` or an error ticket with `details.error`)."""
     messages: list[dict] = field(default_factory=list)       # every message received, flattened
     batches: list[list[dict]] = field(default_factory=list)  # one entry per HTTP request
+    requests: list[httpx.Request] = field(default_factory=list)  # the raw requests (headers)
     unregistered: set[str] = field(default_factory=set)      # tokens answered DeviceNotRegistered
     fail_network: bool = False                               # raise httpx.ConnectError instead
     status_code: int = 200                                   # e.g. 500 to simulate a server error
@@ -152,6 +153,7 @@ class FakeExpoPush:
         return [m.get("to") for m in self.messages]
 
     def handle(self, request: httpx.Request) -> httpx.Response:
+        self.requests.append(request)
         if self.fail_network:
             raise httpx.ConnectError("fake Expo push: network down", request=request)
         body = json.loads(request.content or b"null")
@@ -169,6 +171,15 @@ class FakeExpoPush:
             else:
                 tickets.append({"status": "ok", "id": str(uuid.uuid4())})
         return httpx.Response(200, json={"data": tickets})
+
+
+@pytest.fixture(autouse=True)
+async def _drain_push(_db_isolation):
+    """Let background Expo pushes (S13) finish before `_db_isolation` truncates the tables."""
+    yield
+    from app.services.notifications import push
+
+    await push.drain()
 
 
 @pytest.fixture

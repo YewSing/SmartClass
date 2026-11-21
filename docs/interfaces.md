@@ -239,6 +239,22 @@ the socket is accepted and closed with **1008**. Messages (server → client; cl
 Nothing is queued or replayed for closed connections: on (re)connect the client re-reads
 `GET /notifications`. The hub lives in the API process (single uvicorn worker).
 
+### Push tokens and Expo push (S13, Shino)
+
+- `POST /me/push-tokens {token, platform}` — any signed-in active user (FR-212). `token` must be an
+  Expo push token (`ExponentPushToken[...]` / `ExpoPushToken[...]`), `platform` `android` | `ios`,
+  else 422. One row per device (`m2_push_tokens.token` is unique): 201 when new, 200 when it
+  already exists (refreshes `last_seen_at`; a token last used by another account moves to the caller).
+  Returns `{token, platform, created_at, last_seen_at}`.
+- `DELETE /me/push-tokens/{token}` (URL-encode the brackets) — on logout. 204; someone else's or an
+  unknown token → 404.
+- After `notify.emit` commits, **urgent and important** notifications are sent through the Expo Push
+  API (`EXPO_PUSH_URL`) in a background task, in batches of ≤100, to the recipients' tokens whose
+  platform is in `PUSH_PLATFORMS` (default `android`; FR-210: iOS gets in-app + email). General ones
+  are never pushed. Message: `title`, `body`, `data:{notification_id, event, priority, link}`.
+  `DeviceNotRegistered` deletes the token; network/HTTP failures are logged and dropped (no retry).
+  Config: `EXPO_ACCESS_TOKEN` (optional bearer), `EXPO_PUSH_TIMEOUT_SECONDS`, `PUSH_ENABLED`.
+
 ### Live channels (until M2)
 
 The apps can also listen on WebSockets directly:

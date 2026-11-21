@@ -100,5 +100,13 @@ class Settings(BaseSettings):
     MOODLE_ATTENDANCE_CHECK_INTERVAL_SECONDS: int = 10800  # re-read synced sessions in Moodle this often (FR-320)
     MOODLE_ATTENDANCE_CHECK_DAYS: int = 30             # ...for sessions closed within this many days
 
+    # ── Module 2: push notifications (FR-210) ───────────────────────────────
+    EXPO_PUSH_URL: str = "https://exp.host/--/api/v2/push/send"
+    EXPO_ACCESS_TOKEN: str = ""        # optional (Expo "enhanced push security"); never logged
+    EXPO_PUSH_TIMEOUT_SECONDS: float = 10.0
+    PUSH_ENABLED: bool = True
+    # FR-210: urgent/important are pushed on Android; iOS gets them in-app and by email
+    PUSH_PLATFORMS: str = "android"
+
 
 settings = Settings()

@@ -42,7 +42,7 @@ Run the loop with `/shino-run-plan [rounds]` (or `bash scripts/shino/run-tasks.s
   Done when: `GET /notifications` (newest first, cursor pagination, unread count), `GET /notifications/priority` (unread urgent+important for the dashboard), `POST /notifications/{id}/read`, `POST /notifications/read-all`; a user never sees or marks another user's notification (404). Tests for ordering, pagination, counts, isolation.
 - [x] **S12 [OPUS] [API] Live notifications over websocket (FR-213).** Depends on: S11.
   Done when: `WS /notifications/ws?token=` authenticates with the access token, rejects bad/expired tokens (1008), and sends `{type:"notification", ...}` plus the new unread count to every open connection of the recipient after commit. Tests: delivery to the right user only, not before commit, reconnect gets nothing stale.
-- [ ] **S13 [API] Push tokens and Expo push (FR-210, FR-212).** Depends on: S10.
+- [x] **S13 [API] Push tokens and Expo push (FR-210, FR-212).** Depends on: S10.
   Done when: `POST /me/push-tokens` / `DELETE /me/push-tokens/{token}` (validated Expo token format, one row per device); urgent and important notifications are sent through the Expo Push API in a background task (batching, `DeviceNotRegistered` deletes the token, network failure doesn't fail the request); general ones are not pushed. Tests with respx only.
 - [ ] **S14 [API] Email for urgent/important (FR-211).** Depends on: S10.
   Done when: SMTP settings in config (off when unset); urgent/important notifications are emailed to the user's email in the background, general never; failures are logged and retried at most N times; no secrets in logs. Tests with the fake SMTP sink.
