@@ -22,6 +22,10 @@ hit_usage_limit() {
     | grep -qiE "hit your .*limit|usage limit|session limit|limit reached|rate limit|overloaded"
 }
 
+# A headless round can only commit with these allowed (one was refused on 2026-11-22, which
+# stopped the loop with S10 finished but uncommitted).
+GIT_TOOLS=("Bash(git status*)" "Bash(git diff*)" "Bash(git log*)" "Bash(git add *)" "Bash(git commit *)" "Bash(git stash *)" "Bash(git rev-parse*)")
+
 RESUME_NOTE="An earlier round of this task stopped (Claude usage limit or turn limit) and left its unfinished work uncommitted in this working tree. Before step 2, read git status and git diff. Continue that task from that work instead of starting over, even if plan-shino.md already ticks it. If it is finished, run the remaining steps and commit it."
 
 # The Claude Code CLI: on PATH, else the official installer's ~/.local/bin, else the copy the
@@ -129,7 +133,7 @@ opus_build() {  # $1 log, $2 optional extra instruction
   local extra=()
   [ -z "${2:-}" ] || extra=(--append-system-prompt "$2")
   claude -p "/shino-next-task" --model "$MODEL" --permission-mode acceptEdits --max-turns "$TURNS" \
-    --disallowedTools "Bash(git push*)" ${extra[@]+"${extra[@]}"} >> "$1" 2>&1
+    --allowedTools "${GIT_TOOLS[@]}" --disallowedTools "Bash(git push*)" ${extra[@]+"${extra[@]}"} >> "$1" 2>&1
 }
 
 hybrid_round() {
@@ -231,7 +235,7 @@ while [ "$done_rounds" -lt "$N" ]; do
     hybrid_round "$log"
   else
     claude -p "/shino-next-task" --model "$MODEL" --permission-mode acceptEdits --max-turns "$TURNS" \
-      --disallowedTools "Bash(git push*)" ${resume_args[@]+"${resume_args[@]}"} > "$log" 2>&1
+      --allowedTools "${GIT_TOOLS[@]}" --disallowedTools "Bash(git push*)" ${resume_args[@]+"${resume_args[@]}"} > "$log" 2>&1
   fi
 
   if [ "$before" = "$(git rev-parse HEAD)" ]; then

@@ -13,7 +13,7 @@ You are running one round of Shino's SmartClass task loop (Modules 2, 5, 6, 7). 
 6. Use the `shino-reviewer` subagent with the task ID and its "Done when" line. Fix every real problem it reports, then re-run step 5. At most 2 review rounds.
 7. Tick the task in `plan-shino.md`: `[x]`, or `[~]` if a manual check is still needed (say exactly what in progress-shino.md).
 8. Add a ≤5-line entry at the bottom of progress-shino.md "Log": `### Sxx — <title> — <date>` then Changed · Decisions · Interface/schema changes (also add new contracts to `docs/interfaces.md`) · Tests · Next.
-9. `git add` the task's files (never `.env`, materials or images) and commit with message `Sxx: <summary>` ending with the line `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. Do not push (the loop script pushes).
+9. From the repo root, as separate plain commands (no `cd … &&`, no `git -C`, no pipes), `git add` the task's files (never `.env`, materials or images) and commit with message `Sxx: <summary>` ending with the line `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. Do not push (the loop script pushes).
 10. Stop. Do not start another task.
 
 If stuck after 3 genuine attempts on the same problem: revert your uncommitted changes for this task (`git stash push -u -m "Sxx failed attempt"`), mark the task `[!]`, add a line under `## Blocked` in progress-shino.md (problem, what you tried, what is needed), commit plan-shino.md + progress-shino.md as `Sxx: blocked`, and stop.
