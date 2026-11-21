@@ -149,3 +149,32 @@ def test_stops_before_the_backup_when_claude_is_not_logged_in(loop):
     assert "not logged in" in result.stdout
     assert "Backing up" not in result.stdout
     assert not (repo / ".fake-round").exists()
+
+
+def test_round_that_runs_out_of_turns_is_continued_with_the_resume_note(loop):
+    start, repo, _ = loop
+    result = start(("Error: Reached max turns (150)", False), ("done", True))
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "ran out of turns - continuing" in result.stdout
+    assert "committed: S2: done" in result.stdout
+    assert "turn limit" in (repo / ".fake-args-2").read_text()
+
+
+def test_out_of_turns_gives_up_after_the_continue_limit(loop):
+    start, repo, env = loop
+    env["SMARTCLASS_MAX_CONTINUES"] = "1"
+    result = start(("Error: Reached max turns (150)", False), ("Error: Reached max turns (150)", False))
+    assert "no commit this round - stopping" in result.stdout
+    assert (repo / ".fake-round").read_text().strip() == "2"
+
+
+def test_resume_flag_starts_on_a_dirty_tree_and_passes_the_note(loop):
+    start, repo, env = loop
+    (repo / "tracked.txt").write_text("half done\n", newline="\n")
+    assert "Uncommitted changes" in start(("done", True)).stdout
+    env["SMARTCLASS_RESUME"] = "1"
+    (repo / ".fake-round").unlink(missing_ok=True)
+    result = start(("done", True))
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "turn limit" in (repo / ".fake-args-1").read_text()
+    assert "committed: S1: done" in result.stdout

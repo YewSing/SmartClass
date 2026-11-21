@@ -5,10 +5,11 @@
 # Usage (Git Bash, repo root):  bash scripts/shino/run-tasks.sh [rounds=2] [max_turns=80]
 #   e.g. overnight: bash scripts/shino/run-tasks.sh 30
 set -uo pipefail
-N=${1:-2}; TURNS=${2:-80}
+N=${1:-2}; TURNS=${2:-150}   # Shino's tasks are larger than T-tasks; 80 ran out on S02
 MODEL=${SMARTCLASS_MODEL:-opus}
 LIMIT_WAIT_MIN=${SMARTCLASS_LIMIT_WAIT_MIN:-30}   # on a Claude usage limit: wait this long, then retry the same round
 LIMIT_MAX_WAITS=12     # ... at most this many times (6 hours)
+MAX_CONTINUES=${SMARTCLASS_MAX_CONTINUES:-2}   # a round that runs out of turns is continued this often
 root=$(cd "$(dirname "$0")/../.." && pwd); cd "$root"
 PLAN=plan-shino.md; PROGRESS=progress-shino.md
 
@@ -21,7 +22,7 @@ hit_usage_limit() {
     | grep -qiE "hit your .*limit|usage limit|session limit|limit reached|rate limit|overloaded"
 }
 
-RESUME_NOTE="An earlier round of this task stopped at a Claude usage limit and left its unfinished work uncommitted in this working tree. Before step 2, read git status and git diff. Continue that task from that work instead of starting over, even if plan-shino.md already ticks it. If it is finished, run the remaining steps and commit it."
+RESUME_NOTE="An earlier round of this task stopped (Claude usage limit or turn limit) and left its unfinished work uncommitted in this working tree. Before step 2, read git status and git diff. Continue that task from that work instead of starting over, even if plan-shino.md already ticks it. If it is finished, run the remaining steps and commit it."
 
 # The Claude Code CLI: on PATH, else the official installer's ~/.local/bin, else the copy the
 # desktop app bundles (newest version). It must be logged in (run `claude` once and /login).
@@ -47,7 +48,12 @@ echo $$ > "$lock"; trap 'rm -f "$lock"' EXIT
 
 branch=$(git branch --show-current)
 [ "$branch" != "main" ] || { echo "Refusing to run on main. Switch to a feature branch."; exit 1; }
-[ -z "$(git status --porcelain --untracked-files=no)" ] || { echo "Uncommitted changes. Commit or stash first."; exit 1; }
+# SMARTCLASS_RESUME=1: the tree holds an unfinished task from a stopped round; continue it.
+if [ "${SMARTCLASS_RESUME:-0}" = "1" ]; then
+  echo "Resuming the unfinished task left in the working tree."
+elif [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+  echo "Uncommitted changes. Commit or stash first (or SMARTCLASS_RESUME=1 to continue a stopped task)."; exit 1
+fi
 
 echo "Backing up app DB + Moodle data (undo with: bash scripts/restore-data.sh)..."
 bash scripts/backup-data.sh || { echo "Backup failed - not starting the loop."; exit 1; }
@@ -212,7 +218,8 @@ $review" >> "$log" 2>&1
 
 mkdir -p .claude/logs
 export SMARTCLASS_LOOP=1
-done_rounds=0; waits=0; resume_args=()
+done_rounds=0; waits=0; continues=0; resume_args=()
+[ "${SMARTCLASS_RESUME:-0}" = "1" ] && resume_args=(--append-system-prompt "$RESUME_NOTE")
 while [ "$done_rounds" -lt "$N" ]; do
   before=$(git rev-parse HEAD)
   export SMARTCLASS_BASE="$before"     # test guard compares against the round's starting commit
@@ -237,9 +244,15 @@ while [ "$done_rounds" -lt "$N" ]; do
       echo "   Claude usage limit - waiting ${LIMIT_WAIT_MIN} min (wait $waits/$LIMIT_MAX_WAITS), then retrying this round"
       sleep $((LIMIT_WAIT_MIN * 60)); continue
     fi
+    if grep -q "Reached max turns" <(tail -n 3 "$log") && [ "$continues" -lt "$MAX_CONTINUES" ]; then
+      continues=$((continues + 1))
+      resume_args=(--append-system-prompt "$RESUME_NOTE")
+      echo "   ran out of turns - continuing the same task ($continues/$MAX_CONTINUES)"
+      continue
+    fi
     echo "   no commit this round - stopping. Read $log"; break
   fi
-  waits=0; resume_args=(); done_rounds=$((done_rounds + 1))
+  waits=0; continues=0; resume_args=(); done_rounds=$((done_rounds + 1))
   subject=$(git log -1 --format=%s); echo "   committed: $subject"
   if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
     echo "   uncommitted changes left behind - stopping"; break
