@@ -14,6 +14,9 @@ Yew Sing's log is [PROGRESS.md](PROGRESS.md); never edit it. Test removals need 
 - LOOP (2026-11-21): `scripts/check.sh` now caches a pass inside the loop (`.claude/.check-pass`, fingerprint = round base + code tree), so the Stop hook and post-commit runs on unchanged code take seconds. Test: `backend/tests/test_check_cache.py`.
 - No runnable task (2026-11-21): S04 `[HUMAN] Checkpoint: review S01–S03` is unticked and every remaining task depends on it (S10+ sit below it). Shino needs to review the S02 removal list and the S03 helpers, then tick S04 `[x]` in plan-shino.md.
 
+- S02 manual checks done (2026-11-22): dev DB downgraded to `b5c6d7e8f9a0` (head); no session needed closing (the "session 16" was left by S02's own interrupted spec run and is gone; session 10 is WIA0000's always-open class); `npm run e2e:web -- live-session.spec.js` 1/1 passed; `pytest -m live` 16 passed, 7 failed, 5 skipped (LLM_QUOTA). All 7 failures are Yew Sing's `test_in_syllabus_is_grounded` (`general` instead of `course`); `app/services/kb/` is identical to `origin/main`, so this is M8 model variance, not S02. S02 ticked `[x]`. S04 ticked by Shino 2026-11-22.
+- REVIEW: S03 - the live trigger runs the whole `-m live` suite when `app/services/quiz/` changes, so the flaky M8 test above would fail M6 rounds. Added to S41's Done when: quiz-only changes run only Shino's M6 live tests.
+
 ### Requests for Yew Sing
 <!-- Interface gaps in M1/M3/M4/M8 that a task needed. Copy each to docs/requests-for-shino.md style when sending. -->
 
