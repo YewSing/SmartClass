@@ -15,11 +15,15 @@ const REACTIONS = [
 const IDU_COOLDOWN_MS = 120000
 
 // Small section header: icon + medium-weight title + optional trailing action
-function Section({ icon, title, action, children }) {
+function Section({ icon, title, action, children, tint = 'blue' }) {
+  const accent = tint === 'purple' ? C.purple : tint === 'green' ? C.greenDk : tint === 'red' ? C.redDk : C.blueDk
+  const iconBg = tint === 'purple' ? C.purpleLt : tint === 'green' ? C.greenLt : tint === 'red' ? C.redLt : C.blueLt
   return (
-    <View style={s.section}>
+    <View style={[s.section, s[`section_${tint}`]]}>
       <View style={s.sectionHead}>
-        <Ionicons name={icon} size={16} color={C.blueDk} />
+        <View style={[s.sectionIcon, { backgroundColor: iconBg }]}>
+          <Ionicons name={icon} size={16} color={accent} />
+        </View>
         <Text style={s.sectionTitle}>{title}</Text>
         {action}
       </View>
@@ -209,8 +213,31 @@ function LiveClassRoom({ navigation, sessionId, courseName, courseCode }) {
       {!state && !error ? <ActivityIndicator color={C.primary} /> : null}
       {notice ? <Text accessibilityLiveRegion="polite" style={[s.notice, notice.error && s.error]}>{notice.message}</Text> : null}
       {state ? <>
+        <View style={s.classHero} testID="live-class-overview">
+          <View style={s.heroTop}>
+            <View style={s.heroIcon}><Ionicons name="people-outline" size={21} color="#fff" /></View>
+            <View style={s.grow}>
+              <Text style={s.heroEyebrow}>YOUR CLASSROOM</Text>
+              <Text style={s.heroTitle} numberOfLines={1}>{courseName || courseCode || 'Live class'}</Text>
+            </View>
+            <View style={[s.livePill, !writable && s.endedPill]}>
+              <View style={[s.liveDot, !writable && s.endedDot]} />
+              <Text style={[s.livePillText, !writable && s.endedPillText]}>{writable ? connected ? 'LIVE' : 'RECONNECTING' : state.status === 'scheduled' ? 'UPCOMING' : 'ENDED'}</Text>
+            </View>
+          </View>
+          <Text style={s.heroCopy}>{writable
+            ? 'Join in: ask questions, share a quick answer or let your lecturer know how the lesson feels.'
+            : 'Catch up on the class questions and activity from this session.'}</Text>
+          <View style={s.heroStats}>
+            <View style={s.heroStat}><Text style={s.heroNumber}>{state.questions.length}</Text><Text style={s.heroLabel}>Questions</Text></View>
+            <View style={s.heroDivider} />
+            <View style={s.heroStat}><Text style={s.heroNumber}>{state.polls.filter(poll => poll.status === 'open').length}</Text><Text style={s.heroLabel}>Live polls</Text></View>
+            <View style={s.heroDivider} />
+            <View style={s.heroStat}><Text style={s.heroNumber}>{state.quick_prompts.filter(prompt => prompt.status === 'open').length}</Text><Text style={s.heroLabel}>Quick answers</Text></View>
+          </View>
+        </View>
         {/* ── Live Questions ── */}
-        <Section icon="chatbubbles-outline" title="Live Questions"
+        <Section icon="chatbubbles-outline" title="Live Questions" tint="blue"
           action={<LinkButton label={`View all (${state.questions.length})`} onPress={() => setAllQuestions(true)} testID="view-all-questions" />}>
           {writable ? (
             askOpen ? (
@@ -243,7 +270,7 @@ function LiveClassRoom({ navigation, sessionId, courseName, courseCode }) {
         </Section>
 
         {/* ── Live Poll ── */}
-        <Section icon="stats-chart-outline" title="Live Poll"
+        <Section icon="stats-chart-outline" title="Live Poll" tint="purple"
           action={pastPolls.length ? <LinkButton label="View history" onPress={() => setPollHistory(true)} testID="view-poll-history" /> : null}>
           {activePoll
             ? <PollCard poll={activePoll} writable={writable} busy={busy} run={run} />
@@ -251,14 +278,14 @@ function LiveClassRoom({ navigation, sessionId, courseName, courseCode }) {
         </Section>
 
         {/* ── Quick Answers ── */}
-        <Section icon="create-outline" title="Quick Answers">
+        <Section icon="create-outline" title="Quick Answers" tint="green">
           {activePrompt
             ? <QuickPromptCard prompt={activePrompt} writable={writable} busy={busy} run={run} />
             : <Empty>No quick questions yet.</Empty>}
         </Section>
 
         {/* ── Reactions ── */}
-        <Section icon="happy-outline" title="Reactions">
+        <Section icon="happy-outline" title="How's the pace?" tint="purple">
           <View style={s.reactionRow}>
             {REACTIONS.map(([kind, label, emoji]) => (
               <Pressable key={kind} accessibilityRole="button" disabled={busy || !writable}
@@ -272,7 +299,7 @@ function LiveClassRoom({ navigation, sessionId, courseName, courseCode }) {
         </Section>
 
         {/* ── I Don't Understand ── */}
-        <Section icon="help-circle-outline" title="I Don't Understand">
+        <Section icon="help-circle-outline" title="Need help?" tint="red">
           <Pressable accessibilityRole="button" disabled={iduBlocked} testID="idu-button"
             onPress={sendIdu} style={[s.idu, iduBlocked && s.disabled]}>
             <Ionicons name="alert-circle" size={26} color={iduBlocked ? C.gray400 : C.redDk} />
@@ -330,10 +357,32 @@ const s = StyleSheet.create({
   back: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
   topTitle: { fontSize: 17, fontWeight: '600', color: C.text, flex: 1 },
   liveMeta: { color: C.greenDk, fontSize: 13 },
-  content: { width: '100%', maxWidth: 680, alignSelf: 'center', padding: 16, gap: 24, paddingBottom: 40 },
-  section: { gap: 10 },
+  content: { width: '100%', maxWidth: 720, alignSelf: 'center', padding: 16, gap: 14, paddingBottom: 40 },
+  classHero: { backgroundColor: '#173B68', borderRadius: 18, padding: 17, gap: 12 },
+  heroTop: { flexDirection: 'row', alignItems: 'center', gap: 11 },
+  heroIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.16)', justifyContent: 'center', alignItems: 'center' },
+  heroEyebrow: { color: '#B9D9FF', fontSize: 10, fontWeight: '800', letterSpacing: 1.1 },
+  heroTitle: { color: '#fff', fontSize: 18, fontWeight: '800', marginTop: 2 },
+  heroCopy: { color: '#D9E8F8', fontSize: 13, lineHeight: 19 },
+  livePill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 9, paddingVertical: 6, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.16)' },
+  liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#86EFAC' },
+  livePillText: { color: '#fff', fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
+  endedPill: { backgroundColor: 'rgba(255,255,255,0.12)' },
+  endedDot: { backgroundColor: '#CBD5E1' },
+  endedPillText: { color: '#D5E1EF' },
+  heroStats: { flexDirection: 'row', alignItems: 'center', paddingTop: 10, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.18)' },
+  heroStat: { flex: 1, alignItems: 'center', gap: 2 },
+  heroNumber: { color: '#fff', fontSize: 19, fontWeight: '800' },
+  heroLabel: { color: '#C6D8EB', fontSize: 10, fontWeight: '600', textAlign: 'center' },
+  heroDivider: { width: 1, height: 28, backgroundColor: 'rgba(255,255,255,0.2)' },
+  section: { gap: 12, padding: 14, borderRadius: 16, borderWidth: 1, borderColor: C.border, backgroundColor: C.card },
+  section_blue: { borderTopWidth: 3, borderTopColor: C.primary },
+  section_purple: { borderTopWidth: 3, borderTopColor: C.purple },
+  section_green: { borderTopWidth: 3, borderTopColor: C.green },
+  section_red: { borderTopWidth: 3, borderTopColor: C.red },
+  sectionIcon: { width: 30, height: 30, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  sectionTitle: { fontSize: 15, fontWeight: '600', color: C.text, flex: 1 },
+  sectionTitle: { fontSize: 15, fontWeight: '700', color: C.text, flex: 1 },
   link: { color: C.blueDk, fontSize: 13, fontWeight: '500' },
   item: { backgroundColor: C.card, borderWidth: 1, borderColor: C.border, borderRadius: 10, padding: 12, gap: 8 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -363,8 +412,8 @@ const s = StyleSheet.create({
   reaction: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: C.border, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: C.card },
   reactionEmoji: { fontSize: 15 },
   reactionLabel: { fontSize: 13, color: C.text, fontWeight: '400' },
-  idu: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1.5, borderColor: C.red, borderRadius: 12, padding: 18, backgroundColor: C.redLt },
-  iduText: { color: C.redDk, fontSize: 17, fontWeight: '600' },
+  idu: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1.5, borderColor: '#FCA5A5', borderRadius: 14, padding: 17, backgroundColor: C.redLt },
+  iduText: { color: C.redDk, fontSize: 16, fontWeight: '700' },
   iduSub: { color: C.textSub, fontSize: 12, marginTop: 2 },
   iduCooldown: { color: C.redDk, fontSize: 13, fontWeight: '500' },
 })

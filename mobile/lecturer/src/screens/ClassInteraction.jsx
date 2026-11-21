@@ -15,11 +15,15 @@ const reactionLabels = {
 }
 
 // Small section header: icon + medium-weight title + optional trailing action
-function Section({ icon, title, action, children }) {
+function Section({ icon, title, action, children, tint = 'blue' }) {
+  const accent = tint === 'purple' ? '#7C3AED' : tint === 'green' ? C.greenDk : tint === 'orange' ? C.orangeDk : C.blueDk
+  const iconBackground = tint === 'purple' ? '#F3E8FF' : tint === 'green' ? C.greenLt : tint === 'orange' ? C.orangeLt : C.blueLt
   return (
-    <View style={styles.section}>
+    <View style={[styles.section, styles[`section_${tint}`]]}>
       <View style={styles.sectionHead}>
-        <Ionicons name={icon} size={16} color={C.blueDk} />
+        <View style={[styles.sectionIcon, { backgroundColor: iconBackground }]}>
+          <Ionicons name={icon} size={16} color={accent} />
+        </View>
         <Text style={styles.sectionTitle}>{title}</Text>
         {action}
       </View>
@@ -296,11 +300,33 @@ function Interaction({ sessionId, className, navigation }) {
           )
         ) : null}
         {actionError && live ? <Text accessibilityLiveRegion="polite" style={styles.warning}>{actionError}</Text> : null}
+        {state ? (
+          <View style={styles.liveOverview} testID="interaction-overview">
+            <View style={styles.overviewTop}>
+              <View style={styles.overviewIcon}><Ionicons name="school-outline" size={20} color="#fff" /></View>
+              <View style={styles.grow}>
+                <Text style={styles.overviewEyebrow}>{live ? 'CLASSROOM CONTROL' : 'SESSION RECAP'}</Text>
+                <Text style={styles.overviewTitle} numberOfLines={1}>{className || 'Live class'}</Text>
+              </View>
+              <Chip tone={live ? 'green' : undefined}>{live ? 'Live' : state.status === 'scheduled' ? 'Upcoming' : 'Ended'}</Chip>
+            </View>
+            <Text style={styles.overviewCopy}>{live
+              ? 'Your class activity, questions and feedback — together in one live view.'
+              : 'A quick overview of the interaction from this class session.'}</Text>
+            <View style={styles.overviewStats}>
+              <View style={styles.overviewStat}><Text style={styles.overviewNumber}>{state.questions.length}</Text><Text style={styles.overviewLabel}>Questions</Text></View>
+              <View style={styles.overviewDivider} />
+              <View style={styles.overviewStat}><Text style={styles.overviewNumber}>{state.polls.filter(poll => poll.status === 'open').length}</Text><Text style={styles.overviewLabel}>Active polls</Text></View>
+              <View style={styles.overviewDivider} />
+              <View style={styles.overviewStat}><Text style={styles.overviewNumber}>{state.quick_prompts.filter(prompt => prompt.status === 'open').length}</Text><Text style={styles.overviewLabel}>Quick prompts</Text></View>
+            </View>
+          </View>
+        ) : null}
 
         {/* Post-class summary (read-only) */}
         {summary ? (
           <>
-            <Section icon="document-text-outline" title="Session summary">
+            <Section icon="document-text-outline" title="Session summary" tint="purple">
               <Text style={styles.meta}>{summary.questions_asked} questions · {summary.questions_answered} answered</Text>
               {summary.polls.filter(poll => poll.started_at).map(poll => <PollCard key={poll.id} poll={poll} blocked act={act} live={false} />)}
             </Section>
@@ -310,7 +336,7 @@ function Interaction({ sessionId, className, navigation }) {
 
         {live && state ? <>
           {/* ── Live Questions ── */}
-          <Section icon="chatbubbles-outline" title="Live Questions"
+          <Section icon="chatbubbles-outline" title="Live Questions" tint="blue"
             action={visibleQuestions.length
               ? <Pressable accessibilityRole="button" onPress={() => setShowAllQuestions(true)} testID="view-all-questions">
                   <Text style={styles.link}>View all ({state.questions.length})</Text>
@@ -323,7 +349,7 @@ function Interaction({ sessionId, className, navigation }) {
           </Section>
 
           {/* ── Live Poll ── */}
-          <Section icon="stats-chart-outline" title="Live Poll"
+          <Section icon="stats-chart-outline" title="Live Poll" tint="purple"
             action={<>
               {otherPolls.length
                 ? <Pressable accessibilityRole="button" onPress={() => setShowPollHistory(true)} testID="view-poll-history">
@@ -341,7 +367,7 @@ function Interaction({ sessionId, className, navigation }) {
           </Section>
 
           {/* ── Quick Answers ── */}
-          <Section icon="create-outline" title="Quick Answers">
+          <Section icon="create-outline" title="Quick Answers" tint="green">
             <View style={styles.item}>
               <TextInput accessibilityLabel="Quick question" placeholder="Ask a quick question…" style={styles.input}
                 value={quickPrompt} onChangeText={setQuickPrompt} maxLength={500} />
@@ -448,7 +474,7 @@ export default function ClassInteraction({ route, navigation }) {
 // Aggregate-only signals: reaction counts and the confusion timeline (FR-511/512/515)
 function SignalSection({ data }) {
   return (
-    <Section icon="pulse-outline" title="Signals & feedback">
+    <Section icon="pulse-outline" title="Signals & feedback" tint="orange">
       <View style={styles.item}>
         <View style={styles.reactionRow}>
           {Object.entries(reactionLabels).map(([key, [label, emoji]]) => (
@@ -481,8 +507,24 @@ function SignalSection({ data }) {
 
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: C.bg },
-  content: { padding: 16, paddingBottom: 36, gap: 24, width: '100%', maxWidth: 860, alignSelf: 'center' },
-  section: { gap: 10 },
+  content: { padding: 16, paddingBottom: 36, gap: 16, width: '100%', maxWidth: 900, alignSelf: 'center' },
+  liveOverview: { backgroundColor: '#173B68', borderRadius: 18, padding: 18, gap: 12, overflow: 'hidden' },
+  overviewTop: { flexDirection: 'row', alignItems: 'center', gap: 11 },
+  overviewIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.16)', justifyContent: 'center', alignItems: 'center' },
+  overviewEyebrow: { color: '#B9D9FF', fontSize: 10, fontWeight: '800', letterSpacing: 1.1 },
+  overviewTitle: { color: '#fff', fontSize: 19, fontWeight: '800', marginTop: 2 },
+  overviewCopy: { color: '#D9E8F8', fontSize: 13, lineHeight: 19 },
+  overviewStats: { flexDirection: 'row', alignItems: 'center', paddingTop: 10, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.18)' },
+  overviewStat: { flex: 1, alignItems: 'center', gap: 2 },
+  overviewNumber: { color: '#fff', fontSize: 20, fontWeight: '800' },
+  overviewLabel: { color: '#C6D8EB', fontSize: 11, fontWeight: '600' },
+  overviewDivider: { width: 1, height: 30, backgroundColor: 'rgba(255,255,255,0.2)' },
+  section: { gap: 12, padding: 14, borderRadius: 16, borderWidth: 1, borderColor: C.border, backgroundColor: C.card },
+  section_blue: { borderTopWidth: 3, borderTopColor: C.primary },
+  section_purple: { borderTopWidth: 3, borderTopColor: '#7C3AED' },
+  section_green: { borderTopWidth: 3, borderTopColor: C.green },
+  section_orange: { borderTopWidth: 3, borderTopColor: C.orange },
+  sectionIcon: { width: 30, height: 30, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sectionTitle: { fontSize: 15, fontWeight: '600', color: C.text, flex: 1 },
   link: { color: C.blueDk, fontSize: 13, fontWeight: '500' },
