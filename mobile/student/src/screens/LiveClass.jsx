@@ -1,9 +1,23 @@
-import { useMemo, useRef, useState } from 'react'
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native'
+import { useState, useCallback, useEffect, useRef } from 'react'
+import {
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator,
+  TextInput, Switch, FlatList, Alert, Modal,
+} from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { useInteraction } from '../services/useInteraction'
-import { Sheet, ModalTitle } from '../components/Modals'
+import { useFocusEffect } from '@react-navigation/native'
+import { useStudent } from '../context/StudentContext'
+import {
+  getOpenInteractions,
+  getInteractionState,
+  askInteractionQuestion,
+  respondToLiveQuestion,
+  voteInteractionPoll,
+  sendInteractionReaction,
+  sendInteractionIDU,
+} from '../services/api'
+import { connectInteractionLive } from '../services/interactionLive'
+import { getToken, refreshAccessToken, BASE } from '../services/client'
 import { C } from '../theme'
 
 const REACTIONS = [
@@ -14,406 +28,923 @@ const REACTIONS = [
 ]
 const IDU_COOLDOWN_MS = 120000
 
-// Small section header: icon + medium-weight title + optional trailing action
-function Section({ icon, title, action, children, tint = 'blue' }) {
-  const accent = tint === 'purple' ? C.purple : tint === 'green' ? C.greenDk : tint === 'red' ? C.redDk : C.blueDk
-  const iconBg = tint === 'purple' ? C.purpleLt : tint === 'green' ? C.greenLt : tint === 'red' ? C.redLt : C.blueLt
+/** Section card: colored title heading (left) with optional `right` node on the same row. */
+function Section({ tint = 'blue', badge, right, children, style }) {
+  const bg = { blue: C.blueLt, green: C.greenLt, red: C.redLt, orange: C.orangeLt, gray: C.gray100, purple: C.purpleLt, yellow: C.yellowLt }[tint]
+  const fg = { blue: C.blueDk, green: C.greenDk, red: C.redDk, orange: C.orangeDk, gray: C.textSub, purple: C.purple, yellow: C.yellowDk }[tint]
   return (
-    <View style={[s.section, s[`section_${tint}`]]}>
-      <View style={s.sectionHead}>
-        <View style={[s.sectionIcon, { backgroundColor: iconBg }]}>
-          <Ionicons name={icon} size={16} color={accent} />
+    <View style={[styles.section, style]}>
+      {badge != null && (
+        <View style={styles.sectionHead}>
+          <View style={[styles.sectionBadge, { backgroundColor: bg }]}>
+            <Text style={[styles.sectionBadgeText, { color: fg }]}>{badge}</Text>
+          </View>
+          <View style={styles.flex1} />
+          {right}
         </View>
-        <Text style={s.sectionTitle}>{title}</Text>
-        {action}
-      </View>
+      )}
       {children}
     </View>
   )
 }
 
-function LinkButton({ label, onPress, testID }) {
+function Pill({ on, onText = 'Open', offText = 'Closed' }) {
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} testID={testID} hitSlop={6}>
-      <Text style={s.link}>{label}</Text>
-    </Pressable>
-  )
-}
-
-function Chip({ children, tone }) {
-  return <Text style={[s.chip, tone === 'green' && s.chipGreen, tone === 'red' && s.chipRed]}>{children}</Text>
-}
-
-function Empty({ children }) {
-  return <Text style={s.empty}>{children}</Text>
-}
-
-function QuestionCard({ item, writable, busy, onUpvote }) {
-  return (
-    <View style={s.item}>
-      <Text style={s.body}>{item.text}</Text>
-      <View style={s.row}>
-        <Text style={s.meta} numberOfLines={1}>
-          {item.anonymous ? 'Anonymous' : item.is_mine ? 'You' : item.author_name} · {item.created_at?.slice(11, 16)}
-        </Text>
-        {item.pinned ? <Chip>Pinned</Chip> : null}
-        {item.answered ? <Chip tone="green">Answered</Chip> : null}
-        <View style={s.grow} />
-        <Pressable accessibilityRole="button" disabled={!writable || busy || item.upvoted_by_me}
-          onPress={() => onUpvote(item)}
-          style={[s.vote, item.upvoted_by_me && s.voted]}>
-          <Ionicons name="arrow-up" size={13} color={item.upvoted_by_me ? C.blueDk : C.textSub} />
-          <Text style={[s.voteText, item.upvoted_by_me && { color: C.blueDk }]}>{item.votes}</Text>
-        </Pressable>
-      </View>
+    <View style={[styles.pill, !on && styles.pillOff]}>
+      <View style={[styles.pillDot, { backgroundColor: on ? C.green : C.gray500 }]} />
+      <Text style={[styles.pillText, { color: on ? C.greenDk : C.textHint }]}>
+        {on ? onText : offText}
+      </Text>
     </View>
   )
 }
 
-function PollCard({ poll, writable, busy, run }) {
-  const [draft, setDraft] = useState(null)
-  const choices = draft ?? poll.my_option_indexes ?? []
-  const open = writable && poll.status === 'open'
-  const choose = index => {
-    if (!poll.multiple) setDraft([index])
-    else setDraft(choices.includes(index) ? choices.filter(value => value !== index) : [...choices, index])
-  }
+function HistoryModal({ visible, onClose, title, data, empty, keyExtractor, renderItem }) {
   return (
-    <View style={s.item}>
-      <View style={s.row}>
-        <Text style={[s.body, s.grow]}>{poll.prompt}</Text>
-        <Chip tone={poll.status === 'open' ? 'green' : undefined}>{poll.status === 'open' ? 'Active' : 'Closed'}</Chip>
-      </View>
-      <Text style={s.meta}>{poll.multiple ? 'Choose one or more' : 'Choose one'}</Text>
-      {poll.options.map((option, index) => {
-        const picked = choices.includes(index)
-        const count = poll.results?.option_counts[index] ?? null
-        const share = poll.results?.respondent_count ? Math.round(100 * count / poll.results.respondent_count) : 0
-        return (
-          <Pressable key={index} accessibilityRole="button" disabled={!open || busy} onPress={() => choose(index)}
-            style={[s.option, picked && s.optionPicked, (!open || poll.results) && { width: '100%' }]}>
-            <View style={s.row}>
-              <Ionicons name={picked ? 'checkbox' : 'square-outline'} size={16}
-                color={picked ? C.primary : C.gray400} style={{ marginRight: 8 }} />
-              <Text style={[s.body, s.grow]}>{option}</Text>
-              {count != null ? <Text style={s.meta}>{share}%</Text> : null}
-            </View>
-            {count != null
-              ? <View style={s.track}><View style={[s.bar, { width: `${share}%` }]} /></View>
-              : null}
-          </Pressable>
-        )
-      })}
-      {poll.results ? <Text style={s.meta}>{poll.results.respondent_count} responses</Text> : null}
-      {poll.my_option_indexes && !draft ? <Text style={s.meta}>Your vote is saved — you can change it while the poll is open.</Text> : null}
-      {open ? (
-        <Pressable accessibilityRole="button" disabled={busy || !choices.length}
-          style={[s.primaryBtn, (busy || !choices.length) && s.disabled]}
-          onPress={async () => {
-            if (await run('PUT', `/polls/${poll.id}/vote`, { option_indexes: choices }, 'Vote saved.')) setDraft(null)
-          }}>
-          <Text style={s.primaryText}>{poll.my_option_indexes ? 'Update vote' : 'Submit vote'}</Text>
-        </Pressable>
-      ) : null}
-    </View>
-  )
-}
-
-function QuickPromptCard({ prompt, writable, busy, run }) {
-  const [text, setText] = useState('')
-  const open = writable && prompt.status === 'open'
-  return (
-    <View style={s.item}>
-      <View style={s.row}>
-        <Text style={[s.body, s.grow]}>{prompt.prompt}</Text>
-        <Chip tone={open ? 'green' : undefined}>{open ? 'Active' : 'Closed'}</Chip>
-      </View>
-      {prompt.answered_by_me ? <Text style={s.meta}>Your answer is saved — you can update it.</Text> : null}
-      {open ? (
-        <>
-          <TextInput style={s.input} value={text} onChangeText={setText} multiline
-            placeholder="Write a short answer" accessibilityLabel="Quick answer" maxLength={prompt.max_length} />
-          <View style={s.row}>
-            <Text style={[s.meta, s.grow]}>{text.length} / {prompt.max_length}</Text>
-            <Pressable accessibilityRole="button" disabled={busy || !text.trim()}
-              style={[s.primaryBtn, s.compact, (busy || !text.trim()) && s.disabled]}
-              onPress={async () => {
-                if (await run('POST', `/quick-prompts/${prompt.id}/answers`, { text: text.trim() }, 'Answer saved.')) setText('')
-              }}>
-              <Text style={s.primaryText}>{prompt.answered_by_me ? 'Update answer' : 'Submit answer'}</Text>
-            </Pressable>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={styles.sheetWrap}>
+        <View style={styles.sheet}>
+          <View style={styles.sheetHeader}>
+            <Text style={styles.sheetTitle}>{title}</Text>
+            <TouchableOpacity onPress={onClose} hitSlop={8} testID="history-modal-close">
+              <Ionicons name="close" size={22} color={C.textSub} />
+            </TouchableOpacity>
           </View>
-        </>
-      ) : <Text style={s.meta}>This question is closed.</Text>}
-    </View>
-  )
-}
-
-function LiveClassRoom({ navigation, sessionId, courseName, courseCode }) {
-  const insets = useSafeAreaInsets()
-  const { state, error, busy, connected, refresh, submit } = useInteraction(sessionId)
-  const [question, setQuestion] = useState('')
-  const [anonymous, setAnonymous] = useState(false)
-  const [askOpen, setAskOpen] = useState(false)
-  const [allQuestions, setAllQuestions] = useState(false)
-  const [sortByVotes, setSortByVotes] = useState(false)
-  const [pollHistory, setPollHistory] = useState(false)
-  const [topicOpen, setTopicOpen] = useState(false)
-  const [topicText, setTopicText] = useState('')
-  const [iduAt, setIduAt] = useState(0)
-  const [notice, setNotice] = useState(null)
-  const writable = Boolean(state?.can_participate)
-  const iduRemaining = Math.max(0, IDU_COOLDOWN_MS - (Date.now() - iduAt))
-  const iduBlocked = busy || iduRemaining > 0
-
-  async function run(method, path, body, message) {
-    setNotice(null)
-    try {
-      if (!await submit(method, path, body)) return false
-      setNotice({ message })
-      return true
-    } catch (err) {
-      setNotice({ error: true, message: err.status === 429
-        ? 'Please wait a moment before sending this again.'
-        : err.message || 'Could not save your response.' })
-      return false
-    }
-  }
-
-  async function sendIdu() {
-    if (await run('POST', '/confusion', { topic_tag: topicText.trim() || null }, 'Got it — your lecturer has been notified.')) {
-      setIduAt(Date.now())
-      setTopicOpen(false)
-      setTopicText('')
-    }
-  }
-
-  const activePoll = state?.polls.find(poll => poll.status === 'open') ?? null
-  const pastPolls = state ? state.polls.filter(poll => poll.id !== activePoll?.id) : []
-  const activePrompt = state?.quick_prompts.find(prompt => prompt.status === 'open')
-    ?? state?.quick_prompts[0] ?? null
-  const latestQuestion = state?.questions[0] ?? null
-  const sortedQuestions = state
-    ? [...state.questions].sort((a, b) => (sortByVotes ? b.votes - a.votes : 0))
-    : []
-
-  return <View style={s.page}>
-    <View style={[s.topbar, { paddingTop: insets.top + 8 }]}>
-      <Pressable onPress={navigation.goBack} accessibilityRole="button" accessibilityLabel="Back" style={s.back}>
-        <Ionicons name="chevron-back" color={C.text} size={24} />
-      </Pressable>
-      <Text style={s.topTitle}>Classroom interaction</Text>
-      {state ? <Text style={s.liveMeta} testID="interaction-status">{writable
-        ? connected ? 'Live' : 'Reconnecting…'
-        : state.status === 'scheduled' ? 'Not started' : 'Ended'}</Text> : null}
-    </View>
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.content}>
-      {error ? <View style={s.item}><Text style={[s.meta, { color: C.redDk }]}>{error}</Text>
-        <Pressable accessibilityRole="button" onPress={refresh}><Text style={s.link}>Retry</Text></Pressable></View> : null}
-      {!state && !error ? <ActivityIndicator color={C.primary} /> : null}
-      {notice ? <Text accessibilityLiveRegion="polite" style={[s.notice, notice.error && s.error]}>{notice.message}</Text> : null}
-      {state ? <>
-        <View style={s.classHero} testID="live-class-overview">
-          <View style={s.heroTop}>
-            <View style={s.heroIcon}><Ionicons name="people-outline" size={21} color="#fff" /></View>
-            <View style={s.grow}>
-              <Text style={s.heroEyebrow}>YOUR CLASSROOM</Text>
-              <Text style={s.heroTitle} numberOfLines={1}>{courseName || courseCode || 'Live class'}</Text>
-            </View>
-            <View style={[s.livePill, !writable && s.endedPill]}>
-              <View style={[s.liveDot, !writable && s.endedDot]} />
-              <Text style={[s.livePillText, !writable && s.endedPillText]}>{writable ? connected ? 'LIVE' : 'RECONNECTING' : state.status === 'scheduled' ? 'UPCOMING' : 'ENDED'}</Text>
-            </View>
-          </View>
-          <Text style={s.heroCopy}>{writable
-            ? 'Join in: ask questions, share a quick answer or let your lecturer know how the lesson feels.'
-            : 'Catch up on the class questions and activity from this session.'}</Text>
-          <View style={s.heroStats}>
-            <View style={s.heroStat}><Text style={s.heroNumber}>{state.questions.length}</Text><Text style={s.heroLabel}>Questions</Text></View>
-            <View style={s.heroDivider} />
-            <View style={s.heroStat}><Text style={s.heroNumber}>{state.polls.filter(poll => poll.status === 'open').length}</Text><Text style={s.heroLabel}>Live polls</Text></View>
-            <View style={s.heroDivider} />
-            <View style={s.heroStat}><Text style={s.heroNumber}>{state.quick_prompts.filter(prompt => prompt.status === 'open').length}</Text><Text style={s.heroLabel}>Quick answers</Text></View>
-          </View>
+          <FlatList
+            data={data}
+            keyExtractor={keyExtractor}
+            renderItem={renderItem}
+            ListEmptyComponent={<Text style={styles.sheetEmpty}>{empty}</Text>}
+            contentContainerStyle={{ paddingBottom: 24 }}
+          />
         </View>
-        {/* ── Live Questions ── */}
-        <Section icon="chatbubbles-outline" title="Live Questions" tint="blue"
-          action={<LinkButton label={`View all (${state.questions.length})`} onPress={() => setAllQuestions(true)} testID="view-all-questions" />}>
-          {writable ? (
-            askOpen ? (
-              <View style={s.item}>
-                <TextInput style={s.input} multiline value={question} onChangeText={setQuestion} maxLength={1000}
-                  placeholder="What would you like explained?" accessibilityLabel="Question" testID="interaction-question-input" />
-                <View style={s.row}>
-                  <Text style={[s.meta, s.grow]}>Post anonymously</Text>
-                  <Switch value={anonymous} onValueChange={setAnonymous} accessibilityLabel="Ask anonymously" testID="interaction-anonymous" />
-                  <Pressable accessibilityRole="button" disabled={busy || !question.trim()}
-                    style={[s.primaryBtn, s.compact, (busy || !question.trim()) && s.disabled]}
-                    onPress={async () => {
-                      if (await run('POST', '/questions', { text: question.trim(), anonymous }, 'Question sent.')) {
-                        setQuestion('')
-                        setAskOpen(false)
-                      }
-                    }}>
-                    <Text style={s.primaryText}>Post</Text>
-                  </Pressable>
+      </View>
+    </Modal>
+  )
+}
+
+export default function Participation({ route, navigation }) {
+  const { showToast } = useStudent()
+  const insets = useSafeAreaInsets()
+  const wsRef = useRef(null)
+  const reloadTimer = useRef(null)
+
+  const paramInteractionId = route.params?.sessionId ?? route.params?.interaction_id ?? null
+
+  const [interactions, setInteractions] = useState([])
+  const [selectedId, setSelectedId] = useState(paramInteractionId)
+  const [current, setCurrent] = useState(null)
+  const [loading, setLoading] = useState(Boolean(paramInteractionId))
+  const [refreshing, setRefreshing] = useState(false)
+
+  // Ask-a-question state
+  const [myQuestion, setMyQuestion] = useState('')
+  const [anonymous, setAnonymous] = useState(false)
+  const [sending, setSending] = useState(false)
+
+  // Lecturer's live question
+  const [liveQuestion, setLiveQuestion] = useState(null)
+  const [responseDraft, setResponseDraft] = useState('')
+  const [responding, setResponding] = useState(false)
+
+  // Poll
+  const [poll, setPoll] = useState(null)
+  const [pollSelection, setPollSelection] = useState(null)
+  const [voting, setVoting] = useState(false)
+
+  // Reactions / IDU / questions
+  const [reactionCounts, setReactionCounts] = useState({})
+  const [myReaction, setMyReaction] = useState(null)
+  const [iduCount, setIDUCount] = useState(0)
+  const [hasIDU, setHasIDU] = useState(false)
+  const [iduRemaining, setIduRemaining] = useState(0)
+  const [questions, setQuestions] = useState([])   // whole-session feed (mine flagged)
+
+  // History modals
+  const [showAllQuestions, setShowAllQuestions] = useState(false)
+  const [showMyQuestions, setShowMyQuestions] = useState(false)
+
+  const applyState = useCallback((s) => {
+    setCurrent(s)
+    setPoll(s.current_poll ?? null)
+    setPollSelection(s.current_poll?.my_option_id ?? null)
+    setLiveQuestion(s.live_question ?? null)
+    setReactionCounts(s.reaction_counts ?? {})
+    setMyReaction(s.my_reaction ?? null)
+    setIDUCount(s.idu_distinct_students ?? 0)
+    setHasIDU(Boolean(s.idu_has_signal))
+    setQuestions(s.questions ?? s.my_questions ?? [])
+  }, [])
+
+  const clearState = useCallback(() => {
+    setCurrent(null)
+    setPoll(null)
+    setPollSelection(null)
+    setLiveQuestion(null)
+    setReactionCounts({})
+    setMyReaction(null)
+    setIDUCount(0)
+    setHasIDU(false)
+    setIduRemaining(0)
+    setQuestions([])
+    setResponseDraft('')
+  }, [])
+
+  const loadState = useCallback(async (id) => {
+    if (!id) return
+    try {
+      applyState(await getInteractionState(id))
+    } catch (e) {
+      if (e.status === 404) {
+        clearState()
+      } else {
+        showToast(e.message, 'error')
+      }
+    }
+  }, [applyState, clearState, showToast])
+
+  // Opening cold (no route param) lists the sessions the student can join.
+  useFocusEffect(useCallback(() => {
+    let cancelled = false
+      ; (async () => {
+        if (paramInteractionId) return
+        setLoading(true)
+        try {
+          const list = await getOpenInteractions()
+          if (cancelled) return
+          setInteractions(list)
+          if (!selectedId && list.length) setSelectedId(list[0].id)
+        } catch (e) {
+          if (!cancelled) showToast(e.message, 'error')
+        } finally {
+          if (!cancelled) setLoading(false)
+        }
+      })()
+    return () => { cancelled = true }
+  }, [paramInteractionId, selectedId, showToast]))
+
+  useEffect(() => {
+    if (paramInteractionId && paramInteractionId !== selectedId) setSelectedId(paramInteractionId)
+  }, [paramInteractionId])
+
+  useEffect(() => {
+    if (!selectedId) { clearState(); return }
+    let cancelled = false
+    setLoading(true)
+    loadState(selectedId).finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [selectedId, loadState, clearState])
+
+  // Live updates: every websocket event triggers one debounced refetch.
+  const scheduleReload = useCallback(() => {
+    clearTimeout(reloadTimer.current)
+    reloadTimer.current = setTimeout(() => loadState(selectedId), 200)
+  }, [selectedId, loadState])
+
+  useEffect(() => {
+    wsRef.current?.close()
+    wsRef.current = null
+    if (!selectedId) return
+    const ws = connectInteractionLive({
+      interactionId: selectedId,
+      baseUrl: BASE,
+      getToken,
+      refreshToken: refreshAccessToken,
+      onEvent: (data) => {
+        if (data.event === 'interaction_closed') {
+          setCurrent(prev => (prev ? { ...prev, status: 'closed' } : prev))
+        }
+        scheduleReload()
+      },
+    })
+    wsRef.current = ws
+    return () => {
+      clearTimeout(reloadTimer.current)
+      ws.close()
+    }
+  }, [selectedId, scheduleReload])
+
+  const joinSession = useCallback((id) => setSelectedId(id), [])
+
+  const leaveSession = useCallback(() => {
+    setSelectedId(null)
+    clearState()
+    // Participation lives in the Home stack — the back button returns to Home.
+    if (navigation.canGoBack()) navigation.goBack()
+    else navigation.navigate('HomeScreen')
+  }, [clearState, navigation])
+
+  const sendQuestion = useCallback(async () => {
+    if (!myQuestion.trim() || !selectedId) return
+    setSending(true)
+    try {
+      await askInteractionQuestion(selectedId, { text: myQuestion.trim(), anonymous })
+      setMyQuestion('')
+      setAnonymous(false)
+      await loadState(selectedId)
+    } catch (e) {
+      Alert.alert('Could not send question', e.message)
+    } finally {
+      setSending(false)
+    }
+  }, [myQuestion, anonymous, selectedId, loadState])
+
+  const sendResponse = useCallback(async () => {
+    if (!responseDraft.trim() || !selectedId || !liveQuestion || responding) return
+    setResponding(true)
+    try {
+      await respondToLiveQuestion(selectedId, liveQuestion.id, responseDraft.trim())
+      setResponseDraft('')
+      await loadState(selectedId)
+    } catch (e) {
+      Alert.alert('Could not send response', e.message)
+    } finally {
+      setResponding(false)
+    }
+  }, [responseDraft, selectedId, liveQuestion, responding, loadState])
+
+  const votePoll = useCallback(async () => {
+    if (!pollSelection || !poll || voting) return
+    setVoting(true)
+    try {
+      await voteInteractionPoll(poll.id, pollSelection, selectedId)
+      await loadState(selectedId)
+    } catch (e) {
+      Alert.alert('Could not vote', e.message)
+    } finally {
+      setVoting(false)
+    }
+  }, [pollSelection, poll, voting, selectedId, loadState])
+
+  // Toggle reaction: tapping the active reaction again cancels it (server deletes the row).
+  const sendReaction = useCallback(async (reaction) => {
+    if (!selectedId) return
+    const cancelling = myReaction === reaction
+    if (cancelling) {
+      setMyReaction(null)
+      return
+    }
+    try {
+      await sendInteractionReaction(selectedId, reaction)
+      setMyReaction(reaction)
+    } catch (e) {
+      showToast(e.message, 'error')
+    }
+  }, [selectedId, myReaction, showToast])
+
+  const sendIDU = useCallback(async () => {
+    if (!selectedId || hasIDU) return
+    try {
+      await sendInteractionIDU(selectedId)
+      setHasIDU(true)
+      setIduRemaining(IDU_COOLDOWN_MS)
+    } catch (e) {
+      showToast(e.message, 'error')
+    }
+  }, [selectedId, hasIDU, showToast])
+
+  useEffect(() => {
+    if (!hasIDU || iduRemaining <= 0) return
+    const timer = setInterval(() => {
+      setIduRemaining(value => {
+        if (value <= 1000) {
+          clearInterval(timer)
+          setHasIDU(false)
+          return 0
+        }
+        return value - 1000
+      })
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [hasIDU, iduRemaining])
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true)
+    if (selectedId) await loadState(selectedId)
+    setRefreshing(false)
+  }, [selectedId, loadState])
+
+  // ── No session selected: list what's open ─────────────────────────────────
+  if (!selectedId) {
+    return (
+      <View style={styles.flex}>
+        <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+          <Text style={styles.headerTitle}>Class Interaction</Text>
+          <Text style={styles.headerSub}>Join a live session to ask questions, vote and react</Text>
+        </View>
+        {loading ? (
+          <View style={styles.empty}>
+            <ActivityIndicator color={C.primary} />
+          </View>
+        ) : interactions.length === 0 ? (
+          <View style={styles.empty}>
+            <Ionicons name="chatbubble-outline" size={48} color={C.textHint} />
+            <Text style={styles.emptyText}>No open interaction sessions</Text>
+            <Text style={styles.emptySub}>Ask your lecturer to start a class interaction.</Text>
+          </View>
+        ) : (
+          <View style={styles.list}>
+            <Text style={styles.sectionTitle}>Open sessions</Text>
+            {interactions.map(i => (
+              <TouchableOpacity
+                key={i.id}
+                testID={interactions.length === 1 ? 'interaction-session-card' : `interaction-session-${i.id}`}
+                style={styles.sessionRow}
+                onPress={() => joinSession(i.id)}
+              >
+                <View style={styles.sessionDotWrap}>
+                  <View style={styles.sessionDot} />
+                  <View style={styles.sessionInfo}>
+                    <Text style={styles.sessionClass}>{i.class_code}</Text>
+                    <Text style={styles.sessionName} numberOfLines={1}>{i.class_name}</Text>
+                  </View>
                 </View>
-              </View>
-            ) : (
-              <LinkButton label="Ask a question…" onPress={() => setAskOpen(true)} testID="open-ask-question" />
-            )
-          ) : null}
-          {latestQuestion
-            ? <QuestionCard item={latestQuestion} writable={writable} busy={busy}
-                onUpvote={item => run('PUT', `/questions/${item.id}/upvote`, undefined, 'Upvote saved.')} />
-            : <Empty>No questions yet.</Empty>}
-        </Section>
-
-        {/* ── Live Poll ── */}
-        <Section icon="stats-chart-outline" title="Live Poll" tint="purple"
-          action={pastPolls.length ? <LinkButton label="View history" onPress={() => setPollHistory(true)} testID="view-poll-history" /> : null}>
-          {activePoll
-            ? <PollCard poll={activePoll} writable={writable} busy={busy} run={run} />
-            : pastPolls.length ? <Empty>No active poll.</Empty> : <Empty>No polls have started.</Empty>}
-        </Section>
-
-        {/* ── Quick Answers ── */}
-        <Section icon="create-outline" title="Quick Answers" tint="green">
-          {activePrompt
-            ? <QuickPromptCard prompt={activePrompt} writable={writable} busy={busy} run={run} />
-            : <Empty>No quick questions yet.</Empty>}
-        </Section>
-
-        {/* ── Reactions ── */}
-        <Section icon="happy-outline" title="How's the pace?" tint="purple">
-          <View style={s.reactionRow}>
-            {REACTIONS.map(([kind, label, emoji]) => (
-              <Pressable key={kind} accessibilityRole="button" disabled={busy || !writable}
-                onPress={() => run('POST', '/reactions', { kind }, 'Reaction sent.')}
-                style={[s.reaction, !writable && s.disabled]}>
-                <Text style={s.reactionEmoji}>{emoji}</Text>
-                <Text style={s.reactionLabel}>{label}</Text>
-              </Pressable>
+                <View style={styles.sessionBadge}>
+                  <Text style={styles.sessionBadgeText}>Open</Text>
+                </View>
+              </TouchableOpacity>
             ))}
           </View>
+        )}
+      </View>
+    )
+  }
+
+  if (loading && !current) {
+    return (
+      <View style={styles.flex}>
+        <View style={styles.empty}><ActivityIndicator color={C.primary} /></View>
+      </View>
+    )
+  }
+
+  if (!current) {
+    return (
+      <View style={styles.flex}>
+        <View style={styles.empty}>
+          <Ionicons name="alert-circle-outline" size={48} color={C.textHint} />
+          <Text style={styles.emptyText}>Session unavailable</Text>
+          <TouchableOpacity style={styles.backToList} onPress={leaveSession}>
+            <Text style={styles.backToListText}>Back to open sessions</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    )
+  }
+
+  const isLive = current.status === 'open'
+  const hasVoted = Boolean(poll?.my_option_id)
+  const canVote = isLive && poll?.is_open && !hasVoted
+  const canRespond = isLive && liveQuestion?.is_active && !liveQuestion?.my_response
+  const pollTotal = poll ? poll.options.reduce((s, o) => s + (o.votes ?? 0), 0) : 0
+  const myQuestions = questions.filter(
+    q => q.anonymous === false || q.student_id != null,
+  )
+  const answeredCount = questions.filter(q => q.answered).length
+
+  return (
+    <View style={styles.flex}>
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+        <TouchableOpacity style={styles.back} onPress={leaveSession}>
+          <Ionicons name="chevron-back" size={24} color={C.textSub} />
+        </TouchableOpacity>
+        <View style={styles.headerBody}>
+          <Text style={styles.headerTitle} numberOfLines={1}>{current.class_name ?? route.params?.courseName ?? 'Live class'}</Text>
+          <Text style={styles.headerSub}>{current.class_code ?? route.params?.courseCode ?? ''}</Text>
+        </View>
+        <View style={[styles.livePill, isLive ? styles.livePillOn : styles.livePillOff]}>
+          <View style={[styles.liveDot, isLive ? styles.liveDotOn : styles.liveDotOff]} />
+          <Text style={[styles.livePillText, isLive ? styles.livePillTextOn : styles.livePillTextOff]}>
+            {isLive ? 'Live' : 'Closed'}
+          </Text>
+        </View>
+      </View>
+
+      <ScrollView
+        style={styles.flex}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} />}
+        contentContainerStyle={styles.content}
+      >
+        {/* Status banner */}
+        <View style={[styles.statusBar, isLive ? styles.statusOpen : styles.statusClosed]}>
+          <View style={[styles.statusDot, isLive ? styles.statusDotOpen : styles.statusDotClosed]} />
+          <Text style={[styles.statusText, isLive ? styles.statusOpenText : styles.statusClosedText]}>
+            {isLive ? 'Session is open — participate now' : 'Session is closed'}
+          </Text>
+        </View>
+
+        {/* Lecturer's live question — full style card */}
+        {liveQuestion && (
+          <Section tint={liveQuestion.is_active ? 'purple' : 'gray'} badge="Live question" right={<Pill on={liveQuestion.is_active} />}>
+            <Text style={styles.liveQuestionText}>{liveQuestion.question}</Text>
+            {liveQuestion.my_response ? (
+              <View style={styles.myResponse}>
+                <Text style={styles.myResponseLabel}>Your response</Text>
+                <Text style={styles.myResponseText}>{liveQuestion.my_response}</Text>
+              </View>
+            ) : (
+              <View style={styles.responseRow}>
+                <TextInput
+                  testID="interaction-response-input"
+                  style={[styles.input, styles.responseInput]}
+                  value={responseDraft}
+                  onChangeText={setResponseDraft}
+                  placeholder={canRespond ? 'Type your response…' : 'Question closed'}
+                  maxLength={2000}
+                  editable={canRespond}
+                />
+                <TouchableOpacity
+                  testID="interaction-respond-btn"
+                  style={[styles.respondBtn, (!canRespond || responding) && styles.sendBtnDisabled]}
+                  onPress={sendResponse}
+                  disabled={!responseDraft.trim() || responding || !canRespond}
+                >
+                  <Ionicons name="send" size={16} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            )}
+          </Section>
+        )}
+
+        {/* Live poll — full-width radio options, one vote */}
+        {poll && (
+          <Section tint="blue" badge="Live poll" right={<Pill on={poll.is_open && isLive} />}>
+            <Text style={styles.pollQuestion}>{poll.question}</Text>
+            <Text style={styles.pollNote}>One vote per poll — results show after you vote</Text>
+            {poll.options.map(opt => {
+              const selected = pollSelection === opt.id
+              const pct = pollTotal > 0 ? Math.round(((opt.votes ?? 0) / pollTotal) * 100) : 0
+              return (
+                <TouchableOpacity
+                  key={opt.id}
+                  testID={`interaction-poll-option-${opt.id}`}
+                  style={[
+                    styles.pollOption,
+                    selected && styles.pollOptionSelected,
+                    !canVote && styles.pollOptionLocked,
+                  ]}
+                  onPress={() => { if (canVote) setPollSelection(opt.id) }}
+                  disabled={!canVote}
+                >
+                  <View style={styles.pollRadioWrap}>
+                    <View style={[styles.pollRadio, selected && styles.pollRadioSelected]} />
+                    {selected && canVote && <Ionicons name="checkmark" size={16} color="#fff" />}
+                  </View>
+                  <Text style={styles.pollOptionText}>{opt.option_text}</Text>
+                  {!canVote && (
+                    <View style={styles.pollResult}>
+                      <Text style={styles.pollPct}>{pct}%</Text>
+                      <Text style={styles.pollVotes}>{opt.votes ?? 0} vote{(opt.votes ?? 0) !== 1 ? 's' : ''}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              )
+            })}
+            <TouchableOpacity
+              testID="interaction-vote-btn"
+              style={[styles.voteBtn, (!pollSelection || !canVote || voting) && styles.voteBtnDisabled]}
+              onPress={votePoll}
+              disabled={!pollSelection || !canVote || voting}
+            >
+              <Text style={styles.voteBtnText}>
+                {voting ? 'Voting…' : hasVoted ? 'Voted' : 'Vote'}
+              </Text>
+            </TouchableOpacity>
+          </Section>
+        )}
+
+        {/* Reactions — tap again to cancel */}
+        <Section tint="orange" badge="Signals & feedback">
+          <View style={styles.reactionsRow}>
+            {REACTIONS.map(([key, label, emoji]) => {
+              const count = reactionCounts[key] ?? 0
+              const mine = myReaction === key
+              return (
+                <TouchableOpacity
+                  key={key}
+                  testID={`interaction-reaction-${key}`}
+                  style={[styles.reactionBtn, mine && styles.reactionBtnMine]}
+                  onPress={() => sendReaction(key)}
+                  disabled={!isLive}
+                >
+                  <Text style={styles.reactionEmoji}>{emoji}</Text>
+                  <View style={styles.reactionLabelWrap}>
+                    <Text style={[styles.reactionLabel, mine && styles.reactionLabelMine]}>{label}</Text>
+                    <Text style={[styles.reactionCount, mine && styles.reactionCountMine]}>{count}</Text>
+                  </View>
+                </TouchableOpacity>
+              )
+            })}
+          </View>
+          <View style={styles.iduRow}>
+            <TouchableOpacity
+              testID="interaction-idu-btn"
+              style={[styles.iduBtn, hasIDU && styles.iduBtnDone]}
+              onPress={sendIDU}
+              disabled={!isLive || hasIDU}
+            >
+              <Ionicons name="hand-left-outline" size={20} color="#fff" />
+              <View style={styles.iduMeta}>
+                <Text style={[styles.iduLabel, hasIDU && styles.iduLabelDone]}>I Don't Understand</Text>
+                <Text style={[styles.iduLabelSub, hasIDU && styles.iduLabelSubDone]}>
+                  {hasIDU ? `Cancels in ${Math.ceil(iduRemaining / 1000)}s` : 'Raise your hand anonymously'}
+                </Text>
+              </View>
+            </TouchableOpacity>
+            <View style={styles.iduCountWrap}>
+              <Text style={styles.iduCount}>{iduCount}</Text>
+              <Text style={styles.iduCountLabel}>student{iduCount !== 1 ? 's' : ''}</Text>
+            </View>
+          </View>
         </Section>
 
-        {/* ── I Don't Understand ── */}
-        <Section icon="help-circle-outline" title="Need help?" tint="red">
-          <Pressable accessibilityRole="button" disabled={iduBlocked} testID="idu-button"
-            onPress={sendIdu} style={[s.idu, iduBlocked && s.disabled]}>
-            <Ionicons name="alert-circle" size={26} color={iduBlocked ? C.gray400 : C.redDk} />
-            <View style={{ flex: 1 }}>
-              <Text style={[s.iduText, iduBlocked && { color: C.textSub }]}>I Don't Understand</Text>
-              <Text style={s.iduSub}>Tell the lecturer — anonymous</Text>
-            </View>
-            {iduBlocked && iduRemaining > 0
-              ? <Text style={s.iduCooldown}>{Math.ceil(iduRemaining / 1000)}s</Text> : null}
-          </Pressable>
-          {topicOpen ? (
-            <View style={s.row}>
-              <TextInput style={[s.input, s.compactInput]} value={topicText} onChangeText={setTopicText} maxLength={100}
-                placeholder="Optional topic (e.g. recursion)" accessibilityLabel="Topic (optional)" />
-              <LinkButton label="Hide" onPress={() => setTopicOpen(false)} />
-            </View>
+        {/* Ask a question */}
+        <Section tint="yellow" badge="Ask a question" right={<Text style={styles.sentCount}>{myQuestions.length} sent</Text>}>
+          <TextInput
+            testID="interaction-question-input"
+            style={[styles.input, styles.textArea]}
+            value={myQuestion}
+            onChangeText={setMyQuestion}
+            placeholder="Type your question for the lecturer..."
+            maxLength={2000}
+            multiline
+            editable={isLive}
+          />
+          <View style={styles.toggleRow}>
+            <Switch
+              testID="interaction-anonymous-toggle"
+              value={anonymous}
+              onValueChange={setAnonymous}
+              disabled={!isLive}
+              trackColor={{ false: C.gray300, true: C.primary }}
+              thumbColor={anonymous ? C.primary : C.gray500}
+            />
+            <Text style={styles.toggleLabel}>Send anonymously</Text>
+            <TouchableOpacity
+              testID="interaction-ask-btn"
+              style={[styles.sendBtn, (sending || !isLive || !myQuestion.trim()) && styles.sendBtnDisabled]}
+              onPress={sendQuestion}
+              disabled={!myQuestion.trim() || sending || !isLive}
+            >
+              <Ionicons name="send" size={14} color="#fff" />
+              <Text style={styles.sendBtnText}>{sending ? 'Sending…' : 'Send'}</Text>
+            </TouchableOpacity>
+          </View>
+        </Section>
+
+        {/* Session question feed — what the whole class asked, mine highlighted */}
+        <Section tint="gray" badge="Questions" right={<Text style={styles.sentCount}>{questions.length - answeredCount} open</Text>}>
+          {questions.length === 0 ? (
+            <Text style={styles.emptyLine}>No questions asked yet.</Text>
           ) : (
-            <LinkButton label="Add topic (optional)" onPress={() => setTopicOpen(true)} />
+            <>
+              {questions.slice(0, 3).map(q => {
+                const mine = myQuestions.some(m => m.id === q.id)
+                return (
+                  <View
+                    key={q.id}
+                    style={[styles.questionItem, q.answered ? styles.questionItemAnswered : styles.questionItemOpen, mine && styles.questionItemMine]}
+                  >
+                    <View style={styles.questionMetaTop}>
+                      <Text style={styles.questionAuthor}>
+                        {q.anonymous ? 'Anonymous' : (q.student_name ?? 'Student')}
+                      </Text>
+                      {mine && (
+                        <View style={styles.minePill}><Text style={styles.minePillText}>Mine</Text></View>
+                      )}
+                      <View style={styles.flex1} />
+                      <Text style={[styles.questionState, q.answered && styles.questionStateAnswered]}>
+                        {q.answered ? '✓ Answered' : 'Waiting'}
+                      </Text>
+                    </View>
+                    <Text style={styles.questionText}>{q.text}</Text>
+                  </View>
+                )
+              })}
+              {questions.length > 3 && (
+                <TouchableOpacity
+                  testID="interaction-see-all-questions"
+                  style={styles.seeAllBtn}
+                  onPress={() => setShowAllQuestions(true)}
+                >
+                  <Text style={styles.seeAllText}>See all {questions.length} questions</Text>
+                  <Ionicons name="chevron-forward" size={14} color={C.primary} />
+                </TouchableOpacity>
+              )}
+            </>
           )}
         </Section>
-      </> : null}
-    </ScrollView>
+        <View style={{ height: 24 }} />
+      </ScrollView>
 
-    {/* All questions modal */}
-    <Sheet visible={allQuestions} onClose={() => setAllQuestions(false)}>
-      <ModalTitle>All questions</ModalTitle>
-      <View style={s.row}>
-        <LinkButton label={sortByVotes ? 'Sort: most upvoted' : 'Sort: newest'} onPress={() => setSortByVotes(value => !value)} />
-      </View>
-      {sortedQuestions.length
-        ? sortedQuestions.map(item => (
-          <QuestionCard key={item.id} item={item} writable={writable} busy={busy}
-            onUpvote={item => run('PUT', `/questions/${item.id}/upvote`, undefined, 'Upvote saved.')} />
-        ))
-        : <Empty>No questions yet.</Empty>}
-    </Sheet>
+      {/* Full question feed (most recent kept inline above) */}
+      <HistoryModal
+        visible={showAllQuestions}
+        onClose={() => setShowAllQuestions(false)}
+        title={`Questions (${questions.length})`}
+        data={questions}
+        keyExtractor={q => String(q.id)}
+        empty="No questions asked yet."
+        renderItem={({ item }) => {
+          const mine = myQuestions.some(m => m.id === item.id)
+          return (
+            <View
+              style={[styles.sheetItem, item.answered ? styles.questionItemAnswered : styles.questionItemOpen, mine && styles.questionItemMine]}
+            >
+              <View style={styles.questionMetaTop}>
+                <Text style={styles.questionAuthor}>
+                  {item.anonymous ? 'Anonymous' : (item.student_name ?? 'Student')}
+                </Text>
+                {mine && (
+                  <View style={styles.minePill}><Text style={styles.minePillText}>Mine</Text></View>
+                )}
+                <View style={styles.flex1} />
+                <Text style={[styles.questionState, item.answered && styles.questionStateAnswered]}>
+                  {item.answered ? '✓ Answered' : 'Waiting'}
+                </Text>
+              </View>
+              <Text style={styles.questionText}>{item.text}</Text>
+            </View>
+          )
+        }}
+      />
 
-    {/* Poll history modal */}
-    <Sheet visible={pollHistory} onClose={() => setPollHistory(false)}>
-      <ModalTitle>Poll history</ModalTitle>
-      {pastPolls.length ? pastPolls.map(poll => <PollCard key={poll.id} poll={poll} writable={false} busy={busy} run={run} />)
-        : <Empty>No past polls.</Empty>}
-    </Sheet>
-  </View>
+      {/* My questions only */}
+      <HistoryModal
+        visible={showMyQuestions}
+        onClose={() => setShowMyQuestions(false)}
+        title={`My questions (${myQuestions.length})`}
+        data={myQuestions}
+        keyExtractor={q => String(q.id)}
+        empty="You haven't asked anything yet."
+        renderItem={({ item }) => (
+          <View style={[styles.sheetItem, item.answered ? styles.questionItemAnswered : styles.questionItemOpen]}>
+            <Text style={styles.questionText}>{item.text}</Text>
+            <Text style={[styles.questionState, item.answered && styles.questionStateAnswered]}>
+              {item.answered ? '✓ Answered' : 'Waiting for an answer'}
+            </Text>
+          </View>
+        )}
+      />
+    </View>
+  )
 }
 
-export default function LiveClass({ route, navigation }) {
-  const { sessionId, courseName, courseCode } = route.params ?? {}
-  return <LiveClassRoom key={sessionId} {...{ sessionId, courseName, courseCode, navigation }} />
-}
-
-const s = StyleSheet.create({
-  page: { flex: 1, backgroundColor: C.bg },
-  topbar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 8, gap: 8, backgroundColor: C.card, borderBottomWidth: 1, borderColor: C.border },
-  back: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
-  topTitle: { fontSize: 17, fontWeight: '600', color: C.text, flex: 1 },
-  liveMeta: { color: C.greenDk, fontSize: 13 },
-  content: { width: '100%', maxWidth: 720, alignSelf: 'center', padding: 16, gap: 14, paddingBottom: 40 },
-  classHero: { backgroundColor: '#173B68', borderRadius: 18, padding: 17, gap: 12 },
-  heroTop: { flexDirection: 'row', alignItems: 'center', gap: 11 },
-  heroIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.16)', justifyContent: 'center', alignItems: 'center' },
-  heroEyebrow: { color: '#B9D9FF', fontSize: 10, fontWeight: '800', letterSpacing: 1.1 },
-  heroTitle: { color: '#fff', fontSize: 18, fontWeight: '800', marginTop: 2 },
-  heroCopy: { color: '#D9E8F8', fontSize: 13, lineHeight: 19 },
-  livePill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 9, paddingVertical: 6, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.16)' },
-  liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#86EFAC' },
-  livePillText: { color: '#fff', fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
-  endedPill: { backgroundColor: 'rgba(255,255,255,0.12)' },
-  endedDot: { backgroundColor: '#CBD5E1' },
-  endedPillText: { color: '#D5E1EF' },
-  heroStats: { flexDirection: 'row', alignItems: 'center', paddingTop: 10, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.18)' },
-  heroStat: { flex: 1, alignItems: 'center', gap: 2 },
-  heroNumber: { color: '#fff', fontSize: 19, fontWeight: '800' },
-  heroLabel: { color: '#C6D8EB', fontSize: 10, fontWeight: '600', textAlign: 'center' },
-  heroDivider: { width: 1, height: 28, backgroundColor: 'rgba(255,255,255,0.2)' },
-  section: { gap: 12, padding: 14, borderRadius: 16, borderWidth: 1, borderColor: C.border, backgroundColor: C.card },
-  section_blue: { borderTopWidth: 3, borderTopColor: C.primary },
-  section_purple: { borderTopWidth: 3, borderTopColor: C.purple },
-  section_green: { borderTopWidth: 3, borderTopColor: C.green },
-  section_red: { borderTopWidth: 3, borderTopColor: C.red },
-  sectionIcon: { width: 30, height: 30, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: C.text, flex: 1 },
-  link: { color: C.blueDk, fontSize: 13, fontWeight: '500' },
-  item: { backgroundColor: C.card, borderWidth: 1, borderColor: C.border, borderRadius: 10, padding: 12, gap: 8 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  grow: { flex: 1 },
-  body: { color: C.text, fontSize: 14, lineHeight: 20 },
-  meta: { color: C.textSub, fontSize: 12, lineHeight: 17 },
-  empty: { color: C.textSub, fontSize: 13, paddingVertical: 2 },
-  chip: { color: C.textSub, fontSize: 11, backgroundColor: C.gray100, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2, overflow: 'hidden', alignSelf: 'flex-start' },
-  chipGreen: { color: C.greenDk, backgroundColor: C.greenLt },
-  chipRed: { color: C.redDk, backgroundColor: C.redLt },
-  vote: { flexDirection: 'row', alignItems: 'center', gap: 3, borderWidth: 1, borderColor: C.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: C.card },
-  voted: { backgroundColor: C.blueLt, borderColor: C.primary },
-  voteText: { fontSize: 12, color: C.textSub, fontWeight: '500' },
-  option: { borderWidth: 1, borderColor: C.border, borderRadius: 8, padding: 10, gap: 6, backgroundColor: C.gray50 },
-  optionPicked: { borderColor: C.primary, backgroundColor: C.blueLt },
-  track: { backgroundColor: C.gray100, borderRadius: 3, height: 5, overflow: 'hidden' },
-  bar: { height: '100%', backgroundColor: C.primary },
-  input: { minHeight: 44, padding: 10, borderWidth: 1, borderColor: C.border, borderRadius: 8, color: C.text, fontSize: 14, backgroundColor: C.card },
-  compactInput: { minHeight: 40, flex: 1 },
-  primaryBtn: { minHeight: 40, paddingHorizontal: 14, borderRadius: 8, justifyContent: 'center', alignItems: 'center', backgroundColor: C.primary },
-  compact: { minHeight: 36, paddingHorizontal: 12 },
-  primaryText: { color: '#fff', fontSize: 13, fontWeight: '500' },
-  disabled: { opacity: 0.55 },
-  notice: { color: C.greenDk, padding: 10, borderRadius: 8, backgroundColor: C.greenLt, fontSize: 13 },
-  error: { color: C.redDk, backgroundColor: C.redLt },
-  reactionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  reaction: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: C.border, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: C.card },
-  reactionEmoji: { fontSize: 15 },
-  reactionLabel: { fontSize: 13, color: C.text, fontWeight: '400' },
-  idu: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1.5, borderColor: '#FCA5A5', borderRadius: 14, padding: 17, backgroundColor: C.redLt },
-  iduText: { color: C.redDk, fontSize: 16, fontWeight: '700' },
-  iduSub: { color: C.textSub, fontSize: 12, marginTop: 2 },
-  iduCooldown: { color: C.redDk, fontSize: 13, fontWeight: '500' },
+const styles = StyleSheet.create({
+  flex: { flex: 1, backgroundColor: C.bg },
+  flex1: { flex: 1 },
+  content: { paddingBottom: 24 },
+  header: {
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexDirection: 'row',
+  },
+  back: { padding: 4 },
+  headerBody: { flex: 1 },
+  headerTitle: { fontSize: 17, fontWeight: '700', color: C.text },
+  headerSub: { fontSize: 12, color: C.textSub },
+  livePill: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4,
+  },
+  livePillOn: { backgroundColor: 'rgba(16, 185, 129, 0.15)' },
+  livePillOff: { backgroundColor: 'rgba(220, 38, 38, 0.12)' },
+  liveDot: { width: 7, height: 7, borderRadius: 4 },
+  liveDotOn: { backgroundColor: C.green },
+  liveDotOff: { backgroundColor: C.red },
+  livePillText: { fontSize: 11, fontWeight: '700' },
+  livePillTextOn: { color: C.greenDk },
+  livePillTextOff: { color: C.redDk },
+  // Tinted section card
+  section: {
+    borderRadius: 14,
+    marginHorizontal: 16,
+    marginTop: 14,
+    padding: 14,
+    backgroundColor: C.card,
+  },
+  sectionBadge: {
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  sectionBadgeText: { fontSize: 10, fontWeight: '800' },
+  sectionHead: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  sentCount: { fontSize: 11, fontWeight: '700', color: C.textHint },
+  emptyLine: { fontSize: 13, color: C.textHint, marginTop: 4 },
+  // Pills
+  pill: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    borderRadius: 20, paddingHorizontal: 9, paddingVertical: 4,
+    backgroundColor: C.greenLt,
+  },
+  pillOff: { backgroundColor: C.gray100 },
+  pillDot: { width: 7, height: 7, borderRadius: 4 },
+  pillText: { fontSize: 11, fontWeight: '700' },
+  // Inputs
+  input: {
+    backgroundColor: C.gray100,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: C.text,
+    fontSize: 14,
+  },
+  textArea: { minHeight: 80, textAlignVertical: 'top' },
+  toggleRow: {
+    flexDirection: 'row', alignItems: 'center', marginTop: 10, gap: 8,
+  },
+  toggleLabel: { fontSize: 13, color: C.text, flex: 1 },
+  sendBtn: {
+    backgroundColor: C.primary,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  sendBtnDisabled: { backgroundColor: C.gray300 },
+  sendBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+  voteBtn: {
+    backgroundColor: C.primary,
+    borderRadius: 8,
+    paddingVertical: 11,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  voteBtnDisabled: { backgroundColor: C.gray300 },
+  voteBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  // Status banner
+  statusBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 10,
+    marginHorizontal: 16,
+    marginTop: 12,
+    borderWidth: 1,
+  },
+  statusOpen: { backgroundColor: C.greenLt, borderColor: C.green },
+  statusClosed: { backgroundColor: C.redLt, borderColor: C.red },
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
+  statusDotOpen: { backgroundColor: C.green },
+  statusDotClosed: { backgroundColor: C.red },
+  statusText: { fontSize: 13, fontWeight: '700' },
+  statusOpenText: { color: C.greenDk },
+  statusClosedText: { color: C.redDk },
+  // Session picker
+  list: { paddingHorizontal: 16 },
+  sectionTitle: {
+    fontSize: 13, fontWeight: '700', color: C.textSub, marginTop: 14, marginBottom: 8,
+  },
+  sessionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: C.card,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  sessionDotWrap: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  sessionDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.green },
+  sessionInfo: { flex: 1 },
+  sessionClass: { fontSize: 14, fontWeight: '700', color: C.text },
+  sessionName: { fontSize: 12, color: C.textSub, marginTop: 2 },
+  sessionBadge: { backgroundColor: C.greenLt, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
+  sessionBadgeText: { fontSize: 11, fontWeight: '700', color: C.greenDk },
+  empty: { padding: 40, alignItems: 'center' },
+  emptyText: { fontSize: 14, color: C.textSub },
+  emptySub: { fontSize: 12, color: C.textHint, marginTop: 6 },
+  backToList: { marginTop: 12, padding: 8 },
+  backToListText: { fontSize: 13, fontWeight: '700', color: C.primary },
+  // Live question
+  liveQuestionText: { fontSize: 15, fontWeight: '600', color: C.text, marginBottom: 8 },
+  responseRow: { flexDirection: 'row', gap: 8 },
+  responseInput: { flex: 1 },
+  respondBtn: {
+    backgroundColor: C.primary,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    justifyContent: 'center',
+  },
+  myResponse: { backgroundColor: C.greenLt, borderRadius: 8, padding: 10 },
+  myResponseLabel: { fontSize: 11, fontWeight: '700', color: C.greenDk },
+  myResponseText: { fontSize: 14, color: C.text, marginTop: 2 },
+  // Poll
+  pollQuestion: { fontSize: 15, fontWeight: '600', color: C.text, marginBottom: 6 },
+  pollNote: { fontSize: 11, color: C.textHint, marginBottom: 10 },
+  pollOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    marginBottom: 8,
+    backgroundColor: C.card,
+  },
+  pollOptionSelected: { borderColor: C.primary, backgroundColor: C.blueLt },
+  pollOptionLocked: { opacity: 0.85 },
+  pollRadioWrap: { alignItems: 'center', justifyContent: 'center' },
+  pollRadio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: C.border },
+  pollRadioSelected: { borderColor: C.primary, backgroundColor: C.primary },
+  pollOptionText: { flex: 1, fontSize: 14, color: C.text, marginLeft: 10, marginRight: 8 },
+  pollResult: { flexDirection: 'row', gap: 4 },
+  pollPct: { fontSize: 12, fontWeight: '700', color: C.primary },
+  pollVotes: { fontSize: 12, color: C.textSub },
+  // Reactions
+  reactionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
+  reactionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: C.gray100,
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  reactionBtnMine: { borderColor: C.primary, borderWidth: 1.5, backgroundColor: C.blueLt },
+  reactionEmoji: { fontSize: 18 },
+  reactionLabelWrap: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  reactionLabel: { fontSize: 11, fontWeight: '600' },
+  reactionLabelMine: { fontWeight: '800' },
+  reactionCount: { fontSize: 11, fontWeight: '700' },
+  reactionCountMine: { fontWeight: '800' },
+  // IDU
+  iduRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 },
+  iduBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: C.red,
+    borderColor: C.red,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flex: 1,
+  },
+  iduBtnDone: { opacity: 0.72 },
+  iduLabel: { fontSize: 13, fontWeight: '700', color: '#fff' },
+  iduLabelDone: { color: '#fff' },
+  iduMeta: { flex: 1 },
+  iduLabelSub: { fontSize: 10, color: '#fff', opacity: 0.9, marginTop: 1 },
+  iduLabelSubDone: { color: '#fff' },
+  iduCountWrap: { alignItems: 'center', gap: 4, paddingLeft: 8 },
+  iduCount: { fontSize: 20, fontWeight: '800', color: C.orangeDk },
+  iduCountLabel: { fontSize: 12, color: C.textSub },
+  // Question feed
+  questionItem: {
+    borderRadius: 10, padding: 10, marginBottom: 8,
+    borderWidth: 1, borderColor: 'transparent',
+    backgroundColor: C.gray50,
+  },
+  questionItemOpen: { backgroundColor: C.blueLt, borderColor: C.primary },
+  questionItemAnswered: { backgroundColor: C.gray50, borderColor: C.border, opacity: 0.85 },
+  questionItemMine: { borderLeftWidth: 3, borderLeftColor: C.primary },
+  questionMetaTop: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+  questionAuthor: { fontSize: 11, fontWeight: '700', color: C.textSub },
+  minePill: { backgroundColor: C.blueLt, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1 },
+  minePillText: { fontSize: 9, fontWeight: '800', color: C.primary },
+  questionState: { fontSize: 11, fontWeight: '700', color: C.textHint },
+  questionStateAnswered: { color: C.greenDk },
+  questionText: { fontSize: 14, color: C.text },
+  seeAllBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 2, paddingVertical: 8, marginTop: 2,
+    borderTopWidth: 1, borderTopColor: C.gray100,
+  },
+  seeAllText: { fontSize: 12, fontWeight: '700', color: C.primary },
+  // Bottom sheet
+  sheetWrap: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(15, 23, 42, 0.45)' },
+  sheet: {
+    backgroundColor: C.card,
+    borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    maxHeight: '82%', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 20,
+  },
+  sheetHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10,
+  },
+  sheetTitle: { fontSize: 16, fontWeight: '800', color: C.text },
+  sheetEmpty: { fontSize: 13, color: C.textHint, textAlign: 'center', paddingVertical: 24 },
+  sheetItem: {
+    borderRadius: 10, padding: 10, marginBottom: 8,
+    borderWidth: 1, borderColor: C.border,
+  },
 })

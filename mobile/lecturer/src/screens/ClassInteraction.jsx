@@ -1,556 +1,932 @@
-import { useCallback, useRef, useState } from 'react'
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native'
-import { Ionicons } from '@expo/vector-icons'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import {
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput,
+  RefreshControl, Alert, ActivityIndicator, Modal, FlatList,
+} from 'react-native'
 import { useFocusEffect } from '@react-navigation/native'
+import { Ionicons } from '@expo/vector-icons'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Topbar from '../components/Topbar'
-import { Sheet, ModalTitle } from '../components/Modals'
+import { useLecturer } from '../context/LecturerContext'
+import { getToken, refreshAccessToken, BASE } from '../services/client'
+import {
+  getInteraction, getOpenInteractions, getInteractions,
+  createPoll, closePoll, getPolls, postLiveQuestion, getLiveQuestion,
+  markQuestionAnswered, getQuestions, getReactions, getIduCount,
+} from '../services/api'
+import { connectInteractionLive } from '../services/interactionLive'
 import { C } from '../theme'
-import { interactionRequest, interactionSocket } from '../services/interaction'
 
-const reactionLabels = {
-  thumbs_up: ['Thumbs up', '👍'],
-  clear: ['Clear', '💡'],
-  too_fast: ['Too fast', '⚡'],
-  too_slow: ['Too slow', '🐢'],
-}
+const REACTIONS = [
+  ['thumbs_up', 'Thumbs up', '👍'],
+  ['clear', 'Clear', '💡'],
+  ['too_slow', 'Too slow', '🐢'],
+  ['too_fast', 'Too fast', '⚡'],
+]
 
-// Small section header: icon + medium-weight title + optional trailing action
-function Section({ icon, title, action, children, tint = 'blue' }) {
-  const accent = tint === 'purple' ? '#7C3AED' : tint === 'green' ? C.greenDk : tint === 'orange' ? C.orangeDk : C.blueDk
-  const iconBackground = tint === 'purple' ? '#F3E8FF' : tint === 'green' ? C.greenLt : tint === 'orange' ? C.orangeLt : C.blueLt
+/** Section card: colored title heading (left) with optional `right` node on the same row. */
+function Section({ tint = 'blue', badge, right, children, style }) {
+  const bg = { blue: C.blueLt, green: C.greenLt, red: C.redLt, orange: C.orangeLt, gray: C.gray100, purple: C.purpleLt, yellow: C.yellowLt }[tint]
+  const fg = { blue: C.blueDk, green: C.greenDk, red: C.redDk, orange: C.orangeDk, gray: C.textSub, purple: C.purple, yellow: C.yellowDk }[tint]
   return (
-    <View style={[styles.section, styles[`section_${tint}`]]}>
-      <View style={styles.sectionHead}>
-        <View style={[styles.sectionIcon, { backgroundColor: iconBackground }]}>
-          <Ionicons name={icon} size={16} color={accent} />
+    <View style={[styles.section, style]}>
+      {badge != null && (
+        <View style={styles.sectionHead}>
+          <View style={[styles.sectionBadge, { backgroundColor: bg }]}>
+            <Text style={[styles.sectionBadgeText, { color: fg }]}>{badge}</Text>
+          </View>
+          <View style={styles.flex1} />
+          {right}
         </View>
-        <Text style={styles.sectionTitle}>{title}</Text>
-        {action}
-      </View>
+      )}
       {children}
     </View>
   )
 }
 
-function Chip({ tone, children }) {
-  return <Text style={[styles.chip, tone === 'green' && styles.chipGreen, tone === 'amber' && styles.chipAmber]}>{children}</Text>
-}
-
-function Empty({ children }) {
-  return <Text style={styles.empty}>{children}</Text>
-}
-
-function QuestionCard({ item, blocked, onModerate }) {
+function Pill({ on, onText = 'Open', offText = 'Closed' }) {
   return (
-    <View style={styles.item}>
-      <Text style={styles.body}>{item.text}</Text>
-      <View style={styles.row}>
-        <Text style={styles.meta} numberOfLines={1}>
-          {item.anonymous ? 'Anonymous' : item.author_name} · {item.created_at?.slice(11, 16)}
-        </Text>
-        <Ionicons name="arrow-up" size={13} color={C.textSub} />
-        <Text style={styles.meta}>{item.votes}</Text>
-        {item.pinned ? <Chip tone="amber">Pinned</Chip> : null}
-        {item.answered ? <Chip tone="green">Answered</Chip> : null}
-        {item.hidden ? <Chip>Hidden</Chip> : null}
-        <View style={styles.grow} />
-        <Pressable accessibilityRole="button" disabled={blocked} onPress={() => onModerate('pinned', !item.pinned)}>
-          <Ionicons name="bookmark-outline" size={17} color={item.pinned ? C.blueDk : C.textSub} />
-        </Pressable>
-        <Pressable accessibilityRole="button" disabled={blocked} onPress={() => onModerate('answered', !item.answered)}>
-          <Ionicons name="checkmark-circle-outline" size={17} color={item.answered ? C.greenDk : C.textSub} />
-        </Pressable>
-        <Pressable accessibilityRole="button" disabled={blocked} onPress={() => onModerate('hidden', !item.hidden)}>
-          <Ionicons name="eye-off-outline" size={17} color={item.hidden ? C.redDk : C.textSub} />
-        </Pressable>
-      </View>
+    <View style={[styles.pill, on ? styles.pillOn : styles.pillOff]}>
+      <View style={[styles.pillDot, { backgroundColor: on ? C.green : C.gray500 }]} />
+      <Text style={[styles.pillText, { color: on ? C.greenDk : C.textHint }]}>
+        {on ? onText : offText}
+      </Text>
     </View>
   )
 }
 
-function PollResults({ poll }) {
-  const results = poll.results
-  if (!results) return null
+/** Modal sheet listing the full history of one section (polls, questions, responses…). */
+function HistoryModal({ visible, onClose, title, empty, renderItem, data, keyExtractor }) {
   return (
-    <View style={styles.stack}>
-      <Text style={styles.meta}>{results.respondent_count} responses</Text>
-      {poll.options.map((option, index) => {
-        const votes = results.option_counts[index] ?? 0
-        const share = results.respondent_count ? Math.min(100, votes / results.respondent_count * 100) : 0
-        return (
-          <View key={index} style={styles.stack}>
-            <Text style={styles.body}>{option} · {votes}</Text>
-            <View style={styles.track}><View style={[styles.bar, { width: `${share}%` }]} /></View>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={styles.sheetWrap}>
+        <View style={styles.sheet}>
+          <View style={styles.sheetHeader}>
+            <Text style={styles.sheetTitle}>{title}</Text>
+            <TouchableOpacity onPress={onClose} hitSlop={8} testID="history-modal-close">
+              <Ionicons name="close" size={22} color={C.textSub} />
+            </TouchableOpacity>
           </View>
-        )
-      })}
-    </View>
-  )
-}
-
-function PollCard({ poll, blocked, act, live }) {
-  return (
-    <View style={styles.item}>
-      <View style={styles.row}>
-        <Text style={[styles.body, styles.grow]}>{poll.prompt}</Text>
-        <Chip tone={poll.status === 'open' ? 'green' : undefined}>
-          {poll.status === 'open' ? 'Active' : poll.status === 'draft' ? 'Draft' : 'Closed'}
-        </Chip>
-      </View>
-      <PollResults poll={poll} />
-      {live ? (
-        <View style={styles.row}>
-          {poll.status === 'draft' ? (
-            <Pressable accessibilityRole="button" disabled={blocked} style={[styles.primaryBtn, styles.compact, blocked && styles.disabled]}
-              onPress={() => act('POST', `/polls/${poll.id}/start`)}>
-              <Text style={styles.primaryText}>Start poll</Text>
-            </Pressable>
-          ) : null}
-          {poll.status === 'open' ? (
-            <Pressable accessibilityRole="button" disabled={blocked} style={[styles.outlineBtn, styles.compact, blocked && styles.disabled]}
-              onPress={() => act('POST', `/polls/${poll.id}/close`)}>
-              <Text style={styles.outlineText}>Close poll</Text>
-            </Pressable>
-          ) : null}
-          {poll.status !== 'draft' ? (
-            <Pressable accessibilityRole="button" disabled={blocked} style={[styles.outlineBtn, styles.compact, blocked && styles.disabled]}
-              onPress={() => act('PATCH', `/polls/${poll.id}`, { show_results: !poll.show_results })}>
-              <Text style={styles.outlineText}>{poll.show_results ? 'Hide results from students' : 'Share results with students'}</Text>
-            </Pressable>
-          ) : null}
+          <FlatList
+            data={data}
+            keyExtractor={keyExtractor}
+            renderItem={renderItem}
+            ListEmptyComponent={<Text style={styles.sheetEmpty}>{empty}</Text>}
+            contentContainerStyle={{ paddingBottom: 24 }}
+          />
         </View>
-      ) : null}
-    </View>
+      </View>
+    </Modal>
   )
 }
 
-function Interaction({ sessionId, className, navigation }) {
-  const [snapshot, setSnapshot] = useState(null)
-  const [loadError, setLoadError] = useState('')
-  const [actionError, setActionError] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [showAllQuestions, setShowAllQuestions] = useState(false)
-  const [showPollHistory, setShowPollHistory] = useState(false)
-  const [showResponses, setShowResponses] = useState(false)
-  const [showCreatePoll, setShowCreatePoll] = useState(false)
-  const [pollPrompt, setPollPrompt] = useState('')
-  const [options, setOptions] = useState(['', ''])
-  const [multiple, setMultiple] = useState(false)
-  const [quickPrompt, setQuickPrompt] = useState('')
-  const requestSequence = useRef(0)
-  const mutation = useRef(false)
-  const refresh = useRef(null)
-  const focused = useRef(false)
-  const selectedPrompt = useRef(null)
-  const request = useCallback((method, path, body) => interactionRequest(sessionId, method, path, body), [sessionId])
+/**
+ * The lecturer's live view of one interaction session (UC-501 step 4, S26/S29).
+ * Layout mirrors the student participation style: one card per section, each showing
+ * the most recent item with a "See all" button that opens the full history in a modal —
+ * the main controls stay visible no matter how much arrives during the session.
+ */
+export default function ClassInteraction({ route, navigation }) {
+  const { showToast } = useLecturer()
+  const insets = useSafeAreaInsets()
+  const wsRef = useRef(null)
+  const reloadTimer = useRef(null)
 
-  const load = useCallback(async () => {
-    const sequence = ++requestSequence.current
+  const paramInteractionId = route.params?.sessionId ?? route.params?.interaction_id
+  const paramOccurrenceId = route.params?.occurrence_id
+
+  const [interaction, setInteraction] = useState(null)
+  const [fallbackList, setFallbackList] = useState([])
+  const [loading, setLoading] = useState(Boolean(paramInteractionId || paramOccurrenceId))
+  const [refreshing, setRefreshing] = useState(false)
+
+  // Live data
+  const [polls, setPolls] = useState([])
+  const [liveQuestion, setLiveQuestion] = useState(null)
+  const [questions, setQuestions] = useState([])
+  const [reactionCounts, setReactionCounts] = useState({})
+  const [iduCount, setIDUCount] = useState(0)
+  const [confusionRate, setConfusionRate] = useState(0)
+
+  // History modals
+  const [showAllQuestions, setShowAllQuestions] = useState(false)
+  const [showAllPolls, setShowAllPolls] = useState(false)
+  const [showAllResponses, setShowAllResponses] = useState(false)
+
+  // Poll creation state
+  const [showPollForm, setShowPollForm] = useState(false)
+  const [pollDraft, setPollDraft] = useState('')
+  const [pollOptions, setPollOptions] = useState(['', ''])
+  const [creatingPoll, setCreatingPoll] = useState(false)
+
+  // Live question state
+  const [showLiveForm, setShowLiveForm] = useState(false)
+  const [liveDraft, setLiveDraft] = useState('')
+  const [postingQuestion, setPostingQuestion] = useState(false)
+
+  const interactionId = interaction?.id ?? paramInteractionId ?? null
+  const isOpen = interaction ? interaction.status === 'open' : true
+
+  // Resolve the session from route params, or fall back to the lecturer's open sessions.
+  const resolveSession = useCallback(async () => {
     try {
-      const state = await request('GET')
-      const activePrompt = selectedPrompt.current
-      const [signals, summary, answers] = await Promise.all([
-        state.can_participate ? request('GET', '/signals') : null,
-        state.status === 'closed' ? request('GET', '/summary') : null,
-        state.can_participate && activePrompt ? request('GET', `/quick-prompts/${activePrompt}/answers`) : null,
-      ])
-      if (focused.current && sequence === requestSequence.current) {
-        setSnapshot({ state, signals, summary, answers, activePrompt })
-        setLoadError('')
+      if (paramInteractionId) {
+        const found = await getInteraction(paramInteractionId)
+        setInteraction(found)
+      } else if (paramOccurrenceId) {
+        const list = await getInteractions(paramOccurrenceId)
+        setInteraction(list.find(i => i.status === 'open') ?? list[0] ?? null)
+      } else {
+        const list = await getOpenInteractions()
+        setFallbackList(list)
+        if (list.length === 1) setInteraction(list[0])
       }
-      return true
-    } catch (error) {
-      if (focused.current && sequence === requestSequence.current) {
-        if ([401, 403, 404].includes(error.status)) setSnapshot(null)
-        setLoadError('Classroom activity could not be refreshed.')
-      }
-      return false
+    } catch (e) {
+      showToast(e.message, 'error')
     }
-  }, [request])
+  }, [paramInteractionId, paramOccurrenceId, showToast])
+
+  useEffect(() => {
+    setLoading(Boolean(paramInteractionId || paramOccurrenceId))
+    resolveSession().finally(() => setLoading(false))
+  }, [resolveSession])
 
   useFocusEffect(useCallback(() => {
-    let active = true
-    let socket
-    let connected = false
-    let lastSync = 0
-    let pending = false
-    let timer
-    focused.current = true
+    resolveSession()
+  }, [resolveSession]))
 
-    let invalidation = 0
-    async function sync() {
-      if (pending) return
-      pending = true
-      do {
-        const revision = invalidation
-        const ok = await load()
-        if (!active || !ok || revision === invalidation) break
-      } while (active)
-      pending = false
-    }
-    function invalidate() {
-      invalidation += 1
-      if (!timer) timer = setTimeout(() => { timer = null; void sync() }, 80)
-    }
-    function connect() {
-      try {
-        socket = interactionSocket(sessionId)
-        if (!socket) return
-        socket.onopen = () => { connected = true; invalidate() }
-        socket.onmessage = ({ data }) => {
-          try {
-            const message = JSON.parse(data)
-            if (message.attendance_session_id !== sessionId || !message.event?.startsWith('interaction.')) return
-            const hasSessionStatus = message.event === 'interaction.session_status' || message.event === 'interaction.state'
-            if (hasSessionStatus && message.status !== 'open') {
-              requestSequence.current += 1
-              setSnapshot(current => current && {
-                ...current,
-                state: { ...current.state, status: message.status, can_participate: false },
-              })
-            }
-            invalidate()
-          } catch { /* Ignore invalid messages. */ }
+  const loadLive = useCallback(async (id) => {
+    if (!id) return
+    const results = await Promise.allSettled([
+      getPolls(id), getLiveQuestion(id), getQuestions(id), getReactions(id), getIduCount(id),
+    ])
+    const value = (i) => (results[i].status === 'fulfilled' ? results[i].value : null)
+    setPolls(value(0) ?? [])
+    setLiveQuestion(value(1))
+    setQuestions(value(2) ?? [])
+    const counts = {}
+    ;(value(3) ?? []).forEach(r => { counts[r.reaction] = r.count })
+    setReactionCounts(counts)
+    setIDUCount(value(4)?.distinct_students ?? 0)
+    setConfusionRate(value(4)?.rate ?? 0)
+
+    const failure = results.find(
+      r => r.status === 'rejected' && r.reason?.status !== 404,
+    )
+    if (failure) showToast(failure.reason.message, 'error')
+  }, [showToast])
+
+  // Debounced reload — every websocket event lands here once.
+  const scheduleReload = useCallback(() => {
+    clearTimeout(reloadTimer.current)
+    reloadTimer.current = setTimeout(() => loadLive(interactionId), 250)
+  }, [interactionId, loadLive])
+
+  // (Re)connect to the room for the resolved session.
+  useEffect(() => {
+    wsRef.current?.close()
+    wsRef.current = null
+    if (!interactionId) return
+    loadLive(interactionId)
+    const ws = connectInteractionLive({
+      interactionId,
+      baseUrl: BASE,
+      getToken,
+      refreshToken: refreshAccessToken,
+      onEvent: (data) => {
+        switch (data.event) {
+          case 'interaction_closed':
+            setInteraction(prev => prev ? { ...prev, status: 'closed' } : prev)
+            scheduleReload()
+            break
+          case 'interaction_opened':
+            setInteraction(prev => prev ? { ...prev, status: 'open' } : prev)
+            scheduleReload()
+            break
+          // question_asked / question_answered included: a student's new question
+          // (or a mark-answered from another device) refreshes the list automatically.
+          case 'question_asked':
+          case 'question_answered':
+          case 'poll_created':
+          case 'poll_vote':
+          case 'poll_closed':
+          case 'live_question_posted':
+          case 'live_question_response':
+          case 'reaction_updated':
+          case 'idu_signal':
+          case 'interaction.polls_changed':
+          case 'interaction.poll_results_changed':
+          case 'interaction.questions_changed':
+          case 'interaction.quick_prompts_changed':
+          case 'interaction.quick_answers_changed':
+          case 'interaction.signals_changed':
+            scheduleReload()
+            break
         }
-        socket.onclose = () => { socket = null; connected = false }
-      } catch { socket = null; connected = false }
-    }
-    refresh.current = invalidate
-    void sync()
-    connect()
-    const interval = setInterval(() => {
-      if (!connected || Date.now() - lastSync >= 30000) {
-        lastSync = Date.now()
-        invalidate()
-      }
-      if (!socket) connect()
-    }, 5000)
+      },
+    })
+    wsRef.current = ws
     return () => {
-      active = false
-      focused.current = false
-      requestSequence.current += 1
-      refresh.current = null
-      clearTimeout(timer)
-      clearInterval(interval)
-      if (socket) {
-        socket.onopen = socket.onmessage = socket.onclose = null
-        socket.close()
-      }
+      clearTimeout(reloadTimer.current)
+      ws.close()
     }
-  }, [sessionId, load]))
+  }, [interactionId, loadLive, scheduleReload])
 
-  async function act(method, path, body, done) {
-    if (mutation.current || !snapshot?.state.can_participate || loadError) return
-    mutation.current = true
-    setBusy(true)
-    setActionError('')
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true)
+    await loadLive(interactionId)
+    setRefreshing(false)
+  }, [interactionId, loadLive])
+
+  const addPollOption = () => setPollOptions([...pollOptions, ''])
+  const removePollOption = (idx) => setPollOptions(pollOptions.filter((_, i) => i !== idx))
+  const setPollOption = (idx, value) => {
+    const next = [...pollOptions]
+    next[idx] = value
+    setPollOptions(next)
+  }
+
+  const createPollAction = useCallback(async () => {
+    const options = pollOptions.filter(o => o.trim()).map(o => o.trim())
+    if (!pollDraft.trim() || options.length < 2 || creatingPoll) return
+    setCreatingPoll(true)
     try {
-      await request(method, path, body)
-      done?.()
-    } catch (error) {
-      const message = error.message && !error.message.includes('[object Object]') ? error.message : ''
-      setActionError(message || 'Could not save this change. Please try again.')
+      await createPoll(interactionId, { question: pollDraft.trim(), options })
+      setPollDraft('')
+      setPollOptions(['', ''])
+      setShowPollForm(false)
+      await loadLive(interactionId)
+      showToast('Poll created', 'success')
+    } catch (e) {
+      Alert.alert('Could not create poll', e.message)
     } finally {
-      refresh.current?.()
-      mutation.current = false
-      setBusy(false)
+      setCreatingPoll(false)
     }
+  }, [pollDraft, pollOptions, creatingPoll, interactionId, createPoll, loadLive, showToast])
+
+  // FR-504: close voting on this poll — the session stays open.
+  const closePollAction = useCallback(async (p) => {
+    try {
+      await closePoll(interactionId, p.id)
+      await loadLive(interactionId)
+    } catch (e) {
+      showToast(e.message, 'error')
+    }
+  }, [interactionId, closePoll, loadLive, showToast])
+
+  const postLiveQuestionAction = useCallback(async () => {
+    if (!liveDraft.trim() || !interactionId || postingQuestion) return
+    setPostingQuestion(true)
+    try {
+      await postLiveQuestion(interactionId, liveDraft.trim())
+      setLiveDraft('')
+      setShowLiveForm(false)
+      await loadLive(interactionId)
+      showToast('Question posted to the class', 'success')
+    } catch (e) {
+      Alert.alert('Could not post question', e.message)
+    } finally {
+      setPostingQuestion(false)
+    }
+  }, [liveDraft, interactionId, postingQuestion, postLiveQuestion, loadLive, showToast])
+
+  // FR-502/503: mark a student question as answered.
+  const markAnswered = useCallback(async (question) => {
+    if (!interactionId || question.answered) return
+    try {
+      await markQuestionAnswered(interactionId, question.id)
+      await loadLive(interactionId)
+    } catch (e) {
+      showToast(e.message, 'error')
+    }
+  }, [interactionId, markQuestionAnswered, showToast, loadLive])
+
+  // Session open/close is controlled from the Home page (Start/End Class) and the
+  // scheduler's auto-close — this screen is the live view only.
+
+  // Derived: newest first everywhere.
+  const openQuestions = questions.filter(q => !q.answered)
+  const sortedQuestions = [...openQuestions, ...questions.filter(q => q.answered)]
+  const latestQuestion = sortedQuestions[0] ?? null
+  const latestPoll = polls[0] ?? null
+  const totalResponses = liveQuestion?.responses?.length ?? 0
+  const totalReactions = Object.values(reactionCounts).reduce((s, v) => s + (v ?? 0), 0)
+  const topReaction = REACTIONS.reduce(
+    (best, [kind]) => ((reactionCounts[kind] ?? 0) > (reactionCounts[best] ?? 0) ? kind : best), null,
+  )
+
+  const headerSub = interaction
+    ? `${interaction.class_code} · ${isOpen ? 'Open' : 'Closed'}`
+    : paramInteractionId
+      ? 'Loading…'
+      : 'No open session'
+
+  // ── Resolving / empty states ───────────────────────────────────────────────
+  if (loading) {
+    return (
+      <View style={styles.flex}>
+        <Topbar title="Interaction" sub={headerSub} onBack={() => navigation.goBack()} />
+        <View style={styles.center}><ActivityIndicator color={C.primary} /></View>
+      </View>
+    )
   }
 
-  const state = snapshot?.state
-  const live = Boolean(state?.can_participate)
-  const blocked = busy || Boolean(loadError)
-  const summary = snapshot?.summary
-  const signals = summary ?? snapshot?.signals
-  const activePoll = state?.polls.find(poll => poll.status === 'open') ?? null
-  const otherPolls = state ? state.polls.filter(poll => poll.id !== activePoll?.id && poll.status !== 'draft') : []
-  const draftPolls = state?.polls.filter(poll => poll.status === 'draft') ?? []
-  const activePrompt = state?.quick_prompts.find(prompt => prompt.status === 'open') ?? null
-  const closedPrompts = state?.quick_prompts.filter(prompt => prompt.id !== activePrompt?.id) ?? []
-  const visibleQuestions = state?.questions.filter(question => !question.hidden) ?? []
-
-  const savePoll = () => act('POST', '/polls', { prompt: pollPrompt.trim(), options: options.map(value => value.trim()), multiple }, () => {
-    setPollPrompt('')
-    setOptions(['', ''])
-    setMultiple(false)
-    setShowCreatePoll(false)
-  })
-
-  function viewResponses(id) {
-    selectedPrompt.current = showResponses && selectedPrompt.current === id ? null : id
-    setShowResponses(selectedPrompt.current !== null)
-    refresh.current?.()
+  if (!interactionId) {
+    return (
+      <View style={styles.flex}>
+        <Topbar title="Interaction" sub={headerSub} onBack={() => navigation.goBack()} />
+        {fallbackList.length > 0 ? (
+          <ScrollView style={styles.flex} contentContainerStyle={styles.content}>
+            {fallbackList.map(s => (
+              <TouchableOpacity
+                key={s.id}
+                testID={`interaction-open-session-${s.id}`}
+                style={styles.sessionRow}
+                onPress={() => setInteraction(s)}
+              >
+                <View style={styles.sessionDotWrap}>
+                  <View style={styles.sessionDot} />
+                  <View>
+                    <Text style={styles.sessionClass}>{s.class_code}</Text>
+                    <Text style={styles.sessionSub}>{s.class_name}</Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={C.gray300} />
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        ) : (
+          <View style={styles.empty}>
+            <Ionicons name="chatbubble-outline" size={48} color={C.textHint} />
+            <Text style={styles.emptyText}>No open interaction session</Text>
+            <Text style={styles.emptySub}>Start one from the Home screen.</Text>
+          </View>
+        )}
+      </View>
+    )
   }
 
+  // ── Live control screen ────────────────────────────────────────────────────
   return (
-    <View style={styles.page}>
-      <Topbar title="Classroom interaction" sub={className} onBack={() => navigation.goBack()} />
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={false} onRefresh={() => refresh.current?.()} />}>
-        {loadError ? (
-          <View style={styles.notice} accessibilityLiveRegion="polite">
-            <Text style={styles.warning}>{loadError}</Text>
-            <Pressable accessibilityRole="button" onPress={() => refresh.current?.()}><Text style={styles.link}>Retry</Text></Pressable>
-          </View>
-        ) : null}
-        {!state && !loadError ? <ActivityIndicator color={C.primary} /> : null}
-        {state ? (
-          live || summary ? null : (
-            <Empty>{state.status === 'scheduled' ? 'Activity opens with the shared class session.' : 'This session is unavailable.'}</Empty>
-          )
-        ) : null}
-        {actionError && live ? <Text accessibilityLiveRegion="polite" style={styles.warning}>{actionError}</Text> : null}
-        {state ? (
-          <View style={styles.liveOverview} testID="interaction-overview">
-            <View style={styles.overviewTop}>
-              <View style={styles.overviewIcon}><Ionicons name="school-outline" size={20} color="#fff" /></View>
-              <View style={styles.grow}>
-                <Text style={styles.overviewEyebrow}>{live ? 'CLASSROOM CONTROL' : 'SESSION RECAP'}</Text>
-                <Text style={styles.overviewTitle} numberOfLines={1}>{className || 'Live class'}</Text>
-              </View>
-              <Chip tone={live ? 'green' : undefined}>{live ? 'Live' : state.status === 'scheduled' ? 'Upcoming' : 'Ended'}</Chip>
-            </View>
-            <Text style={styles.overviewCopy}>{live
-              ? 'Your class activity, questions and feedback — together in one live view.'
-              : 'A quick overview of the interaction from this class session.'}</Text>
-            <View style={styles.overviewStats}>
-              <View style={styles.overviewStat}><Text style={styles.overviewNumber}>{state.questions.length}</Text><Text style={styles.overviewLabel}>Questions</Text></View>
-              <View style={styles.overviewDivider} />
-              <View style={styles.overviewStat}><Text style={styles.overviewNumber}>{state.polls.filter(poll => poll.status === 'open').length}</Text><Text style={styles.overviewLabel}>Active polls</Text></View>
-              <View style={styles.overviewDivider} />
-              <View style={styles.overviewStat}><Text style={styles.overviewNumber}>{state.quick_prompts.filter(prompt => prompt.status === 'open').length}</Text><Text style={styles.overviewLabel}>Quick prompts</Text></View>
+    <View style={styles.flex}>
+      <Topbar title="Interaction" sub={headerSub} onBack={() => navigation.goBack()} />
+
+      <ScrollView
+        style={styles.flex}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} />}
+        contentContainerStyle={styles.content}
+      >
+        {/* Aggregate-only signals: reaction counts and confusion overview (FR-511/512/515) */}
+        <Section tint="orange" badge="Signals & feedback" style={styles.sectionTight}>
+          <View style={styles.itemCard}>
+            <View style={styles.signalReactionsRow}>
+              {REACTIONS.map(([key, label, emoji]) => (
+                <View key={key} style={styles.signalReactionTile} testID={`interaction-reaction-${key}`}>
+                  <Text style={styles.reactionEmoji}>{emoji}</Text>
+                  <Text style={styles.reactionValue}>{reactionCounts[key] ?? 0}</Text>
+                  <Text style={styles.reactionLabel}>{label}</Text>
+                </View>
+              ))}
             </View>
           </View>
-        ) : null}
-
-        {/* Post-class summary (read-only) */}
-        {summary ? (
-          <>
-            <Section icon="document-text-outline" title="Session summary" tint="purple">
-              <Text style={styles.meta}>{summary.questions_asked} questions · {summary.questions_answered} answered</Text>
-              {summary.polls.filter(poll => poll.started_at).map(poll => <PollCard key={poll.id} poll={poll} blocked act={act} live={false} />)}
-            </Section>
-            {signals ? <SignalSection data={signals} /> : null}
-          </>
-        ) : null}
-
-        {live && state ? <>
-          {/* ── Live Questions ── */}
-          <Section icon="chatbubbles-outline" title="Live Questions" tint="blue"
-            action={visibleQuestions.length
-              ? <Pressable accessibilityRole="button" onPress={() => setShowAllQuestions(true)} testID="view-all-questions">
-                  <Text style={styles.link}>View all ({state.questions.length})</Text>
-                </Pressable>
-              : null}>
-            {visibleQuestions.length ? visibleQuestions.slice(0, 3).map(question => (
-              <QuestionCard key={question.id} item={question} blocked={blocked}
-                onModerate={(field, value) => act('PATCH', `/questions/${question.id}`, { [field]: value })} />
-            )) : <Empty>Student questions will appear here.</Empty>}
-          </Section>
-
-          {/* ── Live Poll ── */}
-          <Section icon="stats-chart-outline" title="Live Poll" tint="purple"
-            action={<>
-              {otherPolls.length
-                ? <Pressable accessibilityRole="button" onPress={() => setShowPollHistory(true)} testID="view-poll-history">
-                    <Text style={styles.link}>View history</Text>
-                  </Pressable>
-                : null}
-              <Pressable accessibilityRole="button" onPress={() => setShowCreatePoll(true)} testID="create-poll">
-                <Text style={styles.link}>Create poll</Text>
-              </Pressable>
-            </>}>
-            {activePoll
-              ? <PollCard poll={activePoll} blocked={blocked} act={act} live />
-              : <Empty>No active poll.</Empty>}
-            {draftPolls.length ? <Text style={styles.meta}>{draftPolls.length} draft poll{draftPolls.length > 1 ? 's' : ''} ready to start — open “View history”.</Text> : null}
-          </Section>
-
-          {/* ── Quick Answers ── */}
-          <Section icon="create-outline" title="Quick Answers" tint="green">
-            <View style={styles.item}>
-              <TextInput accessibilityLabel="Quick question" placeholder="Ask a quick question…" style={styles.input}
-                value={quickPrompt} onChangeText={setQuickPrompt} maxLength={500} />
-              <Pressable accessibilityRole="button" disabled={blocked || !quickPrompt.trim()}
-                style={[styles.primaryBtn, styles.compact, (blocked || !quickPrompt.trim()) && styles.disabled]}
-                onPress={() => act('POST', '/quick-prompts', { prompt: quickPrompt.trim() }, () => setQuickPrompt(''))}>
-                <Text style={styles.primaryText}>Send question</Text>
-              </Pressable>
+          <View style={styles.itemCard}>
+            <Text style={styles.signalHeading}>Confusion</Text>
+            <Text style={styles.signalMeta}>
+              {iduCount} student{iduCount !== 1 ? 's' : ''} · {confusionRate}% confused · aggregate only, never per student
+            </Text>
+            <View style={styles.barTrack}>
+              <View style={[styles.barFill, { width: `${Math.min(100, confusionRate)}%` }]} />
             </View>
-            {state.quick_prompts.length ? state.quick_prompts.slice(0, 1).map(prompt => (
-              <View key={prompt.id} style={styles.item}>
-                <View style={styles.row}>
-                  <Text style={[styles.body, styles.grow]}>{prompt.prompt}</Text>
-                  <Chip tone={prompt.status === 'open' ? 'green' : undefined}>{prompt.status === 'open' ? 'Active' : 'Closed'}</Chip>
-                </View>
-                <Text style={styles.meta}>{prompt.answer_count ?? 0} responses received</Text>
-                <View style={styles.row}>
-                  <Pressable accessibilityRole="button" style={[styles.outlineBtn, styles.compact]}
-                    onPress={() => viewResponses(prompt.id)} testID="view-answers">
-                    <Text style={styles.outlineText}>{showResponses && selectedPrompt.current === prompt.id ? 'Hide responses' : 'View all responses'}</Text>
-                  </Pressable>
-                  {prompt.status === 'open' ? (
-                    <Pressable accessibilityRole="button" disabled={blocked} style={[styles.outlineBtn, styles.compact, blocked && styles.disabled]}
-                      onPress={() => act('POST', `/quick-prompts/${prompt.id}/close`)}>
-                      <Text style={styles.outlineText}>Close question</Text>
-                    </Pressable>
-                  ) : null}
-                </View>
-                {selectedPrompt.current === prompt.id ? (
-                  snapshot.activePrompt !== prompt.id ? <ActivityIndicator color={C.primary} />
-                    : snapshot.answers?.length ? snapshot.answers.map(answer => (
-                      <View key={answer.id} style={styles.answer}>
-                        <Text style={styles.meta}>{answer.student_name}</Text>
-                        <Text style={styles.body}>{answer.text}</Text>
-                      </View>
-                    )) : <Text style={styles.meta}>No answers yet.</Text>
-                ) : null}
-              </View>
-            )) : <Empty>Ask the class a short question above.</Empty>}
-            {closedPrompts.length ? <Text style={styles.meta}>{closedPrompts.length} earlier prompt{closedPrompts.length > 1 ? 's' : ''} below the fold.</Text> : null}
-          </Section>
+            <Text style={styles.signalMeta}>
+              {totalReactions} reaction{totalReactions !== 1 ? 's' : ''} received this session
+              {topReaction ? ` · top: ${REACTIONS.find(([kind]) => kind === topReaction)?.[1]}` : ''}
+            </Text>
+          </View>
+        </Section>
 
-          {/* ── Reactions & confusion aggregates (lecturer) ── */}
-          {signals ? <SignalSection data={signals} /> : null}
-        </> : null}
+        {/* Student questions — the most recent one inline, history in a modal */}
+        <Section tint="gray" badge="Student questions" right={<Pill on={true} onText={`${openQuestions.length} open`} />}>
+          {latestQuestion ? (
+            <>
+              <View style={[styles.questionItem, latestQuestion.answered ? styles.questionItemAnswered : styles.questionItemOpen]}>
+                <Text style={styles.questionText}>{latestQuestion.text}</Text>
+                <View style={styles.questionMeta}>
+                  {latestQuestion.anonymous ? (
+                    <View style={styles.anonPill}>
+                      <Ionicons name="eye-off-outline" size={10} color={C.gray600} />
+                      <Text style={styles.anonPillText}>Anonymous</Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.questionAuthorName} numberOfLines={1}>
+                      {latestQuestion.student_name ?? 'Student'}
+                    </Text>
+                  )}
+                  <Text style={[styles.questionMetaText, latestQuestion.answered && styles.questionMetaAnswered]}>
+                    {latestQuestion.answered ? 'Answered' : 'Needs an answer'}
+                  </Text>
+                  {!latestQuestion.answered && isOpen && (
+                    <TouchableOpacity
+                      testID={`interaction-mark-answered-${latestQuestion.id}`}
+                      style={styles.markBtn}
+                      onPress={() => markAnswered(latestQuestion)}
+                    >
+                      <Ionicons name="checkmark" size={12} color={C.greenDk} />
+                      <Text style={styles.markBtnText}>Mark answered</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+              {questions.length > 1 && (
+                <TouchableOpacity
+                  testID="interaction-see-all-questions"
+                  style={styles.seeAllBtn}
+                  onPress={() => setShowAllQuestions(true)}
+                >
+                  <Text style={styles.seeAllText}>
+                    See all {questions.length} questions
+                  </Text>
+                  <Ionicons name="chevron-forward" size={14} color={C.primary} />
+                </TouchableOpacity>
+              )}
+            </>
+          ) : (
+            <Text style={styles.emptyLine}>No questions yet.</Text>
+          )}
+        </Section>
+
+        {/* Live question to the class */}
+        <Section tint="purple" badge="Live question" right={liveQuestion ? <Pill on={liveQuestion.is_active} /> : null}>
+          {liveQuestion ? (
+            <>
+              <Text style={styles.liveQuestionText}>{liveQuestion.question}</Text>
+              <View style={styles.sectionHead}>
+                <Text style={styles.responsesTitle}>
+                  {totalResponses} response{totalResponses === 1 ? '' : 's'}
+                </Text>
+                {totalResponses > 0 && (
+                  <TouchableOpacity
+                    testID="interaction-see-all-responses"
+                    style={styles.seeAllBtnInline}
+                    onPress={() => setShowAllResponses(true)}
+                  >
+                    <Text style={styles.seeAllText}>See all</Text>
+                    <Ionicons name="chevron-forward" size={14} color={C.primary} />
+                  </TouchableOpacity>
+                )}
+              </View>
+              {liveQuestion.responses?.length > 0 && (
+                <View style={styles.responseItem}>
+                  <Text style={styles.responseText} numberOfLines={3}>
+                    {liveQuestion.responses[0].response}
+                  </Text>
+                </View>
+              )}
+              {!liveQuestion.is_active && isOpen && (
+                <Text style={styles.emptyLine}>Closed — post a new question below.</Text>
+              )}
+            </>
+          ) : (
+            <Text style={styles.emptyLine}>Nothing asked to the class yet.</Text>
+          )}
+          <TouchableOpacity
+            testID="interaction-ask-class-toggle"
+            style={[styles.actionBtn, styles.actionBtnBlue, !isOpen && styles.btnDisabled]}
+            onPress={() => setShowLiveForm(true)}
+            disabled={!isOpen}
+          >
+            <Ionicons name="megaphone-outline" size={16} color="#fff" />
+            <Text style={styles.actionBtnText}>{liveQuestion ? 'Ask a new question' : 'Ask the class'}</Text>
+          </TouchableOpacity>
+        </Section>
+
+        {/* Latest poll with results */}
+        <Section tint="blue" badge="Poll" right={latestPoll ? <Pill on={latestPoll.is_open} onText="Open" offText="Closed" /> : null}>
+          {latestPoll ? (
+            <>
+              <Text style={styles.pollQuestion}>{latestPoll.question}</Text>
+              {latestPoll.options.map(o => {
+                const total = latestPoll.options.reduce((s, o2) => s + (o2.votes ?? 0), 0)
+                const pct = total > 0 ? Math.round(((o.votes ?? 0) / total) * 100) : 0
+                return (
+                  <View key={o.id} style={styles.barCol}>
+                    <View style={styles.barRow}>
+                      <Text style={styles.barOptLabel}>{o.option_text}</Text>
+                      <Text style={styles.barOptPct}>{pct}%</Text>
+                    </View>
+                    <View style={styles.barTrack}>
+                      <View style={[styles.barFill, { width: `${pct}%` }]} />
+                    </View>
+                    <Text style={styles.barCount}>{o.votes ?? 0} vote{o.votes !== 1 ? 's' : ''}</Text>
+                  </View>
+                )
+              })}
+              <View style={styles.rowGap}>
+                {latestPoll.is_open && (
+                  <TouchableOpacity
+                    testID="interaction-close-poll-btn"
+                    style={[styles.actionBtn, styles.actionBtnRed, !isOpen && styles.btnDisabled]}
+                    onPress={() => closePollAction(latestPoll)}
+                    disabled={!isOpen}
+                  >
+                    <Ionicons name="lock-closed-outline" size={15} color="#fff" />
+                    <Text style={styles.actionBtnText}>Close voting</Text>
+                  </TouchableOpacity>
+                )}
+                {polls.length > 1 && (
+                  <TouchableOpacity
+                    testID="interaction-see-all-polls"
+                    style={[styles.actionBtn, styles.actionBtnGhost]}
+                    onPress={() => setShowAllPolls(true)}
+                  >
+                    <Ionicons name="stats-chart-outline" size={15} color={C.primary} />
+                    <Text style={[styles.actionBtnText, { color: C.primary }]}>
+                      See all {polls.length} polls
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </>
+          ) : (
+            <Text style={styles.emptyLine}>No poll yet.</Text>
+          )}
+          <TouchableOpacity
+            testID="interaction-create-poll-toggle"
+            style={[styles.actionBtn, styles.actionBtnBlue, !isOpen && styles.btnDisabled]}
+            onPress={() => setShowPollForm(true)}
+            disabled={!isOpen}
+          >
+            <Ionicons name="add-circle-outline" size={16} color="#fff" />
+            <Text style={styles.actionBtnText}>Create a poll</Text>
+          </TouchableOpacity>
+        </Section>
+
+        <View style={{ height: 24 }} />
       </ScrollView>
 
-      {/* All questions modal */}
-      <Sheet visible={showAllQuestions} onClose={() => setShowAllQuestions(false)}>
-        <ModalTitle>All questions</ModalTitle>
-        {state?.questions.length ? state.questions.map(question => (
-          <QuestionCard key={question.id} item={question} blocked={blocked}
-            onModerate={(field, value) => act('PATCH', `/questions/${question.id}`, { [field]: value })} />
-        )) : <Empty>No questions yet.</Empty>}
-      </Sheet>
+      {/* ── History modals ── */}
+      <HistoryModal
+        visible={showAllQuestions}
+        onClose={() => setShowAllQuestions(false)}
+        title={`All questions (${questions.length})`}
+        data={sortedQuestions}
+        keyExtractor={q => String(q.id)}
+        empty="No questions yet."
+        renderItem={({ item }) => (
+          <View style={[styles.sheetItem, item.answered ? styles.questionItemAnswered : styles.questionItemOpen]}>
+            <Text style={styles.questionText}>{item.text}</Text>
+            <View style={styles.questionMeta}>
+              {item.anonymous ? (
+                <View style={styles.anonPill}>
+                  <Ionicons name="eye-off-outline" size={10} color={C.gray600} />
+                  <Text style={styles.anonPillText}>Anonymous</Text>
+                </View>
+              ) : (
+                <Text style={styles.questionAuthorName} numberOfLines={1}>
+                  {item.student_name ?? 'Student'}
+                </Text>
+              )}
+              <Text style={[styles.questionMetaText, item.answered && styles.questionMetaAnswered]}>
+                {item.answered ? 'Answered' : 'Needs an answer'}
+              </Text>
+              {!item.answered && isOpen && (
+                <TouchableOpacity
+                  testID={`interaction-mark-answered-${item.id}`}
+                  style={styles.markBtn}
+                  onPress={() => markAnswered(item)}
+                >
+                  <Ionicons name="checkmark" size={12} color={C.greenDk} />
+                  <Text style={styles.markBtnText}>Mark answered</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        )}
+      />
 
-      {/* Poll history modal */}
-      <Sheet visible={showPollHistory} onClose={() => setShowPollHistory(false)}>
-        <ModalTitle>Poll history</ModalTitle>
-        {[...state?.polls ?? []].reverse().map(poll => <PollCard key={poll.id} poll={poll} blocked={blocked} act={act} live />)}
-      </Sheet>
+      <HistoryModal
+        visible={showAllPolls}
+        onClose={() => setShowAllPolls(false)}
+        title={`All polls (${polls.length})`}
+        data={polls}
+        keyExtractor={p => String(p.id)}
+        empty="No polls yet."
+        renderItem={({ item }) => (
+          <View style={styles.sheetItem}>
+            <View style={styles.sectionHead}>
+              <Text style={styles.pollQuestion} numberOfLines={2}>{item.question}</Text>
+              <Pill on={item.is_open} />
+            </View>
+            {item.options.map(o => {
+              const total = item.options.reduce((s, o2) => s + (o2.votes ?? 0), 0)
+              const pct = total > 0 ? Math.round(((o.votes ?? 0) / total) * 100) : 0
+              return (
+                <View key={o.id} style={styles.barCol}>
+                  <View style={styles.barRow}>
+                    <Text style={styles.barOptLabel}>{o.option_text}</Text>
+                    <Text style={styles.barOptPct}>{pct}%</Text>
+                  </View>
+                  <View style={styles.barTrack}>
+                    <View style={[styles.barFill, { width: `${pct}%` }]} />
+                  </View>
+                </View>
+              )
+            })}
+            {item.is_open && (
+              <TouchableOpacity
+                testID={`interaction-close-poll-${item.id}`}
+                style={[styles.markBtn, { alignSelf: 'flex-start' }]}
+                onPress={() => closePollAction(item)}
+              >
+                <Ionicons name="lock-closed-outline" size={12} color={C.red} />
+                <Text style={[styles.markBtnText, { color: C.red }]}>Close voting</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+      />
 
-      {/* Create poll modal */}
-      <Sheet visible={showCreatePoll} onClose={() => setShowCreatePoll(false)}>
-        <ModalTitle>Create a poll</ModalTitle>
-        <TextInput accessibilityLabel="Poll question" placeholder="Poll question" style={styles.input}
-          value={pollPrompt} onChangeText={setPollPrompt} maxLength={500} />
-        {options.map((option, index) => (
-          <TextInput key={index} accessibilityLabel={`Option ${index + 1}`} placeholder={`Option ${index + 1}`}
-            value={option} onChangeText={value => setOptions(current => current.map((item, i) => i === index ? value : item))}
-            maxLength={255} style={styles.input} />
-        ))}
-        <View style={styles.row}>
-          {options.length < 6 ? (
-            <Pressable accessibilityRole="button" onPress={() => setOptions(current => [...current, ''])}>
-              <Text style={styles.link}>+ Add option</Text>
-            </Pressable>
-          ) : null}
-          {options.length > 2 ? (
-            <Pressable accessibilityRole="button" onPress={() => setOptions(current => current.slice(0, -1))}>
-              <Text style={styles.link}>− Remove last</Text>
-            </Pressable>
-          ) : null}
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.body}>Allow multiple choices</Text>
-          <Switch accessibilityLabel="Allow multiple choices" value={multiple} onValueChange={setMultiple} />
-        </View>
-        <Pressable accessibilityRole="button" disabled={blocked || !pollPrompt.trim() || options.some(value => !value.trim())}
-          style={[styles.primaryBtn, (blocked || !pollPrompt.trim() || options.some(value => !value.trim())) && styles.disabled]}
-          onPress={savePoll} testID="save-poll">
-          <Text style={styles.primaryText}>Save draft</Text>
-        </Pressable>
-      </Sheet>
-    </View>
-  )
-}
+      <HistoryModal
+        visible={showAllResponses}
+        onClose={() => setShowAllResponses(false)}
+        title={`Responses (${totalResponses})`}
+        data={liveQuestion?.responses ?? []}
+        keyExtractor={r => String(r.id)}
+        empty="No responses yet."
+        renderItem={({ item }) => (
+          <View style={styles.sheetItem}>
+            <Text style={styles.sheetItemName}>{item.student_name}</Text>
+            <Text style={styles.responseText}>{item.response}</Text>
+          </View>
+        )}
+      />
 
-export default function ClassInteraction({ route, navigation }) {
-  const sessionId = route.params?.sessionId
-  return <Interaction key={sessionId} sessionId={sessionId} className={route.params?.className} navigation={navigation} />
-}
-
-// Aggregate-only signals: reaction counts and the confusion timeline (FR-511/512/515)
-function SignalSection({ data }) {
-  return (
-    <Section icon="pulse-outline" title="Signals & feedback" tint="orange">
-      <View style={styles.item}>
-        <View style={styles.reactionRow}>
-          {Object.entries(reactionLabels).map(([key, [label, emoji]]) => (
-            <View key={key} style={styles.reactionCount}>
-              <Text style={styles.reactionEmoji}>{emoji}</Text>
-              <View>
-                <Text style={styles.reactionValue}>{data.reactions[key] ?? 0}</Text>
-                <Text style={styles.meta}>{label}</Text>
+      {/* ── Compose modals ── */}
+      <Modal visible={showPollForm} animationType="slide" transparent onRequestClose={() => setShowPollForm(false)}>
+        <View style={styles.sheetWrap}>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Create a poll</Text>
+              <TouchableOpacity onPress={() => setShowPollForm(false)} hitSlop={8}>
+                <Ionicons name="close" size={22} color={C.textSub} />
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              testID="interaction-poll-question-input"
+              style={styles.input}
+              value={pollDraft}
+              onChangeText={setPollDraft}
+              placeholder="Poll question…"
+              maxLength={500}
+              editable={isOpen}
+            />
+            {pollOptions.map((opt, idx) => (
+              <View key={idx} style={styles.optionRow}>
+                <TextInput
+                  testID={`interaction-poll-option-${idx}`}
+                  style={styles.optionInput}
+                  value={opt}
+                  onChangeText={v => setPollOption(idx, v)}
+                  placeholder={`Option ${idx + 1}…`}
+                  maxLength={100}
+                  editable={isOpen}
+                />
+                {pollOptions.length > 2 && (
+                  <TouchableOpacity onPress={() => removePollOption(idx)} hitSlop={8}>
+                    <Ionicons name="trash-outline" size={18} color={C.textSub} />
+                  </TouchableOpacity>
+                )}
               </View>
-            </View>
-          ))}
+            ))}
+            <TouchableOpacity
+              testID="interaction-add-poll-option"
+              style={styles.addOption}
+              onPress={addPollOption}
+              hitSlop={8}
+              disabled={!isOpen}
+            >
+              <Ionicons name="add-circle-outline" size={18} color={C.primary} />
+              <Text style={styles.addOptionText}>Add option</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              testID="interaction-create-poll-btn"
+              style={[styles.actionBtn, styles.actionBtnBlue, (creatingPoll || !isOpen) && styles.btnDisabled]}
+              onPress={createPollAction}
+              disabled={creatingPoll || !isOpen}
+            >
+              <Text style={styles.actionBtnText}>{creatingPoll ? 'Creating…' : 'Create poll'}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
-      <View style={styles.item}>
-        <Text style={styles.body}>Confusion timeline</Text>
-        <Text style={styles.meta}>{data.confusion_total} reports · aggregate only, never per student</Text>
-        {data.confusion_timeline.length === 0
-          ? <Text style={styles.meta}>No confusion reports for this session.</Text>
-          : data.confusion_timeline.map(({ minute, count }) => (
-            <View key={minute} style={styles.row}>
-              <Text style={styles.meta}>{minute.replace('T', ' ').slice(0, 16)}</Text>
-              <View style={styles.track}><View style={[styles.bar, { width: `${Math.min(100, count * 20)}%` }]} /></View>
-              <Text style={styles.meta}>{count}</Text>
+      </Modal>
+
+      <Modal visible={showLiveForm} animationType="slide" transparent onRequestClose={() => setShowLiveForm(false)}>
+        <View style={styles.sheetWrap}>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Ask the class</Text>
+              <TouchableOpacity onPress={() => setShowLiveForm(false)} hitSlop={8}>
+                <Ionicons name="close" size={22} color={C.textSub} />
+              </TouchableOpacity>
             </View>
-          ))}
-      </View>
-    </Section>
+            <TextInput
+              testID="interaction-live-question-input"
+              style={[styles.input, styles.textArea]}
+              value={liveDraft}
+              onChangeText={setLiveDraft}
+              placeholder="Post a live question…"
+              maxLength={500}
+              multiline
+              editable={isOpen}
+            />
+            <TouchableOpacity
+              testID="interaction-post-question-btn"
+              style={[styles.actionBtn, styles.actionBtnBlue, (!liveDraft.trim() || postingQuestion || !isOpen) && styles.btnDisabled]}
+              onPress={postLiveQuestionAction}
+              disabled={!liveDraft.trim() || postingQuestion || !isOpen}
+            >
+              <Text style={styles.actionBtnText}>{postingQuestion ? 'Posting…' : 'Post question'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <View style={{ height: insets.bottom }} />
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: C.bg },
-  content: { padding: 16, paddingBottom: 36, gap: 16, width: '100%', maxWidth: 900, alignSelf: 'center' },
-  liveOverview: { backgroundColor: '#173B68', borderRadius: 18, padding: 18, gap: 12, overflow: 'hidden' },
-  overviewTop: { flexDirection: 'row', alignItems: 'center', gap: 11 },
-  overviewIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.16)', justifyContent: 'center', alignItems: 'center' },
-  overviewEyebrow: { color: '#B9D9FF', fontSize: 10, fontWeight: '800', letterSpacing: 1.1 },
-  overviewTitle: { color: '#fff', fontSize: 19, fontWeight: '800', marginTop: 2 },
-  overviewCopy: { color: '#D9E8F8', fontSize: 13, lineHeight: 19 },
-  overviewStats: { flexDirection: 'row', alignItems: 'center', paddingTop: 10, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.18)' },
-  overviewStat: { flex: 1, alignItems: 'center', gap: 2 },
-  overviewNumber: { color: '#fff', fontSize: 20, fontWeight: '800' },
-  overviewLabel: { color: '#C6D8EB', fontSize: 11, fontWeight: '600' },
-  overviewDivider: { width: 1, height: 30, backgroundColor: 'rgba(255,255,255,0.2)' },
-  section: { gap: 12, padding: 14, borderRadius: 16, borderWidth: 1, borderColor: C.border, backgroundColor: C.card },
-  section_blue: { borderTopWidth: 3, borderTopColor: C.primary },
-  section_purple: { borderTopWidth: 3, borderTopColor: '#7C3AED' },
-  section_green: { borderTopWidth: 3, borderTopColor: C.green },
-  section_orange: { borderTopWidth: 3, borderTopColor: C.orange },
-  sectionIcon: { width: 30, height: 30, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  sectionTitle: { fontSize: 15, fontWeight: '600', color: C.text, flex: 1 },
-  link: { color: C.blueDk, fontSize: 13, fontWeight: '500' },
-  item: { backgroundColor: C.card, borderWidth: 1, borderColor: C.border, borderRadius: 10, padding: 12, gap: 8 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  grow: { flex: 1 },
-  body: { color: C.text, fontSize: 14, lineHeight: 20 },
-  meta: { color: C.gray600, fontSize: 12, lineHeight: 17 },
-  empty: { color: C.gray600, fontSize: 13, paddingVertical: 2 },
-  chip: { color: C.textSub, fontSize: 11, backgroundColor: C.gray100, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2, overflow: 'hidden', alignSelf: 'flex-start' },
-  chipGreen: { color: C.greenDk, backgroundColor: C.greenLt },
-  chipAmber: { color: C.yellowDk, backgroundColor: C.yellowLt },
-  primaryBtn: { minHeight: 40, paddingHorizontal: 14, borderRadius: 8, justifyContent: 'center', alignItems: 'center', backgroundColor: C.blueDk, alignSelf: 'flex-start' },
-  compact: { minHeight: 36, paddingHorizontal: 12 },
-  primaryText: { color: '#fff', fontSize: 13, fontWeight: '500' },
-  outlineBtn: { minHeight: 36, paddingHorizontal: 12, borderRadius: 8, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: C.border, backgroundColor: C.card, alignSelf: 'flex-start' },
-  outlineText: { color: C.blueDk, fontSize: 13, fontWeight: '500' },
-  disabled: { opacity: 0.5 },
-  input: { minHeight: 44, borderWidth: 1, borderColor: C.gray300, borderRadius: 8, paddingHorizontal: 12, color: C.text, fontSize: 14, backgroundColor: C.card },
-  answer: { paddingTop: 8, borderTopWidth: 1, borderTopColor: C.border, gap: 4 },
-  notice: { padding: 12, borderRadius: 8, backgroundColor: C.redLt, alignItems: 'flex-start', gap: 8 },
-  warning: { color: C.redDk, fontSize: 13 },
-  reactionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  reactionCount: { flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 100 },
-  reactionEmoji: { fontSize: 20 },
-  reactionValue: { color: C.blueDk, fontSize: 16, fontWeight: '600' },
-  track: { backgroundColor: C.gray100, borderRadius: 3, height: 5, overflow: 'hidden', flex: 1, marginHorizontal: 8 },
-  bar: { height: '100%', backgroundColor: C.primary },
+  flex: { flex: 1, backgroundColor: C.bg },
+  flex1: { flex: 1 },
+  content: { paddingBottom: 24 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  empty: { padding: 40, alignItems: 'center' },
+  emptyText: { fontSize: 14, color: C.textSub, marginTop: 8 },
+  emptySub: { fontSize: 12, color: C.textHint, marginTop: 6 },
+  // Tinted section card (participation style)
+  section: {
+    borderRadius: 14,
+    marginHorizontal: 16,
+    marginTop: 12,
+    padding: 14,
+    backgroundColor: C.card,
+  },
+  sectionTight: { marginTop: 12 },
+  sectionBadge: {
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  sectionBadgeText: { fontSize: 10, fontWeight: '800' },
+  sentCount: { fontSize: 11, fontWeight: '700', color: C.greenDk },
+  sectionHead: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginBottom: 8, marginTop: 2,
+  },
+  sectionHeadTitle: { fontSize: 14, fontWeight: '700', color: C.text, flex: 1 },
+  countBadge: { backgroundColor: C.blueLt, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
+  questionAuthorName: { fontSize: 12, fontWeight: '700', color: C.blueDk, flexShrink: 1 },
+  countBadgeText: { fontSize: 11, fontWeight: '700', color: C.primary },
+  emptyLine: { fontSize: 13, color: C.textHint, marginTop: 4, marginBottom: 4 },
+  // Pills
+  pill: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    borderRadius: 20, paddingHorizontal: 9, paddingVertical: 4,
+    backgroundColor: C.gray100,
+  },
+  pillOn: { backgroundColor: C.greenLt },
+  pillOff: { backgroundColor: C.gray100 },
+  pillDot: { width: 7, height: 7, borderRadius: 4 },
+  pillText: { fontSize: 11, fontWeight: '700' },
+  // See-all
+  seeAllBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 2, paddingVertical: 8, marginTop: 2,
+    borderTopWidth: 1, borderTopColor: C.gray100,
+  },
+  seeAllBtnInline: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  seeAllText: { fontSize: 12, fontWeight: '700', color: C.primary },
+  // Action buttons
+  actionBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, borderRadius: 10, paddingVertical: 11, marginTop: 10,
+  },
+  actionBtnBlue: { backgroundColor: C.primary },
+  actionBtnRed: { backgroundColor: C.red },
+  actionBtnGhost: { backgroundColor: C.gray100, marginTop: 6 },
+  btnDisabled: { opacity: 0.5 },
+  actionBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+  rowGap: { gap: 6 },
+  // Session picker rows
+  sessionRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: C.card, marginHorizontal: 16, marginBottom: 8,
+    borderRadius: 10, borderWidth: 1, borderColor: C.border, padding: 12,
+  },
+  sessionDotWrap: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  sessionDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.green },
+  sessionClass: { fontSize: 14, fontWeight: '700', color: C.text },
+  sessionSub: { fontSize: 12, color: C.textSub, marginTop: 2 },
+  // Signals & feedback
+  itemCard: {
+    borderWidth: 1, borderColor: C.gray300, borderRadius: 10,
+    padding: 12, marginBottom: 8, gap: 6, backgroundColor: C.card,
+  },
+  signalReactionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center' },
+  signalReactionTile: {
+    alignItems: 'center', justifyContent: 'center', gap: 4,
+    minWidth: 92, paddingVertical: 10, paddingHorizontal: 8,
+    borderRadius: 12, backgroundColor: C.gray100,
+  },
+  reactionValue: { fontSize: 16, fontWeight: '600', color: C.primary },
+  signalHeading: { fontSize: 14, color: C.text, fontWeight: '500' },
+  signalMeta: { fontSize: 12, color: C.textHint },
+  // Pulse
+  pulseRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  pulseTile: {
+    flex: 1, borderRadius: 10, alignItems: 'center',
+    paddingVertical: 10, paddingHorizontal: 4, gap: 2,
+  },
+  pulseNum: { fontSize: 20, fontWeight: '800' },
+  pulseLabel: { fontSize: 10, fontWeight: '600', textAlign: 'center' },
+  signalEmoji: { fontSize: 16 },
+  reactionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
+  reactionChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: C.gray100, borderRadius: 20,
+    paddingHorizontal: 10, paddingVertical: 6,
+  },
+  reactionChipActive: { backgroundColor: C.blueLt, borderWidth: 1, borderColor: C.primary },
+  reactionLabel: { fontSize: 11, color: C.textSub },
+  reactionEmoji: { fontSize: 14 },
+  reactionCount: { fontSize: 12, fontWeight: '700', color: C.primary },
+  // Student questions
+  questionItem: {
+    borderRadius: 10, padding: 10, marginBottom: 6,
+    borderWidth: 1, borderColor: 'transparent',
+  },
+  questionItemOpen: { backgroundColor: C.blueLt, borderColor: C.primary },
+  questionItemAnswered: { backgroundColor: C.gray50, borderColor: C.gray300, opacity: 0.85 },
+  questionText: { fontSize: 14, color: C.text, fontWeight: '500' },
+  anonPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: C.card, borderRadius: 8, paddingHorizontal: 6,
+    paddingVertical: 3,
+  },
+  anonPillText: { fontSize: 10, fontWeight: '700', color: C.gray600 },
+  questionMeta: { flexDirection: 'row', gap: 8, marginTop: 6, alignItems: 'center', flexWrap: 'wrap' },
+  questionMetaText: { fontSize: 11, color: C.textHint },
+  questionMetaAnswered: { color: C.green, fontWeight: '700' },
+  markBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    paddingHorizontal: 8, paddingVertical: 4,
+    backgroundColor: C.card, borderRadius: 6, borderWidth: 1, borderColor: C.green,
+  },
+  markBtnText: { fontSize: 11, fontWeight: '700', color: C.greenDk },
+  // Live question + responses
+  liveQuestionText: { fontSize: 15, fontWeight: '600', color: C.text, marginBottom: 8 },
+  responsesTitle: { fontSize: 12, fontWeight: '700', color: C.textSub },
+  responseItem: { paddingVertical: 8, backgroundColor: C.gray50, borderRadius: 8, marginBottom: 4, paddingHorizontal: 10 },
+  responseText: { fontSize: 13, color: C.text },
+  sheetItemName: { fontSize: 11, fontWeight: '700', color: C.primary, marginBottom: 2 },
+  // Poll bars
+  pollQuestion: { fontSize: 15, fontWeight: '600', color: C.text, marginBottom: 10, flexShrink: 1 },
+  barCol: { marginBottom: 10 },
+  barRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
+  barOptLabel: { fontSize: 13, color: C.text },
+  barOptPct: { fontSize: 13, fontWeight: '700', color: C.primary },
+  barTrack: { height: 8, backgroundColor: C.gray100, borderRadius: 4, overflow: 'hidden' },
+  barFill: { height: '100%', backgroundColor: C.primary, borderRadius: 4 },
+  barCount: { fontSize: 12, color: C.textSub, marginTop: 2 },
+  // Compose form
+  input: {
+    backgroundColor: C.gray100, borderRadius: 8,
+    paddingHorizontal: 12, paddingVertical: 10, color: C.text, fontSize: 14, marginBottom: 6,
+  },
+  textArea: { minHeight: 90, textAlignVertical: 'top' },
+  optionRow: {
+    flexDirection: 'row', gap: 8, alignItems: 'center',
+    backgroundColor: C.gray100, borderRadius: 8,
+    paddingHorizontal: 10, paddingVertical: 8, marginTop: 6,
+  },
+  optionInput: { flex: 1, fontSize: 14, color: C.text },
+  addOption: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, paddingVertical: 4 },
+  addOptionText: { fontSize: 13, color: C.primary, fontWeight: '600' },
+  // Bottom sheet
+  sheetWrap: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(15, 23, 42, 0.45)' },
+  sheet: {
+    backgroundColor: C.card,
+    borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    maxHeight: '82%', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 20,
+  },
+  sheetHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10,
+  },
+  sheetTitle: { fontSize: 16, fontWeight: '800', color: C.text },
+  sheetEmpty: { fontSize: 13, color: C.textHint, textAlign: 'center', paddingVertical: 24 },
+  sheetItem: {
+    borderRadius: 10, padding: 10, marginBottom: 8,
+    borderWidth: 1, borderColor: C.gray300,
+  },
 })

@@ -233,9 +233,22 @@ async def signal_summary(db: AsyncSession, session_id: int) -> dict:
         row.occurred_at.replace(second=0, microsecond=0).isoformat()
         for row in rows if row.kind == "confusion.reported"
     )
+    session = await db.get(AttendanceSession, session_id)
+    since = now_myt() - timedelta(seconds=settings.INTERACTION_CONFUSION_WINDOW_SECONDS)
+    active_students = {
+        row.student_id for row in rows
+        if row.kind == "confusion.reported" and row.student_id is not None and row.occurred_at >= since
+    }
+    enrolled_count = 0
+    if session is not None and session.occurrence_id is not None:
+        enrolled_count = await db.scalar(select(func.count()).select_from(Enrollment).where(
+            Enrollment.occurrence_id == session.occurrence_id
+        )) or 0
     return {
         "reactions": dict(reactions),
         "confusion_total": sum(timeline.values()),
+        "active_confused_students": len(active_students),
+        "confusion_rate": round((len(active_students) / enrolled_count) * 100, 1) if enrolled_count else 0,
         "confusion_timeline": [{"minute": minute, "count": count} for minute, count in timeline.items()],
     }
 

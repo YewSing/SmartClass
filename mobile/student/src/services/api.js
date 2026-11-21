@@ -176,3 +176,51 @@ export const getParticipationSummary = async () => { await delay(200); return PA
 export const getParticipationGroups  = async () => { await delay(300); return PARTICIPATION_GROUPS }
 export const getSessionPerf = async (perfKey) => { await delay(200); return SESSION_PERFS[perfKey] ?? null }
 export const sendPasswordReset = async () => { await delay(400); return { success: true } }
+
+// Module 5 live-class adapters.  These keep the screen focused on one active
+// lecturer prompt/poll while using the current interaction-session contract.
+const interactionPath = (sessionId, suffix = '') => `/interaction/sessions/${sessionId}${suffix}`
+const optionRows = (poll) => (poll?.options ?? []).map((option_text, id) => ({
+  id,
+  option_text,
+  votes: poll.results?.option_counts?.[id] ?? 0,
+}))
+const activeLast = (items) => [...items].reverse().find(item => item.status === 'open') ?? null
+
+export const getOpenInteractions = async () => [] // LiveClass is entered from the live session on Home.
+export const getInteractionState = async (sessionId) => {
+  const state = await apiCall('GET', interactionPath(sessionId))
+  const sourcePoll = activeLast(state.polls ?? [])
+  const sourcePrompt = activeLast(state.quick_prompts ?? [])
+  return {
+    ...state,
+    current_poll: sourcePoll && {
+      ...sourcePoll,
+      question: sourcePoll.prompt,
+      is_open: sourcePoll.status === 'open',
+      options: optionRows(sourcePoll),
+      my_option_id: sourcePoll.my_option_indexes?.[0] ?? null,
+    },
+    live_question: sourcePrompt && {
+      ...sourcePrompt,
+      question: sourcePrompt.prompt,
+      is_active: sourcePrompt.status === 'open',
+      my_response: sourcePrompt.answered_by_me ? 'Response sent' : null,
+    },
+    my_questions: state.questions?.filter(question => question.is_mine) ?? [],
+    idu_distinct_students: 0,
+    idu_has_signal: false,
+  }
+}
+export const askInteractionQuestion = (sessionId, body) =>
+  apiCall('POST', interactionPath(sessionId, '/questions'), body)
+export const respondToLiveQuestion = (sessionId, promptId, text) =>
+  apiCall('POST', interactionPath(sessionId, `/quick-prompts/${promptId}/answers`), { text })
+export const voteInteractionPoll = (pollId, optionId, sessionId) => {
+  if (!Number.isSafeInteger(sessionId)) throw new Error('Live poll session is unavailable.')
+  return apiCall('PUT', interactionPath(sessionId, `/polls/${pollId}/vote`), { option_indexes: [Number(optionId)] })
+}
+export const sendInteractionReaction = (sessionId, kind) =>
+  apiCall('POST', interactionPath(sessionId, '/reactions'), { kind })
+export const sendInteractionIDU = (sessionId) =>
+  apiCall('POST', interactionPath(sessionId, '/confusion'), {})

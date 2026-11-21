@@ -423,4 +423,64 @@ export const pushQuiz          = async (_id)  => { await delay(300); return { su
 export const closeQuiz         = async (_id)  => { await delay(300); return { success: true } }
 export const getBreakdown      = async (_id)  => { await delay(300); return BREAKDOWN_ROWS }
 export const resetConfusion    = async ()     => { await delay(300); return { success: true } }
+
+// Module 5 interaction adapters for the live-control screen.
+const interactionPath = (sessionId, suffix = '') => `/interaction/sessions/${sessionId}${suffix}`
+const mapPoll = poll => ({
+  ...poll,
+  question: poll.prompt,
+  is_open: poll.status === 'open',
+  options: (poll.options ?? []).map((option_text, id) => ({
+    id,
+    option_text,
+    votes: poll.results?.option_counts?.[id] ?? 0,
+  })),
+})
+
+export const getInteraction = async sessionId => ({
+  ...(await apiCall('GET', interactionPath(sessionId))),
+  id: sessionId,
+})
+export const getOpenInteractions = async () => []
+export const getInteractions = async () => []
+export const getPolls = async sessionId => (await apiCall('GET', interactionPath(sessionId, '/polls'))).map(mapPoll).reverse()
+export const getLiveQuestion = async sessionId => {
+  const state = await apiCall('GET', interactionPath(sessionId))
+  const prompt = [...(state.quick_prompts ?? [])].reverse()[0]
+  return prompt && {
+    ...prompt,
+    question: prompt.prompt,
+    is_active: prompt.status === 'open',
+    responses: [],
+  }
+}
+export const getQuestions = sessionId => apiCall('GET', interactionPath(sessionId, '/questions'))
+export const getReactions = async sessionId => {
+  const signals = await apiCall('GET', interactionPath(sessionId, '/signals'))
+  return Object.entries(signals.reactions ?? {}).map(([reaction, count]) => ({ reaction, count }))
+}
+export const getIduCount = async sessionId => {
+  const signals = await apiCall('GET', interactionPath(sessionId, '/signals'))
+  return {
+    distinct_students: signals.active_confused_students ?? 0,
+    rate: signals.confusion_rate ?? 0,
+  }
+}
+export const createPoll = async (sessionId, { question, options }) => {
+  // A push replaces the class's active poll; completed polls remain in history.
+  const existing = await getPolls(sessionId)
+  await Promise.all(existing.filter(poll => poll.is_open).map(poll => closePoll(sessionId, poll.id)))
+  const poll = await apiCall('POST', interactionPath(sessionId, '/polls'), { prompt: question, options })
+  return apiCall('POST', interactionPath(sessionId, `/polls/${poll.id}/start`))
+}
+export const closePoll = (sessionId, pollId) => apiCall('POST', interactionPath(sessionId, `/polls/${pollId}/close`))
+export const postLiveQuestion = async (sessionId, prompt) => {
+  const state = await apiCall('GET', interactionPath(sessionId))
+  await Promise.all((state.quick_prompts ?? [])
+    .filter(item => item.status === 'open')
+    .map(item => apiCall('POST', interactionPath(sessionId, `/quick-prompts/${item.id}/close`))))
+  return apiCall('POST', interactionPath(sessionId, '/quick-prompts'), { prompt })
+}
+export const markQuestionAnswered = (sessionId, questionId) =>
+  apiCall('PATCH', interactionPath(sessionId, `/questions/${questionId}`), { answered: true })
 export const getAnalyticsPar   = async ()     => ({ bars: ANALYTICS_PAR_BARS, labels: ANALYTICS_PAR_LABELS })
