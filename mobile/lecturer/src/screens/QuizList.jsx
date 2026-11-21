@@ -31,10 +31,8 @@ function Section({ tint = 'blue', badge, right, children, style }) {
 }
 
 function QuizStatusPill({ quiz }) {
-  // A draft is never "closed" — only a published quiz past its close time is.
-  const closed = quiz.status !== 'draft' &&
-    (quiz.status === 'closed' ||
-      (quiz.closes_at && new Date(quiz.closes_at) < new Date()))
+  const closed = quiz.status === 'closed' ||
+    (quiz.closes_at && new Date(quiz.closes_at) < new Date())
   const open = quiz.status === 'published' && !closed &&
     (!quiz.opens_at || new Date(quiz.opens_at) <= new Date())
   const map = open
@@ -91,14 +89,13 @@ export default function QuizList({ navigation }) {
   )
 
   const getQuizCategory = (quiz) => {
-    // Draft first — a draft is never "closed" even if its close time has passed.
-    if (quiz.status === 'draft') return 'draft'
     const closed = quiz.status === 'closed' ||
       (quiz.closes_at && new Date(quiz.closes_at) < new Date())
     if (closed) return 'closed'
     const open = quiz.status === 'published' &&
       (!quiz.opens_at || new Date(quiz.opens_at) <= new Date())
     if (open) return 'open'
+    if (quiz.status === 'draft') return 'draft'
     return 'scheduled'
   }
 
@@ -125,12 +122,6 @@ export default function QuizList({ navigation }) {
   }, [courses, navigation])
 
   const publishDraft = useCallback(async (quiz) => {
-    // A draft saved with a close time that has already passed would be born closed —
-    // remind the lecturer to set a new window (in the builder) before publishing.
-    if (quiz.closes_at && new Date(quiz.closes_at) < new Date()) {
-      showToast('This draft is past its close time — edit it and set a new close time first', 'error')
-      return
-    }
     try {
       const created = await publishQuizDraft(quiz.id)
       showToast(`Published to ${created.length} class${created.length !== 1 ? 'es' : ''}`, 'success')
@@ -251,8 +242,7 @@ export default function QuizList({ navigation }) {
           </View>
         )}
         {courses.map((course, i) => {
-          // Draft quiz sets live only in the Draft button modal, not in the course card.
-          const allQuizzes = (quizzesByCourse[course.course_id] ?? []).filter(q => q.status !== 'draft')
+          const allQuizzes = quizzesByCourse[course.course_id] ?? []
           const isExpanded = expandedCourseId === course.course_id
           const activeFilter = courseFilters[course.course_id] ?? 'all'
           const filteredQuizzes = allQuizzes.filter(q => {
@@ -294,7 +284,7 @@ export default function QuizList({ navigation }) {
                     </Text>
                   )}
                   <Text style={styles.courseCountHint}>
-                    {allQuizzes.length} quiz{allQuizzes.length !== 1 ? 'zes' : ''} 
+                    {allQuizzes.length} quiz{allQuizzes.length !== 1 ? 'zes' : ''} · {isExpanded ? 'tap to close' : 'tap to view quizzes'}
                   </Text>
                 </View>
               </TouchableOpacity>

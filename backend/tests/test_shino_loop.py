@@ -52,11 +52,9 @@ def loop(tmp_path):
     (scripts / "backup-data.sh").write_text("exit 0\n", newline="\n")
     (scripts / "check.sh").write_text("exit 0\n", newline="\n")
 
-    # PLAN-SHINO.md with S101 as the first runnable task and S102 as its checkpoint.
-    # S101 is already ticked in the live plan; untick it only in this throwaway copy
-    # so the loop test still exercises picking and running a task.
+    # PLAN-SHINO.md with S01 done and S02 as the first runnable task.
     plan = (REPO_ROOT / "PLAN-SHINO.md").read_text(encoding="utf-8")
-    plan = plan.replace("- [x] **S101 ", "- [ ] **S101 ", 1)
+    plan = plan.replace("- [ ] **S01 [INFRA] Shino's own loop", "- [x] **S01 [INFRA] Shino's own loop", 1)
     (repo / "PLAN-SHINO.md").write_text(plan, encoding="utf-8")
     (repo / "PROGRESS-SHINO.md").write_text("# PROGRESS-SHINO\n", encoding="utf-8")
     (repo / "tracked.txt").write_text("start\n", newline="\n")
@@ -96,21 +94,19 @@ def loop(tmp_path):
 
 
 def test_picks_s02_first_and_stops_cleanly_after_it(loop):
-    """Historical name kept for the test guard; S101 is now the first runnable task."""
-    # Round 1: /next-task picked S101 (first runnable task in PLAN-SHINO.md) and committed.
+    # Round 1: /next-task picked S02 (first runnable task in PLAN-SHINO.md) and committed.
     # Round 2: nothing left to commit this round, so the loop stops cleanly.
-    repo, result, _ = loop(("Picked S101 as the first runnable task (S102 checkpoint next).", True), ("", False), n=2)
+    repo, result, _ = loop(("Picked S02 as the first runnable task (S01 done; deps all [x]).", True), ("", False), n=2)
     assert result.returncode == 0, result.stdout + result.stderr
     assert "committed: T1: done" in result.stdout, result.stdout
     assert "no commit this round - stopping" in result.stdout, result.stdout
     assert (repo / ".fake-round").read_text().strip() == "2"
-    # Exactly one commit (S101) on top of the start commit.
+    # Exactly one commit (S02) on top of the start commit.
     log = run(["git", "log", "--oneline"], repo).stdout
     assert log.count("\n") == 2, log
 
 
 def test_s02_is_the_first_runnable_task():
-    """Historical name kept for the test guard; S101 is now the completed baseline."""
     plan = (REPO_ROOT / "PLAN-SHINO.md").read_text(encoding="utf-8")
 
     def get_task(task_id):
@@ -119,14 +115,13 @@ def test_s02_is_the_first_runnable_task():
                 return line
         pytest.fail(f"{task_id} not found in PLAN-SHINO.md")
 
-    s101_line = get_task("S101")
-    s102_line = get_task("S102")
+    s01_line = get_task("S01")
+    s02_line = get_task("S02")
 
-    # Task status appears before the task ID; S101 is done.
-    assert "- [x] **S101 " in s101_line, s101_line
-    assert "Depends on: -" in s101_line
+    # Task status appears before the task ID.
+    assert "- [ ] **S01 " in s01_line, s01_line
+    assert "- [ ] **S02 " in s02_line, s02_line
 
-    # S102 is the human checkpoint that depends on S101 and is still open.
-    assert "- [ ] **S102 [HUMAN] Checkpoint" in s102_line, s102_line
-    assert "Depends on: S101" in s102_line
+    # S02 depends only on S01.
+    assert "Depends on: S01" in s02_line
 

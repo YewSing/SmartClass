@@ -72,15 +72,11 @@ async def test_close_twice_conflicts_and_unknown_is_404(lecturer_client, classro
 
 
 async def test_closed_occurrence_can_be_reopened(lecturer_client, classroom):
-    """Same-day reopen reuses the existing session row (FR-316)."""
     first = (await _open(lecturer_client, classroom["occurrence_id"])).json()["id"]
     await lecturer_client.put(f"/lecturer/sessions/{first}/close")
     resp = await _open(lecturer_client, classroom["occurrence_id"])
     assert resp.status_code == 201
-    body = resp.json()
-    assert body["id"] == first
-    assert body["status"] == "open"
-    assert body["closed_at"] is None
+    assert resp.json()["id"] != first
 
 
 async def test_lecturer_list_shows_only_own_sessions(

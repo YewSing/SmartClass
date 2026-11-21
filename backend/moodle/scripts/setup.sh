@@ -7,7 +7,6 @@ export MSYS_NO_PATHCONV=1
 C=${MOODLE_CONTAINER:-smartclass-moodle-moodle-1}
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 docker exec -u daemon "$C" php /scripts/install_attendance.php
-docker exec -u daemon "$C" php /scripts/install_smartclass_local.php
 docker exec -u daemon "$C" php /bitnami/moodle/admin/cli/upgrade.php --non-interactive
 OUT=$(docker exec -u daemon "$C" php /scripts/configure_moodle.php)
 echo "$OUT"

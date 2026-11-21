@@ -22,7 +22,6 @@ import QuizList from '../screens/QuizList'
 import TakeQuiz from '../screens/TakeQuiz'
 import QuizResult from '../screens/QuizResult'
 import Profile from '../screens/Profile'
-import MyAnalytics from '../screens/MyAnalytics'
 import Assistant from '../screens/Assistant'
 import AssistantPdf from '../screens/AssistantPdf'
 import Flashcards from '../screens/Flashcards'
@@ -40,13 +39,6 @@ function HomeStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="HomeScreen" component={Home} />
-      <Stack.Screen name="Participation" component={Participation} />
-      <Stack.Screen name="PartSessionPerf"  component={PartSessionPerf} />
-      <Stack.Screen name="ProfileScreen" component={Profile} />
-      <Stack.Screen name="MyAnalytics" component={MyAnalytics} />
-      <Stack.Screen name="FaceEnrolment" component={FaceEnrolment} />
-      <Stack.Screen name="FaceConsent"   component={FaceConsent} />
-      <Stack.Screen name="FaceCapture"   component={FaceCapture} />
     </Stack.Navigator>
   )
 }
@@ -61,20 +53,21 @@ function AttendanceStack() {
   )
 }
 
+function ParticipationStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="ParticipationScreen" component={Participation} />
+      <Stack.Screen name="PartSessionPerf"     component={PartSessionPerf} />
+    </Stack.Navigator>
+  )
+}
+
 function QuizStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="QuizListScreen" component={QuizList} />
       <Stack.Screen name="TakeQuiz"    component={TakeQuiz} />
       <Stack.Screen name="QuizResult"  component={QuizResult} />
-    </Stack.Navigator>
-  )
-}
-
-function AnalyticsStack() {
-  return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="MyAnalyticsScreen" component={MyAnalytics} />
     </Stack.Navigator>
   )
 }
@@ -90,14 +83,26 @@ function AssistantStack() {
   )
 }
 
+function ProfileStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="ProfileScreen" component={Profile} />
+      <Stack.Screen name="FaceEnrolment" component={FaceEnrolment} />
+      <Stack.Screen name="FaceConsent"   component={FaceConsent} />
+      <Stack.Screen name="FaceCapture"   component={FaceCapture} />
+    </Stack.Navigator>
+  )
+}
+
 // ─── Main tabs ────────────────────────────────────────────────────────────────
 
 const TAB_ICONS = {
   Home:          { active: 'home',                inactive: 'home-outline' },
   Attendance:    { active: 'calendar',            inactive: 'calendar-outline' },
-  Analytics:     { active: 'stats-chart',         inactive: 'stats-chart-outline' },
   Quiz:          { active: 'help-circle',         inactive: 'help-circle-outline' },
   Assistant:     { active: 'sparkles',            inactive: 'sparkles-outline' },
+  Participation: { active: 'stats-chart',         inactive: 'stats-chart-outline' },
+  Profile:       { active: 'person',              inactive: 'person-outline' },
 }
 
 function MainTabs() {
@@ -128,9 +133,10 @@ function MainTabs() {
     >
       <Tab.Screen name="Home"          component={HomeStack}          options={{ title: 'Home' }} />
       <Tab.Screen name="Attendance"    component={AttendanceStack}    options={{ title: 'Attendance', tabBarTestID: 'tab-attendance' }} />
-      <Tab.Screen name="Analytics"     component={AnalyticsStack}     options={{ title: 'Analytics', tabBarTestID: 'tab-analytics' }} />
       <Tab.Screen name="Quiz"          component={QuizStack}          options={{ title: 'Quiz', tabBarTestID: 'tab-quiz' }} />
       <Tab.Screen name="Assistant"     component={AssistantStack}     options={{ title: 'Assistant' }} />
+      <Tab.Screen name="Participation" component={ParticipationStack} options={{ title: 'Participation', tabBarTestID: 'tab-participation' }} />
+      <Tab.Screen name="Profile"       component={ProfileStack}       options={{ title: 'Profile' }} />
     </Tab.Navigator>
   )
 }

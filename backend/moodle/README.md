@@ -47,22 +47,7 @@ your real matric card) go in `seed_config.local.json` next to `seed_config.json`
 The service `smartclass` exposes: `core_webservice_get_site_info`, `core_enrol_get_users_courses`, `core_enrol_get_enrolled_users`,
 `core_course_get_contents`, `core_course_get_courses_by_field`, `core_user_get_users_by_field`,
 `mod_attendance_add_session`, `mod_attendance_remove_session`, `mod_attendance_get_session`,
-`mod_attendance_get_sessions`, `mod_attendance_update_user_status`,
-`local_smartclass_create_quiz`, `local_smartclass_quiz_attempts`.
-
-## Quiz sync (local_smartclass)
-
-Moodle core has no web service to create activities or questions, so the bundled
-`local/smartclass` plugin (installed by `scripts/install_smartclass_local.php` from
-`setup.sh`) provides two functions:
-
-- `local_smartclass_create_quiz` — creates a `mod_quiz` activity in the course plus its
-  questions in a "SmartClass" question category: SmartClass MCQ → Moodle multichoice
-  (auto-graded), SmartClass short answer → Moodle essay (manual grading, which is the
-  lecturer's "Needs review" flow). Returns the quiz/cmid and the created question ids.
-- `local_smartclass_quiz_attempts` — the quiz's finished attempts with per-slot response
-  text, so the backend can import attempts taken in Moodle (score, answers) back into
-  SmartClass. Students who attempted in the app are skipped; the app attempt wins.
+`mod_attendance_get_sessions`, `mod_attendance_update_user_status`.
 
 A student token (what a student login would yield):
 

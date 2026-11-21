@@ -37,7 +37,6 @@ from app.models.attendance import AttendanceRecord
 from app.models.camera import Camera
 from app.models.class_ import ClassOccurrence
 from app.models.interaction import InteractionSession
-from app.models.interaction_poll import InteractionPoll
 from app.models.session import AttendanceSession
 from app.models.user import Lecturer
 from app.services import session_service
@@ -91,6 +90,7 @@ async def _schedule_row(db: AsyncSession, occurrence_id: int, class_date: date) 
         select(AttendanceSession).where(
             AttendanceSession.occurrence_id == occurrence_id,
             AttendanceSession.class_date == class_date,
+            AttendanceSession.source == "schedule",
         )
     )).scalar_one_or_none()
 
@@ -110,70 +110,31 @@ class TickReport:
 
 async def open_session_for(db: AsyncSession, occ: ClassOccurrence, d: date,
                            start: datetime, end: datetime, now: datetime) -> AttendanceSession:
-    """Insert or reuse the scheduled session of `occ` on date `d` (R2)."""
-    existing_att = (await db.execute(
-        select(AttendanceSession).where(
-            AttendanceSession.occurrence_id == occ.id,
-            AttendanceSession.class_date == d,
-        ).order_by(AttendanceSession.id.desc())
-    )).scalar_one_or_none()
-
-    if existing_att is not None:
-        session = existing_att
-        if session.status != "open":
-            session.status = "open"
-            session.opened_at = now
-            session.closed_at = None
-            session.closed_by = None
-            session.starts_at = start
-            session.ends_at = end
-            session.camera_id = await camera_id_for_room(db, occ.room)
-    else:
-        session = AttendanceSession(
-            occurrence_id=occ.id,
-            lecturer_id=occ.lecturer_id,
-            camera_id=await camera_id_for_room(db, occ.room),
-            class_date=d,
-            starts_at=start,
-            ends_at=end,
-            source="schedule",
-            status="open",
-            opened_at=now,
-        )
-        db.add(session)
+    """Insert and flush the scheduled session of `occ` on date `d` (R2)."""
+    session = AttendanceSession(
+        occurrence_id=occ.id,
+        lecturer_id=occ.lecturer_id,
+        camera_id=await camera_id_for_room(db, occ.room),
+        class_date=d,
+        starts_at=start,
+        ends_at=end,
+        source="schedule",
+        status="open",
+        opened_at=now,
+    )
+    db.add(session)
     await db.flush()
-
-    # Open or reuse the matching interaction session at the same time (FR-501).
+    # Open the matching interaction session at the same time so students can participate
+    # without the lecturer clicking "open session" (FR-501). `opened_by` references users.id.
     opened_by = (await db.execute(
         select(Lecturer.user_id).where(Lecturer.id == occ.lecturer_id)
     )).scalar_one()
-
-    start_d = datetime.combine(d, time.min)
-    end_d = datetime.combine(d, time.max)
-    existing_inter = (await db.execute(
-        select(InteractionSession).where(
-            InteractionSession.occurrence_id == occ.id,
-            InteractionSession.opened_at >= start_d,
-            InteractionSession.opened_at <= end_d,
-        ).order_by(InteractionSession.id.desc())
-    )).scalar_one_or_none()
-
-    if existing_inter is not None:
-        if existing_inter.status != "open":
-            existing_inter.status = "open"
-            existing_inter.opened_at = now
-            existing_inter.closed_at = None
-            existing_inter.closed_by = None
-            existing_inter.ends_at = end
-        existing_inter.attendance_session_id = session.id
-    else:
-        db.add(InteractionSession(
-            occurrence_id=occ.id,
-            status="open",
-            opened_by=opened_by,
-            ends_at=end,
-            attendance_session_id=session.id,
-        ))
+    db.add(InteractionSession(
+        occurrence_id=occ.id,
+        status="open",
+        opened_by=opened_by,
+        ends_at=end,
+    ))
     await db.flush()
     return session
 
@@ -206,29 +167,6 @@ async def tick(db: AsyncSession, now: datetime | None = None) -> TickReport:
             session.status = "needs_confirmation"
             session.closed_at = now
             report.needs_confirmation.append(session.id)
-
-    # Interaction sessions follow the same rule as attendance (R3): an open session
-    # whose end has passed is closed by the scheduler; its open polls close with it.
-    # Not reported in TickReport — that report stays attendance-only.
-    interaction_rows = (await db.execute(
-        select(InteractionSession).where(InteractionSession.status == "open")
-    )).scalars().all()
-    for isession in interaction_rows:
-        if isession.ends_at is None or isession.ends_at > now:
-            continue  # rows without an end are never auto-closed (same as attendance)
-        isession.status = "closed"
-        isession.closed_at = now
-        isession.closed_by = isession.opened_by
-        open_polls = (await db.execute(
-            select(InteractionPoll).where(
-                InteractionPoll.interaction_id == isession.id,
-                InteractionPoll.is_open.is_(True),
-            )
-        )).scalars().all()
-        for poll in open_polls:
-            poll.is_open = False
-            poll.closed_at = now
-            poll.closed_by = isession.opened_by
 
     await db.flush()
 
@@ -365,14 +303,15 @@ async def start_now(db: AsyncSession, occ: ClassOccurrence, lec: Lecturer,
     else:
         length = timedelta(minutes=settings.SESSION_DEFAULT_MINUTES)
 
-    # Reuse a closed or unconfirmed session for this occurrence on today's date so opening
-    # and closing the same class time range keeps a single session record (one session per course
-    # time range, same session id across reopens).
+    # Reuse a closed session for this occurrence on today's date so opening and closing the
+    # same class time range keeps a single session record (one session per course time range,
+    # same session id across reopens). Attendance and interaction sessions are reopened together
+    # from the Dashboard, so both stay on this one record.
     existing = (await db.execute(
         select(AttendanceSession).where(
             AttendanceSession.occurrence_id == occ.id,
             AttendanceSession.class_date == today,
-            AttendanceSession.status.in_(["closed", "needs_confirmation"]),
+            AttendanceSession.status == "closed",
         ).order_by(AttendanceSession.id.desc())
     )).scalar_one_or_none()
     if existing is not None:

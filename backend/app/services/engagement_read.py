@@ -9,7 +9,7 @@ No permission checks inside: callers (M7 lecturer endpoint) enforce NFR-04.
 
 from sqlalchemy import select
 
-from app.models.class_ import ClassOccurrence, Course, Enrollment
+from app.models.class_ import ClassOccurrence, Enrollment
 from app.services.attendance_read import course_rates
 from app.services.participation_read import (
     get_student_participation_per_course,
@@ -80,21 +80,13 @@ async def student_self_view(db, student_id: int) -> dict:
     """
     occurrences = (
         await db.execute(
-            select(
-                ClassOccurrence.id,
-                ClassOccurrence.course_id,
-                Course.code,
-                Course.name,
-            )
+            select(ClassOccurrence.id, ClassOccurrence.course_id)
             .join(Enrollment, Enrollment.occurrence_id == ClassOccurrence.id)
-            .join(Course, Course.id == ClassOccurrence.course_id)
             .where(Enrollment.student_id == student_id)
         )
     ).all()
     courses = {}
-    course_info = {}
-    for occurrence_id, course_id, code, name in occurrences:
-        course_info[course_id] = {"code": code, "name": name}
+    for occurrence_id, course_id in occurrences:
         indicators = await student_engagement_indicators(db, course_id, student_id)
         courses[course_id] = indicators
 
@@ -112,8 +104,6 @@ async def student_self_view(db, student_id: int) -> dict:
         "courses": [
             {
                 "course_id": course_id,
-                "course_code": course_info[course_id]["code"],
-                "course_name": course_info[course_id]["name"],
                 **indicators,
             }
             for course_id, indicators in sorted(courses.items())

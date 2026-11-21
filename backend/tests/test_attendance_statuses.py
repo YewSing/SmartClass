@@ -7,7 +7,7 @@ recognition counts. Excused is only ever set by a lecturer override.
 import csv
 import importlib.util
 import io
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from pathlib import Path
 
 import numpy as np
@@ -397,21 +397,11 @@ async def test_occurrence_export_letters_and_rate(lecturer_client, classroom, db
         ])
         await db_session.commit()
 
-    # A closed session on an earlier day; same-day reopens reuse one session (FR-316).
-    first_day = datetime.now() - timedelta(days=1)
-    first = AttendanceSession(
-        occurrence_id=classroom["occurrence_id"],
-        lecturer_id=classroom["lecturer_id"],
-        status="closed",
-        class_date=first_day.date(),
-        starts_at=first_day,
-        opened_at=first_day,
-        closed_at=first_day + timedelta(hours=1),
-        source="manual",
-    )
-    db_session.add(first)
-    await db_session.flush()
-    await add_records(first.id, ("late", "excused", "absent"))
+    first = (await lecturer_client.post(
+        "/lecturer/sessions", json={"occurrence_id": classroom["occurrence_id"]}
+    )).json()["id"]
+    await add_records(first, ("late", "excused", "absent"))
+    assert (await lecturer_client.put(f"/lecturer/sessions/{first}/close")).status_code == 200
 
     second = (await lecturer_client.post(
         "/lecturer/sessions", json={"occurrence_id": classroom["occurrence_id"]}

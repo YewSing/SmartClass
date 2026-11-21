@@ -3,10 +3,11 @@ import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, RefreshControl,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
+import { LinearGradient } from 'expo-linear-gradient'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useFocusEffect } from '@react-navigation/native'
 import { useStudent } from '../context/StudentContext'
 import Badge from '../components/Badge'
-import Topbar from '../components/Topbar'
 import { getOpenInteractions } from '../services/api'
 import { C } from '../theme'
 
@@ -20,6 +21,7 @@ function greeting() {
 export default function Home({ navigation }) {
   const { state, loadClasses, showToast } = useStudent()
   const { classes, student } = state
+  const insets = useSafeAreaInsets()
 
   useEffect(() => { loadClasses() }, [loadClasses])
 
@@ -52,25 +54,21 @@ export default function Home({ navigation }) {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} colors={[C.primary]} />}
       >
-        {/* Top bar with profile access (same pattern as the lecturer Home) */}
-        <Topbar
-          title={`${greeting().replace(',', '')}, ${student?.name?.split(' ')[0] ?? '—'}`}
-          sub={
-            classes.length > 0
+        {/* Greeting banner */}
+        <LinearGradient
+          colors={['#0D47A1', '#1565C0', '#1976D2']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[styles.banner, { paddingTop: insets.top + 20 }]}
+        >
+          <Text style={styles.greetingText}>{greeting()}</Text>
+          <Text style={styles.greetingName}>{student?.name ?? '—'}</Text>
+          <Text style={styles.greetingSub}>
+            {classes.length > 0
               ? `${classes.length} enrolled class${classes.length !== 1 ? 'es' : ''}`
-              : undefined
-          }
-          right={
-            <TouchableOpacity
-              testID="home-profile-btn"
-              accessibilityLabel="Profile"
-              style={styles.profileBtn}
-              onPress={() => navigation.navigate('ProfileScreen')}
-            >
-              <Text style={styles.profileInitials}>{student?.initials ?? 'ME'}</Text>
-            </TouchableOpacity>
-          }
-        />
+              : 'Loading classes…'}
+          </Text>
+        </LinearGradient>
 
         {/* Live interaction — ongoing classroom activity (FR-201, UC-501 step 3) */}
         {liveInteraction && (
@@ -142,18 +140,9 @@ export default function Home({ navigation }) {
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: C.bg },
-  profileBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: C.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  profileInitials: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#fff',
+  banner: {
+    paddingHorizontal: 20,
+    paddingBottom: 28,
   },
   liveCard: {
     flexDirection: 'row',
@@ -183,6 +172,22 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   liveBadgeText: { fontSize: 12, fontWeight: '800', color: '#0D47A1' },
+  greetingText: {
+    fontSize: 14,
+    color: '#DBEAFE',
+    fontWeight: '500',
+  },
+  greetingName: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#fff',
+    marginTop: 4,
+  },
+  greetingSub: {
+    fontSize: 13,
+    color: '#BFDBFE',
+    marginTop: 6,
+  },
   sectionHeader: {
     paddingHorizontal: 16,
     paddingTop: 16,

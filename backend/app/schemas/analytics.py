@@ -6,12 +6,11 @@ from pydantic import BaseModel
 
 class SessionBarEntry(BaseModel):
     session_id: int
-    label: str           # e.g. "Week 1" or "Week 1 (17 Nov)"
+    label: str           # e.g. "Week 1 - Mon"
     date: str            # ISO date string
     present_count: int
     absent_count: int
     total: int
-    late_count: int = 0
 
 
 class AtRiskStudent(BaseModel):
@@ -21,28 +20,6 @@ class AtRiskStudent(BaseModel):
     present: int
     total: int
     rate: float          # 0.0–100.0
-
-
-class ParticipationBarEntry(BaseModel):
-    interaction_id: int
-    label: str           # e.g. "Week 1" or "Week 1 (17 Nov)"
-    date: str = ""       # ISO date string
-    participants: int    # distinct students who took part in this interaction session
-
-
-class QuizTrendEntry(BaseModel):
-    quiz_id: int
-    title: str
-    average_score: Optional[float] = None   # class average on this quiz (0-100)
-    attempts: int = 0                       # graded attempts
-
-
-class QuizAtRiskStudent(BaseModel):
-    student_id: int
-    matric_no: str
-    name: str
-    average_score: float     # 0-100 across graded quizzes
-    quiz_count: int          # graded quizzes taken
 
 
 class LecturerAnalyticsOut(BaseModel):
@@ -55,18 +32,6 @@ class LecturerAnalyticsOut(BaseModel):
     avg_attendance_rate: float
     sessions: list[SessionBarEntry]
     at_risk_students: list[AtRiskStudent]
-    # Module 5 participation (FR-702): rate = interaction sessions the student
-    # took part in / total interaction sessions held; at-risk below 80%.
-    interaction_sessions_held: int = 0
-    avg_participation_rate: float = 0.0
-    participation_bars: list[ParticipationBarEntry] = []
-    participation_at_risk: list[AtRiskStudent] = []
-    # Module 6 quiz (FR-612/613): class average, per-quiz trend and very-low-score
-    # flagging (average below QUIZ_AT_RISK_THRESHOLD = 50).
-    quiz_count: int = 0
-    avg_quiz_score: Optional[float] = None
-    quiz_trend: list[QuizTrendEntry] = []
-    quiz_at_risk: list[QuizAtRiskStudent] = []
 
 
 class StudentAttendanceSessionOut(BaseModel):
@@ -163,8 +128,6 @@ class ClassAssessmentSessionOut(BaseModel):
 
 class StudentCourseIndicatorOut(BaseModel):
     course_id: int
-    course_code: Optional[str] = None
-    course_name: Optional[str] = None
     attendance: EngagementAttendanceOut
     participation: EngagementParticipationOut
     quizzes: EngagementQuizzesOut

@@ -39,16 +39,6 @@ class Quiz(Base):
     )
     # draft | published | closed
     status: Mapped[str] = mapped_column(String(20), nullable=False, server_default="draft")
-    # Moodle sync (same bookkeeping as the attendance sync, FR-311). NULL status =
-    # never queued. moodle_quiz_id/moodle_cmid identify the mod_quiz activity created
-    # by local_smartclass_create_quiz when the quiz is published.
-    moodle_quiz_id: Mapped[Optional[int]] = mapped_column(nullable=True)
-    moodle_cmid: Mapped[Optional[int]] = mapped_column(nullable=True)
-    moodle_sync_status: Mapped[Optional[str]] = mapped_column(String(20), index=True)  # pending | synced | failed
-    moodle_sync_attempts: Mapped[int] = mapped_column(nullable=False, server_default="0")
-    moodle_sync_next_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
-    moodle_synced_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
-    moodle_sync_error: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=sa.func.now()
@@ -88,8 +78,6 @@ class QuizQuestion(Base):
     topic: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     score: Mapped[float] = mapped_column(sa.Float, nullable=False, server_default="1.0")
     learning_hint: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    # Moodle question id from local_smartclass_create_quiz (pull side maps responses by it)
-    moodle_question_id: Mapped[Optional[int]] = mapped_column(nullable=True)
     # draft | approved | deleted
     status: Mapped[str] = mapped_column(String(20), nullable=False, server_default="draft")
     created_at: Mapped[datetime] = mapped_column(

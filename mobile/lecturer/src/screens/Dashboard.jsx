@@ -162,30 +162,6 @@ export default function Dashboard({ navigation }) {
     ? openInteractions.find(i => i.occurrence_id === headerClassId) ?? null
     : openInteractions[0] ?? null
 
-  // Live interaction counts for the Home card (same figures the control screen shows).
-  const [liveCounts, setLiveCounts] = useState(null)
-  const interactionId = currentInteraction?.id ?? null
-  const loadLiveCounts = useCallback(async () => {
-    if (!interactionId) { setLiveCounts(null); return }
-    try {
-      const [questions, polls, reactions, idu] = await Promise.all([
-        api.getQuestions(interactionId),
-        api.getPolls(interactionId),
-        api.getReactions(interactionId),
-        api.getIduCount(interactionId),
-      ])
-      setLiveCounts({
-        questions: (questions ?? []).filter(q => !q.answered).length,
-        polls: (polls ?? []).filter(p => p.is_open).length,
-        reactions: (reactions ?? []).reduce((sum, r) => sum + (r.count ?? 0), 0),
-        idu: idu?.distinct_students ?? 0,
-      })
-    } catch { setLiveCounts(null) }
-  }, [interactionId])
-  useEffect(() => { loadLiveCounts() }, [loadLiveCounts])
-  // Re-read the counts every time the screen comes back (matches the attendance card).
-  useFocusEffect(useCallback(() => { loadLiveCounts() }, [loadLiveCounts]))
-
   const headerTitle = firstClass
     ? `${firstClass.code} — ${firstClass.name}`
     : nextClass
@@ -385,69 +361,22 @@ export default function Dashboard({ navigation }) {
             </View>
           </TouchableOpacity>
 
-          {/* Interaction (Module 5) — same card style as the Attendance section */}
-          {currentInteraction && (
-            <>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Interaction</Text>
-              </View>
-              <TouchableOpacity
-                style={styles.card}
-                testID="home-interaction"
-                onPress={() => navigation.navigate('InteractionControl', { interaction_id: currentInteraction.id })}
-              >
-                <Text style={styles.cardExtraMeta}>{currentInteraction.class_code} · live</Text>
-                <View style={styles.interactCounts}>
-                  <View style={styles.count}>
-                    <Text style={[styles.countNum, { color: C.blueDk }]} testID="home-interaction-questions">
-                      {liveCounts?.questions ?? 0}
-                    </Text>
-                    <Text style={styles.countLbl}>Open questions</Text>
-                  </View>
-                  <View style={styles.count}>
-                    <Text style={[styles.countNum, { color: C.purple }]} testID="home-interaction-polls">
-                      {liveCounts?.polls ?? 0}
-                    </Text>
-                    <Text style={styles.countLbl}>Polls open</Text>
-                  </View>
-                  <View style={styles.count}>
-                    <Text style={[styles.countNum, { color: C.orange }]} testID="home-interaction-reactions">
-                      {liveCounts?.reactions ?? 0}
-                    </Text>
-                    <Text style={styles.countLbl}>Reactions</Text>
-                  </View>
-                  <View style={styles.count}>
-                    <Text style={[styles.countNum, { color: C.red }]} testID="home-interaction-idu">
-                      {liveCounts?.idu ?? 0}
-                    </Text>
-                    <Text style={styles.countLbl}>I don't understand</Text>
-                  </View>
-                </View>
-                <View style={styles.cardFooter}>
-                  <Ionicons name="chevron-forward" size={12} color={C.textHint} />
-                  <Text style={styles.cardFooterText}> Tap to open interaction controls</Text>
-                </View>
-              </TouchableOpacity>
-            </>
-          )}
-
+          {/* Quiz section */}
+          <View style={[styles.sectionHeader, { paddingTop: 4 }]}>
+            <Text style={styles.sectionTitle}>Quiz &amp; Poll</Text>
+          </View>
+          <TouchableOpacity style={styles.createQuizBtn} onPress={() => navigation.navigate('Quiz', { screen: 'CreateQuiz' })}>
+            <View style={styles.createQuizIcon}>
+              <Ionicons name="add" size={18} color={C.primary} />
+            </View>
+            <View style={styles.flex}>
+              <Text style={styles.createQuizTitle}>Create Quiz / Poll</Text>
+              <Text style={styles.createQuizSub}>Push instantly to all student desks</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={14} color={C.primary} />
+          </TouchableOpacity>
         </>
       )}
-
-      {/* Quiz section — always available, session open or not */}
-      <View style={[styles.sectionHeader, { paddingTop: 4 }]}>
-        <Text style={styles.sectionTitle}>Quiz</Text>
-      </View>
-      <TouchableOpacity style={styles.createQuizBtn} onPress={() => navigation.navigate('Quiz', { screen: 'CreateQuiz' })}>
-        <View style={styles.createQuizIcon}>
-          <Ionicons name="add" size={18} color={C.primary} />
-        </View>
-        <View style={styles.flex}>
-          <Text style={styles.createQuizTitle}>Create Quiz</Text>
-          <Text style={styles.createQuizSub}>Push instantly to all student</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={14} color={C.primary} />
-      </TouchableOpacity>
 
       {/* Every class taught, to set its schedule or start it (FR-301, FR-316) */}
       {allClasses.length > 0 && (
@@ -488,7 +417,7 @@ export default function Dashboard({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1},
+  flex: { flex: 1, backgroundColor: C.bg },
   content: {
     backgroundColor: C.bg,
     paddingHorizontal: 16,
@@ -644,25 +573,6 @@ const styles = StyleSheet.create({
   attendCounts: {
     marginTop: 8,
     marginBottom: 12,
-  },
-  interactCounts: {
-    marginTop: 10,
-    marginBottom: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  count: {
-    alignItems: 'center',
-    minWidth: 52,
-  },
-  countNum: {
-    fontSize: 22,
-    fontWeight: '800',
-  },
-  countLbl: {
-    fontSize: 11,
-    color: C.textSub,
-    marginTop: 1,
   },
   cardFooter: {
     flexDirection: 'row',

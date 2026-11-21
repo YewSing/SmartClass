@@ -12,8 +12,6 @@ from sqlalchemy import select
 from app.core.security import create_access_token
 from app.main import app
 from app.models.interaction import InteractionSession
-from app.models.interaction_poll import InteractionPoll
-from app.services import session_schedule
 from app.websocket.router import interaction_ws
 from httpx import ASGITransport, AsyncClient
 from ws_room import InteractionRoom
@@ -161,7 +159,7 @@ async def test_close_unknown_interaction_is_404(lecturer_client):
 
 
 async def test_list_interactions_newest_first(lecturer_client, classroom):
-    await _open_interaction(lecturer_client, classroom["occurrence_id"])
+    first = await _open_interaction(lecturer_client, classroom["occurrence_id"])
     second = await _open_interaction(lecturer_client, classroom["occurrence_id"])
 
     resp = await lecturer_client.get(
@@ -169,43 +167,8 @@ async def test_list_interactions_newest_first(lecturer_client, classroom):
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    # Reopening the same class time range reuses the single session record, so only
-    # one open row remains (never two live sessions for one class).
-    assert len(body) == 1
-    assert body[0]["id"] == second
-    assert body[0]["status"] == "open"
-
-
-async def test_open_closes_other_live_interactions(lecturer_client, classroom, db_session):
-    from app.models.class_ import ClassOccurrence, Course
-
-    first = await _open_interaction(lecturer_client, classroom["occurrence_id"])
-
-    # A second occurrence taught by the same lecturer.
-    course = Course(code="CS102", name="Second Course")
-    db_session.add(course)
-    await db_session.flush()
-    occ = ClassOccurrence(
-        course_id=course.id, type="LECTURE", day_of_week="Tue",
-        start_time="10:00", end_time="12:00", room="DK2",
-        lecturer_id=classroom["lecturer_id"],
-    )
-    db_session.add(occ)
-    await db_session.commit()
-
-    second = await _open_interaction(lecturer_client, occ.id)
-    assert second != first
-
-    resp = await lecturer_client.get("/lecturer/interactions/sessions")
-    assert resp.status_code == 200, resp.text
-    body = resp.json()
-    statuses = {b["id"]: b["status"] for b in body}
-    assert statuses[first] == "closed"   # opening closed the stale live session
-    assert statuses[second] == "open"
-    # Open session on top, then newest to oldest.
-    assert body[0]["id"] == second
-    ids = [b["id"] for b in body]
-    assert ids.index(second) < ids.index(first) or statuses[first] == "closed" and ids.index(second) == 0
+    assert [b["id"] for b in body] == [second, first]
+    assert all(b["status"] == "open" for b in body)
 
 
 async def test_list_interactions_other_lecturer_is_403(other_lecturer_client, classroom):
@@ -380,26 +343,3 @@ async def test_close_poll_broadcast_on_room(users, classroom):
 
         events = [e["event"] for e in room.sent]
         assert "poll_closed" in events, events
-
-
-async def test_scheduler_closes_expired_interaction_sessions(lecturer_client, classroom, db_session):
-    from datetime import datetime, timedelta
-
-    interaction_id = await _open_interaction(lecturer_client, classroom["occurrence_id"])
-    row = await db_session.get(InteractionSession, interaction_id)
-    row.ends_at = datetime.now() - timedelta(minutes=1)  # already past its end
-    db_session.add(InteractionPoll(
-        interaction_id=interaction_id, question="Still open?", is_open=True,
-        opened_by=classroom["lecturer_id"],
-    ))
-    await db_session.commit()
-
-    await session_schedule.tick(db_session)
-
-    closed = await db_session.get(InteractionSession, interaction_id)
-    assert closed.status == "closed"
-    assert closed.closed_at is not None
-    polls = (await db_session.execute(
-        select(InteractionPoll).where(InteractionPoll.interaction_id == interaction_id)
-    )).scalars().all()
-    assert all(p.is_open is False for p in polls)

@@ -94,13 +94,6 @@ export default function Profile({ navigation }) {
         {/* Account actions */}
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Account</Text>
-          <TouchableOpacity style={styles.actionRow} onPress={() => navigation.navigate('MyAnalytics')}>
-            <View style={[styles.fieldIcon, { backgroundColor: C.greenLt }]}>
-              <Ionicons name="stats-chart" size={16} color={C.green} />
-            </View>
-            <Text style={styles.actionLabel}>My Analytics</Text>
-            <Ionicons name="chevron-forward" size={16} color={C.textHint} />
-          </TouchableOpacity>
           <TouchableOpacity style={styles.actionRow} onPress={() => navigation.navigate('FaceEnrolment')}>
             <View style={[styles.fieldIcon, { backgroundColor: C.blueLt }]}>
               <Ionicons name="scan-outline" size={16} color={C.primary} />

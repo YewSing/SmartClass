@@ -233,13 +233,6 @@ export const getOpenInteractions = async () => {
   return list.map(mapInteraction)
 }
 
-// Every interaction session (open + closed) across the lecturer's classes,
-// open sessions first then newest to oldest — the Interaction tab's list page.
-export const getAllInteractionSessions = async () => {
-  const list = await apiCall('GET', '/lecturer/interactions/sessions')
-  return list.map(mapInteraction)
-}
-
 // Open interaction sessions for one class.
 export const getInteractions = async (occurrenceId) => {
   const list = await apiCall('GET', `/lecturer/interactions?occurrence_id=${occurrenceId}`)
@@ -360,24 +353,6 @@ export const getAnalytics = async (occurrenceId, dateParams = {}) => {
     ? '&' + Object.entries(dateParams).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&')
     : ''
   return apiCall('GET', `/lecturer/analytics?occurrence_id=${occurrenceId}${qs}`)
-}
-
-// Per-student engagement indicators for one class (S41, FR-701–703).
-export const getAnalyticsEngagement = (occurrenceId) =>
-  apiCall('GET', `/lecturer/analytics/${occurrenceId}/students`)
-
-// Assessment performance by quiz topic (S42, FR-705).
-export const getAssessmentByTopic = (occurrenceId) =>
-  apiCall('GET', `/lecturer/analytics/${occurrenceId}/assessment-by-topic`)
-
-// CSV export for the Participation / Quiz / Students tabs (attendance has its own export).
-export const exportAnalyticsCsv = async (section, occId, filename, dateParams = {}) => {
-  const qs = Object.keys(dateParams).length
-    ? '?' + Object.entries(dateParams).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&')
-    : ''
-  const res = await apiCallRaw('GET', `/lecturer/analytics/${occId}/export-csv?section=${section}${qs}`)
-  const csvText = await res.text()
-  return saveCsv(csvText, filename)
 }
 
 // ─── Face verification queue (FR-113) ────────────────────────────────────────

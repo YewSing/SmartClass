@@ -21,7 +21,6 @@ import Dashboard from '../screens/Dashboard'
 import Profile from '../screens/Profile'
 import ClassDetail from '../screens/ClassDetail'
 import InteractionControl from '../screens/InteractionControl'
-import InteractionSessions from '../screens/InteractionSessions'
 import AttendanceSessions from '../screens/AttendanceSessions'
 import AttendanceDetail from '../screens/AttendanceDetail'
 import QuizList from '../screens/QuizList'
@@ -99,7 +98,6 @@ function AnalyticsStack() {
 function InteractionStack() {
   return (
     <Stack.Navigator screenOptions={useStackOptions()}>
-      <Stack.Screen name="InteractionSessions" component={InteractionSessions} />
       <Stack.Screen name="InteractionControl" component={InteractionControl} />
     </Stack.Navigator>
   )
@@ -133,7 +131,7 @@ const TAB_ROOTS = {
   Quiz:       'QuizList',
   Assistant:  'LecturerAssistant',
   Analytics:  'AnalyticsScreen',
-  Interaction:'InteractionSessions',
+  Interaction:'InteractionControl',
 }
 
 function MainTabs() {

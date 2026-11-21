@@ -38,9 +38,6 @@ class QuizAttempt(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, server_default="started")
     score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     auto_submitted: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=sa.sql.false())
-    # Set when the attempt was imported from Moodle (mod_quiz attempt id); NULL for
-    # attempts taken in the SmartClass app.
-    moodle_attempt_id: Mapped[Optional[int]] = mapped_column(nullable=True, index=True)
 
     quiz: Mapped["Quiz"] = relationship(foreign_keys=[quiz_id])
     student: Mapped["Student"] = relationship(foreign_keys=[student_id])
