@@ -23,6 +23,21 @@ hit_usage_limit() {
 
 RESUME_NOTE="An earlier round of this task stopped at a Claude usage limit and left its unfinished work uncommitted in this working tree. Before step 2, read git status and git diff. Continue that task from that work instead of starting over, even if plan-shino.md already ticks it. If it is finished, run the remaining steps and commit it."
 
+# The Claude Code CLI: on PATH, else the official installer's ~/.local/bin, else the copy the
+# desktop app bundles (newest version). It must be logged in (run `claude` once and /login).
+if ! command -v claude > /dev/null; then
+  # LOCALAPPDATA is a C:\ path; its colon would split PATH, so convert it for Git Bash.
+  [ -n "${LOCALAPPDATA:-}" ] && command -v cygpath > /dev/null && LOCALAPPDATA=$(cygpath -u "$LOCALAPPDATA")
+  for c in "$HOME/.local/bin/claude.exe" "$HOME/.local/bin/claude" \
+           $(ls -d "${LOCALAPPDATA:-/nonexistent}"/Claude-Data/claude_*/claude-code/*/*/claude.exe 2>/dev/null | sort -V | tail -n 1); do
+    [ -x "$c" ] && { PATH="$(dirname "$c"):$PATH"; export PATH; break; }
+  done
+fi
+command -v claude > /dev/null || { echo "Claude Code CLI not found. Install it, run 'claude' once and log in, then retry."; exit 1; }
+if claude auth status 2>&1 | grep -qiE 'not logged in|"loggedIn": *false'; then
+  echo "Claude Code CLI ($(command -v claude)) is not logged in. Run it once in a terminal and use /login, then retry."; exit 1
+fi
+
 # Only one loop at a time: two runs overwrite each other's files and test database.
 lock=".claude/.loop.lock"
 if [ -f "$lock" ] && kill -0 "$(cat "$lock")" 2>/dev/null; then

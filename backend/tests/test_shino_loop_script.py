@@ -20,6 +20,7 @@ BASH = shutil.which("bash")
 # Each round's behaviour comes from rounds/<n>: everything but its last line is what Claude
 # prints, and a last line of "commit" makes a commit.
 FAKE_CLAUDE = """#!/usr/bin/env bash
+if [ "$1" = auth ]; then echo "{\\"loggedIn\\": ${FAKE_LOGGED_IN:-true}}"; exit 0; fi
 n=$(( $(cat .fake-round 2>/dev/null || echo 0) + 1 )); echo "$n" > .fake-round
 printf '%s\\n' "$*" > ".fake-args-$n"
 sed '$d' "rounds/$n" 2>/dev/null
@@ -137,4 +138,14 @@ def test_does_not_start_while_another_loop_holds_the_shared_lock(loop):
         holder.kill()
     assert result.returncode != 0
     assert "Another loop is already running" in result.stdout
+    assert not (repo / ".fake-round").exists()
+
+
+def test_stops_before_the_backup_when_claude_is_not_logged_in(loop):
+    start, repo, env = loop
+    env["FAKE_LOGGED_IN"] = "false"
+    result = start(("done", True))
+    assert result.returncode != 0
+    assert "not logged in" in result.stdout
+    assert "Backing up" not in result.stdout
     assert not (repo / ".fake-round").exists()
