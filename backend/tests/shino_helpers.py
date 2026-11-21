@@ -178,8 +178,9 @@ async def _drain_push(_db_isolation):
     """Let background Expo pushes (S13) and emails (S14) finish before `_db_isolation` truncates
     the tables."""
     yield
-    from app.services.notifications import mailer, push
+    from app.services.notifications import announcements, mailer, push
 
+    await announcements.drain()   # S17 Moodle posts (they may notify nothing, but touch the DB)
     await push.drain()
     await mailer.drain()
 

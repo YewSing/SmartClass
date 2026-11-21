@@ -129,5 +129,12 @@ class Settings(BaseSettings):
     NOTIFICATION_RETENTION_DAYS: int = 90                   # older notifications are deleted
     NOTIFICATION_RETENTION_INTERVAL_SECONDS: int = 86400    # daily job; <= 0 disables it
 
+    # ── Module 2: lecturer announcements posted to the Moodle news forum (FR-217) ──
+    ANNOUNCEMENT_MOODLE_MAX_ATTEMPTS: int = 5          # then the post is "failed" for good
+    ANNOUNCEMENT_MOODLE_RETRY_BASE_SECONDS: int = 30   # first retry after a failure; doubles each time
+    ANNOUNCEMENT_MOODLE_RETRY_MAX_SECONDS: int = 1800  # backoff cap
+    ANNOUNCEMENT_MOODLE_INTERVAL_SECONDS: int = 30     # retry loop; <= 0 disables it
+    ANNOUNCEMENT_MOODLE_TIMEOUT_SECONDS: float = 15.0
+
 
 settings = Settings()

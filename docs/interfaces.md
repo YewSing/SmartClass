@@ -304,6 +304,26 @@ Nothing is queued or replayed for closed connections: on (re)connect the client 
 - Read: `await moodle_snapshot.get_snapshot(db, user_id)` → `{announcements, deadlines, refreshed_at}`
   or `None` (no successful refresh yet). No endpoint yet (S18 dashboard).
 
+### Lecturer announcements (S17, Shino)
+
+- `POST /lecturer/classes/{occurrence_id}/announcements` `{title, message, post_to_moodle=false}` →
+  201 `AnnouncementOut`. Teaching lecturer only (403 otherwise, also for an unknown class). Title one
+  line, 1–200 chars; message 1–1000 chars, line breaks kept; extra fields → 422.
+- Notifies the class's active enrolled students with `announcement.posted` (important), the
+  lecturer's title/message in full, link `/announcements/{id}`; audit `ANNOUNCEMENT_SEND`.
+- `post_to_moodle`: queued in `m2_announcements` (`moodle_status` `not_requested | pending | posted |
+  failed`). One try in the background after commit, then `announcement_moodle_loop` retries after
+  `ANNOUNCEMENT_MOODLE_RETRY_BASE_SECONDS` (30) doubling up to `..._RETRY_MAX_SECONDS` (1800), at most
+  `ANNOUNCEMENT_MOODLE_MAX_ATTEMPTS` (5) tries, then `failed`. Without `MOODLE_TOKEN` or with
+  `ANNOUNCEMENT_MOODLE_INTERVAL_SECONDS <= 0` the first failure is final.
+- Posted with the **service token** (`mod_forum_add_discussion` to the course's news forum, added to
+  the `smartclass` allowlist in `configure_moodle.php`; real SPeCTRUM needs it too), so Moodle shows
+  the service account as author; the message names the lecturer and ends with the marker
+  `(SmartClass announcement #<id>)`, which a retry looks for first so a lost reply isn't posted twice.
+- `GET /lecturer/classes/{occurrence_id}/announcements` → newest first: `{id, occurrence_id,
+  course_code, title, message, author_name, recipient_count, created_at, moodle: {status, attempts,
+  last_attempt_at, next_try_at, error, discussion_id, link, posted_at}}`.
+
 ### Live channels (until M2)
 
 The apps can also listen on WebSockets directly:

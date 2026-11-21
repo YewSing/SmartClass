@@ -7,8 +7,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.routers import auth, admin_users, admin_students, admin_courses, admin_moodle, admin_devices, device, classes, sessions, attendance, attendance_flags, attendance_stats, audit, face_review, assistant, student_face, face_verification, class_schedule, notifications, push_tokens, notification_preferences
+from app.routers import auth, admin_users, admin_students, admin_courses, admin_moodle, admin_devices, device, classes, sessions, attendance, attendance_flags, attendance_stats, audit, face_review, assistant, student_face, face_verification, class_schedule, notifications, push_tokens, notification_preferences, announcements
 from app.services.attendance_flags import unmatched_face_cleanup_loop
+from app.services.notifications.announcements import announcement_moodle_loop
 from app.services.notifications.retention import retention_loop as notification_retention_loop
 from app.services.attendance_moodle_sync import attendance_moodle_sync_loop
 from app.services.attendance_service import low_attendance_monitor
@@ -41,7 +42,8 @@ async def lifespan(app: FastAPI):
     tasks = [asyncio.create_task(low_attendance_monitor()), asyncio.create_task(kb_sync_loop()),
              asyncio.create_task(moodle_sync_loop()), asyncio.create_task(session_scheduler_loop()),
              asyncio.create_task(attendance_moodle_sync_loop()), asyncio.create_task(unmatched_face_cleanup_loop()),
-             asyncio.create_task(notification_retention_loop())]
+             asyncio.create_task(notification_retention_loop()),
+             asyncio.create_task(announcement_moodle_loop())]
     try:
         yield
     finally:
@@ -95,6 +97,7 @@ app.include_router(face_verification.router)
 app.include_router(notifications.router)
 app.include_router(push_tokens.router)
 app.include_router(notification_preferences.router)
+app.include_router(announcements.router)
 
 # pdf.js for the student app's in-app PDF viewer (FR-809). It's a public library with no course data.
 mimetypes.add_type("text/javascript", ".js")   # Windows can map .js to text/plain, which blocks the worker

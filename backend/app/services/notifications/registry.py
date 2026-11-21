@@ -185,9 +185,10 @@ def build(event: str, payload: dict) -> Rendered | None:
     payload = payload if isinstance(payload, dict) else {}
     title = (render(spec.title, payload) or spec.fallback_title)[:TITLE_MAX]
     message = (render(spec.message, payload) or spec.fallback_message)[:MESSAGE_MAX]
-    if event != "announcement.posted":   # its templates *are* the caller's title/message
-        title = _override(payload, "title", TITLE_MAX) or title
-        message = _override(payload, "message", MESSAGE_MAX) or message
+    # A caller's own title/message keep their full length and line breaks (template slots are
+    # cut to VALUE_MAX single-line text, too short for an announcement body, FR-217).
+    title = _override(payload, "title", TITLE_MAX) or title
+    message = _override(payload, "message", MESSAGE_MAX) or message
     if "link" in payload and payload["link"] is not None:
         link = check_link(payload["link"])
     else:
