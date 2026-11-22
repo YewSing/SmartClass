@@ -4,11 +4,14 @@ from typing import Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.interaction import (
+    CONFUSION_TOPIC_MAX_CHARS,
     POLL_MAX_OPTIONS,
     POLL_MIN_OPTIONS,
     POLL_OPTION_MAX_CHARS,
     POLL_QUESTION_MAX_CHARS,
     QUESTION_MAX_CHARS,
+    QUICK_ANSWER_MAX_CHARS,
+    QUICK_PROMPT_MAX_CHARS,
 )
 
 
@@ -148,3 +151,121 @@ class PollListOut(BaseModel):
     attendance_session_id: int
     status: Literal["open", "closed"]               # effective interaction state
     polls: list[PollOut]
+
+
+# ── quick questions, reactions, confusion (S33, FR-510–FR-515) ──────────────────
+
+class QuickQuestionCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    prompt: str = Field(min_length=1, max_length=QUICK_PROMPT_MAX_CHARS)
+    max_chars: Optional[int] = Field(default=None, ge=1, le=QUICK_ANSWER_MAX_CHARS)  # null = setting
+
+    @field_validator("prompt")
+    @classmethod
+    def _p(cls, v: str) -> str:
+        return _clean(v, "Question")
+
+
+class QuickAnswerIn(BaseModel):
+    """The student's answer; it replaces their earlier one while the quick question is open. The
+    length limit is the quick question's `max_chars` (422 above it)."""
+    model_config = ConfigDict(extra="forbid")
+    text: str = Field(min_length=1, max_length=QUICK_ANSWER_MAX_CHARS)
+
+    @field_validator("text")
+    @classmethod
+    def _t(cls, v: str) -> str:
+        return _clean(v, "Answer")
+
+
+class QuickAnswerOut(BaseModel):
+    """One answer in the lecturer's list. No student identity (anonymous, FR-510)."""
+    id: int
+    text: str
+    created_at: datetime
+
+
+class QuickQuestionOut(BaseModel):
+    """A quick question as one caller sees it: the lecturer gets every answer (no names), a
+    student only their own `my_answer`; `answers`/`answer_count` are null for students."""
+    id: int
+    attendance_session_id: int
+    prompt: str
+    max_chars: int
+    status: Literal["open", "closed"]               # effective: open only while the interaction is
+    answer_count: Optional[int]
+    answers: Optional[list[QuickAnswerOut]]
+    my_answer: Optional[str]
+    created_at: datetime
+    closed_at: Optional[datetime]
+
+
+class QuickQuestionListOut(BaseModel):
+    attendance_session_id: int
+    status: Literal["open", "closed"]
+    quick_questions: list[QuickQuestionOut]
+
+
+ReactionKind = Literal["thumbs_up", "clear", "too_fast", "too_slow"]
+
+
+class ReactionIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: ReactionKind
+
+
+class ReactionAck(BaseModel):
+    """What the student gets back: their reaction and when the next one is allowed."""
+    kind: ReactionKind
+    created_at: datetime
+    next_allowed_at: datetime
+
+
+class ReactionCountsOut(BaseModel):
+    """Running counts for the lecturer (FR-511). No identity."""
+    attendance_session_id: int
+    status: Literal["open", "closed"]
+    counts: dict[str, int]                          # every kind, 0 when none
+    total: int
+
+
+class ConfusionIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    topic: Optional[str] = Field(default=None, max_length=CONFUSION_TOPIC_MAX_CHARS)
+
+    @field_validator("topic")
+    @classmethod
+    def _topic(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        return " ".join(v.split()) or None
+
+
+class ConfusionAck(BaseModel):
+    created_at: datetime
+    next_allowed_at: datetime
+
+
+class ConfusionBucket(BaseModel):
+    start: datetime                                 # bucket start (naive MYT)
+    count: int
+
+
+class ConfusionTopicCount(BaseModel):
+    topic: str
+    count: int
+
+
+class ConfusionOut(BaseModel):
+    """The lecturer's confusion view (FR-512, FR-515): aggregates only, never who pressed."""
+    attendance_session_id: int
+    status: Literal["open", "closed"]
+    total: int                                      # presses this class
+    recent: int                                     # presses within the spike window
+    recent_students: int                            # distinct students within the window
+    class_size: int
+    window_seconds: int
+    spike_active: bool
+    spikes: int                                     # spikes raised this class
+    timeline: list[ConfusionBucket]                 # oldest first, non-empty buckets only
+    topics: list[ConfusionTopicCount]               # most pressed first

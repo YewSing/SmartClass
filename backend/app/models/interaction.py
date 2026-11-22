@@ -138,3 +138,109 @@ class PollVote(Base):
     option_id: Mapped[int] = mapped_column(ForeignKey("m5_poll_options.id", ondelete="CASCADE"), nullable=False)
     student_id: Mapped[int] = mapped_column(ForeignKey("students.id", ondelete="CASCADE"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(nullable=False)
+
+
+QUICK_PROMPT_MAX_CHARS = 300
+QUICK_ANSWER_MAX_CHARS = 500          # hard cap; each quick question sets its own limit up to this
+QUICK_ANSWER_DEFAULT_CHARS = 140
+QUICK_STATUSES = ("open", "closed")
+
+
+class QuickQuestion(Base):
+    """A live quick question with short text answers (FR-510) — S33. Opens when asked, closes
+    when the lecturer closes it. Not graded (FR-513)."""
+    __tablename__ = "m5_quick_questions"
+    __table_args__ = (
+        CheckConstraint("status IN ('open','closed')", name="ck_m5_quick_questions_status"),
+        CheckConstraint(f"char_length(prompt) BETWEEN 1 AND {QUICK_PROMPT_MAX_CHARS}",
+                        name="ck_m5_quick_questions_prompt_length"),
+        CheckConstraint(f"max_chars BETWEEN 1 AND {QUICK_ANSWER_MAX_CHARS}",
+                        name="ck_m5_quick_questions_max_chars"),
+        Index("ix_m5_quick_questions_session", "attendance_session_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    attendance_session_id: Mapped[int] = mapped_column(
+        ForeignKey("attendance_sessions.id", ondelete="CASCADE"), nullable=False)
+    prompt: Mapped[str] = mapped_column(String(QUICK_PROMPT_MAX_CHARS), nullable=False)
+    max_chars: Mapped[int] = mapped_column(nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="open")
+    created_by_user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(nullable=False)        # naive MYT
+    closed_at: Mapped[Optional[datetime]] = mapped_column()
+
+
+class QuickAnswer(Base):
+    """One answer per student per quick question; the student may replace it while it is open."""
+    __tablename__ = "m5_quick_answers"
+    __table_args__ = (
+        UniqueConstraint("quick_question_id", "student_id", name="uq_m5_quick_answers_question_student"),
+        CheckConstraint(f"char_length(text) BETWEEN 1 AND {QUICK_ANSWER_MAX_CHARS}",
+                        name="ck_m5_quick_answers_text_length"),
+        Index("ix_m5_quick_answers_student", "student_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    quick_question_id: Mapped[int] = mapped_column(
+        ForeignKey("m5_quick_questions.id", ondelete="CASCADE"), nullable=False)
+    student_id: Mapped[int] = mapped_column(ForeignKey("students.id", ondelete="CASCADE"), nullable=False)
+    text: Mapped[str] = mapped_column(String(QUICK_ANSWER_MAX_CHARS), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(nullable=False)        # naive MYT, last change
+
+
+REACTION_KINDS = ("thumbs_up", "clear", "too_fast", "too_slow")
+
+
+class Reaction(Base):
+    """A quick reaction (FR-511) — S33. One row per press."""
+    __tablename__ = "m5_reactions"
+    __table_args__ = (
+        CheckConstraint("kind IN ('thumbs_up','clear','too_fast','too_slow')", name="ck_m5_reactions_kind"),
+        Index("ix_m5_reactions_session", "attendance_session_id", "created_at"),
+        Index("ix_m5_reactions_student", "student_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    attendance_session_id: Mapped[int] = mapped_column(
+        ForeignKey("attendance_sessions.id", ondelete="CASCADE"), nullable=False)
+    student_id: Mapped[Optional[int]] = mapped_column(ForeignKey("students.id", ondelete="SET NULL"))
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(nullable=False)        # naive MYT
+
+
+CONFUSION_TOPIC_MAX_CHARS = 60
+
+
+class ConfusionPress(Base):
+    """An "I don't understand" press (FR-512) — S33. `student_id` is kept for cooldowns, spike
+    shares and M7 counts (FR-702); the lecturer's view never carries it (FR-515)."""
+    __tablename__ = "m5_confusion_presses"
+    __table_args__ = (
+        CheckConstraint(f"topic IS NULL OR char_length(topic) BETWEEN 1 AND {CONFUSION_TOPIC_MAX_CHARS}",
+                        name="ck_m5_confusion_presses_topic_length"),
+        Index("ix_m5_confusion_presses_session", "attendance_session_id", "created_at"),
+        Index("ix_m5_confusion_presses_student", "student_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    attendance_session_id: Mapped[int] = mapped_column(
+        ForeignKey("attendance_sessions.id", ondelete="CASCADE"), nullable=False)
+    student_id: Mapped[Optional[int]] = mapped_column(ForeignKey("students.id", ondelete="SET NULL"))
+    topic: Mapped[Optional[str]] = mapped_column(String(CONFUSION_TOPIC_MAX_CHARS))
+    created_at: Mapped[datetime] = mapped_column(nullable=False)        # naive MYT
+
+
+class ConfusionSpike(Base):
+    """One confusion spike (FR-514): opened when the share of the class pressing within the window
+    reaches the threshold; `last_at` moves on while it stays at or above it. A new spike (and a new
+    `confusion.spike` notification) needs a full window below the threshold first."""
+    __tablename__ = "m5_confusion_spikes"
+    __table_args__ = (Index("ix_m5_confusion_spikes_session", "attendance_session_id", "started_at"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    attendance_session_id: Mapped[int] = mapped_column(
+        ForeignKey("attendance_sessions.id", ondelete="CASCADE"), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(nullable=False)        # naive MYT
+    last_at: Mapped[datetime] = mapped_column(nullable=False)           # last press at/above threshold
+    peak_students: Mapped[int] = mapped_column(nullable=False)
+    class_size: Mapped[int] = mapped_column(nullable=False)

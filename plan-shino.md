@@ -68,7 +68,7 @@ Run the loop with `/shino-run-plan [rounds]` (or `bash scripts/shino/run-tasks.s
   Done when: students ask (optionally anonymous), upvote once, list by votes then time; the lecturer marks answered, pins, hides (hide audited, NFR-06); anonymous identity appears in no response, event or audit value. Tests including the anonymity check on every response shape.
 - [x] **S32 [API] Polls (FR-507–FR-509).** Depends on: S30.
   Done when: lecturer creates (2–6 options, single/multiple), starts, closes; students vote once and may change until close; live results to the lecturer; lecturer chooses whether students see results; `poll.started` notification. Tests.
-- [ ] **S33 [API] Quick answers, reactions and confusion (FR-510–FR-512, FR-514, FR-515).** Depends on: S30.
+- [x] **S33 [API] Quick answers, reactions and confusion (FR-510–FR-512, FR-514, FR-515).** Depends on: S30.
   Done when: quick questions with length-limited text answers (lecturer sees the list, anonymous to the class); reactions with a per-student cooldown; "I don't understand" with optional topic tag, configurable cooldown (default 2 min), lecturer sees count and timeline only; `confusion.spike` to the lecturer when presses in the window reach the configured share (defaults 2 min / 25%), once per spike. Tests with the clock monkeypatched.
 - [ ] **S34 [API] Event log and M7 read interface (FR-513, FR-517, FR-713).** Depends on: S31, S32, S33.
   Done when: every interaction event is stored (type, student, session, time); `app/services/interaction_read.py` gives per-student counts (polls answered, questions excluding anonymous ones, reactions, confusion) and class totals (including anonymous questions without identity), documented in `docs/interfaces.md`; nothing is graded. Tests.

@@ -11,6 +11,9 @@ from app.core.database import get_db
 from app.core.deps import require_role
 from app.models.user import User
 from app.schemas.interaction import (
+    ConfusionAck,
+    ConfusionIn,
+    ConfusionOut,
     InteractionSessionOut,
     PollCreate,
     PollListOut,
@@ -21,8 +24,15 @@ from app.schemas.interaction import (
     QuestionListOut,
     QuestionModerate,
     QuestionOut,
+    QuickAnswerIn,
+    QuickQuestionCreate,
+    QuickQuestionListOut,
+    QuickQuestionOut,
+    ReactionAck,
+    ReactionCountsOut,
+    ReactionIn,
 )
-from app.services.interaction import polls, questions, sessions
+from app.services.interaction import polls, questions, quick, sessions, signals
 
 router = APIRouter(tags=["interaction"])
 
@@ -202,3 +212,111 @@ async def vote_poll(
     """A student's vote; it replaces their earlier vote until the poll closes."""
     _, member = await sessions.authorize(db, actor, attendance_session_id)
     return await polls.vote(db, member, attendance_session_id, poll_id, body.option_ids)
+
+
+# ── quick questions (S33, FR-510) ───────────────────────────────────────────────
+
+@router.get("/interaction/{attendance_session_id}/quick-questions", response_model=QuickQuestionListOut)
+async def list_quick_questions(
+    attendance_session_id: int,
+    db: AsyncSession = Depends(get_db),
+    actor: User = Depends(require_role("lecturer", "student")),
+):
+    """Newest first. The lecturer gets every answer (no names); a student only their own."""
+    session, member = await sessions.authorize(db, actor, attendance_session_id)
+    st = await sessions.state(db, session)
+    return QuickQuestionListOut(
+        attendance_session_id=attendance_session_id, status=st.status,
+        quick_questions=await quick.list_quick(db, member, attendance_session_id, interaction_open=st.is_open))
+
+
+@router.post("/lecturer/interaction/{attendance_session_id}/quick-questions",
+             response_model=QuickQuestionOut, status_code=status.HTTP_201_CREATED)
+async def ask_quick_question(
+    attendance_session_id: int,
+    body: QuickQuestionCreate,
+    db: AsyncSession = Depends(get_db),
+    actor: User = Depends(require_role("lecturer")),
+):
+    """Ask a quick question; it takes answers at once, up to `max_chars` characters each."""
+    _, member = await sessions.authorize(db, actor, attendance_session_id)
+    return await quick.ask(db, actor, member, attendance_session_id, body)
+
+
+@router.post("/lecturer/interaction/{attendance_session_id}/quick-questions/{quick_question_id}/close",
+             response_model=QuickQuestionOut)
+async def close_quick_question(
+    attendance_session_id: int,
+    quick_question_id: int,
+    db: AsyncSession = Depends(get_db),
+    actor: User = Depends(require_role("lecturer")),
+):
+    """Stop taking answers (idempotent)."""
+    _, member = await sessions.authorize(db, actor, attendance_session_id)
+    return await quick.close(db, member, attendance_session_id, quick_question_id)
+
+
+@router.post("/interaction/{attendance_session_id}/quick-questions/{quick_question_id}/answer",
+             response_model=QuickQuestionOut)
+async def answer_quick_question(
+    attendance_session_id: int,
+    quick_question_id: int,
+    body: QuickAnswerIn,
+    db: AsyncSession = Depends(get_db),
+    actor: User = Depends(require_role("lecturer", "student")),
+):
+    """A student's short answer; it replaces their earlier one while the question is open."""
+    _, member = await sessions.authorize(db, actor, attendance_session_id)
+    return await quick.answer(db, member, attendance_session_id, quick_question_id, body.text)
+
+
+# ── reactions and "I don't understand" (S33, FR-511, FR-512, FR-514, FR-515) ─────
+
+@router.post("/interaction/{attendance_session_id}/reactions", response_model=ReactionAck,
+             status_code=status.HTTP_201_CREATED)
+async def send_reaction(
+    attendance_session_id: int,
+    body: ReactionIn,
+    db: AsyncSession = Depends(get_db),
+    actor: User = Depends(require_role("lecturer", "student")),
+):
+    """A student's quick reaction (429 with Retry-After during the cooldown)."""
+    _, member = await sessions.authorize(db, actor, attendance_session_id)
+    return await signals.react(db, member, attendance_session_id, body.kind)
+
+
+@router.get("/lecturer/interaction/{attendance_session_id}/reactions", response_model=ReactionCountsOut)
+async def reaction_counts(
+    attendance_session_id: int,
+    db: AsyncSession = Depends(get_db),
+    actor: User = Depends(require_role("lecturer")),
+):
+    """Running counts per reaction kind."""
+    session, member = await sessions.authorize(db, actor, attendance_session_id)
+    st = await sessions.state(db, session)
+    return await signals.reaction_counts(db, member, attendance_session_id, st.status)
+
+
+@router.post("/interaction/{attendance_session_id}/confusion", response_model=ConfusionAck,
+             status_code=status.HTTP_201_CREATED)
+async def press_confusion(
+    attendance_session_id: int,
+    body: ConfusionIn,
+    db: AsyncSession = Depends(get_db),
+    actor: User = Depends(require_role("lecturer", "student")),
+):
+    """"I don't understand", optionally with a topic (429 with Retry-After during the cooldown)."""
+    _, member = await sessions.authorize(db, actor, attendance_session_id)
+    return await signals.press(db, member, attendance_session_id, body.topic)
+
+
+@router.get("/lecturer/interaction/{attendance_session_id}/confusion", response_model=ConfusionOut)
+async def confusion_view(
+    attendance_session_id: int,
+    db: AsyncSession = Depends(get_db),
+    actor: User = Depends(require_role("lecturer")),
+):
+    """Count, recent count, timeline and topics; never who pressed."""
+    session, member = await sessions.authorize(db, actor, attendance_session_id)
+    st = await sessions.state(db, session)
+    return await signals.confusion_view(db, member, session, st.status)

@@ -138,6 +138,13 @@ class Settings(BaseSettings):
 
     # ── Module 5: classroom interaction (FR-501) ─────────────────────────────
     INTERACTION_SWEEP_SECONDS: int = 10   # closes interactions of ended classes; <= 0 disables it
+    # S33 (FR-510–FR-514)
+    INTERACTION_QUICK_ANSWER_DEFAULT_CHARS: int = 140     # a quick question's answer limit unless set
+    INTERACTION_REACTION_COOLDOWN_SECONDS: int = 5        # one reaction per student per this many s
+    INTERACTION_CONFUSION_COOLDOWN_SECONDS: int = 120     # one "I don't understand" per student (FR-512)
+    INTERACTION_CONFUSION_WINDOW_SECONDS: int = 120       # spike window (FR-514)
+    INTERACTION_CONFUSION_SPIKE_SHARE: float = 0.25       # share of the class pressing in the window
+    INTERACTION_CONFUSION_BUCKET_SECONDS: int = 60        # timeline bucket for the lecturer
 
 
 settings = Settings()

@@ -440,3 +440,38 @@ and `m5_poll_votes` (one row per chosen option; a student's vote is replaced as 
   closed poll → 409).
 - Every write calls `require_open` (409 when the interaction is closed). No events yet (S34 event
   log, S35 websocket for live results).
+
+### Quick questions, reactions and confusion (S33, FR-510–FR-515)
+
+Tables `m5_quick_questions` (session, prompt ≤ 300, max_chars 1–500, status open|closed,
+created_by, created/closed times), `m5_quick_answers` (one per student per quick question, text ≤
+max_chars, replaced while open), `m5_reactions` (session, student, kind, time),
+`m5_confusion_presses` (session, student, optional topic ≤ 60, time) and `m5_confusion_spikes`
+(session, started_at, last_at, peak_students, class_size). Student ids are stored for M7 (S34) but
+never returned.
+
+- Quick questions: `GET /interaction/{id}/quick-questions` → `{attendance_session_id, status,
+  quick_questions: [{id, attendance_session_id, prompt, max_chars, status, answer_count, answers:
+  [{id, text, created_at}], my_answer, created_at, closed_at}]}`, newest first. The lecturer gets
+  every answer with no names; students get `answers`/`answer_count` = null and only their own
+  `my_answer`. Lecturer: `POST /lecturer/interaction/{id}/quick-questions {prompt, max_chars?}`
+  (201, open at once; default `INTERACTION_QUICK_ANSWER_DEFAULT_CHARS` = 140), `POST
+  .../quick-questions/{qid}/close` (idempotent). Student: `POST
+  /interaction/{id}/quick-questions/{qid}/answer {text}` (over max_chars → 422, closed → 409).
+- Reactions: student `POST /interaction/{id}/reactions {kind: thumbs_up|clear|too_fast|too_slow}`
+  → 201 `{kind, created_at, next_allowed_at}`; one per `INTERACTION_REACTION_COOLDOWN_SECONDS` (5)
+  per student, else 429 with `Retry-After`. Lecturer `GET /lecturer/interaction/{id}/reactions` →
+  `{attendance_session_id, status, counts: {kind: n}, total}`.
+- Confusion: student `POST /interaction/{id}/confusion {topic?}` → 201 `{created_at,
+  next_allowed_at}`; one per `INTERACTION_CONFUSION_COOLDOWN_SECONDS` (120) per student, else 429
+  with `Retry-After`. Lecturer `GET /lecturer/interaction/{id}/confusion` → `{attendance_session_id,
+  status, total, recent, recent_students, class_size, window_seconds, spike_active, spikes, timeline:
+  [{start, count}], topics: [{topic, count}]}` (aggregates only, FR-515; buckets of
+  `INTERACTION_CONFUSION_BUCKET_SECONDS` = 60).
+- Spike (FR-514): after each press, if the distinct students pressing in the last
+  `INTERACTION_CONFUSION_WINDOW_SECONDS` (120) reach `ceil(INTERACTION_CONFUSION_SPIKE_SHARE` (0.25)
+  `× active enrolled students)`, a spike starts and `confusion.spike` (urgent, subject
+  `spike:{session}:{spike_id}`) goes to the class session's lecturer after commit. Presses at/above
+  the threshold within a window of the spike's `last_at` extend it (no new notification); a new spike
+  needs a whole window without one. Presses are serialised per class session.
+- Every write calls `require_open` (409 when the interaction is closed); the GETs work after class.
