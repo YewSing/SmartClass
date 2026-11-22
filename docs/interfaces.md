@@ -373,3 +373,28 @@ The apps can also listen on WebSockets directly:
 - Students: `/ws/me?token=<access JWT>` — the student's own events (`connected`,
   `attendance_recorded`, `attendance_flag_resolved`). Only an active student may connect; anyone
   else is closed with code 1008.
+
+## Module 5 — Classroom interaction session (S30, Shino)
+
+Keyed to M3's class session (`attendance_session_id`); M5 never opens, extends or closes it and no
+M3 code calls M5. Table `m5_interaction_sessions` (one row per class session: `status` open|closed,
+`closed_reason` lecturer|class_ended, opened/closed times).
+
+- **Effective state:** open only while the class session is `open` and the lecturer hasn't closed
+  it early. A running class with no row counts as open (default on). `scheduled` → closed
+  `not_started`; `closed`/`needs_confirmation`/`cancelled` → closed `class_ended` at once.
+- `GET /interaction/{attendance_session_id}` (lecturer or student) → `{attendance_session_id,
+  occurrence_id, course_code, course_name, class_status, status, closed_reason, opened_at,
+  closed_at, role}`. Joining a running class creates its row.
+- `POST /lecturer/interaction/{id}/close` (early close, class keeps running; idempotent; audited
+  `INTERACTION_CLOSED`) and `POST /lecturer/interaction/{id}/open` (reopen; 409 once the class isn't
+  open; audited `INTERACTION_OPENED`). Same response.
+- **Access:** the lecturer assigned to the class (or, for a session without a class, the lecturer
+  who ran it) and active students enrolled in it; anyone else and unknown ids → 403.
+- **Writes (S31–S33):** call `app.services.interaction.sessions.require_open(db, id)` first. It
+  share-locks the class session row and the interaction row for the transaction (M3's close and the
+  lecturer's close wait for the write) and raises 409 `Interaction is closed`.
+- **Sweep:** `interaction_sweep_loop` (main.py) every `INTERACTION_SWEEP_SECONDS` (default 10; ≤ 0
+  off) marks rows of ended classes `closed/class_ended`; `sessions.on_closed` listeners
+  (`async (attendance_session_id)`) run after the commit of a sweep or a lecturer close (S35 sends
+  the websocket `closed` event from there).

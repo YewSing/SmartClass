@@ -7,9 +7,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.routers import auth, admin_users, admin_students, admin_courses, admin_moodle, admin_devices, device, classes, sessions, attendance, attendance_flags, attendance_stats, audit, face_review, assistant, student_face, face_verification, class_schedule, notifications, push_tokens, notification_preferences, announcements, dashboard
+from app.routers import auth, admin_users, admin_students, admin_courses, admin_moodle, admin_devices, device, classes, sessions, attendance, attendance_flags, attendance_stats, audit, face_review, assistant, student_face, face_verification, class_schedule, notifications, push_tokens, notification_preferences, announcements, dashboard, interaction
 from app.services.attendance_flags import unmatched_face_cleanup_loop
 from app.services.notifications.announcements import announcement_moodle_loop
+from app.services.interaction.sessions import interaction_sweep_loop
 from app.services.notifications.retention import retention_loop as notification_retention_loop
 from app.services.attendance_moodle_sync import attendance_moodle_sync_loop
 from app.services.attendance_service import low_attendance_monitor
@@ -43,7 +44,8 @@ async def lifespan(app: FastAPI):
              asyncio.create_task(moodle_sync_loop()), asyncio.create_task(session_scheduler_loop()),
              asyncio.create_task(attendance_moodle_sync_loop()), asyncio.create_task(unmatched_face_cleanup_loop()),
              asyncio.create_task(notification_retention_loop()),
-             asyncio.create_task(announcement_moodle_loop())]
+             asyncio.create_task(announcement_moodle_loop()),
+             asyncio.create_task(interaction_sweep_loop())]
     try:
         yield
     finally:
@@ -99,6 +101,7 @@ app.include_router(push_tokens.router)
 app.include_router(notification_preferences.router)
 app.include_router(announcements.router)
 app.include_router(dashboard.router)
+app.include_router(interaction.router)
 
 # pdf.js for the student app's in-app PDF viewer (FR-809). It's a public library with no course data.
 mimetypes.add_type("text/javascript", ".js")   # Windows can map .js to text/plain, which blocks the worker

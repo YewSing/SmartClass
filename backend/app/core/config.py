@@ -136,5 +136,8 @@ class Settings(BaseSettings):
     ANNOUNCEMENT_MOODLE_INTERVAL_SECONDS: int = 30     # retry loop; <= 0 disables it
     ANNOUNCEMENT_MOODLE_TIMEOUT_SECONDS: float = 15.0
 
+    # ── Module 5: classroom interaction (FR-501) ─────────────────────────────
+    INTERACTION_SWEEP_SECONDS: int = 10   # closes interactions of ended classes; <= 0 disables it
+
 
 settings = Settings()
