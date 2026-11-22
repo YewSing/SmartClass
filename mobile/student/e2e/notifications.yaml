@@ -1,0 +1,94 @@
+# Student notification centre (plan-shino.md S19; FR-208, FR-209, FR-213, FR-214): the bell shows
+# the unread count, opening a notification marks it read and follows its link, "Mark all as read"
+# clears the count, a new notification then arrives live over the websocket, and the general push
+# switch saves.
+# Run: bash scripts/e2e-mobile.sh student notifications
+# Needs the local Moodle up (student4 signs in) and student4 already in SmartClass.
+# notifications.setup.sh seeds the notifications and starts the actor (sends one after "Mark all").
+appId: host.exp.exponent
+---
+- extendedWaitUntil:
+    visible: "Welcome back|Continue"
+    timeout: 180000
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+- extendedWaitUntil:
+    visible: "Welcome back"
+    timeout: 60000
+
+- tapOn:
+    id: "login-username"
+- inputText: "student4"
+- tapOn:
+    id: "login-password"
+- inputText: "Student123!"
+- hideKeyboard
+- tapOn: "Sign In"
+
+# The bell on Home shows the three unread
+- extendedWaitUntil:
+    visible:
+      id: "notif-bell-count"
+      text: "3"
+    timeout: 60000
+- takeScreenshot: notif-home-bell
+- tapOn:
+    id: "notif-bell"
+- extendedWaitUntil:
+    visible: "3 unread"
+    timeout: 30000
+- assertVisible: "E2E urgent notice"
+- assertVisible: "Urgent"
+- assertVisible: "Important"
+- takeScreenshot: notif-feed
+
+# Opening one without a link marks it read
+- tapOn: "E2E general update"
+- extendedWaitUntil:
+    visible: "2 unread"
+    timeout: 20000
+
+# Its link opens face enrolment; Back returns through Profile to the feed
+- tapOn: "E2E room change"
+- extendedWaitUntil:
+    visible: "Face enrolment"
+    timeout: 20000
+- tapOn: "Home"
+- extendedWaitUntil:
+    visible: "1 unread"
+    timeout: 20000
+
+# Mark all read, then the actor's test notification arrives live (no refresh)
+- tapOn:
+    id: "notif-mark-all"
+- extendedWaitUntil:
+    visible: "All caught up"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: "Test notification"
+    timeout: 60000
+- assertVisible: "1 unread"
+- takeScreenshot: notif-live
+
+# Preferences: general push on, saved
+- tapOn:
+    id: "notif-prefs"
+- extendedWaitUntil:
+    visible: "Notification settings"
+    timeout: 20000
+- tapOn:
+    id: "prefs-push-general"
+- extendedWaitUntil:
+    visible: "Preferences saved"
+    timeout: 20000
+- takeScreenshot: notif-prefs
+- back
+- back
+- extendedWaitUntil:
+    visible:
+      id: "notif-bell-count"
+      text: "1"
+    timeout: 20000

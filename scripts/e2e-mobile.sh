@@ -159,8 +159,8 @@ echo "== starting backend on :$API_PORT (LLM_FAKE=${E2E_LLM_FAKE:-1})"
 (cd "$root/backend" && docker compose up -d >/dev/null 2>&1) || echo "   (docker compose up failed; continuing)"
 # The schedule job and the Moodle Attendance sync are off: flows start classes themselves, and test
 # sessions must never be written into Moodle. YouTube is off too (no key), so "Find related videos"
-# shows search keywords instead of calling the real API.
-(cd "$root/backend" && LLM_FAKE="${E2E_LLM_FAKE:-1}" YOUTUBE_API_KEY="" SESSION_SCHEDULER_INTERVAL_SECONDS=0 \
+# shows search keywords instead of calling the real API. Notifications are never emailed or pushed.
+(cd "$root/backend" && LLM_FAKE="${E2E_LLM_FAKE:-1}" YOUTUBE_API_KEY="" SMTP_HOST="" PUSH_ENABLED=0 SESSION_SCHEDULER_INTERVAL_SECONDS=0 \
   MOODLE_ATTENDANCE_SYNC_INTERVAL_SECONDS=0 MOODLE_ATTENDANCE_CHECK_INTERVAL_SECONDS=0 exec python -m uvicorn app.main:app --host 0.0.0.0 --port "$API_PORT") \
   > "$logdir/e2e-backend-$stamp.log" 2>&1 &
 started_pids+=($!)

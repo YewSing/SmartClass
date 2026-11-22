@@ -25,6 +25,8 @@ import AttendanceDetail from '../screens/AttendanceDetail'
 import AnalyticsHome from '../screens/AnalyticsHome'
 import ComingSoon from '../components/ComingSoon'
 import FaceVerification from '../screens/FaceVerification'
+import Notifications from '../screens/Notifications'
+import NotificationPrefs from '../screens/NotificationPrefs'
 import AdminAccounts from '../screens/AdminAccounts'
 import AdminAudit from '../screens/AdminAudit'
 import AdminMoodleSync from '../screens/AdminMoodleSync'
@@ -56,6 +58,8 @@ function HomeStack() {
       <Stack.Screen name="ClassDetail" component={ClassDetail} />
       <Stack.Screen name="AttendanceDetail" component={AttendanceDetail} />
       <Stack.Screen name="FaceVerification" component={FaceVerification} />
+      <Stack.Screen name="Notifications" component={Notifications} />
+      <Stack.Screen name="NotificationPrefs" component={NotificationPrefs} />
     </Stack.Navigator>
   )
 }

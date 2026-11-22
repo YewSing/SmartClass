@@ -13,6 +13,8 @@ import { C } from '../theme'
 // ─── Screens ──────────────────────────────────────────────────────────────────
 import Login from '../screens/Login'
 import Home from '../screens/Home'
+import Notifications from '../screens/Notifications'
+import NotificationPrefs from '../screens/NotificationPrefs'
 import Attendance from '../screens/Attendance'
 import AttSessionDetail from '../screens/AttSessionDetail'
 import AttReportStatus from '../screens/AttReportStatus'
@@ -35,6 +37,8 @@ function HomeStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="HomeScreen" component={Home} />
+      <Stack.Screen name="Notifications" component={Notifications} />
+      <Stack.Screen name="NotificationPrefs" component={NotificationPrefs} />
     </Stack.Navigator>
   )
 }

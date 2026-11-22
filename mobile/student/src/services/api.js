@@ -1,6 +1,10 @@
-import { apiCall, apiUpload, setToken, clearToken, setRefreshToken, clearRefreshToken } from './client'
+import {
+  apiCall, apiUpload, setToken, clearToken, setRefreshToken, clearRefreshToken, getToken, getRefreshToken,
+} from './client'
 import { enrolmentParts } from './faceEnrolment'
 import { toCourseView } from './attendance'
+import { registerPush, unregisterPush } from './pushRegistration'
+import { pushEnv } from './pushDevice'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -48,7 +52,37 @@ export const getStudent = async () => {
 }
 
 
-export const logout = async () => { clearToken(); clearRefreshToken() }
+// The phone's push token is removed first, while the request can still sign in (FR-212). After an
+// expired session there is no token left: the DELETE is skipped (its 401 would sign out again) and
+// the phone keeps the push token, so the next sign-in here registers it for whoever signs in.
+export const logout = async () => {
+  if (getToken() || getRefreshToken()) {
+    await unregisterPush({ store: pushEnv.store, deleteToken: deletePushToken })
+  }
+  clearToken(); clearRefreshToken()
+}
+
+// ─── Notifications (Module 2: FR-208–FR-214) ──────────────────────────────────
+
+export const getNotifications = (cursor = null, limit = 20) =>
+  apiCall('GET', `/notifications?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`)
+
+export const markNotificationRead = (id) => apiCall('POST', `/notifications/${id}/read`)
+
+export const markAllNotificationsRead = () => apiCall('POST', '/notifications/read-all')
+
+export const sendTestNotification = () => apiCall('POST', '/notifications/test')
+
+export const getNotificationPrefs = () => apiCall('GET', '/me/notification-preferences')
+
+export const updateNotificationPrefs = (body) => apiCall('PUT', '/me/notification-preferences', body)
+
+export const registerPushToken = (token, platform) => apiCall('POST', '/me/push-tokens', { token, platform })
+
+export const deletePushToken = (token) => apiCall('DELETE', `/me/push-tokens/${encodeURIComponent(token)}`)
+
+// After sign-in: register this phone for push (never throws; skipped where push can't work)
+export const registerForPush = () => registerPush({ ...pushEnv, sendToken: registerPushToken })
 
 // ─── Classes ──────────────────────────────────────────────────────────────────
 

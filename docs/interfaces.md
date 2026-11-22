@@ -212,6 +212,7 @@ call `emit` after your commit (an `after_commit` callback). The event registry i
 | `at_risk.alert` | important | `alert_id`, `course_id`, `course_code` | `alert_id` | 30 d |
 | `moodle.deadline_reminder` | important | `moodle_event_id`, `title`, `course_code`, `remaining`, `reminder` | event + `reminder` | 3 d |
 | `announcement.posted` | important | `announcement_id`, `title`, `message` | `announcement_id` | 24 h |
+| `notification.test` | important | — (S19 test button) | fixed `test` | 1 min |
 
 ### Notification feed API (S11, Shino)
 
@@ -224,6 +225,16 @@ else's (or a missing) id → 404. Item: `{id, event, priority, title, message, l
 | `GET /notifications/priority` | `{items, unread_count}`: unread urgent first, then important, newest first within each, at most 50 (FR-208) |
 | `POST /notifications/{id}/read` | `{notification, unread_count}`; idempotent, keeps the first `read_at` |
 | `POST /notifications/read-all` | `{marked, unread_count}` |
+| `POST /notifications/test` | `{sent}` (S19): sends the caller a `notification.test` (important, no link) that goes out like a real one (feed, live, push, email); `sent: false` when one was sent in the last minute |
+
+**Apps (S19).** Both apps show a bell with `unread_count` on Home/Dashboard, a feed screen and a
+preferences screen. They keep one `WS /notifications/ws` open while signed in and re-read the first
+page on every `connected`. Links they open: student `/attendance/sessions/{id}`, `/profile/face`,
+`/home`; lecturer `/attendance/sessions/{id}`, `/face-verification`, `/analytics/courses/{id}`,
+`/home`. Other links (quizzes, games, interaction, announcements) open nothing yet; the feed item
+shows the full text. The phone apps register the Expo push token after sign-in (`POST
+/me/push-tokens`) and delete it on sign-out, in development/store builds with an EAS `projectId`
+only (Expo Go on Android has no remote push since SDK 53; the browser never registers).
 
 ### Live notifications (S12, Shino)
 

@@ -7,6 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useStudent } from '../context/StudentContext'
 import Badge from '../components/Badge'
+import NotificationBell from '../components/NotificationBell'
 import { C } from '../theme'
 
 function greeting() {
@@ -17,7 +18,7 @@ function greeting() {
 }
 
 export default function Home({ navigation }) {
-  const { state, loadClasses } = useStudent()
+  const { state, loadClasses, feed } = useStudent()
   const { classes, student } = state
   const insets = useSafeAreaInsets()
 
@@ -44,7 +45,10 @@ export default function Home({ navigation }) {
           end={{ x: 1, y: 1 }}
           style={[styles.banner, { paddingTop: insets.top + 20 }]}
         >
-          <Text style={styles.greetingText}>{greeting()}</Text>
+          <View style={styles.bannerTop}>
+            <Text style={styles.greetingText}>{greeting()}</Text>
+            <NotificationBell light count={feed.unread} onPress={() => navigation.navigate('Notifications')} />
+          </View>
           <Text style={styles.greetingName}>{student?.name ?? '—'}</Text>
           <Text style={styles.greetingSub}>
             {classes.length > 0
@@ -103,6 +107,11 @@ const styles = StyleSheet.create({
   banner: {
     paddingHorizontal: 20,
     paddingBottom: 28,
+  },
+  bannerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   greetingText: {
     fontSize: 14,

@@ -111,6 +111,12 @@ EVENTS: dict[str, EventSpec] = {
         "important", "{title}", "{message}",
         "Announcement", "Your lecturer posted an announcement.",
         "/announcements/{announcement_id}", "announcement:{announcement_id}"),
+    # S19: "Send a test notification" in the apps' preferences (checks push/email on a device).
+    # Important so it is pushed and emailed like a real one; one per minute per user.
+    "notification.test": _spec(
+        "important", "Test notification", "Notifications are working on this account.",
+        "Test notification", "Notifications are working on this account.",
+        None, "test", timedelta(minutes=1)),
 }
 
 _FORMATTER = string.Formatter()

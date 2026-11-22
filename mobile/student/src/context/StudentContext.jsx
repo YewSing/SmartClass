@@ -4,6 +4,10 @@ import * as api from '../services/api'
 import { onAuthExpired, getToken, refreshAccessToken, BASE } from '../services/client'
 import { connectStudentLive } from '../services/live'
 import { recordedBannerText } from '../services/attendance'
+import { connectNotificationsLive } from '../services/notificationsLive'
+import { feedReducer, initialFeed, linkTarget, courseForSession } from '../services/notifications'
+import { onPushTapped } from '../services/pushDevice'
+import { navigateTo } from '../navigation/navigationRef'
 
 const StudentContext = createContext(null)
 
@@ -66,6 +70,8 @@ function reducer(state, action) {
 
 export function StudentProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState)
+  // The notification centre (S19): feed, unread count (the bell), live over /notifications/ws
+  const [feed, feedDispatch] = useReducer(feedReducer, initialFeed)
 
   const openModal  = useCallback((type, data) => dispatch({ type: 'OPEN_MODAL', payload: { type, data } }), [])
   const closeModal = useCallback(() => dispatch({ type: 'CLOSE_MODAL' }), [])
@@ -79,6 +85,7 @@ export function StudentProvider({ children }) {
       const student = await api.getStudent()
       dispatch({ type: 'SET_STUDENT', payload: student })
       dispatch({ type: 'LOGIN' })
+      api.registerForPush()          // in the background; a phone without push still works in-app
     } catch (e) {
       dispatch({ type: 'SET_ERROR', payload: e.message })
       throw e
@@ -88,6 +95,7 @@ export function StudentProvider({ children }) {
   const logout = useCallback(async () => {
     await api.logout()
     dispatch({ type: 'LOGOUT' })
+    feedDispatch({ type: 'reset' })
   }, [])
 
   // Listen for auth expiry from client.js
@@ -95,9 +103,107 @@ export function StudentProvider({ children }) {
     const cleanup = onAuthExpired(() => {
       api.logout()
       dispatch({ type: 'LOGOUT' })
+      feedDispatch({ type: 'reset' })
     })
     return cleanup
   }, [])
+
+  // ─── Notifications (FR-208, FR-209, FR-213) ────────────────────────────────
+
+  const loadNotifications = useCallback(async ({ more = false } = {}) => {
+    try {
+      const page = await api.getNotifications(more ? feedRef.current.nextCursor : null)
+      feedDispatch({ type: 'page', page, append: more })
+      return true
+    } catch (e) {
+      showToast(e.message, 'error')
+      return false
+    }
+  }, [showToast])
+
+  const markNotificationRead = useCallback(async (n) => {
+    if (n.read) return
+    try {
+      const r = await api.markNotificationRead(n.id)
+      feedDispatch({ type: 'read', notification: r.notification, unread: r.unread_count })
+    } catch (e) { showToast(e.message, 'error') }
+  }, [showToast])
+
+  const markAllNotificationsRead = useCallback(async () => {
+    try {
+      const r = await api.markAllNotificationsRead()
+      feedDispatch({ type: 'read_all', unread: r.unread_count })
+    } catch (e) { showToast(e.message, 'error') }
+  }, [showToast])
+
+  // A notification's link (feed tap or push tap) → its screen; false when there is none yet
+  const openNotificationLink = useCallback(async (link) => {
+    const target = linkTarget(link)
+    if (!target) return false
+    if (target.kind === 'screen') {
+      // initial: false keeps the tab's main page under it, so Back returns there
+      navigateTo(target.tab, { screen: target.screen, initial: target.screen === 'HomeScreen' })
+      return true
+    }
+    // An attendance session: its screen needs the course it belongs to
+    let courses = stateRef.current.attendanceCourses
+    let course = courseForSession(courses, target.sessionId)
+    if (!course) {
+      try {
+        courses = await api.getAttendanceCourses()
+        dispatch({ type: 'SET_ATTENDANCE_COURSES', payload: courses })
+        course = courseForSession(courses, target.sessionId)
+      } catch (e) { showToast(e.message, 'error'); return false }
+    }
+    if (!course) { navigateTo('Attendance', { screen: 'AttendanceScreen' }); return true }
+    navigateTo('Attendance', {
+      screen: 'AttSessionDetail', params: { courseId: course.id, sessionId: target.sessionId },
+      initial: false,
+    })
+    return true
+  }, [showToast])
+
+  const feedRef = useRef(feed)
+  feedRef.current = feed
+  const stateRef = useRef(state)
+  stateRef.current = state
+
+  // Live: every (re)connect re-reads the first page, since nothing is replayed (S12). Phones drop
+  // sockets in the background, so a return to the app reconnects.
+  useEffect(() => {
+    if (!state.isLoggedIn) return undefined
+    let active = true            // a reply that lands after sign-out must not refill the feed
+    const onMessage = (m) => {
+      if (!active) return
+      if (m.type === 'connected') {
+        feedDispatch({ type: 'count', unread: m.unread_count })
+        api.getNotifications().then(page => { if (active) feedDispatch({ type: 'page', page }) }).catch(() => {})
+      } else if (m.type === 'notification' && m.notification) {
+        feedDispatch({ type: 'live', notification: m.notification, unread: m.unread_count })
+      } else if (m.type === 'unread_count') {
+        feedDispatch({ type: 'count', unread: m.unread_count })
+      }
+    }
+    const connect = () => connectNotificationsLive({
+      baseUrl: BASE, getToken, refreshToken: refreshAccessToken, onMessage,
+    })
+    let live = connect()
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next !== 'active') return
+      live.close()
+      live = connect()
+    })
+    const unTap = onPushTapped((link) => { openLinkRef.current?.(link) })
+    return () => {
+      active = false
+      sub?.remove?.()
+      live.close()
+      unTap()
+    }
+  }, [state.isLoggedIn])
+
+  const openLinkRef = useRef(openNotificationLink)
+  openLinkRef.current = openNotificationLink
 
   const loadClasses = useCallback(async () => {
     try {
@@ -196,6 +302,11 @@ export function StudentProvider({ children }) {
     loadFlag,
     sendFlag,
     dismissBanner,
+    feed,
+    loadNotifications,
+    markNotificationRead,
+    markAllNotificationsRead,
+    openNotificationLink,
   }
 
   return (

@@ -14,8 +14,8 @@ from app.core.database import AsyncSessionLocal, after_commit, get_db
 from app.core.deps import get_current_user
 from app.core.security import decode_token
 from app.models.user import User
-from app.schemas.notification import FeedOut, PriorityOut, ReadAllOut, ReadOut
-from app.services.notifications import feed, live
+from app.schemas.notification import FeedOut, PriorityOut, ReadAllOut, ReadOut, TestSendOut
+from app.services.notifications import feed, live, store
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
@@ -63,6 +63,14 @@ async def read_all(
     if marked:
         _announce_count(db, actor.id)
     return ReadAllOut(marked=marked, unread_count=await feed.unread_count(db, actor.id))
+
+
+@router.post("/test", response_model=TestSendOut)
+async def send_test(actor: User = Depends(get_current_user)):
+    """Send the caller a test notification (S19): it arrives like a real important one (feed, live,
+    push, email), so a user can check a device. At most one per minute (the event's window)."""
+    ids = await store.deliver("notification.test", [actor.id], {})
+    return TestSendOut(sent=bool(ids))
 
 
 @router.post("/{notification_id}/read", response_model=ReadOut)

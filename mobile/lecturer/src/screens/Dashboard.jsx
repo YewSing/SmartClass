@@ -8,6 +8,7 @@ import { useFocusEffect } from '@react-navigation/native'
 import { useLecturer } from '../context/LecturerContext'
 import Badge from '../components/Badge'
 import AttendanceCounts from '../components/AttendanceCounts'
+import NotificationBell from '../components/NotificationBell'
 import * as api from '../services/api'
 import { sessionCounts } from '../services/attendance'
 import { pendingLabel } from '../services/faceReview'
@@ -47,7 +48,7 @@ function nextLabel(c) {
 
 export default function Dashboard({ navigation }) {
   const {
-    state, loadClasses, loadAllClasses, loadSessions, doOpenSession, selectSession,
+    state, loadClasses, loadAllClasses, loadSessions, doOpenSession, selectSession, feed,
   } = useLecturer()
   const { sessions, classes, allClasses, lecturer } = state
   const insets = useSafeAreaInsets()
@@ -140,9 +141,12 @@ export default function Dashboard({ navigation }) {
           </View>
           <Text style={styles.brandName}>SmartClass</Text>
         </View>
-        <TouchableOpacity style={styles.profileBtn} accessibilityLabel="Profile" onPress={() => navigation.navigate('Profile')}>
-          <Text style={styles.profileInitials}>{lecturer?.initials ?? 'ME'}</Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <NotificationBell count={feed.unread} onPress={() => navigation.navigate('Notifications')} />
+          <TouchableOpacity style={styles.profileBtn} accessibilityLabel="Profile" onPress={() => navigation.navigate('Profile')}>
+            <Text style={styles.profileInitials}>{lecturer?.initials ?? 'ME'}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Dash header card */}
@@ -353,6 +357,11 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: C.text,
     letterSpacing: -0.3,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   profileBtn: {
     width: 36,

@@ -13,7 +13,8 @@
         "cameraPermission": "SmartClass uses the camera to take your selfies and matric card photo for face enrolment.",
         "microphonePermission": false,
         "recordAudioAndroid": false
-      }]
+      }],
+      "expo-notifications"
     ]
   }
 }

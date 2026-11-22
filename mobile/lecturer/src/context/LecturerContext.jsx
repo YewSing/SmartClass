@@ -1,8 +1,18 @@
 import { createContext, useContext, useReducer, useCallback, useEffect, useRef } from 'react'
+import { AppState, Platform } from 'react-native'
 import * as api from '../services/api'
 import { getToken, getRefreshToken, onAuthExpired, BASE } from '../services/client'
 import { restoreSession } from '../services/session'
 import { hhmm, statusLabel, followsLive, flagAlertText, upsertFlag } from '../services/attendance'
+import { connectNotificationsLive } from '../services/notificationsLive'
+import { feedReducer, initialFeed, linkTarget, findSessionById } from '../services/notifications'
+import { onPushTapped } from '../services/pushDevice'
+import { navigateTo } from '../navigation/navigationRef'
+
+// A refused websocket token (1008): any API call refreshes an expired access token on its 401
+async function refreshViaApi() {
+  try { await api.getLecturer(); return true } catch { return false }
+}
 
 const LecturerContext = createContext(null)
 
@@ -123,6 +133,12 @@ export function LecturerProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState,
     s => ({ ...s, restoring: !!(getToken() || getRefreshToken()) }))
   const wsRef = useRef(null)
+  // The notification centre (S19): feed, unread count (the bell), live over /notifications/ws
+  const [feed, feedDispatch] = useReducer(feedReducer, initialFeed)
+  const feedRef = useRef(feed)
+  feedRef.current = feed
+  const sessionsRef = useRef(state.sessions)
+  sessionsRef.current = state.sessions
 
   // Stay signed in across reloads and restarts: load /auth/me with the stored token
   // (client.js refreshes it on a 401) instead of always showing Login.
@@ -134,6 +150,7 @@ export function LecturerProvider({ children }) {
         if (user) {
           dispatch({ type: 'SET_LECTURER', payload: user })
           dispatch({ type: 'LOGIN' })
+          api.registerForPush()      // refreshes this phone's token on the server (FR-212)
           return
         }
         if (signOut) api.logout()
@@ -154,6 +171,7 @@ export function LecturerProvider({ children }) {
       const lecturer = await api.getLecturer()
       dispatch({ type: 'SET_LECTURER', payload: lecturer })
       dispatch({ type: 'LOGIN' })
+      api.registerForPush()          // in the background; skipped in the browser
     } catch (e) {
       dispatch({ type: 'SET_ERROR', payload: e.message })
       throw e
@@ -164,6 +182,7 @@ export function LecturerProvider({ children }) {
     if (wsRef.current) { wsRef.current.close(); wsRef.current = null }
     await api.logout()
     dispatch({ type: 'LOGOUT' })
+    feedDispatch({ type: 'reset' })
   }, [])
 
   const loadClasses = useCallback(async () => {
@@ -319,9 +338,97 @@ export function LecturerProvider({ children }) {
       if (wsRef.current) { wsRef.current.close(); wsRef.current = null }
       api.logout()
       dispatch({ type: 'LOGOUT' })
+      feedDispatch({ type: 'reset' })
     })
     return cleanup
   }, [])
+
+  // ─── Notifications (FR-208, FR-209, FR-213) ────────────────────────────────
+
+  const loadNotifications = useCallback(async ({ more = false } = {}) => {
+    try {
+      const page = await api.getNotifications(more ? feedRef.current.nextCursor : null)
+      feedDispatch({ type: 'page', page, append: more })
+      return true
+    } catch (e) {
+      showToast(e.message, 'error')
+      return false
+    }
+  }, [showToast])
+
+  const markNotificationRead = useCallback(async (n) => {
+    if (n.read) return
+    try {
+      const r = await api.markNotificationRead(n.id)
+      feedDispatch({ type: 'read', notification: r.notification, unread: r.unread_count })
+    } catch (e) { showToast(e.message, 'error') }
+  }, [showToast])
+
+  const markAllNotificationsRead = useCallback(async () => {
+    try {
+      const r = await api.markAllNotificationsRead()
+      feedDispatch({ type: 'read_all', unread: r.unread_count })
+    } catch (e) { showToast(e.message, 'error') }
+  }, [showToast])
+
+  // A notification's link (feed tap or push tap) → its screen; false when there is none yet
+  const openNotificationLink = useCallback(async (link) => {
+    const target = linkTarget(link)
+    if (!target) return false
+    if (target.kind === 'screen') {
+      navigateTo(target.tab, { screen: target.screen, initial: target.screen === 'Dashboard' })
+      return true
+    }
+    let session = findSessionById(sessionsRef.current, target.sessionId)
+    if (!session) {
+      try {
+        const sessions = await api.getSessions()
+        dispatch({ type: 'SET_SESSIONS', payload: sessions })
+        session = findSessionById(sessions, target.sessionId)
+      } catch (e) { showToast(e.message, 'error'); return false }
+    }
+    if (!session) { showToast('That class session is no longer available', 'info'); return false }
+    dispatch({ type: 'SET_SELECTED_SESSION', payload: session })
+    navigateTo('Home', { screen: 'AttendanceDetail', initial: false })
+    return true
+  }, [showToast])
+
+  const openLinkRef = useRef(openNotificationLink)
+  openLinkRef.current = openNotificationLink
+
+  // Live: every (re)connect re-reads the first page, since nothing is replayed (S12). A phone drops
+  // sockets in the background, so a return to the app reconnects.
+  useEffect(() => {
+    if (!state.isLoggedIn) return undefined
+    let active = true            // a reply that lands after sign-out must not refill the feed
+    const onMessage = (m) => {
+      if (!active) return
+      if (m.type === 'connected') {
+        feedDispatch({ type: 'count', unread: m.unread_count })
+        api.getNotifications().then(page => { if (active) feedDispatch({ type: 'page', page }) }).catch(() => {})
+      } else if (m.type === 'notification' && m.notification) {
+        feedDispatch({ type: 'live', notification: m.notification, unread: m.unread_count })
+      } else if (m.type === 'unread_count') {
+        feedDispatch({ type: 'count', unread: m.unread_count })
+      }
+    }
+    const connect = () => connectNotificationsLive({
+      baseUrl: BASE, getToken, refreshToken: refreshViaApi, onMessage,
+    })
+    let live = connect()
+    const sub = AppState.addEventListener?.('change', (next) => {
+      if (next !== 'active' || Platform.OS === 'web') return
+      live.close()
+      live = connect()
+    })
+    const unTap = onPushTapped((link) => { openLinkRef.current?.(link) })
+    return () => {
+      active = false
+      sub?.remove?.()
+      live.close()
+      unTap()
+    }
+  }, [state.isLoggedIn])
 
   // WebSocket: follow the session on screen while it is open or still on its way to SPeCTRUM
   // (its sync status arrives as a `moodle_sync` event, T38b), else the first open one
@@ -449,6 +556,11 @@ export function LecturerProvider({ children }) {
     overrideStudent,
     selectSession,
     exportCsv,
+    feed,
+    loadNotifications,
+    markNotificationRead,
+    markAllNotificationsRead,
+    openNotificationLink,
   }
 
   return (

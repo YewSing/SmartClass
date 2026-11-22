@@ -37,6 +37,8 @@ module.exports = defineConfig({
         SESSION_SCHEDULER_INTERVAL_SECONDS: '0',
         MOODLE_ATTENDANCE_SYNC_INTERVAL_SECONDS: '0',
         MOODLE_ATTENDANCE_CHECK_INTERVAL_SECONDS: '0',
+        SMTP_HOST: '',              // notifications are never emailed or pushed from E2E (S19)
+        PUSH_ENABLED: '0',
       },
     },
     {

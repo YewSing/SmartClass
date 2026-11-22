@@ -92,3 +92,7 @@ class NotificationPrefsIn(BaseModel):
 class ReadAllOut(BaseModel):
     marked: int                   # how many were unread and are now read
     unread_count: int             # always 0 right after
+
+
+class TestSendOut(BaseModel):
+    sent: bool                    # false: one was already sent in the last minute
