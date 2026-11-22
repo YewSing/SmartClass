@@ -23,7 +23,7 @@ from app.models.interaction import Question, QuestionVote
 from app.models.user import Student, User
 from app.schemas.interaction import QuestionModerate, QuestionOut
 from app.services.audit_service import write_log
-from app.services.interaction import events, sessions
+from app.services.interaction import events, live, sessions
 from app.services.interaction.sessions import Member
 
 AUDIT_TARGET = "m5_question"
@@ -110,6 +110,7 @@ async def ask(db: AsyncSession, member: Member, attendance_session_id: int,
     events.record(db, events.QUESTION_ASKED, attendance_session_id, member.student_id, q.created_at,
                   ref_id=q.id, anonymous=anonymous)
     await db.flush()
+    live.changed(db, attendance_session_id, live.QUESTIONS)
     return await _one(db, member, attendance_session_id, q.id)
 
 
@@ -134,6 +135,7 @@ async def upvote(db: AsyncSession, member: Member, attendance_session_id: int, q
         events.record(db, events.QUESTION_UPVOTED, attendance_session_id, member.student_id, now,
                       ref_id=q.id)
         await db.flush()
+        live.changed(db, attendance_session_id, live.QUESTIONS)
     return await _one(db, member, attendance_session_id, q.id)
 
 
@@ -153,4 +155,5 @@ async def moderate(db: AsyncSession, actor: User, member: Member, attendance_ses
                         {"hidden": q.hidden}, {"hidden": change.hidden})
         q.hidden = change.hidden
     await db.flush()
+    live.changed(db, attendance_session_id, live.QUESTIONS)
     return await _one(db, member, attendance_session_id, q.id)

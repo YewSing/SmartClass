@@ -507,3 +507,39 @@ caller checks NFR-04 first; frozen dataclasses, fields only ever added). Nothing
 - Dates are the MYT class date (`class_date`, else opened/starts date), inclusive; `from_date >
   to_date` raises `ValueError`. Sessions of any status count. Unknown ids → `[]` / `None`.
 - FR-702 "participation frequency" is for M7 to combine (e.g. polls_answered + questions + reactions).
+
+### Interaction websocket (S35, FR-516)
+
+`WS /interaction/{attendance_session_id}/ws?token=<access JWT>` for the teaching lecturer and
+enrolled active students (same access as `GET /interaction/{id}`). The server accepts, then closes
+with 1008 for a bad/expired/refresh token, another role (admin), an inactive user, no access or an
+unknown id. Client text is ignored. Hub: `app/services/interaction/live.py` (one API worker).
+
+- `{"type":"connected", ...}` once: the `GET /interaction/{id}` body (`status`, `closed_reason`,
+  `class_status`, `role`, ...). If the class isn't running (`class_status != "open"`) it is
+  followed by `closed` and the socket is closed (1000).
+- `{"type":"changed","topic":T}` after the commit of a change; the client re-reads that topic with
+  the REST GETs (which shape data per role). Messages carry **no ids, names, text or counts**, so
+  students never learn identities, hidden questions, drafts or others' answers. One message per
+  topic per transaction. Rejected writes (403/404/409/422/429) and no-op repeats send nothing.
+
+  | Topic and change | Lecturer | Students |
+  |---|---|---|
+  | `questions`: ask, new upvote, moderate | yes | yes |
+  | `polls`: create (draft), show_results on a draft | yes | no |
+  | `polls`: start, close, show_results change | yes | yes |
+  | `polls`: vote | yes | only while `show_results` is on |
+  | `quick_questions`: ask, close | yes | yes |
+  | `quick_questions`: answer | yes | no |
+  | `reactions`, `confusion` | yes | no |
+- `{"type":"opened"}` after the lecturer reopens; `{"type":"closed","reason":"lecturer"|"class_ended"}`
+  after an early close (the socket stays open) or the class ending (sent by the sweep within
+  `INTERACTION_SWEEP_SECONDS`, then the server closes the socket with 1000).
+  A class that ends after the lecturer's early close also gets `closed/class_ended` + 1000 (each
+  sweep checks the connected class sessions).
+- Nothing is replayed: on (re)connect the client re-reads every list after `connected`. The socket
+  is registered just before `connected` is sent, so a `changed` can arrive first; treat it like any
+  other (the re-read after `connected` covers it).
+- Python: `live.changed(db, attendance_session_id, topic, students=True)` queues a message for after
+  the commit (reactions/confusion always lecturer-only); `sessions.open_interaction` now returns
+  `True` when it reopened.

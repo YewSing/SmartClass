@@ -31,7 +31,7 @@ from app.models.session import AttendanceSession
 from app.models.user import User
 from app.schemas.interaction import PollCreate, PollOptionOut, PollOut
 from app.services import notify
-from app.services.interaction import events, sessions
+from app.services.interaction import events, live, sessions
 from app.services.interaction.sessions import Member
 from app.services.notifications import announcements
 
@@ -138,6 +138,7 @@ async def create(db: AsyncSession, actor: User, member: Member, attendance_sessi
     await db.flush()
     db.add_all([PollOption(poll_id=poll.id, position=i, text=t) for i, t in enumerate(body.options)])
     await db.flush()
+    live.changed(db, attendance_session_id, live.POLLS, students=False)    # drafts: lecturer only
     return await _one(db, member, attendance_session_id, poll.id)
 
 
@@ -170,6 +171,7 @@ async def start(db: AsyncSession, member: Member, attendance_session_id: int, po
         raise _conflict("This poll has already been started")
     poll.status, poll.started_at = "open", sessions.clock()
     await db.flush()
+    live.changed(db, attendance_session_id, live.POLLS)
     await _notify_started(db, attendance_session_id, poll.id)
     return await _one(db, member, attendance_session_id, poll.id)
 
@@ -184,6 +186,7 @@ async def close(db: AsyncSession, member: Member, attendance_session_id: int, po
     if poll.status == "open":
         poll.status, poll.closed_at = "closed", sessions.clock()
         await db.flush()
+        live.changed(db, attendance_session_id, live.POLLS)
     return await _one(db, member, attendance_session_id, poll.id)
 
 
@@ -192,8 +195,10 @@ async def set_show_results(db: AsyncSession, member: Member, attendance_session_
     sessions.require_lecturer(member)
     await sessions.require_open(db, attendance_session_id)
     poll = await _locked_poll(db, attendance_session_id, poll_id)
-    poll.show_results = show_results
-    await db.flush()
+    if poll.show_results != show_results:
+        poll.show_results = show_results
+        await db.flush()
+        live.changed(db, attendance_session_id, live.POLLS, students=poll.status != "draft")
     return await _one(db, member, attendance_session_id, poll.id)
 
 
@@ -226,4 +231,6 @@ async def vote(db: AsyncSession, member: Member, attendance_session_id: int, pol
                 for oid in chosen])
     events.record(db, events.POLL_VOTED, attendance_session_id, member.student_id, now, ref_id=poll.id)
     await db.flush()
+    # students see the counts only while results are shown; the voter's own vote is in this reply
+    live.changed(db, attendance_session_id, live.POLLS, students=poll.show_results)
     return await _one(db, member, attendance_session_id, poll.id)

@@ -42,7 +42,7 @@ from app.schemas.interaction import (
     ReactionCountsOut,
 )
 from app.services import notify
-from app.services.interaction import events, sessions
+from app.services.interaction import events, live, sessions
 from app.services.interaction.sessions import Member
 from app.services.notifications import announcements
 
@@ -85,6 +85,7 @@ async def react(db: AsyncSession, member: Member, attendance_session_id: int, ki
                     kind=kind, created_at=now))
     events.record(db, events.REACTION, attendance_session_id, member.student_id, now)
     await db.flush()
+    live.changed(db, attendance_session_id, live.REACTIONS)
     return ReactionAck(kind=kind, created_at=now, next_allowed_at=now + timedelta(seconds=max(cooldown, 0)))
 
 
@@ -188,6 +189,7 @@ async def press(db: AsyncSession, member: Member, attendance_session_id: int,
     await db.flush()
     session = await db.get(AttendanceSession, attendance_session_id)
     await _check_spike(db, session, now)
+    live.changed(db, attendance_session_id, live.CONFUSION)
     return ConfusionAck(created_at=now, next_allowed_at=now + timedelta(seconds=max(cooldown, 0)))
 
 

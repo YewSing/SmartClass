@@ -72,7 +72,7 @@ Run the loop with `/shino-run-plan [rounds]` (or `bash scripts/shino/run-tasks.s
   Done when: quick questions with length-limited text answers (lecturer sees the list, anonymous to the class); reactions with a per-student cooldown; "I don't understand" with optional topic tag, configurable cooldown (default 2 min), lecturer sees count and timeline only; `confusion.spike` to the lecturer when presses in the window reach the configured share (defaults 2 min / 25%), once per spike. Tests with the clock monkeypatched.
 - [x] **S34 [API] Event log and M7 read interface (FR-513, FR-517, FR-713).** Depends on: S31, S32, S33.
   Done when: every interaction event is stored (type, student, session, time); `app/services/interaction_read.py` gives per-student counts (polls answered, questions excluding anonymous ones, reactions, confusion) and class totals (including anonymous questions without identity), documented in `docs/interfaces.md`; nothing is graded. Tests.
-- [ ] **S35 [OPUS] [API] Interaction websocket (FR-516).** Depends on: S34.
+- [x] **S35 [OPUS] [API] Interaction websocket (FR-516).** Depends on: S34.
   Done when: `WS /interaction/{attendance_session_id}/ws?token=` with role-separated payloads (students never get identities or hidden items), after-commit invalidation events for questions, polls, quick answers, reactions, confusion, and a `closed` event when the class ends. Tests.
 - [ ] **S36 [API] After class: summary, CSV, my questions (FR-518–FR-520).** Depends on: S34.
   Done when: lecturer summary (questions asked/answered, poll results, reactions, confusion timeline), CSV export without anonymous identities (cells starting with `= + - @` escaped), students list their own past questions with answered status. Tests.

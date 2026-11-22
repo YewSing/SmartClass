@@ -20,7 +20,7 @@ from app.core.config import settings
 from app.models.interaction import QUICK_ANSWER_MAX_CHARS, QuickAnswer, QuickQuestion
 from app.models.user import User
 from app.schemas.interaction import QuickAnswerOut, QuickQuestionCreate, QuickQuestionOut
-from app.services.interaction import events, sessions
+from app.services.interaction import events, live, sessions
 from app.services.interaction.sessions import Member
 
 
@@ -98,6 +98,7 @@ async def ask(db: AsyncSession, actor: User, member: Member, attendance_session_
                       status="open", created_by_user_id=actor.id, created_at=sessions.clock())
     db.add(q)
     await db.flush()
+    live.changed(db, attendance_session_id, live.QUICK_QUESTIONS)
     return await _one(db, member, attendance_session_id, q.id)
 
 
@@ -109,6 +110,7 @@ async def close(db: AsyncSession, member: Member, attendance_session_id: int, qi
     if q.status == "open":
         q.status, q.closed_at = "closed", sessions.clock()
         await db.flush()
+        live.changed(db, attendance_session_id, live.QUICK_QUESTIONS)
     return await _one(db, member, attendance_session_id, q.id)
 
 
@@ -132,4 +134,5 @@ async def answer(db: AsyncSession, member: Member, attendance_session_id: int, q
                                set_={"text": text, "created_at": now}))
     events.record(db, events.QUICK_ANSWERED, attendance_session_id, member.student_id, now, ref_id=q.id)
     await db.flush()
+    live.changed(db, attendance_session_id, live.QUICK_QUESTIONS, students=False)   # answers: lecturer only
     return await _one(db, member, attendance_session_id, q.id)

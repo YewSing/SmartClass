@@ -4,11 +4,14 @@
 otherwise). The lecturer can close the interaction early and reopen it while the class runs; it
 closes by itself when the class session ends. Questions, polls etc. (S31–S33) hang off this.
 """
-from fastapi import APIRouter, Depends, status
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
+from app.core.database import AsyncSessionLocal, get_db
 from app.core.deps import require_role
+from app.core.security import decode_token
 from app.models.user import User
 from app.schemas.interaction import (
     ConfusionAck,
@@ -32,9 +35,11 @@ from app.schemas.interaction import (
     ReactionCountsOut,
     ReactionIn,
 )
-from app.services.interaction import polls, questions, quick, sessions, signals
+from app.services.interaction import live, polls, questions, quick, sessions, signals
 
 router = APIRouter(tags=["interaction"])
+
+_WS_ROLES = (sessions.ROLE_LECTURER, sessions.ROLE_STUDENT)
 
 
 def _out(st: sessions.InteractionState, member: sessions.Member) -> InteractionSessionOut:
@@ -56,6 +61,62 @@ async def join_interaction(
     return _out(await sessions.join(db, session), member)
 
 
+async def _ws_user(db: AsyncSession, token: Optional[str]) -> Optional[User]:
+    """The active lecturer/student an access token belongs to, or None."""
+    payload = decode_token(token) if token else {}
+    if payload.get("type") != "access" or payload.get("role") not in _WS_ROLES:
+        return None
+    try:
+        user_id = int(payload.get("sub"))
+    except (TypeError, ValueError):
+        return None
+    user = await db.get(User, user_id)
+    if user is None or user.status != "active" or user.role != payload.get("role"):
+        return None
+    return user
+
+
+@router.websocket("/interaction/{attendance_session_id}/ws")
+async def interaction_ws(attendance_session_id: int, websocket: WebSocket,
+                         token: Optional[str] = Query(None)):
+    """Live updates for one class's interaction (FR-516). `?token=<access JWT>`; only the
+    teaching lecturer and enrolled students (anyone else, or a bad token: closed with 1008).
+
+    Messages: `connected` (the join state + role) once, then `changed` {topic}, `opened`, `closed`
+    {reason} — invalidations only, so the client re-reads through the REST endpoints (see
+    `services/interaction/live.py`). When the class isn't running the socket gets `closed` and is
+    closed (1000). Client text is ignored."""
+    await websocket.accept()
+    async with AsyncSessionLocal() as db:
+        actor = await _ws_user(db, token)
+        member = st = None
+        if actor is not None:
+            try:
+                session, member = await sessions.authorize(db, actor, attendance_session_id)
+                st = await sessions.join(db, session)
+                await db.commit()
+            except HTTPException:
+                member = None
+    if member is None or st is None:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+    conn = live.hub.add(attendance_session_id, websocket, member.role)
+    try:
+        hello = _out(st, member).model_dump(mode="json")
+        await websocket.send_json({"type": "connected", **hello})
+        if st.class_status != "open":
+            await websocket.send_json({"type": "closed", "reason": live.closed_reason(st)})
+            live.hub.remove(attendance_session_id, conn)
+            await websocket.close(code=1000)
+            return
+        while True:            # the server drives every message
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        pass
+    finally:
+        live.hub.remove(attendance_session_id, conn)
+
+
 @router.post("/lecturer/interaction/{attendance_session_id}/open", response_model=InteractionSessionOut)
 async def open_interaction(
     attendance_session_id: int,
@@ -64,7 +125,8 @@ async def open_interaction(
 ):
     """Reopen the interaction of a class that is running (409 once the class isn't open)."""
     session, member = await sessions.authorize(db, actor, attendance_session_id)
-    await sessions.open_interaction(db, actor, attendance_session_id)
+    if await sessions.open_interaction(db, actor, attendance_session_id):
+        live.opened(db, attendance_session_id)
     return _out(await sessions.state(db, session), member)
 
 

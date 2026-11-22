@@ -49,6 +49,10 @@ ROLE_STUDENT = "student"
 # or sweep). S35's websocket registers here to send `closed`. A failing listener is logged only.
 ClosedListener = Callable[[int], Awaitable[None]]
 on_closed: list[ClosedListener] = []
+# Called (no arguments) after every sweep run. S35's websocket hub registers here to close the
+# sockets of classes that ended while their interaction was already closed by the lecturer (the
+# sweep's UPDATE doesn't match those rows, so `on_closed` doesn't fire for them).
+on_sweep: list[Callable[[], Awaitable[None]]] = []
 
 
 def clock() -> datetime:
@@ -212,8 +216,9 @@ async def require_open(db: AsyncSession, attendance_session_id: int) -> Interact
     return row
 
 
-async def open_interaction(db: AsyncSession, actor: User, attendance_session_id: int) -> None:
-    """Lecturer (re)opens the interaction of a running class. 409 when the class isn't open."""
+async def open_interaction(db: AsyncSession, actor: User, attendance_session_id: int) -> bool:
+    """Lecturer (re)opens the interaction of a running class. 409 when the class isn't open.
+    True when it was closed and is now open (the router announces it after the commit)."""
     session = await _lock_class(db, attendance_session_id)
     if session.status != "open":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
@@ -221,12 +226,13 @@ async def open_interaction(db: AsyncSession, actor: User, attendance_session_id:
     await _ensure_row(db, session)
     row = await _row(db, attendance_session_id, lock="update")
     if row.status == "open":
-        return
+        return False
     row.status, row.closed_reason, row.closed_at, row.closed_by_user_id = "open", None, None, None
     row.opened_at = clock()
     await write_log(db, actor.id, "INTERACTION_OPENED", "attendance_session", attendance_session_id,
                     {"status": "closed"}, {"status": "open"})
     await db.flush()
+    return True
 
 
 async def close_interaction(db: AsyncSession, actor: User, attendance_session_id: int) -> None:
@@ -277,6 +283,11 @@ async def sweep() -> list[int]:
         await db.commit()
     if ids:
         await _notify_closed(ids)
+    for hook in list(on_sweep):
+        try:
+            await hook()
+        except Exception as exc:   # a hook must never break the sweep
+            log.warning("interaction sweep hook failed: %s", exc.__class__.__name__)
     return ids
 
 
