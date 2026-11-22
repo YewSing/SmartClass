@@ -31,8 +31,11 @@ Yew Sing's log is [PROGRESS.md](PROGRESS.md); never edit it. Test removals need 
 - REVIEW: S16 - Moodle login now waits for the snapshot (up to `MOODLE_SNAPSHOT_TIMEOUT_SECONDS` = 8 s) before replying, so a slow Moodle makes login slow. Consider running it after the response (background task), keeping the token in memory only.
 - REVIEW: S17 - the note to Yew Sing in `docs/requests-for-shino.md` lists the three read functions added to `configure_moodle.php` but not `mod_forum_add_discussion`; add it. The local Moodle lacked it until `configure_moodle.php` was re-run as `daemon` at the checkpoint; after that, `-m moodle` for test_announcements and test_moodle_snapshot pass 2/2.
 
+- TEST-CHANGE: mobile/lecturer/e2e-web/dashboard.spec.js (priority notifications stay on top until read; empty states, then the latest class overview; loading, then an error with retry; phone layout) - Shino asked (2026-11-22) to drop the lecturer Dashboard's "Today" list because the session card above already shows today's class; the dash-today-class/dash-today-empty checks now assert the list is gone, retry waits for the overview instead, and the phone-width test checks the session card. New test: the session card extends and ends the live class.
+
 ### Requests for Yew Sing
 <!-- Interface gaps in M1/M3/M4/M8 that a task needed. Copy each to docs/requests-for-shino.md style when sending. -->
+- Dashboard session card (2026-11-22): the lecturer Dashboard's session card now has the End class / +15 min controls (Shino's request), calling M3's existing `doCloseSession` / `doExtendSession`. Shino would like them only there: please consider removing `OpenControls` from `AttendanceDetail.jsx` (your T38 screen) and moving your `session-end` / `session-extend` steps in `live-session.spec.js`, `e2e/live-session.yaml` and `e2e/flag-alert.yaml` to the Dashboard's `home-session-end` / `home-session-end-confirm` / `home-session-extend`. Until then both screens have them.
 - S18 (2026-11-22): `attendance_read` covers closed sessions only, so the dashboards read open-session data through two existing M3 functions: `attendance_stats.student_course_history` (student's status in an open session) and `session_service.get_session_counts` (live counts). Please list them in `docs/interfaces.md` as stable, or add an open-session read to `attendance_read`.
 
 ### S02 notes (2026-11-21)
@@ -134,3 +137,9 @@ Yew Sing's log is [PROGRESS.md](PROGRESS.md); never edit it. Test removals need 
 - Decisions: re-read on focus, pull-to-refresh and whenever the unread count changes (live arrivals); a failed re-load keeps the old data with an inline Retry; a priority item leaves the top only once the server has it read (`markNotificationRead` now returns true/false); rate under 80% is orange.
 - Interface/schema changes: none (consumes S18 `GET /student/me/dashboard`, `GET /lecturer/dashboard`).
 - Tests: `dashboard.test.js` in both apps (13); Playwright `dashboard.spec.js` 4/4 (real data + live arrival, loading/error/retry, empty + overview via stubbed API, phone width); check.sh passes. **[~] manual check:** Maestro `dashboard.yaml` not run (no AVD `Pixel_4_API_35`): `bash scripts/e2e-mobile.sh student dashboard` (student4 needs one real sign-in for the Moodle snapshot).
+
+### Dashboard tweak — lecturer session card — 2026-11-22
+Changed: lecturer `Dashboard.jsx` drops the "Today" list (the session card shows the class running now or the next ones; FR-202's today's classes = session card + My classes), and the open-session card gets +15 min and End class (with a Keep running / End now confirm), using M3's extend/close through LecturerContext. Latest-class overview unchanged.
+Decisions: Yew Sing's `AttendanceDetail.jsx` controls left in place (M3, his E2E flows use them); removal requested under Requests for Yew Sing.
+Interface/schema changes: none.
+Tests: `dashboard.spec.js` updated + new session-card test; dashboard, live-session and desktop specs 10/10; lecturer unit tests 95/95.

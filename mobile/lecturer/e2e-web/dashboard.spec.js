@@ -1,7 +1,8 @@
 // Lecturer dashboard in the browser (plan-shino.md S20; FR-202, FR-208). Real data: unread urgent and
-// important notifications sit at the top until opened (a new one arrives live), today's classes are
-// listed. Stubbed API answers: the loading, error/retry and empty states, and the latest-session
-// overview. At 1280 px and at phone width.
+// important notifications sit at the top until opened (a new one arrives live). Today's classes are
+// not listed again under the session card (Shino, 2026-11-22). Stubbed API answers: the loading,
+// error/retry and empty states, the latest-session overview, and the session card's End class /
+// +15 min controls. At 1280 px and at phone width.
 // Seeds devlecturer's notifications with backend/scripts/e2e_notifications.py and restores them after.
 const path = require('path')
 const { execFileSync } = require('child_process')
@@ -42,7 +43,7 @@ const dashboardBody = (extra = {}) => ({
 test.afterEach(() => { notifData('clean') })
 
 test.describe('at 1280 px', () => {
-  test('priority notifications stay on top until read; today\'s classes; live arrival', async ({ page }) => {
+  test('priority notifications stay on top until read; live arrival', async ({ page }) => {
     notifData('seed')
     const errors = []
     page.on('pageerror', (e) => errors.push(e.message))
@@ -60,8 +61,8 @@ test.describe('at 1280 px', () => {
     const header = await visible(page.getByTestId('home-class-card')).boundingBox()
     expect(top.y).toBeLessThan(header.y)
 
-    // Today's classes (WIA0000 has a slot every day)
-    await expect(visible(page.getByTestId('dash-today-class').filter({ hasText: 'WIA0000' }))).toBeVisible()
+    // The session card is the only list of today's classes (no separate "Today" section)
+    await expect(page.getByTestId('dash-today-class')).toHaveCount(0)
 
     // Opening one marks it read: it leaves the top, the bell goes down
     await priority(page).filter({ hasText: 'E2E urgent notice' }).click()
@@ -84,6 +85,9 @@ test.describe('at 1280 px', () => {
 
   test('loading, then an error with retry', async ({ page }) => {
     let fail = true
+    // No live class, so the latest-class overview is what the dashboard data fills in
+    await page.route(apiPath('/lecturer/sessions'), (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }))
     await page.route(apiPath('/lecturer/dashboard'), async (route) => {
       if (!fail) return route.fallback()
       await new Promise((r) => setTimeout(r, 1500))
@@ -102,7 +106,7 @@ test.describe('at 1280 px', () => {
 
     fail = false
     await visible(page.getByTestId('dash-retry')).click()
-    await expect(visible(page.getByTestId('dash-today-class').filter({ hasText: 'WIA0000' }))).toBeVisible()
+    await expect(visible(page.getByTestId('dash-overview').or(page.getByTestId('dash-overview-empty')))).toBeVisible()
     await expect(page.getByTestId('dash-error').filter({ visible: true })).toHaveCount(0)
   })
 
@@ -115,7 +119,7 @@ test.describe('at 1280 px', () => {
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) }))
     await login(page)
 
-    await expect(visible(page.getByTestId('dash-today-empty'))).toHaveText('No classes today.')
+    await expect(page.getByTestId('dash-today-empty')).toHaveCount(0)
     await expect(visible(page.getByTestId('dash-overview-empty'))).toHaveText('No attendance taken yet.')
     await expect(page.getByTestId('dash-priority-list').filter({ visible: true })).toHaveCount(0)
 
@@ -133,10 +137,7 @@ test.describe('at 1280 px', () => {
       },
     })
     await page.reload()
-    const cls = visible(page.getByTestId('dash-today-class'))
-    await expect(cls).toContainText('WIX1002 · T3')
-    await expect(cls).toContainText('09:00–11:00 · DK1')
-    await expect(cls).toContainText('Ended')
+    await expect(page.getByTestId('dash-today-class')).toHaveCount(0)
     const overview = visible(page.getByTestId('dash-overview'))
     await expect(overview).toContainText('94.7%')
     await expect(overview).toContainText('20 enrolled')
@@ -146,16 +147,69 @@ test.describe('at 1280 px', () => {
     await expect(visible(page.getByTestId('dash-count-absent'))).toHaveText('1')
     await expect(page.getByTestId('dash-count-not-yet').filter({ visible: true })).toHaveCount(0)
   })
+
+  test('the session card extends and ends the live class', async ({ page }) => {
+    const errors = []
+    page.on('pageerror', (e) => errors.push(e.message))
+    const session = {
+      id: 9101, class_id: 1, class_code: 'WIA0000', class_name: 'E2E live class', status: 'open',
+      opened_at: '2026-11-22T09:00:00+08:00', starts_at: '2026-11-22T09:00:00+08:00',
+      ends_at: '2026-11-22T11:00:00+08:00', present: 3, late: 1, excused: 0, absent: 0, not_recorded: 6,
+    }
+    const calls = []
+    await page.route(apiPath('/lecturer/sessions'), (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([session]) }))
+    await page.route(apiPath(`/lecturer/sessions/${session.id}/extend`), (route) => {
+      calls.push(['extend', route.request().postDataJSON()])
+      session.ends_at = '2026-11-22T11:15:00+08:00'
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(session) })
+    })
+    await page.route(apiPath(`/lecturer/sessions/${session.id}/close`), (route) => {
+      calls.push(['close', route.request().method()])
+      Object.assign(session, { status: 'closed', closed_at: '2026-11-22T10:30:00+08:00' })
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(session) })
+    })
+    await login(page)
+
+    // The controls sit in the session card next to its Live session button
+    await expect(visible(page.getByTestId('home-live-session'))).toBeVisible()
+    await expect(visible(page.getByTestId('home-session-extend'))).toHaveText(/\+15 min/)
+    await expect(visible(page.getByTestId('home-session-end'))).toHaveText(/End class/)
+    const card = await visible(page.getByTestId('home-class-card')).boundingBox()
+    const live = await visible(page.getByTestId('home-live-session')).boundingBox()
+    const ctrl = await visible(page.getByTestId('home-session-extend')).boundingBox()
+    expect(ctrl.y).toBeGreaterThan(live.y)
+    expect(ctrl.y - card.y).toBeLessThan(160)   // inside the card, not a section further down
+    await expect(page.getByTestId('dash-overview').filter({ visible: true })).toHaveCount(0)
+
+    await visible(page.getByTestId('home-session-extend')).click()
+    await expect(visible(page.getByText('Extended by 15 min'))).toBeVisible()
+    expect(calls).toEqual([['extend', { minutes: 15 }]])
+
+    // End asks first; Keep running backs out without a call
+    await visible(page.getByTestId('home-session-end')).click()
+    await expect(visible(page.getByText(/End the class now\?/))).toBeVisible()
+    await visible(page.getByTestId('home-session-keep')).click()
+    await expect(visible(page.getByTestId('home-session-end'))).toBeVisible()
+    expect(calls).toHaveLength(1)
+
+    await visible(page.getByTestId('home-session-end')).click()
+    await visible(page.getByTestId('home-session-end-confirm')).click()
+    await expect(page.getByTestId('home-session-end').filter({ visible: true })).toHaveCount(0)
+    await expect(page.getByTestId('home-live-session').filter({ visible: true })).toHaveCount(0)
+    expect(calls[1]).toEqual(['close', 'PUT'])
+    expect(errors).toEqual([])
+  })
 })
 
 test.describe('at phone width', () => {
   test.use({ viewport: { width: 390, height: 844 } })
 
-  test('priority notifications and today\'s classes fit the phone layout', async ({ page }) => {
+  test('priority notifications and the session card fit the phone layout', async ({ page }) => {
     notifData('seed')
     await login(page)
     await expect(priority(page)).toHaveCount(2)
-    for (const loc of [priority(page).first(), visible(page.getByTestId('dash-today-class'))]) {
+    for (const loc of [priority(page).first(), visible(page.getByTestId('home-class-card'))]) {
       const box = await loc.boundingBox()
       expect(box.x).toBeGreaterThanOrEqual(0)
       expect(box.x + box.width).toBeLessThanOrEqual(390)

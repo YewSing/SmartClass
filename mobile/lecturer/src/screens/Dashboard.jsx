@@ -15,7 +15,7 @@ import {
 import * as api from '../services/api'
 import { sessionCounts } from '../services/attendance'
 import {
-  sessionBadge, classTypeLabel, classMeta, rateLabel, rateVariant, overviewCounts,
+  classTypeLabel, rateLabel, rateVariant, overviewCounts,
 } from '../services/dashboard'
 import { pendingLabel } from '../services/faceReview'
 import { C } from '../theme'
@@ -52,35 +52,12 @@ function nextLabel(c) {
   return `${when} · ${c.start_time}–${c.end_time}`
 }
 
-// Today's classes and the latest session's numbers from GET /lecturer/dashboard (FR-202, S18)
-function TodayAndOverview({ data, showOverview, openClass }) {
-  const { today_classes: today, attendance_overview: o } = data
+// The latest session's numbers from GET /lecturer/dashboard (FR-202, S18). Today's classes aren't
+// listed again: the session card above shows the class running now, or the next ones.
+function LatestOverview({ data, openClass }) {
+  const { attendance_overview: o } = data
   return (
     <>
-      <SectionTitle>Today</SectionTitle>
-      <View style={dashStyles.card}>
-        {today.length === 0 ? <EmptyRow text="No classes today." testID="dash-today-empty" /> : today.map((c, i) => {
-          const b = sessionBadge(c)
-          return (
-            <TouchableOpacity
-              key={c.occurrence_id}
-              style={[dashStyles.row, i > 0 && dashStyles.rowBorder]}
-              onPress={() => openClass(c.occurrence_id)}
-              testID="dash-today-class"
-            >
-              <View style={dashStyles.rowMain}>
-                <Text style={dashStyles.code}>{c.course_code} · {classTypeLabel(c)}</Text>
-                <Text style={dashStyles.rowTitle}>{c.course_name}</Text>
-                {classMeta(c) ? <Text style={dashStyles.rowSub}>{classMeta(c)}</Text> : null}
-              </View>
-              <Badge variant={b.variant} dot>{b.label}</Badge>
-            </TouchableOpacity>
-          )
-        })}
-      </View>
-
-      {showOverview && (
-        <>
           <SectionTitle>{o?.session_status === 'open' ? 'Current class' : 'Latest class'}</SectionTitle>
           {o ? (
             <TouchableOpacity style={dashStyles.card} onPress={() => openClass(o.occurrence_id)} testID="dash-overview">
@@ -104,9 +81,57 @@ function TodayAndOverview({ data, showOverview, openClass }) {
               <EmptyRow text="No attendance taken yet." testID="dash-overview-empty" />
             </View>
           )}
-        </>
-      )}
     </>
+  )
+}
+
+const EXTEND_MINUTES = 15
+
+// End early or add time to the running class from the session card (FR-315: M3's extend and
+// close, through LecturerContext)
+function SessionControls({ session }) {
+  const { doExtendSession, doCloseSession } = useLecturer()
+  const [busy, setBusy] = useState(false)
+  const [confirmEnd, setConfirmEnd] = useState(false)
+
+  const run = async (fn) => {
+    setBusy(true)
+    try { await fn() } catch { /* toast shown in context */ } finally { setBusy(false); setConfirmEnd(false) }
+  }
+
+  if (confirmEnd) {
+    return (
+      <View style={styles.controls}>
+        <Text style={styles.cardExtraText}>
+          End the class now? Anyone not recorded is marked Absent and the marks are sent to SPeCTRUM.
+        </Text>
+        <View style={styles.btnRow}>
+          <TouchableOpacity style={[styles.ctrlBtn, styles.ctrlOutline]} disabled={busy}
+            testID="home-session-keep" onPress={() => setConfirmEnd(false)}>
+            <Text style={styles.ctrlOutlineText}>Keep running</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.ctrlBtn, styles.ctrlDanger, busy && styles.btnDisabled]} disabled={busy}
+            testID="home-session-end-confirm" onPress={() => run(() => doCloseSession(session.id))}>
+            <Ionicons name="stop-circle-outline" size={15} color="#fff" />
+            <Text style={styles.toggleText}>{busy ? 'Ending…' : 'End now'}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    )
+  }
+  return (
+    <View style={[styles.btnRow, styles.controls]}>
+      <TouchableOpacity style={[styles.ctrlBtn, styles.ctrlOutline, busy && styles.btnDisabled]} disabled={busy}
+        testID="home-session-extend" onPress={() => run(() => doExtendSession(session.id, EXTEND_MINUTES))}>
+        <Ionicons name="add-circle-outline" size={15} color={C.text} />
+        <Text style={styles.ctrlOutlineText}>+{EXTEND_MINUTES} min</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={[styles.ctrlBtn, styles.ctrlDanger, busy && styles.btnDisabled]} disabled={busy}
+        testID="home-session-end" onPress={() => setConfirmEnd(true)}>
+        <Ionicons name="stop-circle-outline" size={15} color="#fff" />
+        <Text style={styles.toggleText}>End class</Text>
+      </TouchableOpacity>
+    </View>
   )
 }
 
@@ -269,6 +294,8 @@ export default function Dashboard({ navigation }) {
           </TouchableOpacity>
         </View>
 
+        {sessionOpen && <SessionControls session={activeSession} />}
+
         {!sessionOpen && (
           <>
             <View style={styles.cardDivider} />
@@ -350,7 +377,7 @@ export default function Dashboard({ navigation }) {
       {dash.status === 'loading' && <LoadingCard />}
       {dash.data ? (
         // While a class is live the card above has its live numbers; otherwise the latest session's
-        <TodayAndOverview data={dash.data} showOverview={!sessionOpen} openClass={openClass} />
+        !sessionOpen && <LatestOverview data={dash.data} openClass={openClass} />
       ) : null}
 
       {/* Every class taught, to set its schedule or start it (FR-301, FR-316) */}
@@ -516,6 +543,36 @@ const styles = StyleSheet.create({
   },
   btnDisabled: {
     opacity: 0.45,
+  },
+  controls: {
+    marginTop: 12,
+    gap: 8,
+  },
+  btnRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  ctrlBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingVertical: 9,
+    borderRadius: 8,
+  },
+  ctrlOutline: {
+    borderWidth: 1.5,
+    borderColor: C.border,
+    backgroundColor: C.card,
+  },
+  ctrlDanger: {
+    backgroundColor: C.red,
+  },
+  ctrlOutlineText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: C.text,
   },
   sectionHeader: {
     flexDirection: 'row',
