@@ -62,3 +62,6 @@ backend/moodle/seed_config.local.json
 
 # Private documents (proposal, rubrics, FYP reports): names and matric numbers, never committed
 docs/private/
+
+# Firebase service-account private keys (FCM push); upload with `eas credentials`, never commit
+*firebase-adminsdk*.json
