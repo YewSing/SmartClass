@@ -3,11 +3,12 @@
 # Run: bash scripts/e2e-mobile.sh lecturer flag-alert
 # Needs the local Moodle up (lecturer1 / Lecturer123!) and lecturer1/student4 already in SmartClass.
 # flag-alert.setup.sh seeds the open E2E045 class and starts the actor, which flags it as the
-# student 3 s after the lecturer taps "+15 min" (the flow's trigger).
+# student 3 s after the lecturer taps "+15 min" (the flow's trigger). Since 2026-11-22 "+15 min" is on
+# Home's session card, so the flow taps it there; the toast shows on any screen (LecturerContext).
 appId: host.exp.exponent
 ---
 - extendedWaitUntil:
-    visible: "Welcome back|Continue|.*(Start now|Live session)"
+    visible: "Welcome back|Continue|.*(Start now|End class)"
     timeout: 180000
 - runFlow:
     when:
@@ -27,8 +28,20 @@ appId: host.exp.exponent
       - hideKeyboard
       - tapOn: "Sign In"
 - extendedWaitUntil:
-    visible: ".*(Start now|Live session)"
+    visible: ".*(Start now|End class)"
     timeout: 60000
+
+# "+15 min" on Home's session card is the actor's trigger: the flag arrives over the session websocket
+- extendedWaitUntil:
+    visible:
+      id: "home-session-extend"
+    timeout: 15000
+- tapOn:
+    id: "home-session-extend"
+- extendedWaitUntil:
+    visible: ".*says they're here but wasn't recognised.*"
+    timeout: 30000
+- takeScreenshot: flag-alert
 
 # Open the seeded open class on the live session screen
 - scrollUntilVisible:
@@ -45,16 +58,6 @@ appId: host.exp.exponent
 - extendedWaitUntil:
     visible: "Live — updates as students are recognised"
     timeout: 20000
-- assertNotVisible:
-    id: "flag-card"
-
-# "+15 min" is the actor's trigger: the flag arrives over the session websocket
-- tapOn:
-    id: "session-extend"
-- extendedWaitUntil:
-    visible: ".*says they're here but wasn't recognised.*"
-    timeout: 30000
-- takeScreenshot: flag-alert
 - extendedWaitUntil:
     visible:
       id: "flag-card"

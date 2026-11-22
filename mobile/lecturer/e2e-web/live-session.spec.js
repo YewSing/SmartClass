@@ -77,20 +77,29 @@ test('lecturer starts a class, excuses a student with a reason and ends it', asy
     live[k] = await visible(page.getByTestId(`count-${k}`)).innerText()
   }
 
-  // Home shows the same five counts as the live screen (no "Unidentified"), and its button goes to
-  // the running class instead of starting another one (the old 409)
+  // Home shows the same five counts as the live screen (no "Unidentified"), and its Attendance card
+  // goes to the running class instead of starting another one (the old 409)
   await page.getByTestId('sidenav-Home').click()
   await expect(visible(page.getByTestId('home-attendance'))).toBeVisible()
   for (const k of Object.keys(live)) {
     await expect(visible(page.getByTestId(`home-count-${k}`))).toHaveText(live[k])
   }
   await expect(page.getByText('Unidentified', { exact: true })).toHaveCount(0)
-  await visible(page.getByTestId('home-live-session')).click()
+  await visible(page.getByTestId('home-attendance')).click()
   await expect(visible(page.getByText('Live — updates as students are recognised'))).toBeVisible()
   await expect(visible(page.getByTestId('count-excused'))).toHaveText('1')
+  // The live screen no longer has End class / +15 min: they are on Home's session card (Shino, 2026-11-22)
+  await expect(page.getByTestId('session-end')).toHaveCount(0)
+  await expect(page.getByTestId('session-extend')).toHaveCount(0)
 
-  await visible(page.getByTestId('session-end')).click()
-  await visible(page.getByTestId('session-end-confirm')).click()
+  // End the class from Home's session card (it has no Live session button once the class is open)
+  await page.getByTestId('sidenav-Home').click()
+  await expect(page.getByTestId('home-live-session')).toHaveCount(0)
+  await visible(page.getByTestId('home-session-end')).click()
+  await visible(page.getByTestId('home-session-end-confirm')).click()
+  await expect(page.getByTestId('home-session-end-confirm').filter({ visible: true })).toHaveCount(0)   // ended (another class may still be open)
+  await page.getByTestId('sidenav-Attendance').click()
+  await visible(page.getByTestId('session-row')).click()
   await expect(visible(page.getByText('SPeCTRUM attendance', { exact: true }))).toBeVisible()
   await expect(visible(page.getByText('Closed', { exact: true }))).toBeVisible()
   await expect(visible(page.getByText('Waiting to sync', { exact: true }))).toBeVisible()
@@ -99,6 +108,6 @@ test('lecturer starts a class, excuses a student with a reason and ends it', asy
   // Still closed once the app has re-read the session after the close event
   await page.waitForTimeout(3000)
   await expect(visible(page.getByText('Closed', { exact: true }))).toBeVisible()
-  await expect(page.getByTestId('session-end')).toHaveCount(0)
+  await expect(page.getByTestId('home-session-end').filter({ visible: true })).toHaveCount(0)
   expect(errors).toEqual([])
 })

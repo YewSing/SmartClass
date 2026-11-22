@@ -6,7 +6,7 @@
 appId: host.exp.exponent
 ---
 - extendedWaitUntil:
-    visible: "Welcome back|Continue|.*(Start now|Live session)"
+    visible: "Welcome back|Continue|.*(Start now|End class)"
     timeout: 180000
 - runFlow:
     when:
@@ -26,7 +26,7 @@ appId: host.exp.exponent
       - hideKeyboard
       - tapOn: "Sign In"
 - extendedWaitUntil:
-    visible: ".*(Start now|Live session)"
+    visible: ".*(Start now|End class)"
     timeout: 60000
 
 # Open the AI Assistant tab

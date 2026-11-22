@@ -33,9 +33,13 @@ Yew Sing's log is [PROGRESS.md](PROGRESS.md); never edit it. Test removals need 
 
 - TEST-CHANGE: mobile/lecturer/e2e-web/dashboard.spec.js (priority notifications stay on top until read; empty states, then the latest class overview; loading, then an error with retry; phone layout) - Shino asked (2026-11-22) to drop the lecturer Dashboard's "Today" list because the session card above already shows today's class; the dash-today-class/dash-today-empty checks now assert the list is gone, retry waits for the overview instead, and the phone-width test checks the session card. New test: the session card extends and ends the live class.
 
+- TEST-CHANGE: mobile/lecturer/e2e-web/live-session.spec.js (lecturer starts a class, excuses a student with a reason and ends it) - End class moved from the live screen to Home's session card (Shino, 2026-11-22): Home's way back to the live class is now the Attendance card, the class is ended with home-session-end/confirm, and the closed session is reopened from the Attendance tab for the same Closed / Waiting to sync / Excused 1 / Retry checks; it also asserts the live screen has no End/+15.
+- TEST-CHANGE: mobile/lecturer/e2e/live-session.yaml, e2e/flag-alert.yaml - same move: live-session ends the class from Home's card and reopens it from the Attendance tab; flag-alert taps +15 min (the actor's trigger) on Home's card, waits for the same toast, then opens the live screen for the same flag-card checks.
+- TEST-CHANGE: mobile/lecturer/e2e-web/desktop.spec.js, e2e/ask-before-class.yaml, e2e/assistant.yaml (Home-ready waits) - an open class now shows End class instead of a Live session button, so the wait is `Start now|End class` (desktop: home-start-now or home-session-end).
+
 ### Requests for Yew Sing
 <!-- Interface gaps in M1/M3/M4/M8 that a task needed. Copy each to docs/requests-for-shino.md style when sending. -->
-- Dashboard session card (2026-11-22): the lecturer Dashboard's session card now has the End class / +15 min controls (Shino's request), calling M3's existing `doCloseSession` / `doExtendSession`. Shino would like them only there: please consider removing `OpenControls` from `AttendanceDetail.jsx` (your T38 screen) and moving your `session-end` / `session-extend` steps in `live-session.spec.js`, `e2e/live-session.yaml` and `e2e/flag-alert.yaml` to the Dashboard's `home-session-end` / `home-session-end-confirm` / `home-session-extend`. Until then both screens have them.
+- Session controls moved (2026-11-22, done on Shino's instruction; FYI for Yew Sing): End class / +15 min are now only on the lecturer Dashboard's session card (`home-session-end`, `home-session-end-confirm`, `home-session-extend`), and the card has no Live session button once a class is open (the Attendance card opens the live screen). `OpenControls` was removed from `AttendanceDetail.jsx` (M3, T38). Your tests were moved to the new buttons, not weakened: see the TEST-CHANGE lines. Noted in `docs/requests-for-shino.md`.
 - S18 (2026-11-22): `attendance_read` covers closed sessions only, so the dashboards read open-session data through two existing M3 functions: `attendance_stats.student_course_history` (student's status in an open session) and `session_service.get_session_counts` (live counts). Please list them in `docs/interfaces.md` as stable, or add an open-session read to `attendance_read`.
 
 ### S02 notes (2026-11-21)
@@ -143,3 +147,9 @@ Changed: lecturer `Dashboard.jsx` drops the "Today" list (the session card shows
 Decisions: Yew Sing's `AttendanceDetail.jsx` controls left in place (M3, his E2E flows use them); removal requested under Requests for Yew Sing.
 Interface/schema changes: none.
 Tests: `dashboard.spec.js` updated + new session-card test; dashboard, live-session and desktop specs 10/10; lecturer unit tests 95/95.
+
+### Dashboard tweak 2 — session controls only on the card — 2026-11-22
+Changed: removed End class / +15 min (`OpenControls`) from `AttendanceDetail.jsx` (Yew Sing's M3 screen, on Shino's instruction); the lecturer Dashboard card has no Live session button once a class is open (Start now only when closed; the Attendance card opens the live screen).
+Decisions: Yew Sing's E2E steps moved to the card buttons, keeping every check (TEST-CHANGE lines above); note added to `docs/requests-for-shino.md`.
+Interface/schema changes: none (same M3 extend/close endpoints).
+Tests: lecturer unit 95/95; Playwright dashboard, live-session, desktop pass. NOT RUN: Maestro live-session, flag-alert, ask-before-class, assistant (no AVD `Pixel_4_API_35` on this machine); run them on a machine with the emulator.

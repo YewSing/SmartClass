@@ -183,12 +183,10 @@ export default function Dashboard({ navigation }) {
     navigation.navigate('AttendanceDetail')
   }
 
-  // Go to the class that is running; start the current class only when nothing is open yet
-  // (the schedule may have opened it since this screen loaded, which used to give a 409)
+  // Start the current class; if the schedule opened it since this screen loaded, go to it
+  // instead (that used to give a 409)
   const handleSessionButton = async () => {
-    if (starting) return
-    if (sessionOpen) { openLive(activeSession); return }
-    if (!firstClass) return
+    if (starting || !firstClass) return
     setStarting(true)
     try {
       const running = (await api.getSessions()).find(s => s.open && s.class_id === firstClass.id)
@@ -277,21 +275,19 @@ export default function Dashboard({ navigation }) {
           ) : (
             <Text style={styles.metaSmall}>{firstClass ? 'Ready to open' : 'No active session'}</Text>
           )}
-          <TouchableOpacity
-            style={[
-              styles.sessionToggleBtn,
-              styles.toggleOpen,
-              (starting || (!sessionOpen && !firstClass)) && styles.btnDisabled,
-            ]}
-            testID={sessionOpen ? 'home-live-session' : 'home-start-now'}
-            onPress={handleSessionButton}
-            disabled={starting || (!sessionOpen && !firstClass)}
-          >
-            <Ionicons name={sessionOpen ? 'radio-outline' : 'play-circle-outline'} size={16} color="#fff" />
-            <Text style={styles.toggleText}>
-              {starting ? ' …' : sessionOpen ? ' Live session' : ' Start now'}
-            </Text>
-          </TouchableOpacity>
+          {/* Once the class is open the card controls it (End class / +15 min below); the
+              Attendance card opens the live screen */}
+          {!sessionOpen && (
+            <TouchableOpacity
+              style={[styles.sessionToggleBtn, styles.toggleOpen, (starting || !firstClass) && styles.btnDisabled]}
+              testID="home-start-now"
+              onPress={handleSessionButton}
+              disabled={starting || !firstClass}
+            >
+              <Ionicons name="play-circle-outline" size={16} color="#fff" />
+              <Text style={styles.toggleText}>{starting ? ' …' : ' Start now'}</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {sessionOpen && <SessionControls session={activeSession} />}

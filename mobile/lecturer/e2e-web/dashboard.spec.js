@@ -171,14 +171,14 @@ test.describe('at 1280 px', () => {
     })
     await login(page)
 
-    // The controls sit in the session card next to its Live session button
-    await expect(visible(page.getByTestId('home-live-session'))).toBeVisible()
+    // The open class is controlled from the session card: no Live session / Start now button there
+    await expect(page.getByTestId('home-live-session')).toHaveCount(0)
+    await expect(page.getByTestId('home-start-now').filter({ visible: true })).toHaveCount(0)
     await expect(visible(page.getByTestId('home-session-extend'))).toHaveText(/\+15 min/)
     await expect(visible(page.getByTestId('home-session-end'))).toHaveText(/End class/)
     const card = await visible(page.getByTestId('home-class-card')).boundingBox()
-    const live = await visible(page.getByTestId('home-live-session')).boundingBox()
     const ctrl = await visible(page.getByTestId('home-session-extend')).boundingBox()
-    expect(ctrl.y).toBeGreaterThan(live.y)
+    expect(ctrl.y).toBeGreaterThan(card.y)
     expect(ctrl.y - card.y).toBeLessThan(160)   // inside the card, not a section further down
     await expect(page.getByTestId('dash-overview').filter({ visible: true })).toHaveCount(0)
 
@@ -195,8 +195,8 @@ test.describe('at 1280 px', () => {
 
     await visible(page.getByTestId('home-session-end')).click()
     await visible(page.getByTestId('home-session-end-confirm')).click()
+    await expect(visible(page.getByTestId('home-start-now'))).toBeVisible()   // back to the closed card
     await expect(page.getByTestId('home-session-end').filter({ visible: true })).toHaveCount(0)
-    await expect(page.getByTestId('home-live-session').filter({ visible: true })).toHaveCount(0)
     expect(calls[1]).toEqual(['close', 'PUT'])
     expect(errors).toEqual([])
   })

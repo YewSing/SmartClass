@@ -86,6 +86,14 @@ allows `mod_forum_get_forums_by_courses`, `mod_forum_get_forum_discussions` and
 
 ---
 
+## Note for Yew Sing — End class / +15 min moved to the lecturer Dashboard — 2026-11-22
+
+On Shino's instruction, the live session screen (`AttendanceDetail.jsx`, your T38) no longer has End class / +15 min: they are on the lecturer Dashboard's session card (`home-session-end`, `home-session-end-confirm`, `home-session-extend`), calling the same `doCloseSession` / `doExtendSession`. The card also drops its Live session button once a class is open; the Attendance card on Home opens the live screen. Your `e2e-web/live-session.spec.js`, `e2e/live-session.yaml` and `e2e/flag-alert.yaml` now press the Home buttons with the same checks (details in progress-shino.md TEST-CHANGE lines). FR-315 behaviour is unchanged.
+
+**Status / reply:** open (for information)
+
+---
+
 ## Open issue already raised
 
 - `GET /lecturer/analytics` (M7) lets any lecturer read any class's analytics (NFR-04). Details
