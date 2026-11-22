@@ -5,16 +5,39 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "splash": { "backgroundColor": "#1B6EF3" },
-    "android": { "adaptiveIcon": { "backgroundColor": "#1B6EF3" }, "package": "my.um.smartclass.student" },
-    "ios": { "supportsTablet": false, "bundleIdentifier": "my.um.smartclass.student" },
+    "splash": {
+      "backgroundColor": "#1B6EF3"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#1B6EF3"
+      },
+      "package": "my.um.smartclass.student",
+      "googleServicesFile": "./google-services.json",
+      "permissions": [
+        "android.permission.CAMERA"
+      ]
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "my.um.smartclass.student"
+    },
     "plugins": [
-      ["expo-camera", {
-        "cameraPermission": "SmartClass uses the camera to take your selfies and matric card photo for face enrolment.",
-        "microphonePermission": false,
-        "recordAudioAndroid": false
-      }],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "SmartClass uses the camera to take your selfies and matric card photo for face enrolment.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
       "expo-notifications"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "627e9e30-6060-42c3-acfa-84321ad9102a"
+      }
+    },
+    "owner": "shino-c"
   }
 }

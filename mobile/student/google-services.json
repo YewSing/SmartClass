@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "220549443693",
+    "project_id": "smartclass-student",
+    "storage_bucket": "smartclass-student.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:220549443693:android:02f7f3d676b643fa794f64",
+        "android_client_info": {
+          "package_name": "my.um.smartclass.student"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAK0n6Gsuq1s4RFiigFF7rLOGGeeHh43jM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
