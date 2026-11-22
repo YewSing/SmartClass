@@ -23,6 +23,8 @@ Yew Sing's log is [PROGRESS.md](PROGRESS.md); never edit it. Test removals need 
 - S19 (2026-11-22): the dev DB was upgraded `b5c6d7e8f9a0` → `c1d2e3f4a5b6` (head; only the S10–S17 `m2_` tables) so the E2E flows can run; undo with `alembic downgrade b5c6d7e8f9a0`.
 - S19 follow-ups: real push needs a development build with an EAS `projectId` in `app.json` (`expo.extra.eas.projectId`; Expo Go on Android has no remote push since SDK 53), so set that up before S21. A push tapped while the app is closed doesn't open its link yet (add `getLastNotificationResponseAsync` once the navigator is ready).
 
+- No runnable task (2026-11-22): S21 `[HUMAN] Checkpoint: notifications on a real phone` is unticked and every remaining task (S30+) sits below it. Shino logs in on Android, checks a push arrives (needs the EAS `projectId` dev build, see S19 follow-ups) and the dashboard is right, does the `[~]` manual checks for S16/S17/S19/S20, then ticks S21 `[x]` in plan-shino.md.
+
 - REVIEW: S20 - `useDashboard.refresh` returns at once while a load is running (pull-to-refresh can stop spinning early), and a read in the feed that leaves the unread count unchanged doesn't re-read the dashboard until the next visit. Minor; fold in with S80.
 
 ### Requests for Yew Sing
