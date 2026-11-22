@@ -269,3 +269,70 @@ class ConfusionOut(BaseModel):
     spikes: int                                     # spikes raised this class
     timeline: list[ConfusionBucket]                 # oldest first, non-empty buckets only
     topics: list[ConfusionTopicCount]               # most pressed first
+
+
+# ── after class (S36, FR-518–FR-520) ────────────────────────────────────────────
+
+class SummaryQuestionCounts(BaseModel):
+    asked: int                                      # every question, hidden and anonymous included
+    answered: int
+    anonymous: int
+    hidden: int
+    upvotes: int
+
+
+class SummaryQuickQuestion(BaseModel):
+    """A quick question in the summary: answers without names (FR-510)."""
+    id: int
+    prompt: str
+    status: Literal["open", "closed"]
+    answer_count: int
+    answers: list[QuickAnswerOut]
+    created_at: datetime
+
+
+class SummaryConfusion(BaseModel):
+    """Confusion aggregates only (FR-515)."""
+    total: int
+    spikes: int
+    timeline: list[ConfusionBucket]
+    topics: list[ConfusionTopicCount]
+
+
+class InteractionSummaryOut(BaseModel):
+    """The lecturer's session summary (FR-518). Questions are the lecturer's view (`author_name`
+    null for anonymous ones); polls exclude drafts; no student id anywhere."""
+    attendance_session_id: int
+    course_code: Optional[str]
+    course_name: Optional[str]
+    class_date: Optional[str]                       # ISO MYT date of the class
+    class_status: str
+    status: Literal["open", "closed"]               # effective interaction state
+    question_counts: SummaryQuestionCounts
+    questions: list[QuestionOut]
+    polls: list[PollOut]
+    quick_questions: list[SummaryQuickQuestion]
+    reactions: dict[str, int]                       # every kind, 0 when none
+    reactions_total: int
+    confusion: SummaryConfusion
+
+
+class MyQuestionOut(BaseModel):
+    """One of the student's own past questions (FR-520)."""
+    id: int
+    attendance_session_id: int
+    occurrence_id: Optional[int]
+    course_code: Optional[str]
+    course_name: Optional[str]
+    class_date: Optional[str]
+    text: str
+    anonymous: bool
+    upvotes: int
+    answered: bool
+    answered_at: Optional[datetime]
+    created_at: datetime
+
+
+class MyQuestionListOut(BaseModel):
+    questions: list[MyQuestionOut]                  # newest first
+    next_before: Optional[int]                      # pass as `before` for the next page; null at the end

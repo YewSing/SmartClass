@@ -543,3 +543,28 @@ unknown id. Client text is ignored. Hub: `app/services/interaction/live.py` (one
 - Python: `live.changed(db, attendance_session_id, topic, students=True)` queues a message for after
   the commit (reactions/confusion always lecturer-only); `sessions.open_interaction` now returns
   `True` when it reopened.
+
+### After class: summary, CSV, my questions (S36, FR-518–FR-520)
+
+Read only (`app/services/interaction/summary.py`); no schema change. Both lecturer routes need the
+teaching lecturer (403 otherwise, unknown id 403) and work while the class runs too.
+
+- `GET /lecturer/interaction/{id}/summary` → `{attendance_session_id, course_code, course_name,
+  class_date, class_status, status, question_counts: {asked, answered, anonymous, hidden, upvotes},
+  questions: [QuestionOut] (lecturer view: anonymous → author_name null, hidden flagged), polls:
+  [PollOut] (drafts left out, counts always set), quick_questions: [{id, prompt, status,
+  answer_count, answers: [{id, text, created_at}], created_at}], reactions: {kind: n},
+  reactions_total, confusion: {total, spikes, timeline: [{start, count}], topics: [{topic, count}]}}`.
+  No student/user id anywhere; only named questions carry a name.
+- `GET /lecturer/interaction/{id}/summary.csv` → `text/csv` attachment
+  `interaction_<course>_<yyyymmdd>_<id>.csv`, columns `Section, Time, Text, Author, Status, Count`.
+  Sections: `Class`, `Questions asked|answered`, `Anonymous questions`, `Question` (Author is the
+  name or `Anonymous`; Status `answered|unanswered[, pinned][, hidden]`; Count = upvotes), `Poll` +
+  `Poll option`, `Quick question` + `Quick answer` (no author), `Reaction`, `Confusion presses|spikes`,
+  `Confusion` (timeline bucket), `Confusion topic`. Text cells starting with `= + - @`, tab or CR get
+  a leading `'`.
+- `GET /student/me/questions?attendance_session_id=&limit=50&before=` (students) → `{questions:
+  [{id, attendance_session_id, occurrence_id, course_code, course_name, class_date, text, anonymous,
+  upvotes, answered, answered_at, created_at}], next_before}`: the caller's own questions across
+  every class session, newest first (by id), anonymous ones included (they're the asker's own),
+  hidden ones left out. `limit` 1–200; pass `next_before` as `before` for the next page.

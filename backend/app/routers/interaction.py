@@ -6,18 +6,21 @@ closes by itself when the class session ends. Questions, polls etc. (S31–S33) 
 """
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, WebSocket, WebSocketDisconnect, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import AsyncSessionLocal, get_db
 from app.core.deps import require_role
 from app.core.security import decode_token
-from app.models.user import User
+from app.models.user import Student, User
 from app.schemas.interaction import (
     ConfusionAck,
     ConfusionIn,
     ConfusionOut,
     InteractionSessionOut,
+    InteractionSummaryOut,
+    MyQuestionListOut,
     PollCreate,
     PollListOut,
     PollOut,
@@ -35,7 +38,7 @@ from app.schemas.interaction import (
     ReactionCountsOut,
     ReactionIn,
 )
-from app.services.interaction import live, polls, questions, quick, sessions, signals
+from app.services.interaction import live, polls, questions, quick, sessions, signals, summary
 
 router = APIRouter(tags=["interaction"])
 
@@ -382,3 +385,48 @@ async def confusion_view(
     session, member = await sessions.authorize(db, actor, attendance_session_id)
     st = await sessions.state(db, session)
     return await signals.confusion_view(db, member, session, st.status)
+
+
+# ── after class (S36, FR-518–FR-520) ─────────────────────────────────────────────
+
+@router.get("/lecturer/interaction/{attendance_session_id}/summary", response_model=InteractionSummaryOut)
+async def interaction_summary(
+    attendance_session_id: int,
+    db: AsyncSession = Depends(get_db),
+    actor: User = Depends(require_role("lecturer")),
+):
+    """Session summary: questions asked/answered, poll results, quick questions, reactions and the
+    confusion timeline. Also works while the class runs."""
+    session, member = await sessions.authorize(db, actor, attendance_session_id)
+    return await summary.build(db, member, session)
+
+
+@router.get("/lecturer/interaction/{attendance_session_id}/summary.csv")
+async def interaction_summary_csv(
+    attendance_session_id: int,
+    db: AsyncSession = Depends(get_db),
+    actor: User = Depends(require_role("lecturer")),
+):
+    """The summary as CSV. Anonymous questions are exported without identity; formula-like cells
+    are escaped."""
+    session, member = await sessions.authorize(db, actor, attendance_session_id)
+    s = await summary.build(db, member, session)
+    return Response(content=summary.to_csv(s), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{summary.csv_filename(s)}"'})
+
+
+@router.get("/student/me/questions", response_model=MyQuestionListOut)
+async def my_questions(
+    attendance_session_id: Optional[int] = Query(None),
+    limit: int = Query(summary.MY_QUESTIONS_DEFAULT_LIMIT, ge=1, le=summary.MY_QUESTIONS_MAX_LIMIT),
+    before: Optional[int] = Query(None, ge=1),
+    db: AsyncSession = Depends(get_db),
+    actor: User = Depends(require_role("student")),
+):
+    """The student's own questions across their classes, newest first, with answered status.
+    Page with `before=<next_before>`."""
+    student_id = await db.scalar(select(Student.id).where(Student.user_id == actor.id))
+    if student_id is None:
+        return MyQuestionListOut(questions=[], next_before=None)
+    return await summary.my_questions(db, student_id, attendance_session_id=attendance_session_id,
+                                      limit=limit, before=before)

@@ -74,7 +74,7 @@ Run the loop with `/shino-run-plan [rounds]` (or `bash scripts/shino/run-tasks.s
   Done when: every interaction event is stored (type, student, session, time); `app/services/interaction_read.py` gives per-student counts (polls answered, questions excluding anonymous ones, reactions, confusion) and class totals (including anonymous questions without identity), documented in `docs/interfaces.md`; nothing is graded. Tests.
 - [x] **S35 [OPUS] [API] Interaction websocket (FR-516).** Depends on: S34.
   Done when: `WS /interaction/{attendance_session_id}/ws?token=` with role-separated payloads (students never get identities or hidden items), after-commit invalidation events for questions, polls, quick answers, reactions, confusion, and a `closed` event when the class ends. Tests.
-- [ ] **S36 [API] After class: summary, CSV, my questions (FR-518–FR-520).** Depends on: S34.
+- [x] **S36 [API] After class: summary, CSV, my questions (FR-518–FR-520).** Depends on: S34.
   Done when: lecturer summary (questions asked/answered, poll results, reactions, confusion timeline), CSV export without anonymous identities (cells starting with `= + - @` escaped), students list their own past questions with answered status. Tests.
 - [ ] **S37 [UI] Lecturer live interaction.** Depends on: S35, S36, S20.
   Done when: from the dashboard's current class the lecturer opens interaction, moderates questions, runs polls and quick questions, sees reactions and the confusion timeline live, and opens the after-class summary/CSV. Playwright `interaction.spec.js` passes at 1280 px and phone width.
