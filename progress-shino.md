@@ -21,6 +21,7 @@ Yew Sing's log is [PROGRESS.md](PROGRESS.md); never edit it. Test removals need 
 
 ### Requests for Yew Sing
 <!-- Interface gaps in M1/M3/M4/M8 that a task needed. Copy each to docs/requests-for-shino.md style when sending. -->
+- S18 (2026-11-22): `attendance_read` covers closed sessions only, so the dashboards read open-session data through two existing M3 functions: `attendance_stats.student_course_history` (student's status in an open session) and `session_service.get_session_counts` (live counts). Please list them in `docs/interfaces.md` as stable, or add an open-session read to `attendance_read`.
 
 ### S02 notes (2026-11-21)
 - **Dev DB downgrade (Shino runs this once; the loop does not touch the dev DB).** The dev DB is at the removed revision `f5a6b7c8d9e0` (`alembic current` fails with "Can't locate revision"). From `backend/`, put the three removed files back temporarily, downgrade, then delete them:
@@ -103,3 +104,9 @@ Yew Sing's log is [PROGRESS.md](PROGRESS.md); never edit it. Test removals need 
 - Decisions: posts use the service token (the lecturer's token is never stored), lecturer named in the message; the queue is in the table (pending → posted/failed, backoff 30 s doubling up to 30 min, 5 tries); the marker `(SmartClass announcement #id)` stops a retry double-posting after a lost reply; no `MOODLE_TOKEN`/loop off → first failure final; unknown class → 403; the audit keeps no message text.
 - Interface/schema changes: new table, endpoints, settings in `docs/interfaces.md` "Lecturer announcements"; no M1/M3/M4/M8 code changed.
 - Tests: `tests/test_announcements.py` (25 respx + 1 `moodle`); check.sh passes (903). **[~] manual check:** re-run `configure_moodle.php` in the Moodle container (adds `mod_forum_add_discussion`), fix the dataroot permissions (`invaliddatarootpermissions`, as in S16), then `cd backend && python -m pytest -m moodle tests/test_announcements.py` (it leaves one "[SmartClass test]" post in WIA0000's Announcements). Next: S18 dashboard reads.
+
+### S18 — Dashboard reads — 2026-11-22
+- Changed: `services/dashboard/reads.py`, `routers/dashboard.py` (`GET /student/me/dashboard`, `GET /lecturer/dashboard`), `schemas/dashboard.py`; registered in `main.py`.
+- Decisions: today = MYT date of `reads.clock()`; a class is "today" with a weekly slot today or a session dated today (open first, else latest); overview = newest open session, else newest closed; closed counts/rates via `attendance_read`, open-session status/counts via M3's `student_course_history`/`get_session_counts` (request for Yew Sing under Next); `needs_confirmation` → status null.
+- Interface/schema changes: new endpoints in `docs/interfaces.md` "Dashboard reads"; `live_activity`/`participation`/`quizzes`/`at_risk_alerts` always `null` until S80; no schema change.
+- Tests: `tests/test_dashboard.py` (16: open/closed status, rates incl. excused/null, snapshot + isolation, priority order, weekly slot without session, other day, open vs closed overview, other lecturer/outsider, roles); check.sh passes (919). Next: S19 notification centre UI.

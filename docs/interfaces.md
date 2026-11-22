@@ -324,6 +324,34 @@ Nothing is queued or replayed for closed connections: on (re)connect the client 
   course_code, title, message, author_name, recipient_count, created_at, moodle: {status, attempts,
   last_attempt_at, next_try_at, error, discussion_id, link, posted_at}}`.
 
+### Dashboard reads (S18, Shino)
+
+- `GET /student/me/dashboard` (student only) → `{date, today_classes[], attendance_rates[], moodle,
+  priority_notifications[], unread_count, live_activity}`.
+  - `today_classes`: the student's classes with a weekly slot today or a session dated today (MYT),
+    earliest first: `{occurrence_id, course_id, course_code, course_name, class_type, class_label, room,
+    start_time, end_time ("HH:MM", the session's times, else the slot), session_id, session_status
+    (open | closed | needs_confirmation | null), attendance_status}`. `attendance_status` is
+    `present | late | excused | absent`, `not_recorded` while the session is open and the student
+    wasn't seen yet, or `null` (no session yet, or `needs_confirmation`). Several sessions on one day:
+    the open one, else the latest.
+  - `attendance_rates`: `attendance_read.student_rates` per course `{course_id, course_code,
+    course_name, present, late, excused, absent, closed_sessions, rate}` (rate `null` when nothing counts).
+  - `moodle`: the S16 snapshot `{announcements, deadlines, refreshed_at}`; empty lists and
+    `refreshed_at: null` before the first successful refresh.
+- `GET /lecturer/dashboard` (lecturer only) → `{date, today_classes[], attendance_overview,
+  priority_notifications[], unread_count, participation, quizzes, at_risk_alerts}`.
+  - `today_classes`: as above for the classes the lecturer is assigned to, without `attendance_status`.
+  - `attendance_overview`: the newest **open** session of the lecturer's classes, else the newest
+    **closed** one, else `null`: `{session_id, occurrence_id, course_id, course_code, course_name,
+    class_type, class_label, session_status, date, starts_at, enrolled, present, late, excused, absent,
+    not_recorded, rate}`. Open: counts from M3's `session_service.get_session_counts` (`absent` = marked
+    absent, `not_recorded` = not seen yet, `rate` null). Closed: counts from `attendance_read.course_records`
+    for that session (`not_recorded` 0, rate as FR-308).
+- Both: `priority_notifications` = unread urgent then important (S11 `GET /notifications/priority`),
+  `unread_count` = all unread. `live_activity`, `participation`, `quizzes`, `at_risk_alerts` are always
+  present and `null` until S80 fills them from M5/M6/M7.
+
 ### Live channels (until M2)
 
 The apps can also listen on WebSockets directly:
