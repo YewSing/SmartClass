@@ -27,6 +27,10 @@ Yew Sing's log is [PROGRESS.md](PROGRESS.md); never edit it. Test removals need 
 
 - REVIEW: S20 - `useDashboard.refresh` returns at once while a load is running (pull-to-refresh can stop spinning early), and a read in the feed that leaves the unread count unchanged doesn't re-read the dashboard until the next visit. Minor; fold in with S80.
 
+- REVIEW (checkpoint 150da4a..f9bb6c1, 2026-11-22): no high-severity problems. check.sh passes; `-m db` 923 passed; the only `-m live` failures are Yew Sing's flaky `test_in_syllabus_is_grounded`. One Alembic head (`c1d2e3f4a5b6`). M1 edits are additive and documented (`moodle_token`, `refresh_on_login`).
+- REVIEW: S16 - Moodle login now waits for the snapshot (up to `MOODLE_SNAPSHOT_TIMEOUT_SECONDS` = 8 s) before replying, so a slow Moodle makes login slow. Consider running it after the response (background task), keeping the token in memory only.
+- REVIEW: S17 - the note to Yew Sing in `docs/requests-for-shino.md` lists the three read functions added to `configure_moodle.php` but not `mod_forum_add_discussion`; add it. The local Moodle lacked it until `configure_moodle.php` was re-run as `daemon` at the checkpoint; after that, `-m moodle` for test_announcements and test_moodle_snapshot pass 2/2.
+
 ### Requests for Yew Sing
 <!-- Interface gaps in M1/M3/M4/M8 that a task needed. Copy each to docs/requests-for-shino.md style when sending. -->
 - S18 (2026-11-22): `attendance_read` covers closed sessions only, so the dashboards read open-session data through two existing M3 functions: `attendance_stats.student_course_history` (student's status in an open session) and `session_service.get_session_counts` (live counts). Please list them in `docs/interfaces.md` as stable, or add an open-session read to `attendance_read`.
