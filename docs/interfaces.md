@@ -398,3 +398,22 @@ M3 code calls M5. Table `m5_interaction_sessions` (one row per class session: `s
   off) marks rows of ended classes `closed/class_ended`; `sessions.on_closed` listeners
   (`async (attendance_session_id)`) run after the commit of a sweep or a lecturer close (S35 sends
   the websocket `closed` event from there).
+
+### Live questions (S31, FR-503–FR-506)
+
+Tables `m5_questions` (session, asker `student_id`, text ≤ 500, anonymous, answered_at, pinned,
+hidden, created_at) and `m5_question_votes` (one per question and student). The asker is stored
+even when anonymous (class totals, FR-713) but never leaves the service for an anonymous question.
+
+- `GET /interaction/{id}/questions` (lecturer or student) → `{attendance_session_id, status,
+  questions: [QuestionOut]}`, pinned first, then most upvotes, then oldest. Students never get
+  hidden questions; the lecturer gets them with `hidden: true`. Works after the class too.
+- `QuestionOut`: `{id, attendance_session_id, text, anonymous, author_name, mine, upvotes,
+  upvoted_by_me, answered, answered_at, pinned, hidden, created_at}`. No student/user id ever;
+  `author_name` is null for anonymous questions; `mine` is true only for the asker.
+- `POST /interaction/{id}/questions {text, anonymous}` (students only, 201). `POST
+  /interaction/{id}/questions/{qid}/upvote` (students; a repeat is a no-op; own question 409;
+  hidden or other session 404).
+- `PATCH /lecturer/interaction/{id}/questions/{qid} {answered?, pinned?, hidden?}`. Hide/unhide
+  audited `INTERACTION_QUESTION_HIDDEN|UNHIDDEN` (target `m5_question`, values `{hidden}` only).
+- Every write calls `require_open` (409 when the interaction is closed).

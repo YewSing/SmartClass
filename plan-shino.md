@@ -64,7 +64,7 @@ Run the loop with `/shino-run-plan [rounds]` (or `bash scripts/shino/run-tasks.s
 
 - [x] **S30 [OPUS] [API] Interaction session tied to the class session (FR-501, FR-502).** Depends on: S21.
   Done when: `m5_interaction_sessions` keyed to `attendance_session_id`; the interaction is open/close  only follow the attendance session; it is treated as closed the moment the attendance session is not `open` (checked on every write, under a row lock), and a background sweep closes it within 30 s for clients; only enrolled students and the teaching lecturer can join (403 otherwise). No M3 code changes. Tests: lifecycle, closing class closes interaction, access matrix.
-- [ ] **S31 [API] Live questions (FR-503–FR-506).** Depends on: S30.
+- [x] **S31 [API] Live questions (FR-503–FR-506).** Depends on: S30.
   Done when: students ask (optionally anonymous), upvote once, list by votes then time; the lecturer marks answered, pins, hides (hide audited, NFR-06); anonymous identity appears in no response, event or audit value. Tests including the anonymity check on every response shape.
 - [ ] **S32 [API] Polls (FR-507–FR-509).** Depends on: S30.
   Done when: lecturer creates (2–6 options, single/multiple), starts, closes; students vote once and may change until close; live results to the lecturer; lecturer chooses whether students see results; `poll.started` notification. Tests.
