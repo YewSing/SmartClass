@@ -12,7 +12,8 @@
       "adaptiveIcon": {
         "backgroundColor": "#1B6EF3"
       },
-      "package": "my.um.smartclass.lecturer"
+      "package": "my.um.smartclass.lecturer",
+      "googleServicesFile": "./google-services.json"
     },
     "ios": {
       "supportsTablet": false,
