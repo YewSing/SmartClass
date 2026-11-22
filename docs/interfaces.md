@@ -417,3 +417,26 @@ even when anonymous (class totals, FR-713) but never leaves the service for an a
 - `PATCH /lecturer/interaction/{id}/questions/{qid} {answered?, pinned?, hidden?}`. Hide/unhide
   audited `INTERACTION_QUESTION_HIDDEN|UNHIDDEN` (target `m5_question`, values `{hidden}` only).
 - Every write calls `require_open` (409 when the interaction is closed).
+
+### Live polls (S32, FR-507–FR-509)
+
+Tables `m5_polls` (session, question ≤ 300, multiple, status draft|open|closed, show_results,
+created_by, created/started/closed times), `m5_poll_options` (2–6 per poll, text ≤ 120, position)
+and `m5_poll_votes` (one row per chosen option; a student's vote is replaced as a whole).
+
+- `GET /interaction/{id}/polls` (lecturer or student) → `{attendance_session_id, status, polls:
+  [PollOut]}`, newest first. Students never get drafts. Works after the class too.
+- `PollOut`: `{id, attendance_session_id, question, multiple, status, show_results, options: [{id,
+  text, votes}], total_voters, my_option_ids, created_at, started_at, closed_at}`. `votes` and
+  `total_voters` are always set for the lecturer and are `null` for students unless `show_results`
+  is on. `my_option_ids` is the caller's own vote ([] for the lecturer). No response says who voted.
+  `status` reads `closed` for an open poll while the interaction is closed.
+- Lecturer: `POST /lecturer/interaction/{id}/polls {question, options[2..6], multiple?,
+  show_results?}` (201, draft; distinct options); `POST .../polls/{pid}/start` (draft only, else
+  409; sends `poll.started` to the active enrolled students after commit); `POST
+  .../polls/{pid}/close` (idempotent; a draft → 409); `PATCH .../polls/{pid} {show_results}`.
+- Student: `POST /interaction/{id}/polls/{pid}/vote {option_ids}` replaces their vote while the poll
+  is open (single choice: exactly one; duplicates or another poll's option → 422; draft → 404;
+  closed poll → 409).
+- Every write calls `require_open` (409 when the interaction is closed). No events yet (S34 event
+  log, S35 websocket for live results).

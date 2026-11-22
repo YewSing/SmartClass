@@ -12,12 +12,17 @@ from app.core.deps import require_role
 from app.models.user import User
 from app.schemas.interaction import (
     InteractionSessionOut,
+    PollCreate,
+    PollListOut,
+    PollOut,
+    PollUpdate,
+    PollVoteIn,
     QuestionCreate,
     QuestionListOut,
     QuestionModerate,
     QuestionOut,
 )
-from app.services.interaction import questions, sessions
+from app.services.interaction import polls, questions, sessions
 
 router = APIRouter(tags=["interaction"])
 
@@ -117,3 +122,83 @@ async def moderate_question(
     """Mark answered, pin or hide (hide/unhide audited)."""
     _, member = await sessions.authorize(db, actor, attendance_session_id)
     return await questions.moderate(db, actor, member, attendance_session_id, question_id, body)
+
+
+# ── live polls (S32, FR-507–FR-509) ─────────────────────────────────────────────
+
+@router.get("/interaction/{attendance_session_id}/polls", response_model=PollListOut)
+async def list_polls(
+    attendance_session_id: int,
+    db: AsyncSession = Depends(get_db),
+    actor: User = Depends(require_role("lecturer", "student")),
+):
+    """Newest first. The lecturer also gets drafts and always the counts; students get the counts
+    only when the lecturer shows results."""
+    session, member = await sessions.authorize(db, actor, attendance_session_id)
+    st = await sessions.state(db, session)
+    return PollListOut(attendance_session_id=attendance_session_id, status=st.status,
+                       polls=await polls.list_polls(db, member, attendance_session_id,
+                                                    interaction_open=st.is_open))
+
+
+@router.post("/lecturer/interaction/{attendance_session_id}/polls", response_model=PollOut,
+             status_code=status.HTTP_201_CREATED)
+async def create_poll(
+    attendance_session_id: int,
+    body: PollCreate,
+    db: AsyncSession = Depends(get_db),
+    actor: User = Depends(require_role("lecturer")),
+):
+    """Create a draft poll (2–6 options, single or multiple choice)."""
+    _, member = await sessions.authorize(db, actor, attendance_session_id)
+    return await polls.create(db, actor, member, attendance_session_id, body)
+
+
+@router.post("/lecturer/interaction/{attendance_session_id}/polls/{poll_id}/start", response_model=PollOut)
+async def start_poll(
+    attendance_session_id: int,
+    poll_id: int,
+    db: AsyncSession = Depends(get_db),
+    actor: User = Depends(require_role("lecturer")),
+):
+    """Open the poll for votes; students get a `poll.started` notification."""
+    _, member = await sessions.authorize(db, actor, attendance_session_id)
+    return await polls.start(db, member, attendance_session_id, poll_id)
+
+
+@router.post("/lecturer/interaction/{attendance_session_id}/polls/{poll_id}/close", response_model=PollOut)
+async def close_poll(
+    attendance_session_id: int,
+    poll_id: int,
+    db: AsyncSession = Depends(get_db),
+    actor: User = Depends(require_role("lecturer")),
+):
+    """Stop the voting (idempotent)."""
+    _, member = await sessions.authorize(db, actor, attendance_session_id)
+    return await polls.close(db, member, attendance_session_id, poll_id)
+
+
+@router.patch("/lecturer/interaction/{attendance_session_id}/polls/{poll_id}", response_model=PollOut)
+async def update_poll(
+    attendance_session_id: int,
+    poll_id: int,
+    body: PollUpdate,
+    db: AsyncSession = Depends(get_db),
+    actor: User = Depends(require_role("lecturer")),
+):
+    """Show or hide the results to students."""
+    _, member = await sessions.authorize(db, actor, attendance_session_id)
+    return await polls.set_show_results(db, member, attendance_session_id, poll_id, body.show_results)
+
+
+@router.post("/interaction/{attendance_session_id}/polls/{poll_id}/vote", response_model=PollOut)
+async def vote_poll(
+    attendance_session_id: int,
+    poll_id: int,
+    body: PollVoteIn,
+    db: AsyncSession = Depends(get_db),
+    actor: User = Depends(require_role("lecturer", "student")),
+):
+    """A student's vote; it replaces their earlier vote until the poll closes."""
+    _, member = await sessions.authorize(db, actor, attendance_session_id)
+    return await polls.vote(db, member, attendance_session_id, poll_id, body.option_ids)

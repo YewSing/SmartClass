@@ -77,3 +77,64 @@ class QuestionVote(Base):
     question_id: Mapped[int] = mapped_column(ForeignKey("m5_questions.id", ondelete="CASCADE"), nullable=False)
     student_id: Mapped[int] = mapped_column(ForeignKey("students.id", ondelete="CASCADE"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(nullable=False)
+
+
+POLL_QUESTION_MAX_CHARS = 300
+POLL_OPTION_MAX_CHARS = 120
+POLL_MIN_OPTIONS = 2
+POLL_MAX_OPTIONS = 6
+POLL_STATUSES = ("draft", "open", "closed")
+
+
+class Poll(Base):
+    """A live poll (FR-507–FR-509) — S32. `draft` until the lecturer starts it, then `open`, then
+    `closed`. Not graded (FR-513)."""
+    __tablename__ = "m5_polls"
+    __table_args__ = (
+        CheckConstraint("status IN ('draft','open','closed')", name="ck_m5_polls_status"),
+        CheckConstraint(f"char_length(question) BETWEEN 1 AND {POLL_QUESTION_MAX_CHARS}",
+                        name="ck_m5_polls_question_length"),
+        Index("ix_m5_polls_session", "attendance_session_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    attendance_session_id: Mapped[int] = mapped_column(
+        ForeignKey("attendance_sessions.id", ondelete="CASCADE"), nullable=False)
+    question: Mapped[str] = mapped_column(String(POLL_QUESTION_MAX_CHARS), nullable=False)
+    multiple: Mapped[bool] = mapped_column(nullable=False, default=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="draft")
+    show_results: Mapped[bool] = mapped_column(nullable=False, default=False)
+    created_by_user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(nullable=False)        # naive MYT
+    started_at: Mapped[Optional[datetime]] = mapped_column()
+    closed_at: Mapped[Optional[datetime]] = mapped_column()
+
+
+class PollOption(Base):
+    __tablename__ = "m5_poll_options"
+    __table_args__ = (
+        UniqueConstraint("poll_id", "position", name="uq_m5_poll_options_poll_position"),
+        CheckConstraint(f"char_length(text) BETWEEN 1 AND {POLL_OPTION_MAX_CHARS}",
+                        name="ck_m5_poll_options_text_length"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    poll_id: Mapped[int] = mapped_column(ForeignKey("m5_polls.id", ondelete="CASCADE"), nullable=False)
+    position: Mapped[int] = mapped_column(nullable=False)
+    text: Mapped[str] = mapped_column(String(POLL_OPTION_MAX_CHARS), nullable=False)
+
+
+class PollVote(Base):
+    """One row per chosen option; a single-choice poll has at most one row per student (the
+    service replaces a student's whole vote under a per-student lock)."""
+    __tablename__ = "m5_poll_votes"
+    __table_args__ = (
+        UniqueConstraint("poll_id", "student_id", "option_id", name="uq_m5_poll_votes_poll_student_option"),
+        Index("ix_m5_poll_votes_student", "student_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    poll_id: Mapped[int] = mapped_column(ForeignKey("m5_polls.id", ondelete="CASCADE"), nullable=False)
+    option_id: Mapped[int] = mapped_column(ForeignKey("m5_poll_options.id", ondelete="CASCADE"), nullable=False)
+    student_id: Mapped[int] = mapped_column(ForeignKey("students.id", ondelete="CASCADE"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(nullable=False)

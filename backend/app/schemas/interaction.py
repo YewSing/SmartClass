@@ -3,7 +3,13 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.models.interaction import QUESTION_MAX_CHARS
+from app.models.interaction import (
+    POLL_MAX_OPTIONS,
+    POLL_MIN_OPTIONS,
+    POLL_OPTION_MAX_CHARS,
+    POLL_QUESTION_MAX_CHARS,
+    QUESTION_MAX_CHARS,
+)
 
 
 class InteractionSessionOut(BaseModel):
@@ -66,3 +72,79 @@ class QuestionListOut(BaseModel):
     attendance_session_id: int
     status: Literal["open", "closed"]               # effective interaction state
     questions: list[QuestionOut]
+
+
+# ── live polls (S32, FR-507–FR-509) ─────────────────────────────────────────────
+
+def _clean(v: str, what: str) -> str:
+    v = v.strip()
+    if not v:
+        raise ValueError(f"{what} can't be empty")
+    return v
+
+
+class PollCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    question: str = Field(min_length=1, max_length=POLL_QUESTION_MAX_CHARS)
+    options: list[str] = Field(min_length=POLL_MIN_OPTIONS, max_length=POLL_MAX_OPTIONS)
+    multiple: bool = False
+    show_results: bool = False
+
+    @field_validator("question")
+    @classmethod
+    def _q(cls, v: str) -> str:
+        return _clean(v, "Question")
+
+    @field_validator("options")
+    @classmethod
+    def _opts(cls, v: list[str]) -> list[str]:
+        out = []
+        for o in v:
+            o = _clean(o, "Option")
+            if len(o) > POLL_OPTION_MAX_CHARS:
+                raise ValueError(f"An option can be at most {POLL_OPTION_MAX_CHARS} characters")
+            out.append(o)
+        if len({o.casefold() for o in out}) != len(out):
+            raise ValueError("Options must be different")
+        return out
+
+
+class PollUpdate(BaseModel):
+    """Lecturer chooses whether students see the results (FR-509)."""
+    model_config = ConfigDict(extra="forbid")
+    show_results: bool
+
+
+class PollVoteIn(BaseModel):
+    """The student's whole choice; it replaces any earlier vote on this poll (FR-508)."""
+    model_config = ConfigDict(extra="forbid")
+    option_ids: list[int] = Field(min_length=1, max_length=POLL_MAX_OPTIONS)
+
+
+class PollOptionOut(BaseModel):
+    id: int
+    text: str
+    votes: Optional[int]                            # null for students while results are hidden
+
+
+class PollOut(BaseModel):
+    """A poll as one caller sees it. Never who voted for what; `my_option_ids` is the caller's own
+    vote (always [] for the lecturer)."""
+    id: int
+    attendance_session_id: int
+    question: str
+    multiple: bool
+    status: Literal["draft", "open", "closed"]      # effective: open only while the interaction is
+    show_results: bool
+    options: list[PollOptionOut]
+    total_voters: Optional[int]                     # null for students while results are hidden
+    my_option_ids: list[int]
+    created_at: datetime
+    started_at: Optional[datetime]
+    closed_at: Optional[datetime]
+
+
+class PollListOut(BaseModel):
+    attendance_session_id: int
+    status: Literal["open", "closed"]               # effective interaction state
+    polls: list[PollOut]
