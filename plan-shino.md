@@ -56,7 +56,7 @@ Run the loop with `/shino-run-plan [rounds]` (or `bash scripts/shino/run-tasks.s
   Done when: `GET /student/me/dashboard` returns today's classes with the student's attendance status, attendance rate per course (via `attendance_read`), Moodle deadlines and announcements with refreshed_at, and unread urgent/important notifications; `GET /lecturer/dashboard` returns today's classes, the current/latest session's attendance counts (via `attendance_read`), and unread urgent/important notifications. Fields from M5/M6/M7 are present and `null` until S80 fills them. Tests for both roles and isolation.
 - [~] **S19 [UI] Notification centre and push registration (both apps).** Depends on: S12, S13, S15.
   Done when: both apps show a bell with the unread count on the home screen, a feed screen (pull to refresh, mark one/all read, tap opens the deep link), live updates through the websocket, a preferences screen; the phone apps register the Expo push token after login and remove it on logout. Maestro `notifications.yaml` (student) and Playwright `notifications.spec.js` (lecturer) pass.
-- [ ] **S20 [UI] Student and lecturer dashboards.** Depends on: S18, S19.
+- [~] **S20 [UI] Student and lecturer dashboards.** Depends on: S18, S19.
   Done when: the student Home and lecturer Dashboard show the S18 data with loading, empty and error states, Moodle items open the Moodle link, priority notifications sit at the top until read (FR-208). Maestro `dashboard.yaml` and Playwright `dashboard.spec.js` pass at phone width and 1280 px.
 - [ ] **S21 [HUMAN] Checkpoint: notifications on a real phone.** Shino logs in on Android, checks a push arrives and the dashboard is right, then ticks `[x]`.
 

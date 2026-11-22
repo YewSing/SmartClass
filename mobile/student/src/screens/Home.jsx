@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet, RefreshControl,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, Linking,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
@@ -8,6 +8,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useStudent } from '../context/StudentContext'
 import Badge from '../components/Badge'
 import NotificationBell from '../components/NotificationBell'
+import {
+  useDashboard, SectionTitle, LoadingCard, ErrorCard, EmptyRow, PriorityNotifications, dashStyles,
+} from '../components/DashboardParts'
+import * as api from '../services/api'
+import {
+  attendanceBadge, classTypeLabel, classMeta, rateLabel, rateVariant, dueLabel, refreshedLabel, moodleLink,
+} from '../services/dashboard'
+import { timeLabel } from '../services/notifications'
 import { C } from '../theme'
 
 function greeting() {
@@ -17,19 +25,114 @@ function greeting() {
   return 'Good evening,'
 }
 
+// A Moodle item (FR-203): tapping opens it in SPeCTRUM
+function MoodleRow({ item, sub, first, testID }) {
+  const link = moodleLink(item)
+  return (
+    <TouchableOpacity
+      style={[dashStyles.row, !first && dashStyles.rowBorder]}
+      disabled={!link}
+      onPress={() => Linking.openURL(link).catch(() => {})}
+      testID={testID}
+      accessibilityRole="link"
+    >
+      <View style={dashStyles.rowMain}>
+        <Text style={dashStyles.rowTitle} numberOfLines={2}>{item.title}</Text>
+        <Text style={dashStyles.rowSub}>{[item.course_code, sub].filter(Boolean).join(' · ')}</Text>
+      </View>
+      {link ? <Ionicons name="open-outline" size={16} color={C.gray400} /> : null}
+    </TouchableOpacity>
+  )
+}
+
+function Dashboard({ data, navigation }) {
+  const { today_classes: today, attendance_rates: rates, moodle } = data
+  return (
+    <>
+      <SectionTitle>Today</SectionTitle>
+      <View style={dashStyles.card}>
+        {today.length === 0 ? <EmptyRow text="No classes today." testID="dash-today-empty" /> : today.map((c, i) => {
+          const b = attendanceBadge(c)
+          return (
+            <TouchableOpacity
+              key={`${c.occurrence_id}`}
+              style={[dashStyles.row, i > 0 && dashStyles.rowBorder]}
+              onPress={() => navigation.navigate('Attendance')}
+              testID="dash-today-class"
+            >
+              <View style={dashStyles.rowMain}>
+                <Text style={dashStyles.code}>{c.course_code} · {classTypeLabel(c)}</Text>
+                <Text style={dashStyles.rowTitle}>{c.course_name}</Text>
+                {classMeta(c) ? <Text style={dashStyles.rowSub}>{classMeta(c)}</Text> : null}
+              </View>
+              <Badge variant={b.variant} dot>{b.label}</Badge>
+            </TouchableOpacity>
+          )
+        })}
+      </View>
+
+      <SectionTitle>Attendance rate</SectionTitle>
+      <View style={dashStyles.card}>
+        {rates.length === 0 ? <EmptyRow text="No attendance recorded yet." testID="dash-rates-empty" /> : rates.map((r, i) => (
+          <TouchableOpacity
+            key={r.course_id}
+            style={[dashStyles.row, i > 0 && dashStyles.rowBorder]}
+            onPress={() => navigation.navigate('Attendance')}
+            testID="dash-rate"
+          >
+            <View style={dashStyles.rowMain}>
+              <Text style={dashStyles.code}>{r.course_code}</Text>
+              <Text style={dashStyles.rowSub}>
+                {r.closed_sessions} class{r.closed_sessions === 1 ? '' : 'es'} · {r.present} present · {r.late} late · {r.absent} absent
+              </Text>
+            </View>
+            <Badge variant={rateVariant(r.rate)}>{rateLabel(r.rate)}</Badge>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <SectionTitle>From SPeCTRUM</SectionTitle>
+      <View style={dashStyles.card} testID="dash-moodle">
+        <Text style={styles.subHead}>Upcoming deadlines</Text>
+        {moodle.deadlines.length === 0
+          ? <EmptyRow text="No upcoming deadlines." testID="dash-deadlines-empty" />
+          : moodle.deadlines.map((d, i) => (
+            <MoodleRow key={`d${d.id}`} item={d} sub={dueLabel(d.date)} first={i === 0} testID="dash-deadline" />
+          ))}
+        <Text style={[styles.subHead, styles.subHeadGap]}>Announcements</Text>
+        {moodle.announcements.length === 0
+          ? <EmptyRow text="No announcements." testID="dash-announcements-empty" />
+          : moodle.announcements.map((a, i) => (
+            <MoodleRow key={`a${a.id}`} item={a} sub={timeLabel(a.date)} first={i === 0} testID="dash-announcement" />
+          ))}
+        <Text style={dashStyles.note} testID="dash-moodle-refreshed">{refreshedLabel(moodle.refreshed_at)}</Text>
+      </View>
+    </>
+  )
+}
+
 export default function Home({ navigation }) {
-  const { state, loadClasses, feed } = useStudent()
+  const { state, loadClasses, feed, markNotificationRead, openNotificationLink } = useStudent()
   const { classes, student } = state
   const insets = useSafeAreaInsets()
+  const { dash, dispatch: dashDispatch, refresh } = useDashboard(api.getDashboard, feed.unread)
 
   useEffect(() => { loadClasses() }, [loadClasses])
 
   const [refreshing, setRefreshing] = useState(false)
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
-    await loadClasses()
+    await Promise.all([loadClasses(), refresh()])
     setRefreshing(false)
-  }, [loadClasses])
+  }, [loadClasses, refresh])
+
+  const openPriority = useCallback(async (n) => {
+    if (!(await markNotificationRead(n))) return
+    dashDispatch({ type: 'read', id: n.id })
+    if (n.link) openNotificationLink(n.link)
+  }, [markNotificationRead, openNotificationLink, dashDispatch])
+
+  const todayCount = dash.data?.today_classes?.length
 
   return (
     <View style={styles.flex}>
@@ -51,11 +154,25 @@ export default function Home({ navigation }) {
           </View>
           <Text style={styles.greetingName}>{student?.name ?? '—'}</Text>
           <Text style={styles.greetingSub}>
-            {classes.length > 0
-              ? `${classes.length} enrolled class${classes.length !== 1 ? 'es' : ''}`
-              : 'Loading classes…'}
+            {todayCount != null
+              ? (todayCount ? `${todayCount} class${todayCount !== 1 ? 'es' : ''} today` : 'No classes today')
+              : classes.length > 0
+                ? `${classes.length} enrolled class${classes.length !== 1 ? 'es' : ''}`
+                : 'Loading classes…'}
           </Text>
         </LinearGradient>
+
+        <View style={styles.dash}>
+          {dash.status === 'loading' && <LoadingCard />}
+          {dash.status === 'error' && <ErrorCard message={dash.error} onRetry={refresh} />}
+          {dash.status === 'ready' && dash.error ? <ErrorCard inline message={dash.error} onRetry={refresh} /> : null}
+          {dash.data ? (
+            <>
+              <PriorityNotifications items={dash.data.priority_notifications} onOpen={openPriority} />
+              <Dashboard data={dash.data} navigation={navigation} />
+            </>
+          ) : null}
+        </View>
 
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>My Classes</Text>
@@ -128,6 +245,19 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#BFDBFE',
     marginTop: 6,
+  },
+  dash: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  subHead: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: C.textSub,
+    marginBottom: 2,
+  },
+  subHeadGap: {
+    marginTop: 12,
   },
   sectionHeader: {
     paddingHorizontal: 16,

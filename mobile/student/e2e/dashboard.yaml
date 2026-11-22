@@ -1,0 +1,74 @@
+# Student Home dashboard (plan-shino.md S20; FR-201, FR-203, FR-208): unread urgent and important
+# notifications sit at the top until opened, then today's classes, attendance rates and the
+# SPeCTRUM deadlines/announcements (from the sign-in snapshot) with when they were updated.
+# Run: bash scripts/e2e-mobile.sh student dashboard
+# Needs the local Moodle up (student4 signs in) and student4 already in SmartClass.
+# dashboard.setup.sh seeds the notifications.
+appId: host.exp.exponent
+---
+- extendedWaitUntil:
+    visible: "Welcome back|Continue"
+    timeout: 180000
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+- extendedWaitUntil:
+    visible: "Welcome back"
+    timeout: 60000
+
+- tapOn:
+    id: "login-username"
+- inputText: "student4"
+- tapOn:
+    id: "login-password"
+- inputText: "Student123!"
+- hideKeyboard
+- tapOn: "Sign In"
+
+# Priority notifications on top: urgent and important, not the general one
+- extendedWaitUntil:
+    visible:
+      id: "dash-priority-list"
+    timeout: 60000
+- assertVisible: "E2E urgent notice"
+- assertVisible: "E2E room change"
+- assertNotVisible: "E2E general update"
+- takeScreenshot: dash-top
+
+# Opening the urgent one marks it read and it leaves the top
+- tapOn: "E2E urgent notice"
+- extendedWaitUntil:
+    notVisible: "E2E urgent notice"
+    timeout: 20000
+- assertVisible: "E2E room change"
+
+# Today's classes, attendance rates and SPeCTRUM items (each shows its rows or its empty line)
+- scrollUntilVisible:
+    element:
+      id: "dash-moodle"
+    direction: DOWN
+    timeout: 20000
+- assertVisible: "Upcoming deadlines"
+- assertVisible: "Announcements"
+- assertVisible:
+    id: "dash-moodle-refreshed"
+- assertVisible:
+    text: "Updated.*"
+- takeScreenshot: dash-moodle
+
+# The important one with a link opens face enrolment; back on Home it's gone from the top
+- scrollUntilVisible:
+    element: "E2E room change"
+    direction: UP
+    timeout: 20000
+- tapOn: "E2E room change"
+- extendedWaitUntil:
+    visible: "Face enrolment"
+    timeout: 20000
+- tapOn: "Home"
+- extendedWaitUntil:
+    notVisible:
+      id: "dash-priority-list"
+    timeout: 20000

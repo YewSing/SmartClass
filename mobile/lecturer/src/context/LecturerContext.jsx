@@ -356,12 +356,14 @@ export function LecturerProvider({ children }) {
     }
   }, [showToast])
 
+  // true once it is read on the server (the dashboard drops it from the top only then)
   const markNotificationRead = useCallback(async (n) => {
-    if (n.read) return
+    if (n.read) return true
     try {
       const r = await api.markNotificationRead(n.id)
       feedDispatch({ type: 'read', notification: r.notification, unread: r.unread_count })
-    } catch (e) { showToast(e.message, 'error') }
+      return true
+    } catch (e) { showToast(e.message, 'error'); return false }
   }, [showToast])
 
   const markAllNotificationsRead = useCallback(async () => {

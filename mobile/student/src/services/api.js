@@ -62,6 +62,10 @@ export const logout = async () => {
   clearToken(); clearRefreshToken()
 }
 
+// ─── Dashboard (Module 2: FR-201, FR-203) ─────────────────────────────────────
+
+export const getDashboard = () => apiCall('GET', '/student/me/dashboard')
+
 // ─── Notifications (Module 2: FR-208–FR-214) ──────────────────────────────────
 
 export const getNotifications = (cursor = null, limit = 20) =>

@@ -9,8 +9,14 @@ import { useLecturer } from '../context/LecturerContext'
 import Badge from '../components/Badge'
 import AttendanceCounts from '../components/AttendanceCounts'
 import NotificationBell from '../components/NotificationBell'
+import {
+  useDashboard, SectionTitle, LoadingCard, ErrorCard, EmptyRow, PriorityNotifications, dashStyles,
+} from '../components/DashboardParts'
 import * as api from '../services/api'
 import { sessionCounts } from '../services/attendance'
+import {
+  sessionBadge, classTypeLabel, classMeta, rateLabel, rateVariant, overviewCounts,
+} from '../services/dashboard'
 import { pendingLabel } from '../services/faceReview'
 import { C } from '../theme'
 
@@ -46,13 +52,79 @@ function nextLabel(c) {
   return `${when} · ${c.start_time}–${c.end_time}`
 }
 
+// Today's classes and the latest session's numbers from GET /lecturer/dashboard (FR-202, S18)
+function TodayAndOverview({ data, showOverview, openClass }) {
+  const { today_classes: today, attendance_overview: o } = data
+  return (
+    <>
+      <SectionTitle>Today</SectionTitle>
+      <View style={dashStyles.card}>
+        {today.length === 0 ? <EmptyRow text="No classes today." testID="dash-today-empty" /> : today.map((c, i) => {
+          const b = sessionBadge(c)
+          return (
+            <TouchableOpacity
+              key={c.occurrence_id}
+              style={[dashStyles.row, i > 0 && dashStyles.rowBorder]}
+              onPress={() => openClass(c.occurrence_id)}
+              testID="dash-today-class"
+            >
+              <View style={dashStyles.rowMain}>
+                <Text style={dashStyles.code}>{c.course_code} · {classTypeLabel(c)}</Text>
+                <Text style={dashStyles.rowTitle}>{c.course_name}</Text>
+                {classMeta(c) ? <Text style={dashStyles.rowSub}>{classMeta(c)}</Text> : null}
+              </View>
+              <Badge variant={b.variant} dot>{b.label}</Badge>
+            </TouchableOpacity>
+          )
+        })}
+      </View>
+
+      {showOverview && (
+        <>
+          <SectionTitle>{o?.session_status === 'open' ? 'Current class' : 'Latest class'}</SectionTitle>
+          {o ? (
+            <TouchableOpacity style={dashStyles.card} onPress={() => openClass(o.occurrence_id)} testID="dash-overview">
+              <View style={styles.overviewTop}>
+                <View style={dashStyles.rowMain}>
+                  <Text style={dashStyles.code}>{o.course_code} · {classTypeLabel(o)}</Text>
+                  <Text style={dashStyles.rowSub}>
+                    {o.session_status === 'open' ? 'Live now' : `Ended · ${o.date ?? ''}`} · {o.enrolled} enrolled
+                  </Text>
+                </View>
+                {o.session_status === 'closed'
+                  ? <Badge variant={rateVariant(o.rate)}>{rateLabel(o.rate)}</Badge>
+                  : <Badge variant="green" dot>Live</Badge>}
+              </View>
+              <View style={styles.attendCounts}>
+                <AttendanceCounts counts={overviewCounts(o)} open={o.session_status === 'open'} testIDPrefix="dash-count" />
+              </View>
+            </TouchableOpacity>
+          ) : (
+            <View style={dashStyles.card}>
+              <EmptyRow text="No attendance taken yet." testID="dash-overview-empty" />
+            </View>
+          )}
+        </>
+      )}
+    </>
+  )
+}
+
 export default function Dashboard({ navigation }) {
   const {
     state, loadClasses, loadAllClasses, loadSessions, doOpenSession, selectSession, feed,
+    markNotificationRead, openNotificationLink,
   } = useLecturer()
   const { sessions, classes, allClasses, lecturer } = state
   const insets = useSafeAreaInsets()
   const [starting, setStarting] = useState(false)
+  const { dash, dispatch: dashDispatch, refresh: refreshDash } = useDashboard(api.getDashboard, feed.unread)
+
+  const openPriority = useCallback(async (n) => {
+    if (!(await markNotificationRead(n))) return
+    dashDispatch({ type: 'read', id: n.id })
+    if (n.link) openNotificationLink(n.link)
+  }, [markNotificationRead, openNotificationLink, dashDispatch])
 
   useEffect(() => {
     loadClasses()
@@ -71,9 +143,9 @@ export default function Dashboard({ navigation }) {
   const [refreshing, setRefreshing] = useState(false)
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
-    await Promise.all([loadClasses(), loadSessions(), loadAllClasses(), loadPendingFaces()])
+    await Promise.all([loadClasses(), loadSessions(), loadAllClasses(), loadPendingFaces(), refreshDash()])
     setRefreshing(false)
-  }, [loadClasses, loadSessions, loadAllClasses, loadPendingFaces])
+  }, [loadClasses, loadSessions, loadAllClasses, loadPendingFaces, refreshDash])
 
   const activeSession = sessions.find(s => s.open)
   const sessionOpen   = Boolean(activeSession)
@@ -148,6 +220,11 @@ export default function Dashboard({ navigation }) {
           </TouchableOpacity>
         </View>
       </View>
+
+      {dash.status === 'error' && <ErrorCard message={dash.error} onRetry={refreshDash} />}
+      {dash.status === 'ready' && dash.error ? <ErrorCard inline message={dash.error} onRetry={refreshDash} /> : null}
+      {/* Unread urgent/important stay on top until read (FR-208) */}
+      {dash.data ? <PriorityNotifications items={dash.data.priority_notifications} onOpen={openPriority} /> : null}
 
       {/* Dash header card */}
       <View style={styles.dashHeader}>
@@ -269,6 +346,12 @@ export default function Dashboard({ navigation }) {
           </TouchableOpacity>
         </>
       )}
+
+      {dash.status === 'loading' && <LoadingCard />}
+      {dash.data ? (
+        // While a class is live the card above has its live numbers; otherwise the latest session's
+        <TodayAndOverview data={dash.data} showOverview={!sessionOpen} openClass={openClass} />
+      ) : null}
 
       {/* Every class taught, to set its schedule or start it (FR-301, FR-316) */}
       {allClasses.length > 0 && (
@@ -459,6 +542,11 @@ const styles = StyleSheet.create({
   attendCounts: {
     marginTop: 8,
     marginBottom: 12,
+  },
+  overviewTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   cardFooter: {
     flexDirection: 'row',
