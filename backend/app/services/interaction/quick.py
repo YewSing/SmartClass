@@ -20,7 +20,7 @@ from app.core.config import settings
 from app.models.interaction import QUICK_ANSWER_MAX_CHARS, QuickAnswer, QuickQuestion
 from app.models.user import User
 from app.schemas.interaction import QuickAnswerOut, QuickQuestionCreate, QuickQuestionOut
-from app.services.interaction import sessions
+from app.services.interaction import events, sessions
 from app.services.interaction.sessions import Member
 
 
@@ -130,5 +130,6 @@ async def answer(db: AsyncSession, member: Member, attendance_session_id: int, q
         .values(quick_question_id=q.id, student_id=member.student_id, text=text, created_at=now)
         .on_conflict_do_update(constraint="uq_m5_quick_answers_question_student",
                                set_={"text": text, "created_at": now}))
+    events.record(db, events.QUICK_ANSWERED, attendance_session_id, member.student_id, now, ref_id=q.id)
     await db.flush()
     return await _one(db, member, attendance_session_id, q.id)

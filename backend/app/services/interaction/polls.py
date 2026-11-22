@@ -31,7 +31,7 @@ from app.models.session import AttendanceSession
 from app.models.user import User
 from app.schemas.interaction import PollCreate, PollOptionOut, PollOut
 from app.services import notify
-from app.services.interaction import sessions
+from app.services.interaction import events, sessions
 from app.services.interaction.sessions import Member
 from app.services.notifications import announcements
 
@@ -224,5 +224,6 @@ async def vote(db: AsyncSession, member: Member, attendance_session_id: int, pol
     now = sessions.clock()
     db.add_all([PollVote(poll_id=poll.id, option_id=oid, student_id=member.student_id, created_at=now)
                 for oid in chosen])
+    events.record(db, events.POLL_VOTED, attendance_session_id, member.student_id, now, ref_id=poll.id)
     await db.flush()
     return await _one(db, member, attendance_session_id, poll.id)

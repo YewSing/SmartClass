@@ -438,8 +438,8 @@ and `m5_poll_votes` (one row per chosen option; a student's vote is replaced as 
 - Student: `POST /interaction/{id}/polls/{pid}/vote {option_ids}` replaces their vote while the poll
   is open (single choice: exactly one; duplicates or another poll's option → 422; draft → 404;
   closed poll → 409).
-- Every write calls `require_open` (409 when the interaction is closed). No events yet (S34 event
-  log, S35 websocket for live results).
+- Every write calls `require_open` (409 when the interaction is closed). Votes are logged in
+  `m5_events` (S34); the websocket for live results is S35.
 
 ### Quick questions, reactions and confusion (S33, FR-510–FR-515)
 
@@ -475,3 +475,35 @@ never returned.
   the threshold within a window of the spike's `last_at` extend it (no new notification); a new spike
   needs a whole window without one. Presses are serialised per class session.
 - Every write calls `require_open` (409 when the interaction is closed); the GETs work after class.
+
+### Interaction event log and M7 read interface (S34, FR-513, FR-517, FR-713)
+
+Table `m5_events` (session, `student_id`, `type`, `ref_id`, `anonymous`, `created_at`): one row per
+student action, written in the same transaction as the action (`app.services.interaction.events.record`).
+Types: `question_asked` (ref = question, `anonymous` copied), `question_upvoted` (ref = question; a
+repeat upvote adds nothing), `poll_voted` (ref = poll; every change of vote), `quick_answered` (ref =
+quick question; every replacement), `reaction`, `confusion`. Rejected actions (403/409/422/429) leave
+no row. The migration backfilled rows from the S31–S33 tables.
+
+M7 reads it only through `app/services/interaction_read.py` (read only, no permission checks: the
+caller checks NFR-04 first; frozen dataclasses, fields only ever added). Nothing is graded.
+
+| Function | Arguments | Returns |
+|---|---|---|
+| `course_student_counts` | `db, course_id, from_date=None, to_date=None` | `list[StudentInteractionCounts]`, one per student enrolled in any class of the course (zeros kept), by matric no |
+| `student_counts` | `db, student_id, course_id=None, from_date=None, to_date=None` | one per course the student is enrolled in, by course code |
+| `session_student_counts` | `db, attendance_session_id` | one per student enrolled in that session's class |
+| `course_session_totals` | `db, course_id, from_date=None, to_date=None` | `list[SessionInteractionTotals]`, every session of the course, oldest first |
+| `session_totals` | `db, attendance_session_id` | `SessionInteractionTotals` or `None` |
+
+- `StudentInteractionCounts`: `student_id, matric_no, name, course_id, course_code, sessions_active,
+  polls_answered` (distinct polls), `questions` (named only), `upvotes, quick_answers` (distinct quick
+  questions), `reactions, confusion`. **Anonymous questions are never in a per-student figure** and
+  don't make a student `sessions_active` (FR-713).
+- `SessionInteractionTotals`: `session_id, occurrence_id, course_id, course_code, date, polls_run`
+  (non-draft polls), `poll_answers` (distinct poll × student), `questions` (anonymous included),
+  `anonymous_questions, upvotes, quick_answers` (distinct), `reactions, confusion, participants`
+  (distinct students, anonymous askers included). No identity fields.
+- Dates are the MYT class date (`class_date`, else opened/starts date), inclusive; `from_date >
+  to_date` raises `ValueError`. Sessions of any status count. Unknown ids → `[]` / `None`.
+- FR-702 "participation frequency" is for M7 to combine (e.g. polls_answered + questions + reactions).

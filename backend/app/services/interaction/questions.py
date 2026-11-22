@@ -23,7 +23,7 @@ from app.models.interaction import Question, QuestionVote
 from app.models.user import Student, User
 from app.schemas.interaction import QuestionModerate, QuestionOut
 from app.services.audit_service import write_log
-from app.services.interaction import sessions
+from app.services.interaction import events, sessions
 from app.services.interaction.sessions import Member
 
 AUDIT_TARGET = "m5_question"
@@ -107,6 +107,9 @@ async def ask(db: AsyncSession, member: Member, attendance_session_id: int,
                  created_at=sessions.clock())
     db.add(q)
     await db.flush()
+    events.record(db, events.QUESTION_ASKED, attendance_session_id, member.student_id, q.created_at,
+                  ref_id=q.id, anonymous=anonymous)
+    await db.flush()
     return await _one(db, member, attendance_session_id, q.id)
 
 
@@ -121,9 +124,16 @@ async def upvote(db: AsyncSession, member: Member, attendance_session_id: int, q
     if q.student_id == member.student_id:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                             detail="You can't upvote your own question")
-    await db.execute(insert(QuestionVote)
-                     .values(question_id=q.id, student_id=member.student_id, created_at=sessions.clock())
-                     .on_conflict_do_nothing(constraint="uq_m5_question_votes_question_student"))
+    now = sessions.clock()
+    added = (await db.execute(
+        insert(QuestionVote)
+        .values(question_id=q.id, student_id=member.student_id, created_at=now)
+        .on_conflict_do_nothing(constraint="uq_m5_question_votes_question_student")
+        .returning(QuestionVote.id))).scalar_one_or_none()
+    if added is not None:                                   # a repeat upvote isn't a new event
+        events.record(db, events.QUESTION_UPVOTED, attendance_session_id, member.student_id, now,
+                      ref_id=q.id)
+        await db.flush()
     return await _one(db, member, attendance_session_id, q.id)
 
 

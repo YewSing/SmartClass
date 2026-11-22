@@ -244,3 +244,32 @@ class ConfusionSpike(Base):
     last_at: Mapped[datetime] = mapped_column(nullable=False)           # last press at/above threshold
     peak_students: Mapped[int] = mapped_column(nullable=False)
     class_size: Mapped[int] = mapped_column(nullable=False)
+
+
+EVENT_TYPES = ("question_asked", "question_upvoted", "poll_voted", "quick_answered", "reaction",
+               "confusion")
+
+
+class InteractionEvent(Base):
+    """The interaction event log (FR-517) — S34. One row per student action: asking or upvoting a
+    question, voting on a poll (each change of vote too), answering a quick question (each
+    change), a reaction, a confusion press. `ref_id` is the question, poll or quick question id
+    (null for reactions and confusion). `anonymous` marks an anonymous question; its `student_id`
+    is kept only for class totals and never reaches an individual figure (FR-504, FR-713).
+    Read through `app.services.interaction_read` only; nothing here is graded (FR-513)."""
+    __tablename__ = "m5_events"
+    __table_args__ = (
+        CheckConstraint("type IN ('question_asked','question_upvoted','poll_voted','quick_answered',"
+                        "'reaction','confusion')", name="ck_m5_events_type"),
+        Index("ix_m5_events_session", "attendance_session_id", "created_at"),
+        Index("ix_m5_events_student", "student_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    attendance_session_id: Mapped[int] = mapped_column(
+        ForeignKey("attendance_sessions.id", ondelete="CASCADE"), nullable=False)
+    student_id: Mapped[Optional[int]] = mapped_column(ForeignKey("students.id", ondelete="SET NULL"))
+    type: Mapped[str] = mapped_column(String(32), nullable=False)
+    ref_id: Mapped[Optional[int]] = mapped_column()
+    anonymous: Mapped[bool] = mapped_column(nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(nullable=False)        # naive MYT
