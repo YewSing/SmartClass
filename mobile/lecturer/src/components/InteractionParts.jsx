@@ -1,10 +1,59 @@
-// Building blocks of the live interaction and after-class summary screens (S37)
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native'
+// Building blocks of the live interaction and after-class summary screens (S37, S38b)
+import {
+  View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, ActivityIndicator, Modal, ScrollView,
+  Dimensions,
+} from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import Badge from './Badge'
 import { pollBars, timelineBars, reactionRows, askerLabel, questionBadges } from '../services/interaction'
 import { hhmm } from '../services/attendance'
+import { useWideLayout } from '../hooks/useWideLayout'
 import { C } from '../theme'
+
+// A pop-up for history lists and compose forms: a bottom sheet on phones, a centred dialog when wide.
+// The page behind never grows (S38b).
+export function IxSheet({ visible, title, onClose, children, testID }) {
+  const { bottom } = useSafeAreaInsets()
+  const wide = useWideLayout()
+  return (
+    <Modal transparent animationType={wide ? 'fade' : 'slide'} visible={visible} onRequestClose={onClose}>
+      <View style={[s.overlay, wide && s.overlayWide]}>
+        <TouchableWithoutFeedback onPress={onClose}>
+          <View style={StyleSheet.absoluteFillObject} />
+        </TouchableWithoutFeedback>
+        <View style={[s.sheet, wide ? s.dialog : { paddingBottom: bottom + 12 }]} testID={testID}>
+          {!wide ? <View style={s.handle} /> : null}
+          <View style={s.sheetHead}>
+            <Text style={s.sheetTitle}>{title}</Text>
+            <TouchableOpacity onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close"
+              testID={testID ? `${testID}-close` : undefined}>
+              <Ionicons name="close" size={20} color={C.textSub} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            {children}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  )
+}
+
+// Reactions as small chips with counts (the live page's status card)
+export function ReactionChips({ counts, testIDPrefix = 'ix-reaction' }) {
+  return (
+    <View style={s.chips}>
+      {reactionRows(counts).map(r => (
+        <View key={r.kind} style={s.chip} accessibilityLabel={`${r.label}: ${r.count}`}>
+          <Ionicons name={r.icon} size={13} color={C.primary} />
+          <Text style={s.chipLabel}>{r.label}</Text>
+          <Text style={s.chipCount} testID={`${testIDPrefix}-${r.kind}`}>{r.count}</Text>
+        </View>
+      ))}
+    </View>
+  )
+}
 
 export function Card({ children, style, testID }) {
   return <View style={[s.card, style]} testID={testID}>{children}</View>
@@ -204,6 +253,23 @@ export const ixStyles = StyleSheet.create({
 
 const s = StyleSheet.create({
   flex1: { flex: 1 },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  overlayWide: { justifyContent: 'center', alignItems: 'center', padding: 24 },
+  sheet: {
+    backgroundColor: C.bg, borderTopLeftRadius: 18, borderTopRightRadius: 18, paddingHorizontal: 16,
+    paddingTop: 10, maxHeight: Dimensions.get('window').height * 0.85,
+  },
+  dialog: { width: '100%', maxWidth: 560, borderRadius: 14, paddingTop: 16, paddingBottom: 12, maxHeight: '85%' },
+  handle: { width: 40, height: 4, backgroundColor: C.gray300, borderRadius: 2, alignSelf: 'center', marginBottom: 10 },
+  sheetHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  sheetTitle: { fontSize: 16, fontWeight: '600', color: C.text },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  chip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderColor: C.border,
+    borderRadius: 16, paddingHorizontal: 9, paddingVertical: 4, backgroundColor: C.card,
+  },
+  chipLabel: { fontSize: 12, color: C.text },
+  chipCount: { fontSize: 12, fontWeight: '600', color: C.text },
   card: {
     backgroundColor: C.card, borderRadius: 12, borderWidth: 1, borderColor: C.border, padding: 14, marginBottom: 10,
   },

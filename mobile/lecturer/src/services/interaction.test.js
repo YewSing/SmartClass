@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {
   TOPICS, topicsFor, interactionState, questionBadges, askerLabel, pollBars, validatePoll, validateQuick,
   reactionRows, timelineBars, confusionRecentLabel, summaryCsvName, connectInteractionLive,
+  openQuestions, newestUnanswered, latestPoll, latestQuick, newestAnswer, spikeLabel,
 } from './interaction.js'
 
 // ─── what to re-read ─────────────────────────────────────────────────────────
@@ -187,4 +188,56 @@ test('a lecturer pause keeps the socket; a 1008 refreshes the token once', async
   const f = client({ refreshOk: false })
   await f.made[0].onclose({ code: 1008 })
   assert.equal(f.timers.length, 0)
+})
+
+// ─── one-page layout (S38b) ──────────────────────────────────────────────────
+
+test('newest open questions skip answered and hidden ones, newest first, at most n', () => {
+  const qs = [
+    { id: 1, created_at: '2026-11-23T01:00:00Z', answered: false, hidden: false, pinned: true },
+    { id: 2, created_at: '2026-11-23T01:05:00Z', answered: true, hidden: false },
+    { id: 3, created_at: '2026-11-23T01:06:00Z', answered: false, hidden: true },
+    { id: 4, created_at: '2026-11-23T01:07:00Z', answered: false, hidden: false },
+    { id: 5, created_at: '2026-11-23T01:07:00Z', answered: false, hidden: false },
+    { id: 6, created_at: '2026-11-23T01:02:00Z', answered: false, hidden: false },
+  ]
+  assert.deepEqual(newestUnanswered(qs, 3).map(q => q.id), [5, 4, 6])
+  assert.deepEqual(newestUnanswered(qs, 1).map(q => q.id), [5])
+  assert.equal(openQuestions(qs).length, 4)
+  assert.deepEqual(newestUnanswered([], 3), [])
+  assert.deepEqual(newestUnanswered(undefined), [])
+  // The input list is not reordered
+  assert.deepEqual(qs.map(q => q.id), [1, 2, 3, 4, 5, 6])
+})
+
+test('latest poll / quick question: the newest open one, else the newest', () => {
+  const polls = [
+    { id: 1, status: 'open', created_at: '2026-11-23T01:00:00Z' },
+    { id: 2, status: 'closed', created_at: '2026-11-23T01:10:00Z' },
+    { id: 3, status: 'draft', created_at: '2026-11-23T01:20:00Z' },
+  ]
+  assert.equal(latestPoll(polls).id, 1)
+  assert.equal(latestPoll(polls.filter(p => p.status !== 'open')).id, 3)
+  assert.equal(latestPoll([]), null)
+  assert.equal(latestPoll(undefined), null)
+  const quick = [
+    { id: 7, status: 'closed', created_at: '2026-11-23T01:00:00Z' },
+    { id: 8, status: 'closed', created_at: '2026-11-23T01:30:00Z' },
+  ]
+  assert.equal(latestQuick(quick).id, 8)
+  assert.equal(latestQuick([...quick, { id: 9, status: 'open', created_at: '2026-11-23T00:10:00Z' }]).id, 9)
+})
+
+test('newest answer of a quick question is the last one listed', () => {
+  assert.equal(newestAnswer({ answers: [{ id: 1, text: 'a' }, { id: 2, text: 'b' }] }).text, 'b')
+  assert.equal(newestAnswer({ answers: [] }), null)
+  assert.equal(newestAnswer(null), null)
+})
+
+test('spike label: running now, earlier spikes, or none', () => {
+  assert.deepEqual(spikeLabel({ spike_active: true, spikes: 2 }), { text: 'Many confused now', variant: 'red' })
+  assert.equal(spikeLabel({ spike_active: false, spikes: 1 }).text, '1 spike earlier')
+  assert.equal(spikeLabel({ spike_active: false, spikes: 3 }).text, '3 spikes earlier')
+  assert.equal(spikeLabel({ spike_active: false, spikes: 0 }), null)
+  assert.equal(spikeLabel(null), null)
 })

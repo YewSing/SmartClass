@@ -1,23 +1,26 @@
-// Lecturer live interaction for one class session (Module 5, plan-shino.md S37; FR-501–FR-516).
-// Questions to moderate, polls, quick questions, reactions and the confusion timeline, kept live by
-// WS /interaction/{id}/ws (each `changed` re-reads its topic). Opened from the dashboard's session card.
+// Lecturer live interaction for one class session (Module 5, plan-shino.md S37, one-page layout S38b;
+// FR-501–FR-516). One scrolling page of section cards: Live status, Student questions, Quick question,
+// Poll. Only the newest items sit on the page; history opens in sheets and compose forms are pop-ups, so
+// the page never grows. Kept live by WS /interaction/{id}/ws (each `changed` re-reads its topic).
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { View, Text, ScrollView, TextInput, StyleSheet, RefreshControl } from 'react-native'
 import Topbar from '../components/Topbar'
 import Badge from '../components/Badge'
 import {
-  Card, Heading, Muted, Loading, LoadError, Btn, Toggle, Segments, QuestionRow, PollResults,
-  ReactionGrid, ConfusionTimeline, TopicList, ixStyles,
+  Card, Muted, Loading, LoadError, Btn, Toggle, QuestionRow, PollResults, ReactionChips,
+  ConfusionTimeline, TopicList, IxSheet, ixStyles,
 } from '../components/InteractionParts'
 import { useLecturer } from '../context/LecturerContext'
-import { useWideLayout } from '../hooks/useWideLayout'
 import * as api from '../services/api'
 import { BASE, getToken } from '../services/client'
 import {
   TOPICS, topicsFor, interactionState, validatePoll, validateQuick, confusionRecentLabel,
-  connectInteractionLive, POLL_MAX_OPTIONS, POLL_MIN_OPTIONS,
+  connectInteractionLive, POLL_MAX_OPTIONS, POLL_MIN_OPTIONS, openQuestions, newestUnanswered,
+  latestPoll, latestQuick, newestAnswer, spikeLabel,
 } from '../services/interaction'
 import { C } from '../theme'
+
+const INLINE_QUESTIONS = 3
 
 async function refreshViaApi() {
   try { await api.getLecturer(); return true } catch { return false }
@@ -50,31 +53,231 @@ function useTopicLoader(loaders) {
   }, [loaders])
 }
 
+// A section card with a title row (title, optional count/badge on the right)
+function Section({ title, right, children, testID }) {
+  return (
+    <Card testID={testID}>
+      <View style={styles.sectionHead}>
+        <Text style={styles.sectionTitle}>{title}</Text>
+        {right ?? null}
+      </View>
+      {children}
+    </Card>
+  )
+}
+
+function LinkBtn({ label, onPress, testID, disabled }) {
+  return <Btn kind="subtle" label={label} onPress={onPress} testID={testID} disabled={disabled} />
+}
+
+// ─── Live status (FR-512, FR-514, FR-515) ────────────────────────────────────
+
+function StatusCard({ st, busy, togglePause, openSummary, questions, reactions, confusion, onConfusion }) {
+  const spike = spikeLabel(confusion)
+  return (
+    <Section title="Live status" testID="ix-status">
+      <View style={[ixStyles.wrap, styles.toolbar]}>
+        <Text style={[styles.meta, styles.flex1]} testID="ix-state-text">
+          {st.ended ? 'The class has ended.'
+            : st.open ? 'Students can ask, vote, answer and react.'
+              : st.canReopen ? 'Paused: students can read but not post.' : 'Interaction opens when the class starts.'}
+        </Text>
+        {st.open || st.canReopen ? (
+          <Btn icon={st.open ? 'pause' : 'play'} label={st.open ? 'Pause' : 'Resume'} busy={busy}
+            onPress={togglePause} testID={st.open ? 'ix-pause' : 'ix-resume'} />
+        ) : null}
+        <Btn icon="document-text-outline" label="Summary" onPress={openSummary} testID="ix-summary" />
+      </View>
+      <View style={styles.stats}>
+        <View style={styles.stat} testID="ix-confusion">
+          <Text style={styles.big} testID="ix-confusion-total">{confusion?.total ?? 0}</Text>
+          <Text style={styles.statLabel}>"I don't understand"</Text>
+          <Text style={styles.meta} testID="ix-confusion-recent">{confusionRecentLabel(confusion)}</Text>
+          {spike ? (
+            <View style={styles.gapAboveSm}>
+              <Badge variant={spike.variant} dot={spike.variant === 'red'}>{spike.text}</Badge>
+            </View>
+          ) : null}
+          <View style={styles.gapAboveSm}>
+            <LinkBtn label="Timeline and topics" onPress={onConfusion} testID="ix-confusion-details" />
+          </View>
+        </View>
+        <View style={styles.stat}>
+          <Text style={styles.big} testID="ix-open-questions">{openQuestions(questions).length}</Text>
+          <Text style={styles.statLabel}>open questions</Text>
+        </View>
+      </View>
+      <View style={styles.reactionRow}>
+        <Text style={ixStyles.label}>Reactions</Text>
+        <Text style={styles.meta} testID="ix-reactions-total">{reactions?.total ?? 0} in total</Text>
+      </View>
+      <ReactionChips counts={reactions?.counts} />
+    </Section>
+  )
+}
+
+function ConfusionSheet({ visible, onClose, confusion }) {
+  return (
+    <IxSheet visible={visible} onClose={onClose} title={'"I don\'t understand"'} testID="ix-confusion-sheet">
+      <Card>
+        <Text style={ixStyles.title}>{confusion?.total ?? 0} presses this class</Text>
+        <Text style={styles.meta}>{confusionRecentLabel(confusion)}</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <View style={styles.timelineWrap}><ConfusionTimeline timeline={confusion?.timeline} /></View>
+        </ScrollView>
+        <TopicList topics={confusion?.topics} />
+      </Card>
+    </IxSheet>
+  )
+}
+
 // ─── Questions (FR-503–FR-506) ───────────────────────────────────────────────
 
-function QuestionsPanel({ questions, open, act }) {
-  if (!questions.length) return <Card><Muted testID="ix-questions-empty">No questions yet.</Muted></Card>
-  return questions.map(q => (
-    <QuestionRow key={q.id} q={q} actions={(
-      <>
-        <Btn testID="ix-q-answer" icon={q.answered ? 'refresh-outline' : 'checkmark-outline'}
-          label={q.answered ? 'Mark unanswered' : 'Mark answered'} disabled={!open}
-          onPress={() => act(() => api.moderateQuestion(q.sessionId, q.id, { answered: !q.answered }), 'questions')} />
-        <Btn testID="ix-q-pin" icon="pin-outline" label={q.pinned ? 'Unpin' : 'Pin'} disabled={!open}
-          onPress={() => act(() => api.moderateQuestion(q.sessionId, q.id, { pinned: !q.pinned }), 'questions')} />
-        <Btn testID="ix-q-hide" kind="subtle" icon={q.hidden ? 'eye-outline' : 'eye-off-outline'}
-          label={q.hidden ? 'Show' : 'Hide'} disabled={!open}
-          onPress={() => act(() => api.moderateQuestion(q.sessionId, q.id, { hidden: !q.hidden }), 'questions')} />
-      </>
-    )} />
-  ))
+function QuestionActions({ q, open, act }) {
+  return (
+    <>
+      <Btn testID="ix-q-answer" icon={q.answered ? 'refresh-outline' : 'checkmark-outline'}
+        label={q.answered ? 'Mark unanswered' : 'Mark answered'} disabled={!open}
+        onPress={() => act(() => api.moderateQuestion(q.sessionId, q.id, { answered: !q.answered }), 'questions')} />
+      <Btn testID="ix-q-pin" icon="pin-outline" label={q.pinned ? 'Unpin' : 'Pin'} disabled={!open}
+        onPress={() => act(() => api.moderateQuestion(q.sessionId, q.id, { pinned: !q.pinned }), 'questions')} />
+      <Btn testID="ix-q-hide" kind="subtle" icon={q.hidden ? 'eye-outline' : 'eye-off-outline'}
+        label={q.hidden ? 'Show' : 'Hide'} disabled={!open}
+        onPress={() => act(() => api.moderateQuestion(q.sessionId, q.id, { hidden: !q.hidden }), 'questions')} />
+    </>
+  )
+}
+
+function QuestionsCard({ questions, open, act, onSeeAll }) {
+  const inline = newestUnanswered(questions, INLINE_QUESTIONS)
+  const waiting = openQuestions(questions).length
+  return (
+    <Section title="Student questions"
+      right={<Text style={styles.meta} testID="ix-questions-count">{waiting} waiting</Text>} testID="ix-questions">
+      {!questions.length ? <Muted testID="ix-questions-empty">No questions yet.</Muted> : null}
+      {questions.length > 0 && !inline.length ?<Muted testID="ix-questions-clear">Every question is answered or hidden.</Muted> : null}
+      {inline.map(q => (
+        <QuestionRow key={q.id} q={q} actions={<QuestionActions q={q} open={open} act={act} />} />
+      ))}
+      {questions.length ? (
+        <LinkBtn label={`See all ${questions.length}`} onPress={onSeeAll} testID="ix-questions-all" />
+      ) : null}
+    </Section>
+  )
+}
+
+function QuestionsSheet({ visible, onClose, questions, open, act }) {
+  return (
+    <IxSheet visible={visible} onClose={onClose} title={`All questions (${questions.length})`} testID="ix-questions-sheet">
+      {!questions.length ? <Muted>No questions yet.</Muted> : null}
+      {questions.map(q => (
+        <QuestionRow key={q.id} q={q} testID="ix-sheet-question" actions={<QuestionActions q={q} open={open} act={act} />} />
+      ))}
+    </IxSheet>
+  )
+}
+
+// ─── Quick questions (FR-510, FR-511) ────────────────────────────────────────
+
+function QuickItem({ qq, sessionId, open, act, testID, full }) {
+  const newest = newestAnswer(qq)
+  return (
+    <View testID={testID} style={full ? styles.sheetItem : null}>
+      <View style={ixStyles.row}>
+        <Text style={[ixStyles.title, styles.flex1]}>{qq.prompt}</Text>
+        <Badge variant={qq.status === 'open' ? 'green' : 'gray'} dot={qq.status === 'open'}>
+          {qq.status === 'open' ? 'Open' : 'Closed'}
+        </Badge>
+      </View>
+      <Text style={styles.meta} testID="ix-quick-count">
+        {qq.answer_count ?? 0} {qq.answer_count === 1 ? 'answer' : 'answers'} · up to {qq.max_chars} characters
+      </Text>
+      {full ? (qq.answers ?? []).map(a => (
+        <View key={a.id} style={styles.answer} testID="ix-quick-answer">
+          <Text style={styles.answerText}>{a.text}</Text>
+        </View>
+      )) : newest ? (
+        <View style={styles.answer} testID="ix-quick-newest">
+          <Text style={styles.metaSm}>Newest answer</Text>
+          <Text style={styles.answerText} numberOfLines={2}>{newest.text}</Text>
+        </View>
+      ) : null}
+      {qq.status === 'open' ? (
+        <View style={[ixStyles.wrap, styles.gapAbove]}>
+          <Btn icon="stop-outline" label="Close" disabled={!open} testID="ix-quick-close"
+            onPress={() => act(() => api.closeQuickQuestion(sessionId, qq.id), 'quick_questions')} />
+        </View>
+      ) : null}
+    </View>
+  )
+}
+
+function QuickCard({ sessionId, quick, open, act, onSeeAll, onAsk }) {
+  const latest = latestQuick(quick)
+  return (
+    <Section title="Quick question" testID="ix-quick-section"
+      right={<Btn kind="primary" icon="add" label="Ask the class" disabled={!open} onPress={onAsk} testID="ix-quick-new" />}>
+      {latest
+        ? <QuickItem qq={latest} sessionId={sessionId} open={open} act={act} testID="ix-quick-latest" />
+        : <Muted testID="ix-quick-empty">No quick questions yet.</Muted>}
+      {quick.length ? <LinkBtn label={`See all ${quick.length}`} onPress={onSeeAll} testID="ix-quick-all" /> : null}
+    </Section>
+  )
+}
+
+function QuickSheet({ visible, onClose, sessionId, quick, open, act }) {
+  return (
+    <IxSheet visible={visible} onClose={onClose} title={`Quick questions (${quick.length})`} testID="ix-quick-sheet">
+      {quick.map(qq => (
+        <Card key={qq.id}><QuickItem qq={qq} sessionId={sessionId} open={open} act={act} testID="ix-quick" full /></Card>
+      ))}
+    </IxSheet>
+  )
+}
+
+function QuickCompose({ visible, onClose, sessionId, open, act }) {
+  const [prompt, setPrompt] = useState('')
+  const [maxChars, setMaxChars] = useState('140')
+  const [error, setError] = useState(null)
+  const [busy, setBusy] = useState(false)
+
+  const ask = async () => {
+    const v = validateQuick({ prompt, maxChars })
+    if (v.error) { setError(v.error); return }
+    setBusy(true)
+    const ok = await act(() => api.createQuickQuestion(sessionId, v), 'quick_questions', 'Quick question sent')
+    setBusy(false)
+    if (ok) { setPrompt(''); setError(null); onClose() }
+  }
+
+  return (
+    <IxSheet visible={visible} onClose={onClose} title="Ask the class" testID="ix-quick-form">
+      <Card>
+        <Text style={ixStyles.label}>A short question; students answer in a few words, without names</Text>
+        <TextInput style={[ixStyles.input, styles.gapBelow, styles.gapAboveSm]} value={prompt} maxLength={300}
+          placeholder="e.g. In one word, what does a hash map trade for speed?" placeholderTextColor={C.textHint}
+          onChangeText={t => { setPrompt(t); setError(null) }} editable={open} testID="ix-quick-prompt" />
+        <View style={[ixStyles.row, ixStyles.wrap]}>
+          <Text style={ixStyles.label}>Answer up to</Text>
+          <TextInput style={[ixStyles.input, styles.small]} value={maxChars} keyboardType="number-pad"
+            onChangeText={t => { setMaxChars(t.replace(/\D/g, '')); setError(null) }} testID="ix-quick-max" />
+          <Text style={ixStyles.label}>characters</Text>
+        </View>
+        {error ? <Text style={[ixStyles.formError, styles.gapAbove]} testID="ix-quick-error">{error}</Text> : null}
+        <View style={[ixStyles.wrap, styles.gapAbove]}>
+          <Btn label="Cancel" onPress={onClose} testID="ix-quick-cancel" />
+          <Btn kind="primary" icon="send" label="Ask" disabled={!open} busy={busy} onPress={ask} testID="ix-quick-create" />
+        </View>
+      </Card>
+    </IxSheet>
+  )
 }
 
 // ─── Polls (FR-507–FR-509) ───────────────────────────────────────────────────
 
 const emptyPoll = () => ({ question: '', options: ['', ''], multiple: false, showResults: true })
 
-function PollForm({ sessionId, onDone, act }) {
+function PollCompose({ visible, onClose, sessionId, act }) {
   const [form, setForm] = useState(emptyPoll)
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -82,6 +285,7 @@ function PollForm({ sessionId, onDone, act }) {
   const created = useRef(null)
   const set = (patch) => { setForm(f => ({ ...f, ...patch })); setError(null); created.current = null }
   const setOption = (i, text) => set({ options: form.options.map((o, j) => (j === i ? text : o)) })
+  const cancel = () => { setForm(emptyPoll()); setError(null); created.current = null; onClose() }
 
   const save = async (start) => {
     const v = validatePoll(form)
@@ -97,183 +301,104 @@ function PollForm({ sessionId, onDone, act }) {
       if (start) await api.startPoll(sessionId, created.current)
     }, 'polls', start ? 'Poll started' : 'Poll saved as a draft')
     setBusy(false)
-    if (ok) { created.current = null; setForm(emptyPoll()); onDone() } else if (created.current) {
+    if (ok) { created.current = null; setForm(emptyPoll()); onClose() } else if (created.current) {
       setError('The poll was saved as a draft; start it from the list or press Start now again.')
     }
   }
 
   return (
-    <Card testID="ix-poll-form">
-      <Text style={ixStyles.label}>Question</Text>
-      <TextInput style={[ixStyles.input, styles.gapBelow]} value={form.question} maxLength={300}
-        placeholder="e.g. Which sorting algorithm is stable?" placeholderTextColor={C.textHint}
-        onChangeText={t => set({ question: t })} testID="ix-poll-question" />
-      <Text style={ixStyles.label}>Options</Text>
-      {form.options.map((o, i) => (
-        <View key={i} style={[ixStyles.row, styles.gapBelow]}>
-          <TextInput style={[ixStyles.input, styles.flex1]} value={o} maxLength={120}
-            placeholder={`Option ${i + 1}`} placeholderTextColor={C.textHint}
-            onChangeText={t => setOption(i, t)} testID={`ix-poll-option-input-${i}`} />
-          {form.options.length > POLL_MIN_OPTIONS ? (
-            <Btn kind="subtle" icon="close" label="" testID={`ix-poll-remove-${i}`}
-              onPress={() => set({ options: form.options.filter((_, j) => j !== i) })} />
-          ) : null}
+    <IxSheet visible={visible} onClose={cancel} title="Create a poll" testID="ix-poll-form">
+      <Card>
+        <Text style={ixStyles.label}>Question</Text>
+        <TextInput style={[ixStyles.input, styles.gapBelow]} value={form.question} maxLength={300}
+          placeholder="e.g. Which sorting algorithm is stable?" placeholderTextColor={C.textHint}
+          onChangeText={t => set({ question: t })} testID="ix-poll-question" />
+        <Text style={ixStyles.label}>Options</Text>
+        {form.options.map((o, i) => (
+          <View key={i} style={[ixStyles.row, styles.gapBelow]}>
+            <TextInput style={[ixStyles.input, styles.flex1]} value={o} maxLength={120}
+              placeholder={`Option ${i + 1}`} placeholderTextColor={C.textHint}
+              onChangeText={t => setOption(i, t)} testID={`ix-poll-option-input-${i}`} />
+            {form.options.length > POLL_MIN_OPTIONS ? (
+              <Btn kind="subtle" icon="close" label="" testID={`ix-poll-remove-${i}`}
+                onPress={() => set({ options: form.options.filter((_, j) => j !== i) })} />
+            ) : null}
+          </View>
+        ))}
+        {form.options.length < POLL_MAX_OPTIONS ? (
+          <View style={styles.gapBelow}>
+            <Btn kind="subtle" icon="add" label="Add option" testID="ix-poll-add-option"
+              onPress={() => set({ options: [...form.options, ''] })} />
+          </View>
+        ) : null}
+        <Toggle label="Students can pick more than one" value={form.multiple}
+          onChange={v => set({ multiple: v })} testID="ix-poll-multiple" />
+        <Toggle label="Show results to students" value={form.showResults}
+          onChange={v => set({ showResults: v })} testID="ix-poll-show" />
+        {error ? <Text style={[ixStyles.formError, styles.gapAbove]} testID="ix-poll-error">{error}</Text> : null}
+        <View style={[ixStyles.wrap, styles.gapAbove]}>
+          <Btn label="Cancel" onPress={cancel} testID="ix-poll-cancel" />
+          <Btn label="Save draft" onPress={() => save(false)} busy={busy} testID="ix-poll-create" />
+          <Btn kind="primary" icon="play" label="Start now" onPress={() => save(true)} busy={busy} testID="ix-poll-create-start" />
         </View>
-      ))}
-      {form.options.length < POLL_MAX_OPTIONS ? (
-        <View style={styles.gapBelow}>
-          <Btn kind="subtle" icon="add" label="Add option" testID="ix-poll-add-option"
-            onPress={() => set({ options: [...form.options, ''] })} />
-        </View>
-      ) : null}
-      <Toggle label="Students can pick more than one" value={form.multiple}
-        onChange={v => set({ multiple: v })} testID="ix-poll-multiple" />
-      <Toggle label="Show results to students" value={form.showResults}
-        onChange={v => set({ showResults: v })} testID="ix-poll-show" />
-      {error ? <Text style={[ixStyles.formError, styles.gapAbove]} testID="ix-poll-error">{error}</Text> : null}
-      <View style={[ixStyles.wrap, styles.gapAbove]}>
-        <Btn label="Cancel" onPress={onDone} testID="ix-poll-cancel" />
-        <Btn label="Save draft" onPress={() => save(false)} busy={busy} testID="ix-poll-create" />
-        <Btn kind="primary" icon="play" label="Start now" onPress={() => save(true)} busy={busy} testID="ix-poll-create-start" />
-      </View>
-    </Card>
+      </Card>
+    </IxSheet>
   )
 }
 
 const POLL_BADGE = { draft: ['Draft', 'gray'], open: ['Live', 'green'], closed: ['Closed', 'gray'] }
 
-function PollsPanel({ sessionId, polls, open, act }) {
-  const [creating, setCreating] = useState(false)
+function PollItem({ p, sessionId, open, act, testID }) {
+  const [label, variant] = POLL_BADGE[p.status] ?? POLL_BADGE.closed
   return (
-    <>
-      {creating
-        ? <PollForm sessionId={sessionId} act={act} onDone={() => setCreating(false)} />
-        : (
-          <View style={styles.gapBelow}>
-            <Btn kind="primary" icon="add" label="New poll" disabled={!open} onPress={() => setCreating(true)} testID="ix-poll-new" />
-          </View>
-        )}
-      {!polls.length ? <Card><Muted testID="ix-polls-empty">No polls yet.</Muted></Card> : null}
-      {polls.map(p => {
-        const [label, variant] = POLL_BADGE[p.status] ?? POLL_BADGE.closed
-        return (
-          <Card key={p.id} testID="ix-poll">
-            <View style={ixStyles.row}>
-              <Text style={[ixStyles.title, styles.flex1]}>{p.question}</Text>
-              <Badge variant={variant} dot={p.status === 'open'}>{label}</Badge>
-            </View>
-            <Text style={styles.meta} testID="ix-poll-total">
-              {p.multiple ? 'Multiple choice' : 'Single choice'} · {p.total_voters ?? 0} voted
-            </Text>
-            <PollResults poll={p} />
-            <View style={[ixStyles.wrap, styles.gapAbove]}>
-              {p.status === 'draft' ? (
-                <Btn kind="primary" icon="play" label="Start" disabled={!open} testID="ix-poll-start"
-                  onPress={() => act(() => api.startPoll(sessionId, p.id), 'polls', 'Poll started')} />
-              ) : null}
-              {p.status === 'open' ? (
-                <Btn icon="stop-outline" label="Close poll" disabled={!open} testID="ix-poll-close"
-                  onPress={() => act(() => api.closePoll(sessionId, p.id), 'polls', 'Poll closed')} />
-              ) : null}
-              <Toggle label="Students see results" value={p.show_results} disabled={!open}
-                testID="ix-poll-results-toggle"
-                onChange={v => act(() => api.setPollShowResults(sessionId, p.id, v), 'polls')} />
-            </View>
-          </Card>
-        )
-      })}
-    </>
+    <View testID={testID}>
+      <View style={ixStyles.row}>
+        <Text style={[ixStyles.title, styles.flex1]}>{p.question}</Text>
+        <Badge variant={variant} dot={p.status === 'open'}>{label}</Badge>
+      </View>
+      <Text style={styles.meta} testID="ix-poll-total">
+        {p.multiple ? 'Multiple choice' : 'Single choice'} · {p.total_voters ?? 0} voted
+      </Text>
+      <PollResults poll={p} />
+      <View style={[ixStyles.wrap, styles.gapAbove]}>
+        {p.status === 'draft' ? (
+          <Btn kind="primary" icon="play" label="Start" disabled={!open} testID="ix-poll-start"
+            onPress={() => act(() => api.startPoll(sessionId, p.id), 'polls', 'Poll started')} />
+        ) : null}
+        {p.status === 'open' ? (
+          <Btn icon="stop-outline" label="Close poll" disabled={!open} testID="ix-poll-close"
+            onPress={() => act(() => api.closePoll(sessionId, p.id), 'polls', 'Poll closed')} />
+        ) : null}
+        <Toggle label="Students see results" value={p.show_results} disabled={!open}
+          testID="ix-poll-results-toggle"
+          onChange={v => act(() => api.setPollShowResults(sessionId, p.id, v), 'polls')} />
+      </View>
+    </View>
   )
 }
 
-// ─── Quick questions (FR-510, FR-511) ────────────────────────────────────────
-
-function QuickPanel({ sessionId, quick, open, act }) {
-  const [prompt, setPrompt] = useState('')
-  const [maxChars, setMaxChars] = useState('140')
-  const [error, setError] = useState(null)
-  const [busy, setBusy] = useState(false)
-
-  const ask = async () => {
-    const v = validateQuick({ prompt, maxChars })
-    if (v.error) { setError(v.error); return }
-    setBusy(true)
-    const ok = await act(() => api.createQuickQuestion(sessionId, v), 'quick_questions', 'Quick question sent')
-    setBusy(false)
-    if (ok) { setPrompt(''); setError(null) }
-  }
-
+function PollCard({ sessionId, polls, open, act, onSeeAll, onCreate }) {
+  const latest = latestPoll(polls)
   return (
-    <>
-      <Card testID="ix-quick-form">
-        <Text style={ixStyles.label}>Ask the class a short question</Text>
-        <TextInput style={[ixStyles.input, styles.gapBelow, styles.gapAboveSm]} value={prompt} maxLength={300}
-          placeholder="e.g. In one word, what does a hash map trade for speed?" placeholderTextColor={C.textHint}
-          onChangeText={t => { setPrompt(t); setError(null) }} editable={open} testID="ix-quick-prompt" />
-        <View style={[ixStyles.row, ixStyles.wrap]}>
-          <Text style={ixStyles.label}>Answer up to</Text>
-          <TextInput style={[ixStyles.input, styles.small]} value={maxChars} keyboardType="number-pad"
-            onChangeText={t => { setMaxChars(t.replace(/\D/g, '')); setError(null) }} testID="ix-quick-max" />
-          <Text style={ixStyles.label}>characters</Text>
-          <View style={styles.flex1} />
-          <Btn kind="primary" icon="send" label="Ask" disabled={!open} busy={busy} onPress={ask} testID="ix-quick-create" />
-        </View>
-        {error ? <Text style={[ixStyles.formError, styles.gapAbove]} testID="ix-quick-error">{error}</Text> : null}
-      </Card>
-      {!quick.length ? <Card><Muted testID="ix-quick-empty">No quick questions yet.</Muted></Card> : null}
-      {quick.map(qq => (
-        <Card key={qq.id} testID="ix-quick">
-          <View style={ixStyles.row}>
-            <Text style={[ixStyles.title, styles.flex1]}>{qq.prompt}</Text>
-            <Badge variant={qq.status === 'open' ? 'green' : 'gray'} dot={qq.status === 'open'}>
-              {qq.status === 'open' ? 'Open' : 'Closed'}
-            </Badge>
-          </View>
-          <Text style={styles.meta} testID="ix-quick-count">
-            {qq.answer_count ?? 0} {qq.answer_count === 1 ? 'answer' : 'answers'} · up to {qq.max_chars} characters
-          </Text>
-          {(qq.answers ?? []).map(a => (
-            <View key={a.id} style={styles.answer} testID="ix-quick-answer">
-              <Text style={styles.answerText}>{a.text}</Text>
-            </View>
-          ))}
-          {qq.status === 'open' ? (
-            <View style={[ixStyles.wrap, styles.gapAbove]}>
-              <Btn icon="stop-outline" label="Close" disabled={!open} testID="ix-quick-close"
-                onPress={() => act(() => api.closeQuickQuestion(sessionId, qq.id), 'quick_questions')} />
-            </View>
-          ) : null}
-        </Card>
+    <Section title="Poll" testID="ix-poll-section"
+      right={<Btn kind="primary" icon="add" label="Create a poll" disabled={!open} onPress={onCreate} testID="ix-poll-new" />}>
+      {latest
+        ? <PollItem p={latest} sessionId={sessionId} open={open} act={act} testID="ix-poll-latest" />
+        : <Muted testID="ix-polls-empty">No polls yet.</Muted>}
+      {polls.length ? (
+        <LinkBtn label={`See all ${polls.length} ${polls.length === 1 ? 'poll' : 'polls'}`} onPress={onSeeAll} testID="ix-polls-all" />
+      ) : null}
+    </Section>
+  )
+}
+
+function PollsSheet({ visible, onClose, sessionId, polls, open, act }) {
+  return (
+    <IxSheet visible={visible} onClose={onClose} title={`Polls (${polls.length})`} testID="ix-polls-sheet">
+      {polls.map(p => (
+        <Card key={p.id}><PollItem p={p} sessionId={sessionId} open={open} act={act} testID="ix-poll" /></Card>
       ))}
-    </>
-  )
-}
-
-// ─── Reactions and confusion (FR-512, FR-514, FR-515) ────────────────────────
-
-function SignalsPanel({ reactions, confusion }) {
-  return (
-    <>
-      <Heading right={<Text style={styles.meta} testID="ix-reactions-total">{reactions?.total ?? 0} in total</Text>}>
-        Reactions
-      </Heading>
-      <Card><ReactionGrid counts={reactions?.counts} /></Card>
-      <Heading right={confusion?.spike_active
-        ? <Badge variant="red" dot>Many confused now</Badge> : null}>
-        "I don't understand"
-      </Heading>
-      <Card testID="ix-confusion">
-        <View style={ixStyles.row}>
-          <Text style={styles.big} testID="ix-confusion-total">{confusion?.total ?? 0}</Text>
-          <View style={styles.flex1}>
-            <Text style={ixStyles.title}>presses this class</Text>
-            <Text style={styles.meta} testID="ix-confusion-recent">{confusionRecentLabel(confusion)}</Text>
-          </View>
-        </View>
-        <ConfusionTimeline timeline={confusion?.timeline} />
-        <TopicList topics={confusion?.topics} />
-      </Card>
-    </>
+    </IxSheet>
   )
 }
 
@@ -282,8 +407,7 @@ function SignalsPanel({ reactions, confusion }) {
 export default function LiveInteraction({ route, navigation }) {
   const sessionId = route.params?.sessionId
   const { showToast } = useLecturer()
-  const wide = useWideLayout()
-  const [tab, setTab] = useState('questions')
+  const [sheet, setSheet] = useState(null)   // which pop-up is open
   const [session, setSession] = useState(null)
   const [data, setData] = useState({ questions: [], polls: [], quick_questions: [], reactions: null, confusion: null })
   const [loadError, setLoadError] = useState(null)
@@ -348,6 +472,11 @@ export default function LiveInteraction({ route, navigation }) {
 
   const st = interactionState(session)
 
+  // A pause or the class end closes an open compose form for good (it doesn't pop up again on resume)
+  useEffect(() => {
+    if (!st.open) setSheet(s => (s === 'quick-new' || s === 'poll-new' ? null : s))
+  }, [st.open])
+
   const togglePause = async () => {
     setBusy(true)
     try {
@@ -357,7 +486,8 @@ export default function LiveInteraction({ route, navigation }) {
   }
 
   const onRefresh = async () => { setRefreshing(true); await loadAll(); setRefreshing(false) }
-  const openSummary = () => navigation.navigate('InteractionSummary', { sessionId })
+  const openSummary = () => { setSheet(null); navigation.navigate('InteractionSummary', { sessionId }) }
+  const closeSheet = () => setSheet(null)
 
   const header = (
     <Topbar
@@ -379,25 +509,7 @@ export default function LiveInteraction({ route, navigation }) {
     )
   }
 
-  const counts = {
-    questions: data.questions.filter(q => !q.hidden && !q.answered).length,
-    polls: data.polls.filter(p => p.status === 'open').length,
-    quick: data.quick_questions.filter(q => q.status === 'open').length,
-  }
-  const mainTabs = [
-    { key: 'questions', label: 'Questions', count: counts.questions },
-    { key: 'polls', label: 'Polls', count: counts.polls },
-    { key: 'quick', label: 'Quick', count: counts.quick },
-    ...(wide ? [] : [{ key: 'signals', label: 'Signals' }]),
-  ]
-  const shownTab = wide && tab === 'signals' ? 'questions' : tab
-
-  const panel = {
-    questions: <QuestionsPanel questions={data.questions} open={st.open} act={act} />,
-    polls: <PollsPanel sessionId={sessionId} polls={data.polls} open={st.open} act={act} />,
-    quick: <QuickPanel sessionId={sessionId} quick={data.quick_questions} open={st.open} act={act} />,
-    signals: <SignalsPanel reactions={data.reactions} confusion={data.confusion} />,
-  }[shownTab]
+  const shared = { sessionId, open: st.open, act }
 
   return (
     <View style={styles.screen}>
@@ -407,47 +519,36 @@ export default function LiveInteraction({ route, navigation }) {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} colors={[C.primary]} />}
       >
-        {loadError ? <LoadError message={loadError} onRetry={loadAll} /> : null}
+        <View style={styles.page}>
+          {loadError ? <LoadError message={loadError} onRetry={loadAll} /> : null}
 
-        {st.ended ? (
-          <Card style={styles.banner} testID="ix-ended">
-            <Text style={ixStyles.title}>The class has ended</Text>
-            <Muted>Interaction is closed. Everything students posted is in the summary.</Muted>
-            <View style={styles.gapAboveSm}>
-              <Btn kind="primary" icon="document-text-outline" label="View summary" onPress={openSummary} testID="ix-ended-summary" />
-            </View>
-          </Card>
-        ) : (
-          <View style={[ixStyles.wrap, styles.toolbar]}>
-            <Text style={[styles.meta, styles.flex1]} testID="ix-state-text">
-              {st.open ? 'Students can ask, vote, answer and react.'
-                : st.canReopen ? 'Paused: students can read but not post.' : 'Interaction opens when the class starts.'}
-            </Text>
-            {st.open || st.canReopen ? (
-              <Btn icon={st.open ? 'pause' : 'play'} label={st.open ? 'Pause' : 'Resume'} busy={busy}
-                onPress={togglePause} testID={st.open ? 'ix-pause' : 'ix-resume'} />
-            ) : null}
-            <Btn icon="document-text-outline" label="Summary" onPress={openSummary} testID="ix-summary" />
-          </View>
-        )}
+          {st.ended ? (
+            <Card style={styles.banner} testID="ix-ended">
+              <Text style={ixStyles.title}>The class has ended</Text>
+              <Muted>Interaction is closed. Everything students posted is in the summary.</Muted>
+              <View style={styles.gapAboveSm}>
+                <Btn kind="primary" icon="document-text-outline" label="View summary" onPress={openSummary} testID="ix-ended-summary" />
+              </View>
+            </Card>
+          ) : null}
 
-        {wide ? (
-          <View style={styles.columns}>
-            <View style={styles.mainCol}>
-              <Segments items={mainTabs} value={shownTab} onChange={setTab} />
-              {panel}
-            </View>
-            <View style={styles.sideCol} testID="ix-signals">
-              <SignalsPanel reactions={data.reactions} confusion={data.confusion} />
-            </View>
-          </View>
-        ) : (
-          <>
-            <Segments items={mainTabs} value={shownTab} onChange={setTab} />
-            {shownTab === 'signals' ? <View testID="ix-signals">{panel}</View> : panel}
-          </>
-        )}
+          <StatusCard st={st} busy={busy} togglePause={togglePause} openSummary={openSummary}
+            questions={data.questions} reactions={data.reactions} confusion={data.confusion}
+            onConfusion={() => setSheet('confusion')} />
+          <QuestionsCard questions={data.questions} open={st.open} act={act} onSeeAll={() => setSheet('questions')} />
+          <QuickCard {...shared} quick={data.quick_questions}
+            onSeeAll={() => setSheet('quick')} onAsk={() => setSheet('quick-new')} />
+          <PollCard {...shared} polls={data.polls}
+            onSeeAll={() => setSheet('polls')} onCreate={() => setSheet('poll-new')} />
+        </View>
       </ScrollView>
+
+      <ConfusionSheet visible={sheet === 'confusion'} onClose={closeSheet} confusion={data.confusion} />
+      <QuestionsSheet visible={sheet === 'questions'} onClose={closeSheet} questions={data.questions} open={st.open} act={act} />
+      <QuickSheet visible={sheet === 'quick'} onClose={closeSheet} {...shared} quick={data.quick_questions} />
+      <QuickCompose visible={sheet === 'quick-new' && st.open} onClose={closeSheet} {...shared} />
+      <PollsSheet visible={sheet === 'polls'} onClose={closeSheet} {...shared} polls={data.polls} />
+      <PollCompose visible={sheet === 'poll-new' && st.open} onClose={closeSheet} sessionId={sessionId} act={act} />
     </View>
   )
 }
@@ -456,17 +557,27 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg },
   flex1: { flex: 1 },
   content: { padding: 16, paddingBottom: 32 },
-  toolbar: { alignItems: 'center', marginBottom: 12 },
+  page: { width: '100%', maxWidth: 880, alignSelf: 'center' },
+  toolbar: { alignItems: 'center', marginBottom: 10 },
   banner: { backgroundColor: C.blueLt, borderColor: C.blueLt },
-  columns: { flexDirection: 'row', gap: 16, alignItems: 'flex-start' },
-  mainCol: { flex: 3, minWidth: 0 },
-  sideCol: { flex: 2, minWidth: 0 },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 },
+  sectionTitle: { fontSize: 15, fontWeight: '600', color: C.text },
+  stats: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  stat: {
+    flexGrow: 1, flexBasis: 200, borderWidth: 1, borderColor: C.border, borderRadius: 10, padding: 10,
+    backgroundColor: C.card,
+  },
+  statLabel: { fontSize: 13, color: C.text, fontWeight: '500' },
+  reactionRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginTop: 12, marginBottom: 6 },
   meta: { fontSize: 12, color: C.textSub, marginTop: 4 },
-  big: { fontSize: 28, fontWeight: '600', color: C.text, minWidth: 40 },
+  metaSm: { fontSize: 11, color: C.textHint },
+  big: { fontSize: 26, fontWeight: '600', color: C.text },
   gapBelow: { marginBottom: 8 },
   gapAbove: { marginTop: 10 },
   gapAboveSm: { marginTop: 6 },
   small: { width: 64, textAlign: 'center' },
-  answer: { borderTopWidth: 1, borderTopColor: C.border, paddingVertical: 8, marginTop: 4 },
+  sheetItem: { paddingBottom: 2 },
+  timelineWrap: { minWidth: 280 },
+  answer: { borderTopWidth: 1, borderTopColor: C.border, paddingVertical: 8, marginTop: 6 },
   answerText: { fontSize: 13, color: C.text },
 })

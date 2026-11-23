@@ -105,6 +105,43 @@ export function confusionRecentLabel(c) {
   return `${c.recent_students ?? 0} of ${c.class_size ?? 0} students in the last ${mins} min`
 }
 
+// ─── One-page layout (S38b) ──────────────────────────────────────────────────
+
+const newestFirst = (a, b) =>
+  String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')) || (b.id ?? 0) - (a.id ?? 0)
+
+// Questions still waiting for the lecturer: not answered, not hidden
+export function openQuestions(questions) {
+  return (questions ?? []).filter(q => !q.answered && !q.hidden)
+}
+
+// The newest `n` open questions, newest first (the server lists by pinned/upvotes)
+export function newestUnanswered(questions, n = 3) {
+  return [...openQuestions(questions)].sort(newestFirst).slice(0, n)
+}
+
+// The newest item still open, else the newest of all (polls: drafts count, so a saved draft shows)
+function latest(list) {
+  const sorted = [...(list ?? [])].sort(newestFirst)
+  return sorted.find(x => x.status === 'open') ?? sorted[0] ?? null
+}
+export const latestPoll = (polls) => latest(polls)
+export const latestQuick = (quick) => latest(quick)
+
+// The newest answer of a quick question (the server lists answers oldest first)
+export function newestAnswer(qq) {
+  const list = qq?.answers ?? []
+  return list.length ? list[list.length - 1] : null
+}
+
+// "Many confused now" while a spike runs, else how many spikes this class had (null when none)
+export function spikeLabel(c) {
+  if (!c) return null
+  if (c.spike_active) return { text: 'Many confused now', variant: 'red' }
+  if (c.spikes > 0) return { text: c.spikes === 1 ? '1 spike earlier' : `${c.spikes} spikes earlier`, variant: 'orange' }
+  return null
+}
+
 // The CSV file name the server also gives (S36): interaction_<course>_<yyyymmdd>_<id>.csv
 export function summaryCsvName(summary) {
   const code = String(summary?.course_code ?? 'class').replace(/[^A-Za-z0-9]+/g, '')

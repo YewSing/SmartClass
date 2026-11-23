@@ -583,3 +583,7 @@ and, after class, from the latest-class card (`dash-overview-summary`). The clie
 REST GET on each `changed` message and everything on `connected`; it stops reconnecting once the class
 has ended. Notification links `/interaction/{id}` (`poll.started`, `confusion.spike`) still open
 nothing in the app (S80). E2E data: `backend/scripts/e2e_interaction.py setup|teardown`.
+S38b: `LiveInteraction` is one page of section cards (`ix-status`, `ix-questions`, `ix-quick-section`,
+`ix-poll-section`) with no tabs; the newest 3 open questions, the latest quick question and the latest
+poll sit on the page; full lists open in sheets (`ix-questions-sheet`, `ix-quick-sheet`,
+`ix-polls-sheet`, `ix-confusion-sheet`) and compose forms are pop-ups (`ix-quick-form`, `ix-poll-form`).
