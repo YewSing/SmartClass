@@ -2,7 +2,13 @@
 Test data for the lecturer live interaction E2E flow (plan-shino.md S37).
 
     python scripts/e2e_interaction.py setup    --course WIA0000 --day Wed [--students 3]
+    python scripts/e2e_interaction.py reopen   --session 123
     python scripts/e2e_interaction.py teardown
+
+`reopen` (S38e) starts that ended class again the way the lecturer does inside its slot, so M3's
+S38a rule reopens the same session id (records kept, audit `SESSION_REOPEN`). The E2E lecture is on
+another weekday, so it has no slot around the current time: only M3's slot lookup is pointed at a
+window around now for this one call (like the tests' controlled clock); the reopen is M3's own code.
 
 `setup` starts the course's lecture on that weekday now, through M3's own "Start now"
 (`session_schedule.start_now`, as the S03 test helper does), and prints one JSON line:
@@ -23,6 +29,7 @@ import json
 import os
 import sys
 import tempfile
+from datetime import timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -71,6 +78,40 @@ async def setup(code: str, day: str, n_students: int) -> None:
     print(json.dumps({"session_id": session_id, "students": students}))
 
 
+async def reopen_in_slot(db, session_id: int) -> int:
+    """Start now on the ended session's class with a slot around now (see the module docstring), so
+    `session_schedule.start_now` reopens that same session. Returns its id; exits when it made a new one."""
+    session = await db.get(AttendanceSession, session_id)
+    if session is None or session.status == "open":
+        sys.exit(f"Session {session_id} is missing or still open; end the class first.")
+    occ = await db.get(ClassOccurrence, session.occurrence_id)
+    lec = await db.get(Lecturer, session.lecturer_id or occ.lecturer_id)
+    now = session_schedule.clock()
+    real = session_schedule.scheduled_times
+
+    def around_now(o, d):
+        if o.id == occ.id and d == now.date():
+            return now - timedelta(hours=3), now + timedelta(hours=2)
+        return real(o, d)
+
+    session_schedule.scheduled_times = around_now
+    try:
+        again = await session_schedule.start_now(db, occ, lec, now, duration_minutes=120)
+    finally:
+        session_schedule.scheduled_times = real
+    if again.id != session_id:
+        await db.rollback()
+        sys.exit(f"Start now made session {again.id} instead of reopening {session_id}.")
+    await db.commit()
+    return again.id
+
+
+async def reopen(session_id: int) -> None:
+    async with AsyncSessionLocal() as db:
+        sid = await reopen_in_slot(db, session_id)
+    print(json.dumps({"session_id": sid, "reopened": True}))
+
+
 async def teardown() -> None:
     if not os.path.exists(MARKER):
         print("no setup marker; nothing to remove")
@@ -96,6 +137,8 @@ async def _main(args) -> None:
     try:
         if args.action == "setup":
             await setup(args.course, args.day, args.students)
+        elif args.action == "reopen":
+            await reopen(args.session)
         else:
             await teardown()
     finally:
@@ -104,7 +147,8 @@ async def _main(args) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[1])
-    parser.add_argument("action", choices=["setup", "teardown"])
+    parser.add_argument("action", choices=["setup", "reopen", "teardown"])
+    parser.add_argument("--session", type=int, help="reopen: the ended session's id")
     parser.add_argument("--course", default="WIA0000")
     parser.add_argument("--day", default="Wed", help="the lecture on this weekday (Mon..Sun)")
     parser.add_argument("--students", type=int, default=3)

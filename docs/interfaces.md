@@ -546,6 +546,12 @@ unknown id. Client text is ignored. Hub: `app/services/interaction/live.py` (one
 - Nothing is replayed: on (re)connect the client re-reads every list after `connected`. The socket
   is registered just before `connected` is sent, so a `changed` can arrive first; treat it like any
   other (the re-read after `connected` covers it).
+- Reopen in the slot (S38e, client side only): the server never re-opens a closed socket, so after
+  `closed/class_ended` (or a `connected` with `class_status != "open"`) the apps' live client
+  (`connectInteractionLive({ checkStatus, onReopen, watchMs = 5000 })`) re-reads `GET /interaction/{id}`
+  every 5 s and opens a new socket once `class_status == "open"` again (S38a reopen: same id). No new
+  endpoint. E2E data: `python scripts/e2e_interaction.py reopen --session <id>` reopens through M3's
+  own Start now with the slot lookup pointed at a window around now.
 - Python: `live.changed(db, attendance_session_id, topic, students=True)` queues a message for after
   the commit (reactions/confusion always lecturer-only); `sessions.open_interaction` now returns
   `True` when it reopened.

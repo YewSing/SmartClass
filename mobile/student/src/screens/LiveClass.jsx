@@ -448,11 +448,20 @@ export default function LiveClass({ route, navigation }) {
       } else if (m.type === 'closed') showToast('The lecturer paused interaction', 'info')
       else if (m.type === 'opened') showToast('Interaction is open again', 'info')
     }
+    // S38e: after the end, re-check the class every few seconds; a reopen in the same slot (S38a)
+    // shows Live again here and the socket reconnects (its `connected` re-reads every topic)
+    const checkStatus = async () => {
+      const s = await api.getInteraction(sessionId)
+      if (active) setSession(s)
+      return s
+    }
+    const onReopen = () => { if (active) showToast('The class is live again', 'info') }
     const connect = () => connectInteractionLive({
-      baseUrl: BASE, sessionId, getToken, refreshToken: refreshAccessToken, onMessage,
+      baseUrl: BASE, sessionId, getToken, refreshToken: refreshAccessToken, onMessage, checkStatus, onReopen,
     })
     let live = connect()
     const sub = AppState.addEventListener('change', (next) => {
+      // After the end the client's own status re-check covers a reopen (S38e)
       if (next !== 'active' || endedRef.current) return
       live.close()
       live = connect()

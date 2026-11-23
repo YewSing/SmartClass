@@ -3,7 +3,8 @@
 # earlier closed ones), upvotes a classmate's question, asks one anonymously (tagged Mine), sees it
 # marked answered live, finds the older question in the "See all" sheet, votes in the poll that
 # arrives live, answers the quick question, reacts, presses "I don't understand", sees the class end
-# live, then finds the question in "My questions".
+# live, sees it go live again by itself when the lecturer reopens it (S38e) and upvotes a question
+# that arrives after the reopen, sees it end again, then finds the question in "My questions".
 # Run: bash scripts/e2e-mobile.sh student interaction
 # Needs the local Moodle up (student4 signs in) and student4 already in SmartClass.
 # interaction.setup.sh starts course E2E038's class and the actor (lecturer + classmate via the API).
@@ -191,6 +192,35 @@ appId: host.exp.exponent
 - assertNotVisible:
     id: "live-ask-input"
 - takeScreenshot: live-ended
+
+# S38e: the lecturer (actor) starts the class again in its slot (same session). Without leaving the
+# screen it turns Live again within a few seconds and the classmate's new question arrives live
+- extendedWaitUntil:
+    visible: "Ask, vote, answer and react."
+    timeout: 90000
+- assertNotVisible:
+    id: "live-ended"
+- scrollUntilVisible:
+    element: "E2E: Question after the reopen"
+    direction: DOWN
+    timeout: 30000
+# Newest first, so its own button is the nearest one below its text (Maestro picks the closest);
+# the actor only ends the class once this exact question has the upvote
+- tapOn:
+    text: "Upvote, 0 so far"
+    below: "E2E: Question after the reopen"
+- extendedWaitUntil:
+    visible: "Upvote, 1 so far"
+    timeout: 20000
+- takeScreenshot: live-reopened
+
+# The actor ends the class again after that upvote
+- scrollUntilVisible:
+    element:
+      id: "live-ended"
+    direction: UP
+    timeout: 90000
+- assertVisible: "Class ended"
 
 # Past questions: the anonymous one is listed as answered
 - tapOn:

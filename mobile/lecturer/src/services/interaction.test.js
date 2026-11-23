@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   TOPICS, topicsFor, interactionState, questionBadges, askerLabel, pollBars, validatePoll, validateQuick,
-  reactionRows, timelineBars, confusionRecentLabel, summaryCsvName, connectInteractionLive,
+  reactionRows, timelineBars, confusionRecentLabel, summaryCsvName, connectInteractionLive, classRunning,
   openQuestions, newestUnanswered, latestPoll, latestQuick, newestAnswer, spikeLabel,
   historyRow, mergeHistory, summaryPills, SUMMARY_PILLS,
 } from './interaction.js'
@@ -176,6 +176,8 @@ function fakeSockets() {
 function client(over = {}) {
   const { made, FakeWS } = fakeSockets()
   const timers = []
+  const delays = []
+  const cancelled = []
   const got = []
   let token = 'tok 1'
   let refreshes = 0
@@ -183,9 +185,11 @@ function client(over = {}) {
     baseUrl: 'http://api.test:8000', sessionId: 42, getToken: () => token,
     refreshToken: async () => { refreshes += 1; token = 'tok2'; return over.refreshOk ?? true },
     onMessage: (m) => got.push(m),
-    WebSocketImpl: FakeWS, schedule: (fn) => { timers.push(fn); return timers.length }, cancel: () => {},
+    WebSocketImpl: FakeWS, schedule: (fn, ms) => { timers.push(fn); delays.push(ms); return timers.length },
+    cancel: (id) => { cancelled.push(id) },
+    checkStatus: over.checkStatus, onReopen: over.onReopen,
   })
-  return { made, timers, got, live, refreshes: () => refreshes }
+  return { made, timers, delays, cancelled, got, live, refreshes: () => refreshes }
 }
 
 test('connects to the session socket with the token and passes messages on', () => {
@@ -239,6 +243,78 @@ test('a lecturer pause keeps the socket; a 1008 refreshes the token once', async
   const f = client({ refreshOk: false })
   await f.made[0].onclose({ code: 1008 })
   assert.equal(f.timers.length, 0)
+})
+
+// ─── S38e: reconnect after a reopen ─────────────────────────────────────────
+
+test('classRunning reads the class status of GET /interaction/{id}', () => {
+  assert.equal(classRunning({ status: 'closed', class_status: 'open' }), true)
+  assert.equal(classRunning({ status: 'closed', class_status: 'closed' }), false)
+  assert.equal(classRunning({ class_status: 'needs_confirmation' }), false)
+  assert.equal(classRunning(undefined), false)
+})
+
+test('after the class ends it re-checks the status slowly and reconnects when the lecturer reopens it', async () => {
+  const answers = [{ class_status: 'needs_confirmation' }, new Error('offline'), { status: 'open', class_status: 'open' }]
+  let reads = 0
+  const reopened = []
+  const c = client({
+    checkStatus: async () => { const a = answers[reads++]; if (a instanceof Error) throw a; return a },
+    onReopen: (s) => reopened.push(s),
+  })
+  c.made[0].send('connected', { status: 'open', class_status: 'open' })
+  c.made[0].send('closed', { reason: 'class_ended' })
+  await c.made[0].onclose({ code: 1000 })
+  await c.made[0].onclose({ code: 1000 })
+  assert.equal(c.timers.length, 1, 'one slow re-check, scheduled once')
+  assert.equal(c.delays[0], 5000)
+  assert.equal(c.made.length, 1)
+
+  await c.timers[0]()           // still ended: check again later, no socket
+  assert.equal(c.made.length, 1)
+  assert.equal(c.timers.length, 2)
+  await c.timers[1]()           // a failed read keeps watching
+  assert.equal(c.made.length, 1)
+  assert.equal(c.timers.length, 3)
+  await c.timers[2]()           // reopened in its slot (S38a, same session id): the socket comes back
+  assert.equal(reads, 3)
+  assert.equal(c.made.length, 2)
+  assert.equal(c.made[1].url, 'ws://api.test:8000/interaction/42/ws?token=tok%201')
+  assert.deepEqual(reopened.map(s => s.class_status), ['open'])
+
+  // live again: a drop is the normal fast retry, and a second end starts a new watch
+  c.made[1].send('connected', { status: 'open', class_status: 'open' })
+  await c.made[1].onclose({ code: 1006 })
+  assert.equal(c.delays.at(-1), 3000)
+  c.timers.at(-1)()
+  assert.equal(c.made.length, 3)
+  c.made[2].send('closed', { reason: 'class_ended' })
+  await c.made[2].onclose({ code: 1000 })
+  assert.equal(c.delays.at(-1), 5000)
+})
+
+test('a class not running at connect is watched too; close() stops the watch', async () => {
+  let reads = 0
+  const c = client({ checkStatus: async () => { reads += 1; return { class_status: 'closed' } } })
+  c.made[0].send('connected', { status: 'closed', class_status: 'closed' })
+  await c.made[0].onclose({ code: 1000 })
+  assert.equal(c.timers.length, 1)
+  c.live.close()
+  assert.deepEqual(c.cancelled, [1])
+  await c.timers[0]()
+  assert.equal(reads, 0)
+  assert.equal(c.made.length, 1)
+
+  let answer
+  const d = client({ checkStatus: () => new Promise((r) => { answer = r }) })
+  d.made[0].send('closed', { reason: 'class_ended' })
+  await d.made[0].onclose({ code: 1000 })
+  const pending = d.timers[0]()
+  d.live.close()
+  answer({ class_status: 'open' })
+  await pending
+  assert.equal(d.made.length, 1, 'no socket after close(), even when the read says open')
+  assert.equal(d.timers.length, 1)
 })
 
 // ─── one-page layout (S38b) ──────────────────────────────────────────────────

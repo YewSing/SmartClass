@@ -15,7 +15,10 @@ other active student), and starts the class now through M3's own "Start now"
   2. once the student's question (ACTOR_QUESTION text) arrives, the lecturer marks it answered and
      starts a poll with results shown to students;
   3. once someone presses "I don't understand", the lecturer ends the class (M3's close), so the
-     interaction closes (the S30 sweep sends `closed` within INTERACTION_SWEEP_SECONDS).
+     interaction closes (the S30 sweep sends `closed` within INTERACTION_SWEEP_SECONDS);
+  4. (S38e) ENDED_PAUSE_SECONDS later it starts the class again in its slot (M3's Start now reopens
+     the same session, see e2e_interaction.py `reopen`), the classmate asks REOPEN_QUESTION, and once
+     the student upvotes it the lecturer ends the class again.
 Access tokens are made in memory by the actor and never written to disk.
 
 `teardown` removes the course, its class, enrolments, sessions (the M5 rows go with them by ON
@@ -46,6 +49,7 @@ from app.models.notification import Notification
 from app.models.session import AttendanceSession
 from app.models.user import Lecturer, Student, User
 from app.services import session_schedule
+from e2e_interaction import reopen_in_slot  # S38e: M3's Start now inside a slot around now (scripts/)
 
 COURSE_CODE = "E2E038"
 COURSE_NAME = "E2E Live Class"
@@ -62,6 +66,10 @@ QUICK_PROMPT = "E2E: One word for recursion?"
 POLL_QUESTION = "E2E: Which sort is stable?"
 POLL_OPTIONS = ["Merge sort", "Quick sort", "Heap sort"]
 ACTOR_TIMEOUT_SECONDS = 15 * 60
+# S38e: after the end the actor waits, reopens the class in its slot (same session id), the classmate
+# asks this, and once the student upvotes it the class ends again
+ENDED_PAUSE_SECONDS = 20
+REOPEN_QUESTION = "E2E: Question after the reopen"
 
 
 async def _clean(db) -> list[int]:
@@ -174,6 +182,25 @@ def actor(api: str) -> None:
               deadline)
         c.put(f"/lecturer/sessions/{sid}/close", headers=lecturer).raise_for_status()
         print("actor: class ended", flush=True)
+
+        # S38e: the student's screen stays open; the class is started again in its slot
+        time.sleep(ENDED_PAUSE_SECONDS)
+        asyncio.run(_run(_reopen(sid)))
+        print(f"actor: class reopened (session {sid})", flush=True)
+        c.post(f"/interaction/{sid}/questions", json={"text": REOPEN_QUESTION, "anonymous": False},
+               headers=classmate).raise_for_status()
+
+        def upvoted():
+            qs = c.get(f"/interaction/{sid}/questions", headers=lecturer).json()["questions"]
+            return any(q["text"] == REOPEN_QUESTION and q["upvotes"] >= 1 for q in qs)
+        _wait("the student's upvote after the reopen", upvoted, deadline)
+        c.put(f"/lecturer/sessions/{sid}/close", headers=lecturer).raise_for_status()
+        print("actor: class ended again", flush=True)
+
+
+async def _reopen(session_id: int) -> None:
+    async with AsyncSessionLocal() as db:
+        await reopen_in_slot(db, session_id)
 
 
 async def teardown() -> None:

@@ -199,19 +199,46 @@ export function summaryPills(summary) {
 
 // ─── Live client ─────────────────────────────────────────────────────────────
 // Reconnects while the class runs. A 1008 close (bad or expired token) refreshes the token once
-// before reconnecting. After `closed` with reason `class_ended` the server closes the socket and
-// nothing reconnects (the class is over).
+// before reconnecting. After `closed` with reason `class_ended` (or a `connected` saying the class
+// isn't running) the server closes the socket. With `checkStatus` (S38e) the client then re-reads
+// the class status every `watchMs` and reconnects once it is open again: the lecturer may reopen the
+// class in its slot with the same session id (S38a), or a not-started class may start. Without
+// `checkStatus` nothing reconnects after the end.
+
+// True when the status read says the class runs again (GET /interaction/{id} answer)
+export function classRunning(status) {
+  return status?.class_status === 'open'
+}
 
 export function connectInteractionLive({
-  baseUrl, sessionId, getToken, refreshToken, onMessage,
+  baseUrl, sessionId, getToken, refreshToken, onMessage, checkStatus, onReopen,
   WebSocketImpl = globalThis.WebSocket, schedule = setTimeout, cancel = clearTimeout,
-  retryMs = 3000,
+  retryMs = 3000, watchMs = 5000,
 }) {
   let ws = null
   let closed = false
   let ended = false
   let timer = null
   let refreshedOnce = false
+  let watching = false
+
+  // After the class ended: a slow re-check of its status until it runs again
+  async function watch() {
+    timer = null
+    if (closed) return
+    let status = null
+    try { status = await checkStatus() } catch { status = null }
+    if (closed) return
+    if (classRunning(status)) {
+      watching = false
+      ended = false
+      refreshedOnce = false
+      onReopen?.(status)
+      open()
+    } else {
+      timer = schedule(watch, watchMs)
+    }
+  }
 
   function open() {
     const token = getToken()
@@ -232,7 +259,14 @@ export function connectInteractionLive({
     }
 
     ws.onclose = async (e) => {
-      if (closed || ended) return
+      if (closed) return
+      if (ended) {
+        if (checkStatus && !watching) {
+          watching = true
+          timer = schedule(watch, watchMs)
+        }
+        return
+      }
       if (e?.code === 1008) {
         if (refreshedOnce) return
         refreshedOnce = true

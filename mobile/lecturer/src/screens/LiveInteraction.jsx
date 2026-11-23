@@ -452,6 +452,14 @@ export default function LiveInteraction({ route, navigation }) {
         // A lecturer pause is the echo of this screen's own (or another tab's) action: its toast is enough
         if (m.type === 'closed' && m.reason === 'class_ended') showToast('The class has ended', 'info')
       },
+      // S38e: after the end, re-check the class every few seconds; a reopen in the same slot (S38a)
+      // shows Live again here and the socket reconnects (its `connected` re-reads every topic)
+      checkStatus: async () => {
+        const s = await api.getInteraction(sessionId)
+        if (active) setSession(s)
+        return s
+      },
+      onReopen: () => { if (active) showToast('The class is live again', 'info') },
     })
     return () => { active = false; live.close() }
   }, [sessionId, reload, showToast])
