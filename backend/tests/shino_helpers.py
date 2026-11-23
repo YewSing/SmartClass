@@ -130,6 +130,18 @@ async def build_shino_class(n_students: int = 4, open_session: bool = True) -> S
         )
 
 
+def second_session_time():
+    """The `now` for starting a *second* SH101 class session on the same day. S38a: Start now inside
+    SH101's Mon 08:00-10:00 slot (or a 120-min session's later end) reopens the slot's ended
+    session, so on a Monday morning this moves the start to 23:00 the same day."""
+    from app.services import session_schedule
+
+    now = session_schedule.clock()
+    if now.weekday() == 0 and now.hour < 12:
+        return now.replace(hour=23, minute=0, second=0, microsecond=0)
+    return now
+
+
 @pytest.fixture
 async def shino_class() -> ShinoClass:
     return await build_shino_class()

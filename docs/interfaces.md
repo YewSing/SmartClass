@@ -398,6 +398,12 @@ M3 code calls M5. Table `m5_interaction_sessions` (one row per class session: `s
   off) marks rows of ended classes `closed/class_ended`; `sessions.on_closed` listeners
   (`async (attendance_session_id)`) run after the commit of a sweep or a lecturer close (S35 sends
   the websocket `closed` event from there).
+- **Class reopened in its slot (S38a):** M3's Start now inside today's slot reopens the ended class
+  session (same `attendance_session_id`, audit `SESSION_REOPEN`; see `session_schedule` R7). Its
+  interaction is open again with all its questions/polls/etc.: a row closed `class_ended` goes back
+  to `open` on the next join or write (and counts as open meanwhile); a row the lecturer closed
+  early (`lecturer`) stays closed until the lecturer opens it. Sockets closed at the class end don't
+  come back by themselves; clients reconnect.
 
 ### Live questions (S31, FR-503–FR-506)
 

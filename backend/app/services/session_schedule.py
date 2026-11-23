@@ -18,6 +18,10 @@ Rules:
   Unidentified faces are not recognitions.
 - R5 – a class without a schedule is never opened by the job; Start now works.
 - R6 – the job never touches `ClassOccurrence` columns.
+- R7 (S38a, Shino's rule 2026-11-23) – one class slot = one session. Start now inside today's slot
+  (until the scheduled end, or the extended `ends_at` if later) reopens the slot's ended session
+  (`closed`/`needs_confirmation`) instead of making a new `manual` row; audit `SESSION_REOPEN`.
+  The next close marks Absent again and queues the Moodle sync again.
 - T38b removed changing or cancelling one class (FR-316): a class that didn't happen is
   confirmed "Not held" (FR-317). Old `scheduled`/`cancelled` rows still load and behave as before.
 """
@@ -272,9 +276,87 @@ def _scheduled_length(occ: ClassOccurrence) -> timedelta:
     return timedelta(hours=end.hour - start.hour, minutes=end.minute - start.minute)
 
 
+REOPENABLE_STATUSES = ("closed", "needs_confirmation")
+
+
+async def _slot_session_to_reopen(db: AsyncSession, occ: ClassOccurrence,
+                                  now: datetime) -> AttendanceSession | None:
+    """S38a (Shino's rule, 2026-11-23): one class slot = one session. The session of today's slot
+    that was ended (or is waiting for confirmation) while `now` is still inside that slot: from
+    the early-open time to the scheduled end, or the session's own `ends_at` when later (an
+    extended class). The slot's `schedule` row first, else the newest `manual` row started inside
+    the slot window. None for a class without a schedule or outside the slot."""
+    times = scheduled_times(occ, now.date())
+    if times is None:
+        return None
+    slot_start, slot_end = times
+    candidates = (await db.execute(
+        select(AttendanceSession)
+        .where(AttendanceSession.occurrence_id == occ.id,
+               AttendanceSession.class_date == now.date(),
+               AttendanceSession.status.in_(REOPENABLE_STATUSES))
+        .with_for_update()
+        .order_by(AttendanceSession.id.desc())
+    )).scalars().all()
+    in_slot = [s for s in candidates
+               if s.source == "schedule"
+               or (s.starts_at is not None and slot_start - early() <= s.starts_at < slot_end)]
+    if not in_slot:
+        return None
+    session = next((s for s in in_slot if s.source == "schedule"), in_slot[0])
+    limit = max(slot_end, session.ends_at) if session.ends_at else slot_end
+    if not (slot_start - early() <= now < limit):
+        return None
+    return session
+
+
+async def _reopen(db: AsyncSession, session: AttendanceSession, occ: ClassOccurrence, lec: Lecturer,
+                  now: datetime, duration_minutes: int | None) -> AttendanceSession:
+    """Open the slot's ended session again (S38a). Records are kept: the Absents the close wrote
+    can still become Present/Late from recognition (attendance_service.mark_present), overrides
+    stay. The Moodle sync state is cleared while the class runs (`moodle_session_id` is kept, so
+    the next close updates the same Moodle session instead of adding one)."""
+    old = {"status": session.status, "closed_at": _iso(session.closed_at), "ends_at": _iso(session.ends_at)}
+    _, slot_end = scheduled_times(occ, now.date())
+    wanted_end = now + timedelta(minutes=duration_minutes) if duration_minutes else slot_end
+    session.ends_at = max(wanted_end, session.ends_at) if session.ends_at else wanted_end
+    session.status = "open"
+    session.closed_at = None
+    if session.opened_at is None:
+        session.opened_at = now
+    if session.starts_at is None:
+        session.starts_at = now
+    session.lecturer_id = lec.id
+    session.camera_id = await camera_id_for_room(db, occ.room)
+    session.lecturer_action_at = now
+    session.moodle_sync_status = None
+    session.moodle_sync_attempts = 0
+    session.moodle_sync_next_at = None
+    session.moodle_sync_error = None
+    await db.flush()
+    await write_log(db, lec.user_id, "SESSION_REOPEN", "attendance_session", session.id, old, {
+        "status": "open",
+        "ends_at": _iso(session.ends_at),
+    })
+    await db.flush()
+    return session
+
+
 async def start_now(db: AsyncSession, occ: ClassOccurrence, lec: Lecturer,
                     now: datetime, duration_minutes: int | None) -> AttendanceSession:
-    """Start the class now (FR-316). Uses today's slot when there is one, else a manual row."""
+    """Start the class now (FR-316). Inside today's slot an ended session of that slot is opened
+    again (S38a); otherwise today's slot row when there is one, else a manual row."""
+    if await db.scalar(select(AttendanceSession.id).where(
+        AttendanceSession.occurrence_id == occ.id,
+        AttendanceSession.status == "open",
+    )) is not None:
+        raise HTTPException(status_code=http_status.HTTP_409_CONFLICT,
+                            detail="A session is already open for this occurrence")
+
+    reopen = await _slot_session_to_reopen(db, occ, now)
+    if reopen is not None:
+        return await _reopen(db, reopen, occ, lec, now, duration_minutes)
+    # A concurrent Start now may have reopened the slot's session while we waited for its lock.
     if await db.scalar(select(AttendanceSession.id).where(
         AttendanceSession.occurrence_id == occ.id,
         AttendanceSession.status == "open",

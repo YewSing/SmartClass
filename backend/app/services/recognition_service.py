@@ -179,10 +179,11 @@ async def recognise_frame(
     """Embed every crop of one frame, vote, and record the students that reached the threshold."""
     embeddings = await asyncio.to_thread(lambda: [embed_crop(face_app, crop) for crop in crops])
     now = session_schedule.clock()
-    recorded = {student_id: status for student_id, status in (await db.execute(
-        select(AttendanceRecord.student_id, AttendanceRecord.status)
-        .where(AttendanceRecord.session_id == session.id)
-    )).all()}
+    # The Absent an earlier close wrote doesn't count as recorded in a reopened session (S38a):
+    # mark_present turns it into Present/Late.
+    recorded = {rec.student_id: rec.status for rec in (await db.execute(
+        select(AttendanceRecord).where(AttendanceRecord.session_id == session.id)
+    )).scalars().all() if not attendance_service.is_absent_from_close(rec)}
 
     results: dict[int, dict] = {}
     candidates: list[tuple[int, int, float | None]] = []

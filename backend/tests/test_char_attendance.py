@@ -145,7 +145,13 @@ async def test_session_csv_export(lecturer_client, classroom, db_session):
     ]
 
 
-async def test_occurrence_csv_export_with_date_range(lecturer_client, classroom, db_session):
+async def test_occurrence_csv_export_with_date_range(lecturer_client, classroom, db_session, monkeypatch):
+    # S38a (Shino's rule 2026-11-23): inside the class's Mon 08:00-10:00 slot Start now reopens the
+    # ended session, so start outside any slot (23:00 today) to get separate sessions.
+    from app.core.timezone import now_myt
+    from app.services import session_schedule
+    late = now_myt().replace(hour=23, minute=0, second=0, microsecond=0)
+    monkeypatch.setattr(session_schedule, "clock", lambda: late)
     first = await _open_session(lecturer_client, classroom)
     await _add_record(db_session, first, classroom["student_ids"][0], "present")
     await lecturer_client.put(f"/lecturer/sessions/{first}/close")

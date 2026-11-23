@@ -386,7 +386,11 @@ async def test_counts_split_absent_from_not_yet_recorded(lecturer_client, classr
     assert (listed["present"], listed["absent"], listed["not_recorded"]) == (1, 2, 1)
 
 
-async def test_occurrence_export_letters_and_rate(lecturer_client, classroom, db_session):
+async def test_occurrence_export_letters_and_rate(lecturer_client, classroom, db_session, monkeypatch):
+    # S38a (Shino's rule 2026-11-23): inside the class's Mon 08:00-10:00 slot Start now reopens the
+    # ended session, so start outside any slot (23:00 today) to get two sessions.
+    late = datetime.combine(session_schedule.clock().date(), datetime.min.time()).replace(hour=23)
+    monkeypatch.setattr(session_schedule, "clock", lambda: late)
     first_student, second_student, third_student = classroom["student_ids"]
 
     async def add_records(session_id: int, statuses: tuple[str, str, str]) -> None:

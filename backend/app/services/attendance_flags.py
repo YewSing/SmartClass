@@ -143,7 +143,7 @@ async def create_flag(db: AsyncSession, student: Student, session_id: int) -> At
         raise _conflict("You can only flag while the session is open")
     record = await db.scalar(select(AttendanceRecord).where(
         AttendanceRecord.session_id == session_id, AttendanceRecord.student_id == student.id))
-    if record is not None:
+    if record is not None and not _absent_from_close(record):   # S38a: a reopened class's Absent can be flagged
         raise _conflict(f"Your attendance is already recorded ({record.status})")
     if await db.scalar(select(AttendanceFlag.id).where(
             AttendanceFlag.session_id == session_id, AttendanceFlag.student_id == student.id)) is not None:

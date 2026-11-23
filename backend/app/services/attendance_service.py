@@ -31,6 +31,13 @@ def status_for_recognition(session: AttendanceSession, detected_at: datetime) ->
     return "late" if detected_at > late_after else "present"
 
 
+def is_absent_from_close(record: AttendanceRecord) -> bool:
+    """The Absent that closing a session writes for everyone unrecorded (no detection, no
+    override, no flag); same test as attendance_flags._absent_from_close."""
+    return (record.status == "absent" and record.detected_at is None and record.override_by is None
+            and record.source is None)
+
+
 async def mark_present(
     session_id: int,
     student_id: int,
@@ -41,7 +48,9 @@ async def mark_present(
     """
     Insert a 'present' or 'late' record for the student (FR-302).
     Returns (record, was_new) — was_new=False means the student was already recorded.
-    Only the first recognition counts: an existing record is never changed.
+    Only the first recognition counts: an existing record is never changed, except the Absent an
+    earlier close wrote in a session that was reopened (S38a): recognition turns it into
+    Present/Late (was_new=True). Lecturer overrides and flags are never changed.
     `camera_id` is the device that recognised the student (FR-405).
     """
     existing = await db.execute(
@@ -52,12 +61,19 @@ async def mark_present(
     )
     record = existing.scalar_one_or_none()
 
-    if record:
-        return record, False
-
     now = now or now_myt()
     session = await db.get(AttendanceSession, session_id)
     status = status_for_recognition(session, now) if session else "present"
+
+    if record:
+        if session is not None and session.status == "open" and is_absent_from_close(record):
+            record.status = status
+            record.detected_at = now
+            record.camera_id = camera_id
+            await db.flush()
+            return record, True
+        return record, False
+
     record = AttendanceRecord(
         session_id=session_id,
         student_id=student_id,

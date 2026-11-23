@@ -16,6 +16,7 @@ from app.core.timezone import now_myt
 from app.models.interaction import EVENT_TYPES, InteractionEvent
 from app.services import interaction_read, session_schedule
 from app.services.interaction import events, sessions
+from tests.shino_helpers import second_session_time
 
 pytestmark = pytest.mark.db
 
@@ -204,7 +205,7 @@ async def test_course_reads_join_sessions_filter_dates_and_isolate_courses(shino
         from app.models.user import Lecturer
         occ = await db.get(ClassOccurrence, c.occurrence_id)
         lec = await db.get(Lecturer, c.lecturer_id)
-        second = await session_schedule.start_now(db, occ, lec, session_schedule.clock(), duration_minutes=60)
+        second = await session_schedule.start_now(db, occ, lec, second_session_time(), duration_minutes=60)
         await db.commit()
         second_id = second.id
     clock.advance(10)

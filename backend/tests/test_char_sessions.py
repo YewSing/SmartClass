@@ -71,7 +71,13 @@ async def test_close_twice_conflicts_and_unknown_is_404(lecturer_client, classro
     assert (await lecturer_client.put("/lecturer/sessions/999999/close")).status_code == 404
 
 
-async def test_closed_occurrence_can_be_reopened(lecturer_client, classroom):
+async def test_closed_occurrence_can_be_reopened(lecturer_client, classroom, monkeypatch):
+    # S38a (Shino's rule 2026-11-23): inside the class's Mon 08:00-10:00 slot Start now reopens the
+    # ended session, so start outside any slot (23:00 today) to get a new one, as this test means.
+    from app.core.timezone import now_myt
+    from app.services import session_schedule
+    late = now_myt().replace(hour=23, minute=0, second=0, microsecond=0)
+    monkeypatch.setattr(session_schedule, "clock", lambda: late)
     first = (await _open(lecturer_client, classroom["occurrence_id"])).json()["id"]
     await lecturer_client.put(f"/lecturer/sessions/{first}/close")
     resp = await _open(lecturer_client, classroom["occurrence_id"])

@@ -12,6 +12,10 @@ The interaction belongs to one M3 class session (`AttendanceSession`) and follow
   the rows of ended classes and tells the `on_closed` listeners after its commit, so connected
   clients (S35 websocket) learn it within the interval.
 
+- S38a: M3 may reopen an ended class inside its slot (same attendance_session_id). An interaction
+  closed only because the class ended (`class_ended`) is open again (`_ensure_row`); a lecturer's
+  early close stays closed.
+
 Nothing here opens, extends or closes the class session itself; no M3 code calls this module.
 
 Access (NFR-04, FR-502): the lecturer assigned to the class, or an active student enrolled in it.
@@ -44,6 +48,7 @@ log = logging.getLogger(__name__)
 
 ROLE_LECTURER = "lecturer"
 ROLE_STUDENT = "student"
+CLASS_ENDED = "class_ended"
 
 # Called with the attendance_session_id after a commit that closed an interaction (lecturer close
 # or sweep). S35's websocket registers here to send `closed`. A failing listener is logged only.
@@ -134,9 +139,9 @@ def require_lecturer(member: Member) -> None:
 def effective(session: AttendanceSession, row: InteractionSession | None) -> tuple[str, str | None]:
     """(status, closed_reason) from the class session and the interaction row."""
     if session.status == "open":
-        if row is not None and row.status == "closed":
+        if row is not None and row.status == "closed" and row.closed_reason != CLASS_ENDED:
             return "closed", row.closed_reason or "lecturer"
-        return "open", None
+        return "open", None   # a class reopened in its slot (S38a) reopens its interaction
     if session.status == "scheduled":
         return "closed", "not_started"
     if row is not None and row.status == "closed" and row.closed_reason:
@@ -155,11 +160,22 @@ async def _row(db: AsyncSession, attendance_session_id: int, lock: str | None = 
 
 
 async def _ensure_row(db: AsyncSession, session: AttendanceSession) -> None:
-    """Create the open row of a running class (idempotent, safe under concurrency)."""
+    """Create the open row of a running class (idempotent, safe under concurrency).
+
+    S38a: M3 may reopen a class inside its slot (same attendance_session_id). A row the class's end
+    closed (`class_ended`) opens again here, keeping its questions, polls etc.; a lecturer's early
+    close (`lecturer`) stays closed until the lecturer opens it."""
     await db.execute(
         insert(InteractionSession)
         .values(attendance_session_id=session.id, status="open", opened_at=session.opened_at or clock())
         .on_conflict_do_nothing(index_elements=["attendance_session_id"]))
+    await db.execute(
+        update(InteractionSession)
+        .where(InteractionSession.attendance_session_id == session.id,
+               InteractionSession.status == "closed",
+               InteractionSession.closed_reason == CLASS_ENDED)
+        .values(status="open", closed_reason=None, closed_at=None, closed_by_user_id=None)
+        .execution_options(synchronize_session=False))
 
 
 async def _lock_class(db: AsyncSession, attendance_session_id: int) -> AttendanceSession:

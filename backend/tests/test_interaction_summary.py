@@ -18,6 +18,7 @@ from app.models.class_ import ClassOccurrence
 from app.models.user import Lecturer
 from app.services import session_schedule, session_service
 from app.services.interaction import sessions, summary
+from tests.shino_helpers import second_session_time
 from tests.test_interaction_questions import assert_no_identity, identity
 
 pytestmark = pytest.mark.db
@@ -51,7 +52,7 @@ async def second_session(c) -> int:
     async with AsyncSessionLocal() as db:
         occ = await db.get(ClassOccurrence, c.occurrence_id)
         lec = await db.get(Lecturer, c.lecturer_id)
-        s = await session_schedule.start_now(db, occ, lec, session_schedule.clock(), duration_minutes=60)
+        s = await session_schedule.start_now(db, occ, lec, second_session_time(), duration_minutes=60)
         await db.commit()
         return s.id
 

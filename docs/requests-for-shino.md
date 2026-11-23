@@ -94,6 +94,19 @@ On Shino's instruction, the live session screen (`AttendanceDetail.jsx`, your T3
 
 ---
 
+## Note for Yew Sing — one class slot = one session (M3 change) — 2026-11-23
+
+On Shino's instruction (plan-shino.md S38a), M3 now treats one timetable slot as one class session:
+
+- `session_schedule.start_now`: inside today's slot (from the early-open time until the scheduled end, or the session's `ends_at` if later), Start now on an ended session of that slot (`closed` / `needs_confirmation`; the `schedule` row first, else the newest `manual` row started in the slot) **reopens it** instead of adding a `manual` row: same id, `closed_at` cleared, records kept, `starts_at` kept (Late still counts from the class start), `ends_at` = the later of its current value and the scheduled end (or now + duration), audit `SESSION_REOPEN`. The Moodle sync state is cleared while it runs (`moodle_session_id` kept); the next close marks Absent again and queues the sync once, so Moodle gets the changed marks in the same Moodle session. Outside the slot, on another day, or for a class without a schedule nothing changes.
+- `attendance_service.mark_present`: in an open session, the Absent a close wrote (no detection, no override, no flag, same test as `attendance_flags._absent_from_close`) becomes Present/Late on recognition and returns `was_new=True` (so the usual broadcasts fire). Overrides and flags are never changed. `recognition_service.recognise_frame` no longer counts such an Absent as "already recorded", and `attendance_flags.create_flag` lets that student flag (`confirm_flag` already accepted it).
+- `start_now` checks again for an open session after locking the slot's rows, so two Start now calls at once can't open two sessions.
+- Tests: new `tests/test_session_reopen.py`. Three of your tests needed a *second* session the same day (`test_char_sessions::test_closed_occurrence_can_be_reopened`, `test_char_attendance::test_occurrence_csv_export_with_date_range`, `test_attendance_statuses::test_occurrence_export_letters_and_rate`); on a Monday 07:45–10:00 they would now get the reopened one, so they pin Start now to 23:00 today. Expectations are unchanged (TEST-CHANGE lines in progress-shino.md).
+
+**Status / reply:** open (for information)
+
+---
+
 ## Open issue already raised
 
 - `GET /lecturer/analytics` (M7) lets any lecturer read any class's analytics (NFR-04). Details

@@ -15,6 +15,7 @@ from app.core.database import AsyncSessionLocal
 from app.models.interaction import PollVote
 from app.models.notification import Notification
 from app.services import session_service
+from tests.shino_helpers import second_session_time
 
 pytestmark = pytest.mark.db
 
@@ -169,7 +170,7 @@ async def test_poll_of_another_class_session_is_404(shino_class):
     async with AsyncSessionLocal() as db:
         occ = await db.get(ClassOccurrence, c.occurrence_id)
         lec = await db.get(Lecturer, c.lecturer_id)
-        s2 = await session_schedule.start_now(db, occ, lec, session_schedule.clock(), duration_minutes=60)
+        s2 = await session_schedule.start_now(db, occ, lec, second_session_time(), duration_minutes=60)
         await db.commit()
         second = s2.id
     async with c.client(c.student_user_ids[0], "student") as api:
