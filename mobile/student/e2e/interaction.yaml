@@ -89,7 +89,9 @@ appId: host.exp.exponent
 - extendedWaitUntil:
     visible: "E2E: Which sort is stable\\?"
     timeout: 60000
-- tapOn: "Merge sort"
+# "Merge sort" is option 0 (by id: results bars show the same text while results are visible)
+- tapOn:
+    id: "live-poll-option-0"
 - tapOn:
     id: "live-poll-vote"
 - extendedWaitUntil:

@@ -218,7 +218,7 @@ function QuickCard({ sessionId, qq, open, act }) {
       {mine ? (
         <View style={styles.answer}>
           <Text style={ixStyles.label}>Your answer</Text>
-          <Text style={styles.answerText} testID="live-quick-mine">{mine.text}</Text>
+          <Text style={styles.answerText} testID="live-quick-mine">{mine}</Text>
         </View>
       ) : !canAnswer ? <Muted>You didn't answer this one.</Muted> : null}
       {canAnswer ? (

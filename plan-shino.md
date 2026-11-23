@@ -78,7 +78,7 @@ Run the loop with `/shino-run-plan [rounds]` (or `bash scripts/shino/run-tasks.s
   Done when: lecturer summary (questions asked/answered, poll results, reactions, confusion timeline), CSV export without anonymous identities (cells starting with `= + - @` escaped), students list their own past questions with answered status. Tests.
 - [x] **S37 [UI] Lecturer live interaction.** Depends on: S35, S36, S20.
   Done when: from the dashboard's current class the lecturer opens interaction, moderates questions, runs polls and quick questions, sees reactions and the confusion timeline live, and opens the after-class summary/CSV. Playwright `interaction.spec.js` passes at 1280 px and phone width.
-- [ ] **S38 [UI] Student live class.** Depends on: S35, S36, S20.
+- [~] **S38 [UI] Student live class.** Depends on: S35, S36, S20.
   Done when: during an open class a student joins from Home, asks (anonymous option), upvotes, votes, answers quick questions, reacts, presses "I don't understand", sees updates live and a closed state when class ends, and sees their past questions. Maestro `interaction.yaml` passes.
 - [ ] **S39 [HUMAN] Checkpoint: interaction in a real class.** Shino runs one class with a few phones, then ticks `[x]`.
 
