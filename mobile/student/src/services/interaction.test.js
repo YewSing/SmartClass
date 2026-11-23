@@ -1,0 +1,238 @@
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import {
+  TOPICS, topicsFor, interactionState, liveClasses, validateQuestion, askerLabel, questionBadges, canUpvote,
+  toggleChoice, voteAction, pollResultsVisible, pollBars, sortPolls, validateQuickAnswer, charsLeft,
+  nextAllowedAt, secondsLeft, cooldownLabel, myQuestionMeta, myQuestionBadge, mergeQuestionPages,
+  connectInteractionLive, QUESTION_MAX_CHARS,
+} from './interaction.js'
+
+// ─── websocket topics and state ──────────────────────────────────────────────
+
+test('students re-read only their own topics', () => {
+  assert.deepEqual(TOPICS, ['questions', 'polls', 'quick_questions'])
+  assert.deepEqual(topicsFor({ type: 'connected' }), ['session', 'questions', 'polls', 'quick_questions'])
+  assert.deepEqual(topicsFor({ type: 'changed', topic: 'polls' }), ['polls'])
+  assert.deepEqual(topicsFor({ type: 'changed', topic: 'reactions' }), [], 'lecturer-only topic')
+  assert.deepEqual(topicsFor({ type: 'changed', topic: 'nonsense' }), [])
+  assert.deepEqual(topicsFor({ type: 'closed', reason: 'class_ended' }), ['session'])
+  assert.deepEqual(topicsFor({ type: 'opened' }), ['session'])
+  assert.deepEqual(topicsFor(null), [])
+  assert.deepEqual(topicsFor({ type: 7 }), [])
+})
+
+test('interaction state: live, paused, not started, ended', () => {
+  assert.equal(interactionState(null).label, 'Loading')
+  const live = interactionState({ status: 'open', class_status: 'open' })
+  assert.deepEqual([live.label, live.open, live.ended], ['Live', true, false])
+  const paused = interactionState({ status: 'closed', closed_reason: 'lecturer', class_status: 'open' })
+  assert.deepEqual([paused.label, paused.open, paused.ended], ['Paused', false, false])
+  const early = interactionState({ status: 'closed', closed_reason: 'not_started', class_status: 'scheduled' })
+  assert.deepEqual([early.label, early.ended], ['Not started', false])
+  for (const cs of ['closed', 'needs_confirmation', 'cancelled']) {
+    const s = interactionState({ status: 'closed', closed_reason: 'class_ended', class_status: cs })
+    assert.deepEqual([s.label, s.open, s.ended], ['Class ended', false, true], cs)
+  }
+  // An early lecturer close on a class that has since ended reads as ended
+  assert.equal(interactionState({ status: 'closed', closed_reason: 'lecturer', class_status: 'closed' }).ended, true)
+})
+
+test('only open class sessions of today can be joined', () => {
+  const today = [
+    { occurrence_id: 1, session_id: 10, session_status: 'open' },
+    { occurrence_id: 2, session_id: 11, session_status: 'closed' },
+    { occurrence_id: 3, session_id: null, session_status: null },
+    { occurrence_id: 4, session_id: 12, session_status: 'needs_confirmation' },
+  ]
+  assert.deepEqual(liveClasses(today).map(c => c.session_id), [10])
+  assert.deepEqual(liveClasses(null), [])
+})
+
+// ─── questions ───────────────────────────────────────────────────────────────
+
+test('question text is trimmed and limited to 500 characters', () => {
+  assert.deepEqual(validateQuestion('  Why O(n log n)?  '), { text: 'Why O(n log n)?' })
+  assert.ok(validateQuestion('   ').error)
+  assert.ok(validateQuestion(undefined).error)
+  assert.ok(validateQuestion('x'.repeat(QUESTION_MAX_CHARS + 1)).error)
+  assert.deepEqual(validateQuestion('x'.repeat(QUESTION_MAX_CHARS)), { text: 'x'.repeat(QUESTION_MAX_CHARS) })
+})
+
+test('asker label never names an anonymous asker and marks your own', () => {
+  assert.equal(askerLabel({ anonymous: false, author_name: 'Ali', mine: false }), 'Ali')
+  assert.equal(askerLabel({ anonymous: true, author_name: null, mine: false }), 'Anonymous')
+  // even if a name slipped through, an anonymous question shows none
+  assert.equal(askerLabel({ anonymous: true, author_name: 'Ali', mine: false }), 'Anonymous')
+  assert.equal(askerLabel({ anonymous: false, author_name: 'Me', mine: true }), 'You')
+  assert.equal(askerLabel({ anonymous: true, author_name: null, mine: true }), 'You (anonymous)')
+})
+
+test('badges and upvote rules', () => {
+  assert.deepEqual(questionBadges({ pinned: true, answered: true }).map(b => b.label), ['Pinned', 'Answered'])
+  assert.deepEqual(questionBadges({}), [])
+  assert.equal(canUpvote({ mine: false, upvoted_by_me: false }, true), true)
+  assert.equal(canUpvote({ mine: true, upvoted_by_me: false }, true), false, 'own question')
+  assert.equal(canUpvote({ mine: false, upvoted_by_me: true }, true), false, 'once only')
+  assert.equal(canUpvote({ mine: false, upvoted_by_me: false }, false), false, 'interaction closed')
+})
+
+// ─── polls ───────────────────────────────────────────────────────────────────
+
+test('choosing options: single replaces, multiple toggles', () => {
+  assert.deepEqual(toggleChoice([1], 2, false), [2])
+  assert.deepEqual(toggleChoice([], 2, false), [2])
+  assert.deepEqual(toggleChoice([1], 2, true), [1, 2])
+  assert.deepEqual(toggleChoice([1, 2], 1, true), [2])
+  assert.deepEqual(toggleChoice(undefined, 3, true), [3])
+})
+
+test('vote button: vote, change, already voted, closed', () => {
+  const open = { status: 'open', my_option_ids: [] }
+  assert.deepEqual(voteAction(open, [], true), { label: 'Vote', enabled: false })
+  assert.deepEqual(voteAction(open, [5], true), { label: 'Vote', enabled: true })
+  const voted = { status: 'open', my_option_ids: [5] }
+  assert.deepEqual(voteAction(voted, [5], true), { label: 'Voted', enabled: false })
+  assert.deepEqual(voteAction(voted, [6], true), { label: 'Change vote', enabled: true })
+  assert.deepEqual(voteAction({ status: 'open', my_option_ids: [5, 6] }, [6, 5], true),
+    { label: 'Voted', enabled: false }, 'same set in another order')
+  assert.deepEqual(voteAction({ status: 'closed', my_option_ids: [5] }, [5], true), { label: 'Voted', enabled: false })
+  assert.deepEqual(voteAction({ status: 'closed', my_option_ids: [] }, [], true), { label: 'Closed', enabled: false })
+  assert.equal(voteAction(open, [5], false).enabled, false, 'interaction paused')
+})
+
+test('results only when the lecturer shows them', () => {
+  const hidden = { total_voters: null, options: [{ id: 1, text: 'A', votes: null }], my_option_ids: [1] }
+  assert.equal(pollResultsVisible(hidden), false)
+  assert.deepEqual(pollBars(hidden), [])
+  const shown = { total_voters: 4, my_option_ids: [2], options: [{ id: 1, text: 'A', votes: 1 }, { id: 2, text: 'B', votes: 3 }] }
+  assert.equal(pollResultsVisible(shown), true)
+  assert.deepEqual(pollBars(shown), [
+    { id: 1, text: 'A', votes: 1, pct: 25, mine: false },
+    { id: 2, text: 'B', votes: 3, pct: 75, mine: true },
+  ])
+  assert.deepEqual(pollBars({ total_voters: 0, my_option_ids: [], options: [{ id: 1, text: 'A', votes: 0 }] })[0].pct, 0)
+})
+
+test('open polls come first, then newest', () => {
+  const polls = [{ id: 1, status: 'closed' }, { id: 3, status: 'closed' }, { id: 2, status: 'open' }]
+  assert.deepEqual(sortPolls(polls).map(p => p.id), [2, 3, 1])
+  assert.deepEqual(sortPolls(null), [])
+})
+
+// ─── quick questions ─────────────────────────────────────────────────────────
+
+test('quick answers respect the lecturer limit', () => {
+  assert.deepEqual(validateQuickAnswer('  hash  ', 10), { text: 'hash' })
+  assert.ok(validateQuickAnswer('  ', 10).error)
+  assert.match(validateQuickAnswer('x'.repeat(11), 10).error, /10 characters/)
+  assert.equal(charsLeft('abc', 10), 7)
+  assert.equal(charsLeft('', 140), 140)
+})
+
+// ─── cooldowns ───────────────────────────────────────────────────────────────
+
+test('cooldown from next_allowed_at or a 429 Retry-After', () => {
+  const now = Date.parse('2026-11-23T02:00:00Z')
+  assert.equal(nextAllowedAt({ ack: { next_allowed_at: '2026-11-23T10:00:05' }, now }), now + 5000, 'naive MYT')
+  assert.equal(nextAllowedAt({ ack: { next_allowed_at: '2026-11-23T02:02:00Z' }, now }), now + 120000)
+  assert.equal(nextAllowedAt({ error: { status: 429, retryAfter: '90' }, now }), now + 90000)
+  assert.equal(nextAllowedAt({ error: { status: 409, retryAfter: '90' }, now }), null)
+  assert.equal(nextAllowedAt({ error: { status: 429 }, now }), null)
+  assert.equal(nextAllowedAt({}), null)
+  assert.equal(secondsLeft(now + 4200, now), 5)
+  assert.equal(secondsLeft(now - 1, now), 0)
+  assert.equal(secondsLeft(null, now), 0)
+  assert.equal(cooldownLabel(0), '')
+  assert.equal(cooldownLabel(5), 'Again in 5s')
+  assert.equal(cooldownLabel(95), 'Again in 1:35')
+})
+
+// ─── past questions ──────────────────────────────────────────────────────────
+
+test('past questions: meta, answered badge, paging without duplicates', () => {
+  assert.equal(myQuestionMeta({ course_code: 'WIA0000', class_date: '2026-11-23', anonymous: true }),
+    'WIA0000 · 23 Nov · Anonymous')
+  assert.equal(myQuestionMeta({ course_code: 'WIA0000', class_date: null, anonymous: false }), 'WIA0000')
+  assert.deepEqual(myQuestionBadge({ answered: true }), { label: 'Answered', variant: 'green' })
+  assert.equal(myQuestionBadge({ answered: false }).label, 'Not answered yet')
+  assert.deepEqual(mergeQuestionPages([{ id: 3 }, { id: 2 }], [{ id: 2 }, { id: 1 }]).map(q => q.id), [3, 2, 1])
+  assert.deepEqual(mergeQuestionPages(null, [{ id: 1 }]).map(q => q.id), [1])
+})
+
+// ─── live client ─────────────────────────────────────────────────────────────
+
+function fakeSockets() {
+  const made = []
+  class FakeWS {
+    constructor(url) { this.url = url; this.closedByClient = false; made.push(this) }
+    close() { this.closedByClient = true }
+    send(type, extra = {}) { this.onmessage?.({ data: JSON.stringify({ type, ...extra }) }) }
+  }
+  return { made, FakeWS }
+}
+
+function client(over = {}) {
+  const { made, FakeWS } = fakeSockets()
+  const timers = []
+  const got = []
+  let token = 'tok 1'
+  let refreshes = 0
+  const live = connectInteractionLive({
+    baseUrl: 'http://api.test:8000', sessionId: 42, getToken: () => token,
+    refreshToken: async () => { refreshes += 1; token = 'tok2'; return over.refreshOk ?? true },
+    onMessage: (m) => got.push(m),
+    WebSocketImpl: FakeWS, schedule: (fn) => { timers.push(fn); return timers.length }, cancel: () => {},
+  })
+  return { made, timers, got, live, refreshes: () => refreshes }
+}
+
+test('connects to the class socket with the token and passes messages on', () => {
+  const c = client()
+  assert.equal(c.made[0].url, 'ws://api.test:8000/interaction/42/ws?token=tok%201')
+  c.made[0].send('connected', { status: 'open', class_status: 'open' })
+  c.made[0].send('changed', { topic: 'questions' })
+  c.made[0].onmessage({ data: 'not json' })
+  assert.deepEqual(c.got.map(m => m.type), ['connected', 'changed'])
+})
+
+test('reconnects after a drop, not after the class ended or close()', async () => {
+  const c = client()
+  await c.made[0].onclose({ code: 1006 })
+  assert.equal(c.timers.length, 1)
+  c.timers[0]()
+  assert.equal(c.made.length, 2)
+  c.made[1].send('closed', { reason: 'class_ended' })
+  await c.made[1].onclose({ code: 1000 })
+  assert.equal(c.timers.length, 1, 'no reconnect once the class ended')
+
+  const d = client()
+  d.made[0].send('connected', { status: 'closed', class_status: 'closed' })
+  await d.made[0].onclose({ code: 1000 })
+  assert.equal(d.timers.length, 0)
+
+  const e = client()
+  e.live.close()
+  assert.equal(e.made[0].closedByClient, true)
+  await e.made[0].onclose({ code: 1000 })
+  assert.equal(e.timers.length, 0)
+})
+
+test('a pause keeps reconnecting; a 1008 refreshes the token once', async () => {
+  const c = client()
+  c.made[0].send('closed', { reason: 'lecturer' })
+  await c.made[0].onclose({ code: 1006 })
+  assert.equal(c.timers.length, 1)
+
+  const r = client()
+  await r.made[0].onclose({ code: 1008 })
+  assert.equal(r.refreshes(), 1)
+  r.timers[0]()
+  assert.match(r.made[1].url, /token=tok2$/)
+  await r.made[1].onclose({ code: 1008 })
+  assert.equal(r.refreshes(), 1)
+  assert.equal(r.timers.length, 1)
+
+  const f = client({ refreshOk: false })
+  await f.made[0].onclose({ code: 1008 })
+  assert.equal(f.timers.length, 0)
+})

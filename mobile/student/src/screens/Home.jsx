@@ -16,6 +16,7 @@ import {
   attendanceBadge, classTypeLabel, classMeta, rateLabel, rateVariant, dueLabel, refreshedLabel, moodleLink,
 } from '../services/dashboard'
 import { timeLabel } from '../services/notifications'
+import { liveClasses } from '../services/interaction'
 import { C } from '../theme'
 
 function greeting() {
@@ -45,28 +46,51 @@ function MoodleRow({ item, sub, first, testID }) {
   )
 }
 
+const isLiveClass = (c) => liveClasses([c]).length === 1
+
 function Dashboard({ data, navigation }) {
   const { today_classes: today, attendance_rates: rates, moodle } = data
   return (
     <>
-      <SectionTitle>Today</SectionTitle>
+      <SectionTitle right={(
+        <TouchableOpacity onPress={() => navigation.navigate('MyQuestions')} testID="dash-my-questions"
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button">
+          <Text style={styles.link}>My questions</Text>
+        </TouchableOpacity>
+      )}>Today</SectionTitle>
       <View style={dashStyles.card}>
         {today.length === 0 ? <EmptyRow text="No classes today." testID="dash-today-empty" /> : today.map((c, i) => {
           const b = attendanceBadge(c)
+          const live = isLiveClass(c)
           return (
-            <TouchableOpacity
-              key={`${c.occurrence_id}`}
-              style={[dashStyles.row, i > 0 && dashStyles.rowBorder]}
-              onPress={() => navigation.navigate('Attendance')}
-              testID="dash-today-class"
-            >
-              <View style={dashStyles.rowMain}>
-                <Text style={dashStyles.code}>{c.course_code} · {classTypeLabel(c)}</Text>
-                <Text style={dashStyles.rowTitle}>{c.course_name}</Text>
-                {classMeta(c) ? <Text style={dashStyles.rowSub}>{classMeta(c)}</Text> : null}
-              </View>
-              <Badge variant={b.variant} dot>{b.label}</Badge>
-            </TouchableOpacity>
+            <View key={`${c.occurrence_id}`} style={i > 0 && dashStyles.rowBorder}>
+              <TouchableOpacity
+                style={dashStyles.row}
+                onPress={() => navigation.navigate('Attendance')}
+                testID="dash-today-class"
+              >
+                <View style={dashStyles.rowMain}>
+                  <Text style={dashStyles.code}>{c.course_code} · {classTypeLabel(c)}</Text>
+                  <Text style={dashStyles.rowTitle}>{c.course_name}</Text>
+                  {classMeta(c) ? <Text style={dashStyles.rowSub}>{classMeta(c)}</Text> : null}
+                </View>
+                <Badge variant={b.variant} dot>{b.label}</Badge>
+              </TouchableOpacity>
+              {live ? (
+                // FR-501: the class interaction is open while the class session runs
+                <TouchableOpacity
+                  style={styles.join}
+                  onPress={() => navigation.navigate('LiveClass', { sessionId: c.session_id })}
+                  testID="dash-live-join"
+                  accessibilityRole="button"
+                  accessibilityLabel={`Join the live class, ${c.course_code}`}
+                >
+                  <View style={styles.liveDot} />
+                  <Text style={styles.joinText}>Join live class</Text>
+                  <Ionicons name="chevron-forward" size={16} color={C.primary} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
           )
         })}
       </View>
@@ -258,6 +282,33 @@ const styles = StyleSheet.create({
   },
   subHeadGap: {
     marginTop: 12,
+  },
+  link: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: C.primary,
+  },
+  join: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: C.blueLt,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    marginBottom: 10,
+  },
+  liveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: C.green,
+  },
+  joinText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: C.primary,
   },
   sectionHeader: {
     paddingHorizontal: 16,

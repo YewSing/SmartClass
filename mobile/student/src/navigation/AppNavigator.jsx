@@ -15,6 +15,8 @@ import Login from '../screens/Login'
 import Home from '../screens/Home'
 import Notifications from '../screens/Notifications'
 import NotificationPrefs from '../screens/NotificationPrefs'
+import LiveClass from '../screens/LiveClass'
+import MyQuestions from '../screens/MyQuestions'
 import Attendance from '../screens/Attendance'
 import AttSessionDetail from '../screens/AttSessionDetail'
 import AttReportStatus from '../screens/AttReportStatus'
@@ -39,6 +41,8 @@ function HomeStack() {
       <Stack.Screen name="HomeScreen" component={Home} />
       <Stack.Screen name="Notifications" component={Notifications} />
       <Stack.Screen name="NotificationPrefs" component={NotificationPrefs} />
+      <Stack.Screen name="LiveClass" component={LiveClass} />
+      <Stack.Screen name="MyQuestions" component={MyQuestions} />
     </Stack.Navigator>
   )
 }

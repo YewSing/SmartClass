@@ -144,6 +144,7 @@ async function _result(res) {
     const err = new Error(msg)
     err.status = res.status
     err.detail = d
+    err.retryAfter = res.headers?.get?.('Retry-After') ?? null   // a 429 cooldown, in seconds
     throw err
   }
   return res.status === 204 ? null : res.json()

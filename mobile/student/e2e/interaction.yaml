@@ -1,0 +1,166 @@
+# Student live class (plan-shino.md S38; FR-501–FR-516, FR-520): during an open class the student
+# joins from Home, upvotes a classmate's question, asks one anonymously, sees it marked answered and
+# a poll appear live, votes, answers a quick question, reacts, presses "I don't understand", sees the
+# class end live, then finds the question in "My questions".
+# Run: bash scripts/e2e-mobile.sh student interaction
+# Needs the local Moodle up (student4 signs in) and student4 already in SmartClass.
+# interaction.setup.sh starts course E2E038's class and the actor (lecturer + classmate via the API).
+appId: host.exp.exponent
+---
+- extendedWaitUntil:
+    visible: "Welcome back|Continue"
+    timeout: 180000
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+- extendedWaitUntil:
+    visible: "Welcome back"
+    timeout: 60000
+
+- tapOn:
+    id: "login-username"
+- inputText: "student4"
+- tapOn:
+    id: "login-password"
+- inputText: "Student123!"
+- hideKeyboard
+- tapOn: "Sign In"
+
+# Home: the running class offers "Join live class"
+- extendedWaitUntil:
+    visible:
+      id: "dash-live-join"
+    timeout: 60000
+- takeScreenshot: live-home-join
+- tapOn:
+    id: "dash-live-join"
+- extendedWaitUntil:
+    visible: "Live class"
+    timeout: 30000
+- extendedWaitUntil:
+    visible: "Ask, vote, answer and react."
+    timeout: 30000
+
+# Upvote the classmate's question (once only)
+- scrollUntilVisible:
+    element: "E2E: Is a heap always a complete tree\\?"
+    direction: DOWN
+    timeout: 30000
+- tapOn: "Upvote, 0 so far"
+- extendedWaitUntil:
+    visible: "Upvote, 1 so far"
+    timeout: 20000
+
+# Ask anonymously
+- scrollUntilVisible:
+    element:
+      id: "live-ask-input"
+    direction: UP
+- tapOn:
+    id: "live-ask-input"
+- inputText: "E2E student question about heaps"
+- hideKeyboard
+- tapOn:
+    id: "live-ask-anon"
+- tapOn:
+    id: "live-ask-send"
+- extendedWaitUntil:
+    visible: "Question sent anonymously"
+    timeout: 20000
+- scrollUntilVisible:
+    element: "You \\(anonymous\\).*"
+    direction: DOWN
+    timeout: 20000
+# The lecturer (actor) marks it answered: the badge arrives live, no refresh
+- extendedWaitUntil:
+    visible: "Answered"
+    timeout: 60000
+- takeScreenshot: live-questions
+
+# The poll the lecturer started arrives live
+- scrollUntilVisible:
+    element:
+      id: "live-tab-polls"
+    direction: UP
+- tapOn:
+    id: "live-tab-polls"
+- extendedWaitUntil:
+    visible: "E2E: Which sort is stable\\?"
+    timeout: 60000
+- tapOn: "Merge sort"
+- tapOn:
+    id: "live-poll-vote"
+- extendedWaitUntil:
+    visible: "Vote sent"
+    timeout: 20000
+- extendedWaitUntil:
+    visible: "Merge sort \\(your vote\\)"
+    timeout: 20000
+- assertVisible: "1 voted"
+- takeScreenshot: live-poll
+
+# Quick question
+- tapOn:
+    id: "live-tab-quick"
+- extendedWaitUntil:
+    visible: "E2E: One word for recursion\\?"
+    timeout: 20000
+- tapOn:
+    id: "live-quick-input"
+- inputText: "selfreference"
+- hideKeyboard
+- tapOn:
+    id: "live-quick-send"
+- extendedWaitUntil:
+    visible: "Answer sent"
+    timeout: 20000
+- assertVisible:
+    id: "live-quick-mine"
+    text: "selfreference"
+
+# React (lecturer-only counts; the student sees the confirmation)
+- scrollUntilVisible:
+    element:
+      id: "live-react-thumbs_up"
+    direction: UP
+- tapOn:
+    id: "live-react-thumbs_up"
+- extendedWaitUntil:
+    visible: "Sent: Thumbs up"
+    timeout: 20000
+
+# "I don't understand" with a topic; the actor then ends the class
+- tapOn:
+    id: "live-confused-add-topic"
+- tapOn:
+    id: "live-confused-topic"
+- inputText: "heaps"
+- hideKeyboard
+- tapOn:
+    id: "live-confused"
+- extendedWaitUntil:
+    visible: "The lecturer can see the class is unsure.*"
+    timeout: 20000
+- takeScreenshot: live-signals
+
+# The class ends: the screen turns read-only by itself
+- extendedWaitUntil:
+    visible:
+      id: "live-ended"
+    timeout: 90000
+- assertVisible: "Class ended"
+- assertNotVisible:
+    id: "live-confused"
+- takeScreenshot: live-ended
+
+# Past questions: the anonymous one is listed as answered
+- tapOn:
+    id: "live-ended-my-questions"
+- extendedWaitUntil:
+    visible: "E2E student question about heaps"
+    timeout: 20000
+- assertVisible: "E2E038 · .* · Anonymous"
+- assertVisible: "Answered"
+- takeScreenshot: live-my-questions

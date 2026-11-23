@@ -88,6 +88,39 @@ export const deletePushToken = (token) => apiCall('DELETE', `/me/push-tokens/${e
 // After sign-in: register this phone for push (never throws; skipped where push can't work)
 export const registerForPush = () => registerPush({ ...pushEnv, sendToken: registerPushToken })
 
+// ─── Live class interaction (Module 5: FR-501–FR-520) ─────────────────────────
+// Keyed to the attendance (class) session id; every write is refused (409) once the class ends.
+
+export const getInteraction = (sessionId) => apiCall('GET', `/interaction/${sessionId}`)
+
+export const getInteractionQuestions = (sessionId) => apiCall('GET', `/interaction/${sessionId}/questions`)
+
+export const askQuestion = (sessionId, text, anonymous) =>
+  apiCall('POST', `/interaction/${sessionId}/questions`, { text, anonymous: !!anonymous })
+
+export const upvoteQuestion = (sessionId, questionId) =>
+  apiCall('POST', `/interaction/${sessionId}/questions/${questionId}/upvote`)
+
+export const getInteractionPolls = (sessionId) => apiCall('GET', `/interaction/${sessionId}/polls`)
+
+export const votePoll = (sessionId, pollId, optionIds) =>
+  apiCall('POST', `/interaction/${sessionId}/polls/${pollId}/vote`, { option_ids: optionIds })
+
+export const getQuickQuestions = (sessionId) => apiCall('GET', `/interaction/${sessionId}/quick-questions`)
+
+export const answerQuickQuestion = (sessionId, quickId, text) =>
+  apiCall('POST', `/interaction/${sessionId}/quick-questions/${quickId}/answer`, { text })
+
+export const sendReaction = (sessionId, kind) =>
+  apiCall('POST', `/interaction/${sessionId}/reactions`, { kind })
+
+export const pressConfusion = (sessionId, topic) =>
+  apiCall('POST', `/interaction/${sessionId}/confusion`, topic ? { topic } : {})
+
+// The student's own questions across classes, newest first (FR-520)
+export const getMyQuestions = (before = null, limit = 50) =>
+  apiCall('GET', `/student/me/questions?limit=${limit}${before != null ? `&before=${before}` : ''}`)
+
 // ─── Classes ──────────────────────────────────────────────────────────────────
 
 export const getEnrolledClasses = async () => {
