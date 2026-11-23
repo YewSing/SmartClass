@@ -336,3 +336,34 @@ class MyQuestionOut(BaseModel):
 class MyQuestionListOut(BaseModel):
     questions: list[MyQuestionOut]                  # newest first
     next_before: Optional[int]                      # pass as `before` for the next page; null at the end
+
+
+class InteractionHistoryCounts(BaseModel):
+    """How much happened in one class's interaction (counts only, no identity)."""
+    questions: int                                  # every question, hidden and anonymous included
+    polls: int                                      # polls that ran (drafts left out, as in the summary)
+    quick_questions: int
+    reactions: int
+    confusion: int                                  # "I don't understand" presses
+
+
+class InteractionHistoryItem(BaseModel):
+    """One class session in the lecturer's Interaction tab (S38d)."""
+    attendance_session_id: int
+    occurrence_id: Optional[int]
+    course_code: Optional[str]
+    course_name: Optional[str]
+    class_type: Optional[str]                       # LECTURE | TUTORIAL
+    class_label: Optional[str]
+    class_date: Optional[str]                       # ISO MYT date of the class
+    starts_at: Optional[datetime]                   # naive MYT: opened, else scheduled start
+    ends_at: Optional[datetime]                     # naive MYT: closed, else scheduled/extended end
+    class_status: str                               # the M3 session status
+    status: Literal["open", "closed"]               # effective interaction state
+    counts: InteractionHistoryCounts
+
+
+class InteractionHistoryOut(BaseModel):
+    sessions: list[InteractionHistoryItem]          # newest first
+    total: int                                      # sessions with interaction data, all pages
+    next_offset: Optional[int]                      # pass as `offset` for the next page; null at the end

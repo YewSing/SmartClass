@@ -4,7 +4,58 @@ import {
   TOPICS, topicsFor, interactionState, questionBadges, askerLabel, pollBars, validatePoll, validateQuick,
   reactionRows, timelineBars, confusionRecentLabel, summaryCsvName, connectInteractionLive,
   openQuestions, newestUnanswered, latestPoll, latestQuick, newestAnswer, spikeLabel,
+  historyRow, mergeHistory, summaryPills, SUMMARY_PILLS,
 } from './interaction.js'
+
+// ─── Interaction tab (S38d) ──────────────────────────────────────────────────
+
+const ITEM = {
+  attendance_session_id: 7, course_code: 'WIA2005', course_name: 'Algorithm Design', class_type: 'LECTURE',
+  class_label: null, class_date: '2026-11-16', starts_at: '2026-11-16T08:00:00', ends_at: '2026-11-16T10:00:00',
+  class_status: 'closed', status: 'closed',
+  counts: { questions: 3, polls: 1, quick_questions: 0, reactions: 12, confusion: 1 },
+}
+
+test('a history row shows the date, time range and only the non-zero counts', () => {
+  const r = historyRow(ITEM)
+  assert.equal(r.id, 7)
+  assert.equal(r.title, 'WIA2005 — Algorithm Design')
+  assert.equal(r.sub, 'Lecture · 08:00–10:00')
+  assert.deepEqual([r.day, r.month, r.live], [16, 'Nov', false])
+  assert.deepEqual(r.chips, [
+    { key: 'questions', label: '3 questions' }, { key: 'polls', label: '1 poll' },
+    { key: 'reactions', label: '12 reactions' }, { key: 'confusion', label: '1 confused' },
+  ])
+})
+
+test('a running class says live and from when; a label wins over the type', () => {
+  const r = historyRow({ ...ITEM, class_status: 'open', class_label: 'Tutorial Group 1',
+    counts: { questions: 1, polls: 0, quick_questions: 2, reactions: 0, confusion: 0 } })
+  assert.equal(r.live, true)
+  assert.equal(r.sub, 'Tutorial Group 1 · from 08:00')
+  assert.deepEqual(r.chips.map(c => c.label), ['1 question', '2 quick questions'])
+  const bare = historyRow({ attendance_session_id: 1, counts: {} })
+  assert.equal(bare.title, 'Class')
+  assert.equal(bare.sub, '')
+  assert.deepEqual(bare.chips, [])
+})
+
+test('the next page is appended without repeating a session already shown', () => {
+  const a = { attendance_session_id: 1 }, b = { attendance_session_id: 2 }, c = { attendance_session_id: 3 }
+  assert.deepEqual(mergeHistory([a, b], [b, c]), [a, b, c])
+  assert.deepEqual(mergeHistory(null, [a]), [a])
+  assert.deepEqual(mergeHistory([a], undefined), [a])
+})
+
+test('summary pills: one per category, in order, with counts', () => {
+  const pills = summaryPills({
+    question_counts: { asked: 4 }, polls: [{}, {}], quick_questions: [{}], reactions_total: 9,
+    confusion: { total: 3 },
+  })
+  assert.deepEqual(pills.map(p => p.key), SUMMARY_PILLS)
+  assert.deepEqual(pills.map(p => p.count), [4, 2, 1, 9, 3])
+  assert.deepEqual(summaryPills(null).map(p => p.count), [0, 0, 0, 0, 0])
+})
 
 // ─── what to re-read ─────────────────────────────────────────────────────────
 

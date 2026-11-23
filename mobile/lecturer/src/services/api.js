@@ -190,6 +190,9 @@ export const getReactionCounts = (id) => apiCall('GET', `${lx(id)}/reactions`)
 export const getConfusion = (id) => apiCall('GET', `${lx(id)}/confusion`)
 
 export const getInteractionSummary = (id) => apiCall('GET', `${lx(id)}/summary`)
+// The Interaction tab (S38d): class sessions with interaction data, newest first
+export const getInteractionSessions = (offset = 0, limit = 20) =>
+  apiCall('GET', `/lecturer/interaction/sessions?limit=${limit}&offset=${offset}`)
 export const exportInteractionCsv = async (id, filename) => {
   const res = await apiCallRaw('GET', `${lx(id)}/summary.csv`)
   return saveCsv(await res.text(), filename)

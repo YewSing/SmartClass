@@ -18,6 +18,7 @@ from app.schemas.interaction import (
     ConfusionAck,
     ConfusionIn,
     ConfusionOut,
+    InteractionHistoryOut,
     InteractionSessionOut,
     InteractionSummaryOut,
     MyQuestionListOut,
@@ -38,7 +39,7 @@ from app.schemas.interaction import (
     ReactionCountsOut,
     ReactionIn,
 )
-from app.services.interaction import live, polls, questions, quick, sessions, signals, summary
+from app.services.interaction import history, live, polls, questions, quick, sessions, signals, summary
 
 router = APIRouter(tags=["interaction"])
 
@@ -385,6 +386,20 @@ async def confusion_view(
     session, member = await sessions.authorize(db, actor, attendance_session_id)
     st = await sessions.state(db, session)
     return await signals.confusion_view(db, member, session, st.status)
+
+
+# ── the lecturer's Interaction tab (S38d) ────────────────────────────────────────
+
+@router.get("/lecturer/interaction/sessions", response_model=InteractionHistoryOut)
+async def interaction_sessions(
+    limit: int = Query(history.DEFAULT_LIMIT, ge=1, le=history.MAX_LIMIT),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db),
+    actor: User = Depends(require_role("lecturer")),
+):
+    """The lecturer's past and current class sessions that have interaction data, newest first,
+    with counts per category. Only classes the caller teaches. Page with `offset=<next_offset>`."""
+    return await history.list_sessions(db, actor.id, limit=limit, offset=offset)
 
 
 # ── after class (S36, FR-518–FR-520) ─────────────────────────────────────────────

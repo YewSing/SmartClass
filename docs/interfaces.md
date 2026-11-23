@@ -575,6 +575,21 @@ teaching lecturer (403 otherwise, unknown id 403) and work while the class runs 
   every class session, newest first (by id), anonymous ones included (they're the asker's own),
   hidden ones left out. `limit` 1–200; pass `next_before` as `before` for the next page.
 
+### Lecturer Interaction tab: sessions with interaction data (S38d)
+
+Read only (`app/services/interaction/history.py`); no schema change.
+
+- `GET /lecturer/interaction/sessions?limit=20&offset=0` (lecturers; students 403) → `{sessions:
+  [{attendance_session_id, occurrence_id, course_code, course_name, class_type, class_label,
+  class_date, starts_at, ends_at, class_status, status, counts: {questions, polls, quick_questions,
+  reactions, confusion}}], total, next_offset}`. Only class sessions the caller teaches (the class's
+  assigned lecturer; for a session with no timetable class, the lecturer who ran it) with at least one
+  question, poll that ran (drafts don't count), quick question, reaction or confusion press. Newest
+  first by `opened_at` (else `starts_at`), then id. `starts_at` = opened, else scheduled start;
+  `ends_at` = closed, else the scheduled/extended end. `status` is the effective interaction state.
+  `limit` 1–100; pass `next_offset` as `offset` for the next page (null at the end). Counts only, no
+  student identity.
+
 ### Lecturer app screens for interaction (S37)
 
 No API change. Lecturer app (HomeStack): `LiveInteraction {sessionId}` (attendance session id) and
@@ -592,3 +607,7 @@ S38c (student app, no API change): `LiveClass` is one page of cards in this orde
 latest poll (`live-poll`), React (`live-signals`), Ask (`live-ask`), Questions (`live-questions`: newest
 3, "See all" `live-questions-all` opens `live-questions-sheet`). "Latest" = the newest open item, else
 the newest; earlier polls and quick questions aren't listed. React and Ask are hidden after the class ends.
+S38d: an "Interaction" tab (`sidenav-Interaction` / bottom tab) with `InteractionSessions` (rows
+`ix-history-row`, "Load more" `ix-history-more`) → `InteractionSummary {sessionId}` (also in HomeStack,
+same screen). The summary shows one category at a time through pills `ix-pill-questions|polls|quick|
+reactions|confusion` (Questions first); the CSV button (`ix-summary-csv`) stays at the top.

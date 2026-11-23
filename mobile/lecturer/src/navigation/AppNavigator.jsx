@@ -29,6 +29,7 @@ import Notifications from '../screens/Notifications'
 import NotificationPrefs from '../screens/NotificationPrefs'
 import LiveInteraction from '../screens/LiveInteraction'
 import InteractionSummary from '../screens/InteractionSummary'
+import InteractionSessions from '../screens/InteractionSessions'
 import AdminAccounts from '../screens/AdminAccounts'
 import AdminAudit from '../screens/AdminAudit'
 import AdminMoodleSync from '../screens/AdminMoodleSync'
@@ -77,6 +78,16 @@ function AttendanceStack() {
   )
 }
 
+// Class interaction history (Module 5, S38d): sessions with interaction data and their summaries
+function InteractionStack() {
+  return (
+    <Stack.Navigator screenOptions={useStackOptions()}>
+      <Stack.Screen name="InteractionSessions" component={InteractionSessions} />
+      <Stack.Screen name="InteractionSummary" component={InteractionSummary} />
+    </Stack.Navigator>
+  )
+}
+
 // Quizzes (Module 6) are being rebuilt (plan-shino.md S02)
 function QuizHome() {
   return <ComingSoon title="Quizzes" icon="help-circle-outline" />
@@ -113,6 +124,7 @@ function AssistantStack() {
 const TAB_ICONS = {
   Home:        { active: 'home',             inactive: 'home-outline' },
   Attendance:  { active: 'people',           inactive: 'people-outline' },
+  Interaction: { active: 'chatbubbles',      inactive: 'chatbubbles-outline' },
   Quiz:        { active: 'help-circle',      inactive: 'help-circle-outline' },
   Assistant:   { active: 'sparkles',         inactive: 'sparkles-outline' },
   Analytics:   { active: 'bar-chart',        inactive: 'bar-chart-outline' },
@@ -122,6 +134,7 @@ const TAB_ICONS = {
 const TAB_ROOTS = {
   Home:       'Dashboard',
   Attendance: 'AttendanceSessions',
+  Interaction: 'InteractionSessions',
   Quiz:       'QuizHome',
   Assistant:  'LecturerAssistant',
   Analytics:  'AnalyticsScreen',
@@ -164,6 +177,7 @@ function MainTabs() {
     >
       <Tab.Screen name="Home"        component={HomeStack}       options={{ title: 'Home' }} />
       <Tab.Screen name="Attendance"  component={AttendanceStack} options={{ title: 'Attendance' }} />
+      <Tab.Screen name="Interaction" component={InteractionStack} options={{ title: 'Interaction' }} />
       <Tab.Screen name="Quiz"        component={QuizStack}       options={{ title: 'Quiz' }} />
       <Tab.Screen name="Assistant"   component={AssistantStack}  options={{ title: 'AI Assistant' }} />
       <Tab.Screen name="Analytics"   component={AnalyticsStack}  options={{ title: 'Analytics' }} />

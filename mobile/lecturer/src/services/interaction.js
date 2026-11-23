@@ -1,7 +1,7 @@
 // Lecturer live interaction (Module 5, plan-shino.md S37). No React here, so it runs under `npm test`.
 // Data comes from the S31–S36 REST endpoints; WS /interaction/{id}/ws only says which topic changed
 // (S35), and the screen re-reads that topic.
-import { hhmm } from './attendance.js'
+import { hhmm, timeRange, dayMonth } from './attendance.js'
 
 export const TOPICS = ['questions', 'polls', 'quick_questions', 'reactions', 'confusion']
 
@@ -147,6 +147,54 @@ export function summaryCsvName(summary) {
   const code = String(summary?.course_code ?? 'class').replace(/[^A-Za-z0-9]+/g, '')
   const date = String(summary?.class_date ?? '').replace(/-/g, '') || 'undated'
   return `interaction_${code}_${date}_${summary?.attendance_session_id ?? ''}.csv`
+}
+
+// ─── Interaction tab (S38d) ──────────────────────────────────────────────────
+
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
+
+// One row of the Interaction tab from GET /lecturer/interaction/sessions: date block, time, live flag
+// and the non-zero counts as chips (questions first)
+export function historyRow(item) {
+  const c = item?.counts ?? {}
+  const { day, month } = dayMonth(item?.class_date ?? item?.starts_at)
+  const live = item?.class_status === 'open'
+  const chips = [
+    ['questions', c.questions, 'question', 'questions'],
+    ['polls', c.polls, 'poll', 'polls'],
+    ['quick', c.quick_questions, 'quick question', 'quick questions'],
+    ['reactions', c.reactions, 'reaction', 'reactions'],
+    ['confusion', c.confusion, 'confused', 'confused'],
+  ].filter(([, n]) => n > 0).map(([key, n, one, many]) => ({ key, label: plural(n, one, many) }))
+  const type = item?.class_label || (item?.class_type ? item.class_type[0] + item.class_type.slice(1).toLowerCase() : '')
+  const start = hhmm(item?.starts_at)
+  const time = live ? (start ? `from ${start}` : '') : (timeRange(item?.starts_at, item?.ends_at) || start)
+  return {
+    id: item?.attendance_session_id,
+    title: [item?.course_code, item?.course_name].filter(Boolean).join(' — ') || 'Class',
+    sub: [type, time].filter(Boolean).join(' · '),
+    day, month, live, chips,
+  }
+}
+
+// Pages of the Interaction tab: append the next page, dropping a session already shown (a new class
+// may have pushed rows down between pages)
+export function mergeHistory(current, page) {
+  const seen = new Set((current ?? []).map(s => s.attendance_session_id))
+  return [...(current ?? []), ...(page ?? []).filter(s => !seen.has(s.attendance_session_id))]
+}
+
+export const SUMMARY_PILLS = ['questions', 'polls', 'quick', 'reactions', 'confusion']
+
+// The summary's category pills with their counts
+export function summaryPills(summary) {
+  return [
+    { key: 'questions', label: 'Questions', count: summary?.question_counts?.asked ?? 0 },
+    { key: 'polls', label: 'Polls', count: summary?.polls?.length ?? 0 },
+    { key: 'quick', label: 'Quick questions', count: summary?.quick_questions?.length ?? 0 },
+    { key: 'reactions', label: 'Reactions', count: summary?.reactions_total ?? 0 },
+    { key: 'confusion', label: 'Confusion', count: summary?.confusion?.total ?? 0 },
+  ]
 }
 
 // ─── Live client ─────────────────────────────────────────────────────────────

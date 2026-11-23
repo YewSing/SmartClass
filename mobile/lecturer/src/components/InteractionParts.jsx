@@ -144,6 +144,27 @@ export function Segments({ items, value, onChange }) {
   )
 }
 
+// Category pills (S38d summary): one row that scrolls sideways on narrow screens
+export function Pills({ items, value, onChange, testIDPrefix = 'ix-pill' }) {
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.pillsScroll}
+      contentContainerStyle={s.pills} accessibilityRole="tablist">
+      {items.map(it => {
+        const on = value === it.key
+        return (
+          <TouchableOpacity
+            key={it.key} onPress={() => onChange(it.key)} testID={`${testIDPrefix}-${it.key}`}
+            style={[s.pill, on && s.pillOn]} accessibilityRole="tab" accessibilityState={{ selected: on }}
+          >
+            <Text style={[s.pillText, on && s.pillTextOn]}>{it.label}</Text>
+            <Text style={[s.pillCount, on && s.pillCountOn]}>{it.count ?? 0}</Text>
+          </TouchableOpacity>
+        )
+      })}
+    </ScrollView>
+  )
+}
+
 // One question as the lecturer sees it; `actions` are the moderation buttons (live screen only)
 export function QuestionRow({ q, actions, testID = 'ix-question' }) {
   return (
@@ -306,6 +327,17 @@ const s = StyleSheet.create({
   segmentOn: { backgroundColor: C.card, borderWidth: 1, borderColor: C.border },
   segmentText: { fontSize: 13, fontWeight: '500', color: C.textSub },
   segmentTextOn: { color: C.primary },
+  pillsScroll: { flexGrow: 0, marginBottom: 12 },
+  pills: { flexDirection: 'row', gap: 8, paddingVertical: 2 },
+  pill: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: C.border,
+    borderRadius: 18, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: C.card,
+  },
+  pillOn: { backgroundColor: C.blueLt, borderColor: C.primary },
+  pillText: { fontSize: 13, fontWeight: '500', color: C.textSub },
+  pillTextOn: { color: C.primary },
+  pillCount: { fontSize: 12, fontWeight: '600', color: C.textSub },
+  pillCountOn: { color: C.primary },
   qText: { fontSize: 14, color: C.text, lineHeight: 20 },
   metaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 8 },
   meta: { fontSize: 12, color: C.textSub },

@@ -225,13 +225,18 @@ test.describe('at 1280 px', () => {
     await expect(visible(page.getByTestId('ix-summary-answered'))).toHaveText('1')
     await expect(visible(page.getByTestId('ix-summary-anonymous'))).toHaveText('1')
     await expect(visible(page.getByTestId('ix-summary-upvotes'))).toHaveText('2')
-    await expect(visible(page.getByTestId('ix-summary-reactions-total'))).toHaveText('3 in total')
-    await expect(visible(page.getByTestId('ix-summary-confusion-total'))).toHaveText('2')
-    await expect(visible(page.getByTestId('ix-summary-poll'))).toContainText('3 voted')
-    await expect(all(page, 'ix-summary-quick-answer')).toHaveCount(2)
     const summaryAnon = visible(all(page, 'ix-summary-question').filter({ hasText: 'E2E anonymous' }))
     await expect(summaryAnon).toContainText('Anonymous')
     await expect(summaryAnon).not.toContainText(b.name)
+    // S38d: one category at a time, through the pills
+    await visible(page.getByTestId('ix-pill-reactions')).click()
+    await expect(visible(page.getByTestId('ix-summary-reactions-total'))).toHaveText('3 in total')
+    await visible(page.getByTestId('ix-pill-confusion')).click()
+    await expect(visible(page.getByTestId('ix-summary-confusion-total'))).toHaveText('2')
+    await visible(page.getByTestId('ix-pill-polls')).click()
+    await expect(visible(page.getByTestId('ix-summary-poll'))).toContainText('3 voted')
+    await visible(page.getByTestId('ix-pill-quick')).click()
+    await expect(all(page, 'ix-summary-quick-answer')).toHaveCount(2)
 
     const [download] = await Promise.all([
       page.waitForEvent('download'),
@@ -321,6 +326,8 @@ test.describe('at phone width', () => {
     const box = await link.boundingBox()
     expect(box.x + box.width).toBeLessThanOrEqual(390)
     await link.click()
+    await expect(visible(page.getByTestId('ix-summary-asked'))).toHaveText('6')
+    await visible(page.getByTestId('ix-pill-confusion')).click()
     await expect(visible(page.getByTestId('ix-summary-confusion-total'))).toHaveText('3')
     expect(errors).toEqual([])
   })
