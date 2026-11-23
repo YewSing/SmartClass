@@ -53,6 +53,8 @@ Yew Sing's log is [PROGRESS.md](PROGRESS.md); never edit it. Test removals need 
 
 - REVIEW (checkpoint 5ca87aa..900034a, 2026-11-23): S38a-S38d no high-severity problems. check.sh passes (pytest 1046), db suite 822 passed. S38a's M3 change only reopens inside today's slot, keeps records, turns only close-written Absents (no detection/override/flag) into Present/Late, and re-checks for an open session after the lock; the 3 Yew Sing tests keep their expectations (start at 23:00). Still open: Maestro `interaction.yaml` (S38, S38c), and neither live screen reconnects by itself after a reopen (leave and re-join works).
 
+- REVIEW (checkpoint a4d4777..6c6eae8, 2026-11-23): S38e no high-severity problems. check.sh passes (pytest 1046); client-only change (no backend rule change), both screens re-read the class status every 5 s after the end and open a new socket once it runs again; `close()` stops the watch. Still open: Maestro `interaction.yaml` (S38, S38c, S38e).
+
 ### Requests for Yew Sing
 <!-- Interface gaps in M1/M3/M4/M8 that a task needed. Copy each to docs/requests-for-shino.md style when sending. -->
 - Session controls moved (2026-11-22, done on Shino's instruction; FYI for Yew Sing): End class / +15 min are now only on the lecturer Dashboard's session card (`home-session-end`, `home-session-end-confirm`, `home-session-extend`), and the card has no Live session button once a class is open (the Attendance card opens the live screen). `OpenControls` was removed from `AttendanceDetail.jsx` (M3, T38). Your tests were moved to the new buttons, not weakened: see the TEST-CHANGE lines. Noted in `docs/requests-for-shino.md`.
