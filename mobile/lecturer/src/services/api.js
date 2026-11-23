@@ -162,6 +162,39 @@ export const deletePushToken = (token) => apiCall('DELETE', `/me/push-tokens/${e
 // push can't work)
 export const registerForPush = () => registerPush({ ...pushEnv, sendToken: registerPushToken })
 
+// ─── Classroom interaction (Module 5: FR-501–FR-520) ──────────────────────────
+
+const ix = (id) => `/interaction/${id}`
+const lx = (id) => `/lecturer/interaction/${id}`
+
+export const getInteraction = (id) => apiCall('GET', ix(id))
+export const pauseInteraction = (id) => apiCall('POST', `${lx(id)}/close`)
+export const resumeInteraction = (id) => apiCall('POST', `${lx(id)}/open`)
+
+export const getInteractionQuestions = (id) => apiCall('GET', `${ix(id)}/questions`)
+// changes: { answered?, pinned?, hidden? }
+export const moderateQuestion = (id, qid, changes) => apiCall('PATCH', `${lx(id)}/questions/${qid}`, changes)
+
+export const getInteractionPolls = (id) => apiCall('GET', `${ix(id)}/polls`)
+export const createPoll = (id, body) => apiCall('POST', `${lx(id)}/polls`, body)
+export const startPoll = (id, pid) => apiCall('POST', `${lx(id)}/polls/${pid}/start`)
+export const closePoll = (id, pid) => apiCall('POST', `${lx(id)}/polls/${pid}/close`)
+export const setPollShowResults = (id, pid, show) =>
+  apiCall('PATCH', `${lx(id)}/polls/${pid}`, { show_results: Boolean(show) })
+
+export const getQuickQuestions = (id) => apiCall('GET', `${ix(id)}/quick-questions`)
+export const createQuickQuestion = (id, body) => apiCall('POST', `${lx(id)}/quick-questions`, body)
+export const closeQuickQuestion = (id, qid) => apiCall('POST', `${lx(id)}/quick-questions/${qid}/close`)
+
+export const getReactionCounts = (id) => apiCall('GET', `${lx(id)}/reactions`)
+export const getConfusion = (id) => apiCall('GET', `${lx(id)}/confusion`)
+
+export const getInteractionSummary = (id) => apiCall('GET', `${lx(id)}/summary`)
+export const exportInteractionCsv = async (id, filename) => {
+  const res = await apiCallRaw('GET', `${lx(id)}/summary.csv`)
+  return saveCsv(await res.text(), filename)
+}
+
 // ─── Classes ──────────────────────────────────────────────────────────────────
 
 // Moodle full names often start with the code ("WIA2005 Algorithm Design"), and screens show both

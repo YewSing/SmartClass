@@ -568,3 +568,12 @@ teaching lecturer (403 otherwise, unknown id 403) and work while the class runs 
   upvotes, answered, answered_at, created_at}], next_before}`: the caller's own questions across
   every class session, newest first (by id), anonymous ones included (they're the asker's own),
   hidden ones left out. `limit` 1–200; pass `next_before` as `before` for the next page.
+
+### Lecturer app screens for interaction (S37)
+
+No API change. Lecturer app (HomeStack): `LiveInteraction {sessionId}` (attendance session id) and
+`InteractionSummary {sessionId}`. Opened from the Dashboard's open-session card (`home-interaction`)
+and, after class, from the latest-class card (`dash-overview-summary`). The client re-reads a topic's
+REST GET on each `changed` message and everything on `connected`; it stops reconnecting once the class
+has ended. Notification links `/interaction/{id}` (`poll.started`, `confusion.spike`) still open
+nothing in the app (S80). E2E data: `backend/scripts/e2e_interaction.py setup|teardown`.

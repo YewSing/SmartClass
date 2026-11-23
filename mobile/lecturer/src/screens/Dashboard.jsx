@@ -54,7 +54,7 @@ function nextLabel(c) {
 
 // The latest session's numbers from GET /lecturer/dashboard (FR-202, S18). Today's classes aren't
 // listed again: the session card above shows the class running now, or the next ones.
-function LatestOverview({ data, openClass }) {
+function LatestOverview({ data, openClass, openSummary }) {
   const { attendance_overview: o } = data
   return (
     <>
@@ -75,6 +75,18 @@ function LatestOverview({ data, openClass }) {
               <View style={styles.attendCounts}>
                 <AttendanceCounts counts={overviewCounts(o)} open={o.session_status === 'open'} testIDPrefix="dash-count" />
               </View>
+              {/* After class: what students asked, voted and pressed (Module 5, S37) */}
+              <TouchableOpacity
+                style={styles.summaryLink}
+                testID="dash-overview-summary"
+                accessibilityRole="button"
+                onPress={() => openSummary(o.session_id)}
+              >
+                <Ionicons name="chatbubbles-outline" size={14} color={C.primary} />
+                <Text style={styles.interactionText}>Interaction summary</Text>
+                <View style={{ flex: 1 }} />
+                <Ionicons name="chevron-forward" size={14} color={C.primary} />
+              </TouchableOpacity>
             </TouchableOpacity>
           ) : (
             <View style={dashStyles.card}>
@@ -292,6 +304,21 @@ export default function Dashboard({ navigation }) {
 
         {sessionOpen && <SessionControls session={activeSession} />}
 
+        {/* The running class's questions, polls and signals (Module 5, S37) */}
+        {sessionOpen && (
+          <TouchableOpacity
+            style={styles.interactionBtn}
+            testID="home-interaction"
+            accessibilityRole="button"
+            onPress={() => navigation.navigate('LiveInteraction', { sessionId: activeSession.id })}
+          >
+            <Ionicons name="chatbubbles-outline" size={16} color={C.primary} />
+            <Text style={styles.interactionText}>Class interaction</Text>
+            <Text style={styles.interactionSub} numberOfLines={1}>Questions, polls, reactions</Text>
+            <Ionicons name="chevron-forward" size={16} color={C.primary} />
+          </TouchableOpacity>
+        )}
+
         {!sessionOpen && (
           <>
             <View style={styles.cardDivider} />
@@ -373,7 +400,10 @@ export default function Dashboard({ navigation }) {
       {dash.status === 'loading' && <LoadingCard />}
       {dash.data ? (
         // While a class is live the card above has its live numbers; otherwise the latest session's
-        !sessionOpen && <LatestOverview data={dash.data} openClass={openClass} />
+        !sessionOpen && (
+          <LatestOverview data={dash.data} openClass={openClass}
+            openSummary={(id) => navigation.navigate('InteractionSummary', { sessionId: id })} />
+        )
       ) : null}
 
       {/* Every class taught, to set its schedule or start it (FR-301, FR-316) */}
@@ -564,6 +594,35 @@ const styles = StyleSheet.create({
   },
   ctrlDanger: {
     backgroundColor: C.red,
+  },
+  interactionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: C.blueLt,
+  },
+  interactionText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: C.primary,
+  },
+  interactionSub: {
+    flex: 1,
+    fontSize: 12,
+    color: C.textSub,
+  },
+  summaryLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingTop: 10,
+    marginTop: 2,
+    borderTopWidth: 1,
+    borderTopColor: C.border,
   },
   ctrlOutlineText: {
     fontSize: 13,

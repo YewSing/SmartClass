@@ -27,6 +27,8 @@ import ComingSoon from '../components/ComingSoon'
 import FaceVerification from '../screens/FaceVerification'
 import Notifications from '../screens/Notifications'
 import NotificationPrefs from '../screens/NotificationPrefs'
+import LiveInteraction from '../screens/LiveInteraction'
+import InteractionSummary from '../screens/InteractionSummary'
 import AdminAccounts from '../screens/AdminAccounts'
 import AdminAudit from '../screens/AdminAudit'
 import AdminMoodleSync from '../screens/AdminMoodleSync'
@@ -60,6 +62,8 @@ function HomeStack() {
       <Stack.Screen name="FaceVerification" component={FaceVerification} />
       <Stack.Screen name="Notifications" component={Notifications} />
       <Stack.Screen name="NotificationPrefs" component={NotificationPrefs} />
+      <Stack.Screen name="LiveInteraction" component={LiveInteraction} />
+      <Stack.Screen name="InteractionSummary" component={InteractionSummary} />
     </Stack.Navigator>
   )
 }
