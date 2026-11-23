@@ -41,7 +41,7 @@ Yew Sing's log is [PROGRESS.md](PROGRESS.md); never edit it. Test removals need 
 
 - REVIEW (checkpoint d7006d9..5b29d83, 2026-11-23): S35-S37 no high-severity problems. `-m "db and not live"` 805 passed; check.sh 1028/1029. One Alembic head (`b8c9d0e1f2a4`, no schema change). WS closes 1008 for anyone but the teaching lecturer or an enrolled student; summary/CSV lecturer-only, my questions student-only; Dashboard gains `home-interaction` and `dash-overview-summary` only.
 - REVIEW: S16 - `test_slow_moodle_is_cut_off_by_the_timeout` failed once under full-suite load (3.33 s against a `< 3` s bound) and passes 3/3 alone: the margin is too tight on a busy laptop. Fold a wider bound (or a fake clock) into S80.
-- LOOP (2026-11-23): round 4 (S38) was killed by a Windows update reboot; its partial files were kept in `git stash` ("S38 WIP") and restored for the next loop. After the reboot a native Windows `postgresql-x64-18` service (auto-start) also listened on :5433 and took the tests' connections (`permission denied to create database`); Shino stopped it.
+- LOOP (2026-11-23): round 4 (S38) was killed by a Windows update reboot; its partial files were kept in `git stash` ("S38 WIP"), then committed as 293ed60 on Shino's choice: S38 is unticked, so the next round finishes it from those files (check them against S38's Done when, don't assume they're complete). After the reboot a native Windows `postgresql-x64-18` service (auto-start) also listened on :5433 and took the tests' connections (`permission denied to create database`); Shino stopped it.
 
 ### Requests for Yew Sing
 <!-- Interface gaps in M1/M3/M4/M8 that a task needed. Copy each to docs/requests-for-shino.md style when sending. -->
