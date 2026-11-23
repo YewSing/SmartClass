@@ -1,24 +1,26 @@
-// Student live class for one class session (Module 5, plan-shino.md S38; FR-503–FR-516).
-// Ask (optionally anonymous) and upvote questions, vote in polls, answer quick questions, react and
-// press "I don't understand". Kept live by WS /interaction/{id}/ws: each `changed` re-reads its
-// topic, and `closed` turns the screen read-only. Opened from Home's Today card.
+// Student live class for one class session (Module 5, plan-shino.md S38, S38c; FR-503–FR-516).
+// One scrolling page of section cards, latest only (Shino's layout 2026-11-23): status banner, the
+// lecturer's latest quick question, the latest poll, React (reactions + "I don't understand"), Ask
+// a question, and the newest questions (the rest in a "See all" sheet). Earlier polls and quick
+// questions aren't listed. Kept live by WS /interaction/{id}/ws: each `changed` re-reads its topic,
+// and `closed` turns the screen read-only. Opened from Home's Today card.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { View, Text, ScrollView, TextInput, StyleSheet, RefreshControl, AppState } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import Topbar from '../components/Topbar'
 import Badge from '../components/Badge'
 import {
-  Card, Muted, Loading, LoadError, Btn, Toggle, Segments, OptionPick, PollResults, ixStyles,
+  Card, Muted, Loading, LoadError, Btn, Toggle, OptionPick, PollResults, IxSheet, SectionHead, ixStyles,
 } from '../components/InteractionParts'
 import { useStudent } from '../context/StudentContext'
 import * as api from '../services/api'
 import { BASE, getToken, refreshAccessToken } from '../services/client'
 import { hhmm } from '../services/attendance'
 import {
-  TOPICS, topicsFor, interactionState, validateQuestion, askerLabel, questionBadges, canUpvote,
-  toggleChoice, voteAction, pollResultsVisible, sortPolls, validateQuickAnswer, charsLeft,
+  TOPICS, topicsFor, interactionState, validateQuestion, askerLabel, questionTags, canUpvote,
+  toggleChoice, voteAction, pollResultsVisible, validateQuickAnswer, charsLeft,
   REACTIONS, CONFUSION_TOPIC_MAX_CHARS, nextAllowedAt, secondsLeft, cooldownLabel,
-  connectInteractionLive, QUESTION_MAX_CHARS,
+  connectInteractionLive, QUESTION_MAX_CHARS, latestPoll, latestQuick, newestQuestions, QUESTIONS_ON_PAGE,
 } from '../services/interaction'
 import { C } from '../theme'
 
@@ -60,76 +62,129 @@ function useNow(active) {
   return now
 }
 
-// ─── Questions (FR-503–FR-506) ───────────────────────────────────────────────
+// ─── Status banner ───────────────────────────────────────────────────────────
 
-function AskForm({ sessionId, open, act }) {
-  const [text, setText] = useState('')
-  const [anonymous, setAnonymous] = useState(false)
-  const [error, setError] = useState(null)
-  const [busy, setBusy] = useState(false)
-
-  const send = async () => {
-    const v = validateQuestion(text)
-    if (v.error) { setError(v.error); return }
-    setBusy(true)
-    const ok = await act(() => api.askQuestion(sessionId, v.text, anonymous), 'questions',
-      anonymous ? 'Question sent anonymously' : 'Question sent')
-    setBusy(false)
-    if (ok) { setText(''); setError(null) }
+function StatusBanner({ st, onMyQuestions }) {
+  if (st.ended) {
+    return (
+      <Card style={styles.banner} testID="live-ended">
+        <View style={ixStyles.row}>
+          <Badge variant={st.variant}>{st.label}</Badge>
+          <Text style={[ixStyles.title, styles.flex1]}>The class has ended</Text>
+        </View>
+        <Muted>Interaction is closed. You can still read everything below.</Muted>
+        <View style={[ixStyles.wrap, styles.gapAboveSm]}>
+          <Btn kind="primary" icon="chatbubbles-outline" label="My questions" onPress={onMyQuestions} testID="live-ended-my-questions" />
+        </View>
+      </Card>
+    )
   }
-
   return (
-    <Card testID="live-ask">
-      <TextInput
-        style={[ixStyles.input, styles.multiline]} value={text} maxLength={QUESTION_MAX_CHARS} multiline
-        placeholder="Ask the lecturer a question" placeholderTextColor={C.textHint} editable={open}
-        onChangeText={t => { setText(t); setError(null) }} testID="live-ask-input"
-      />
-      <View style={[ixStyles.row, styles.gapAbove]}>
-        <Toggle label="Ask anonymously" value={anonymous} onChange={setAnonymous} disabled={!open} testID="live-ask-anon" />
-        <View style={styles.flex1} />
-        <Btn kind="primary" icon="send" label="Send" disabled={!open} busy={busy} onPress={send} testID="live-ask-send" />
+    <Card style={[styles.banner, !st.open && styles.bannerPaused]} testID="live-status">
+      <View style={ixStyles.row}>
+        <Badge variant={st.variant} dot={st.open}>{st.label}</Badge>
+        <Text style={[ixStyles.meta, styles.flex1]} testID="live-state-text">{st.text}</Text>
       </View>
-      {anonymous ? <Muted style={styles.small}>Your name isn't shown to the lecturer or the class.</Muted> : null}
-      {error ? <Text style={[ixStyles.formError, styles.gapAboveSm]} testID="live-ask-error">{error}</Text> : null}
+      <View style={[ixStyles.wrap, styles.gapAboveSm]}>
+        <Btn kind="subtle" icon="chatbubbles-outline" label="My questions" onPress={onMyQuestions} testID="live-my-questions" />
+      </View>
     </Card>
   )
 }
 
-function QuestionsPanel({ sessionId, questions, open, act }) {
+// ─── Quick question (FR-510, FR-511): the latest one only ───────────────────
+
+function QuickSection({ sessionId, qq, open, act }) {
+  const [text, setText] = useState('')
+  const [error, setError] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [editing, setEditing] = useState(false)
+
+  if (!qq) {
+    return (
+      <Card testID="live-quick-section">
+        <SectionHead icon="flash-outline" title="Quick question" />
+        <Muted testID="live-quick-empty">No quick question right now. It appears here when the lecturer asks one.</Muted>
+      </Card>
+    )
+  }
+
+  const canAnswer = open && qq.status === 'open'
+  const mine = qq.my_answer
+  const showBox = canAnswer && (!mine || editing)
+
+  const send = async () => {
+    const v = validateQuickAnswer(text, qq.max_chars)
+    if (v.error) { setError(v.error); return }
+    setBusy(true)
+    const ok = await act(() => api.answerQuickQuestion(sessionId, qq.id, v.text), 'quick_questions',
+      mine ? 'Answer updated' : 'Answer sent')
+    setBusy(false)
+    if (ok) { setText(''); setError(null); setEditing(false) }
+  }
+
   return (
-    <>
-      <AskForm sessionId={sessionId} open={open} act={act} />
-      {!questions.length ? <Card><Muted testID="live-questions-empty">No questions yet. Be the first to ask.</Muted></Card> : null}
-      {questions.map(q => (
-        <Card key={q.id} testID="live-question" style={q.mine && styles.mine}>
-          <Text style={styles.qText}>{q.text}</Text>
-          <View style={styles.metaRow}>
-            <Text style={ixStyles.meta}>{askerLabel(q)} · {hhmm(q.created_at)}</Text>
-            {questionBadges(q).map(b => <Badge key={b.label} variant={b.variant}>{b.label}</Badge>)}
-            <View style={styles.flex1} />
-            <Btn
-              icon={q.upvoted_by_me ? 'arrow-up-circle' : 'arrow-up'} label={String(q.upvotes)}
-              kind={q.upvoted_by_me ? 'primary' : 'outline'} disabled={!canUpvote(q, open)}
-              accessibilityLabel={`Upvote, ${q.upvotes} so far`} testID="live-q-upvote"
-              onPress={() => act(() => api.upvoteQuestion(sessionId, q.id), 'questions')}
-            />
+    <Card testID="live-quick">
+      <SectionHead
+        icon="flash-outline" title="Quick question"
+        right={(
+          <Badge variant={qq.status === 'open' ? 'green' : 'gray'} dot={qq.status === 'open'}>
+            {qq.status === 'open' ? 'Open' : 'Closed'}
+          </Badge>
+        )}
+      />
+      <Text style={styles.prompt}>{qq.prompt}</Text>
+      {mine && !showBox ? (
+        <View style={styles.answer}>
+          <View style={ixStyles.row}>
+            <Text style={[ixStyles.label, styles.flex1]}>Your answer</Text>
+            {canAnswer ? (
+              <Btn kind="subtle" icon="create-outline" label="Change" onPress={() => { setText(mine); setEditing(true) }}
+                testID="live-quick-change" />
+            ) : null}
           </View>
-        </Card>
-      ))}
-    </>
+          <Text style={styles.answerText} testID="live-quick-mine">{mine}</Text>
+        </View>
+      ) : !canAnswer ? <Muted>You didn't answer this one.</Muted> : null}
+      {showBox ? (
+        <>
+          <TextInput
+            style={[ixStyles.input, styles.gapAbove]} value={text} maxLength={qq.max_chars}
+            placeholder={mine ? 'Change your answer' : 'Your answer'} placeholderTextColor={C.textHint}
+            onChangeText={t => { setText(t); setError(null) }} testID="live-quick-input"
+          />
+          <View style={[ixStyles.row, styles.gapAboveSm]}>
+            <Text style={[ixStyles.meta, styles.flex1]}>
+              {charsLeft(text, qq.max_chars)} characters left · only the lecturer sees answers, without names
+            </Text>
+            {editing ? <Btn kind="subtle" label="Cancel" onPress={() => { setEditing(false); setError(null) }} testID="live-quick-cancel" /> : null}
+            <Btn kind="primary" icon="send" label={mine ? 'Update' : 'Answer'} busy={busy} onPress={send} testID="live-quick-send" />
+          </View>
+        </>
+      ) : null}
+      {error ? <Text style={[ixStyles.formError, styles.gapAboveSm]} testID="live-quick-error">{error}</Text> : null}
+    </Card>
   )
 }
 
-// ─── Polls (FR-507–FR-509) ───────────────────────────────────────────────────
+// ─── Poll (FR-507–FR-509): the latest one only ──────────────────────────────
 
-function PollCard({ sessionId, poll, open, act }) {
-  const mine = poll.my_option_ids ?? []
+function PollSection({ sessionId, poll, open, act }) {
+  const mine = poll?.my_option_ids ?? []
   const [selected, setSelected] = useState(mine)
   const [busy, setBusy] = useState(false)
   const mineKey = mine.join(',')
   // A vote saved here or on another device resets the choice to what the server has
   useEffect(() => { setSelected(mineKey ? mineKey.split(',').map(Number) : []) }, [mineKey])
+
+  if (!poll) {
+    return (
+      <Card testID="live-poll-section">
+        <SectionHead icon="stats-chart-outline" title="Poll" />
+        <Muted testID="live-polls-empty">No poll right now. It appears here when the lecturer starts one.</Muted>
+      </Card>
+    )
+  }
 
   const action = voteAction(poll, selected, open)
   const pollOpen = open && poll.status === 'open'
@@ -141,12 +196,15 @@ function PollCard({ sessionId, poll, open, act }) {
 
   return (
     <Card testID="live-poll">
-      <View style={ixStyles.row}>
-        <Text style={[ixStyles.title, styles.flex1]}>{poll.question}</Text>
-        <Badge variant={poll.status === 'open' ? 'green' : 'gray'} dot={poll.status === 'open'}>
-          {poll.status === 'open' ? 'Live' : 'Closed'}
-        </Badge>
-      </View>
+      <SectionHead
+        icon="stats-chart-outline" title="Poll"
+        right={(
+          <Badge variant={poll.status === 'open' ? 'green' : 'gray'} dot={poll.status === 'open'}>
+            {poll.status === 'open' ? 'Live' : 'Closed'}
+          </Badge>
+        )}
+      />
+      <Text style={styles.prompt}>{poll.question}</Text>
       <Text style={[ixStyles.meta, styles.gapAboveSm]}>
         {poll.multiple ? 'Pick one or more' : 'Pick one'}
         {pollOpen && mine.length ? ' · you can change your vote until it closes' : ''}
@@ -183,72 +241,9 @@ function PollCard({ sessionId, poll, open, act }) {
   )
 }
 
-function PollsPanel({ sessionId, polls, open, act }) {
-  if (!polls.length) return <Card><Muted testID="live-polls-empty">No polls yet. They appear here when the lecturer starts one.</Muted></Card>
-  return sortPolls(polls).map(p => <PollCard key={p.id} sessionId={sessionId} poll={p} open={open} act={act} />)
-}
+// ─── React: reactions and "I don't understand" (FR-512, FR-514) ─────────────
 
-// ─── Quick questions (FR-510, FR-511) ────────────────────────────────────────
-
-function QuickCard({ sessionId, qq, open, act }) {
-  const [text, setText] = useState('')
-  const [error, setError] = useState(null)
-  const [busy, setBusy] = useState(false)
-  const canAnswer = open && qq.status === 'open'
-  const mine = qq.my_answer
-
-  const send = async () => {
-    const v = validateQuickAnswer(text, qq.max_chars)
-    if (v.error) { setError(v.error); return }
-    setBusy(true)
-    const ok = await act(() => api.answerQuickQuestion(sessionId, qq.id, v.text), 'quick_questions',
-      mine ? 'Answer updated' : 'Answer sent')
-    setBusy(false)
-    if (ok) { setText(''); setError(null) }
-  }
-
-  return (
-    <Card testID="live-quick">
-      <View style={ixStyles.row}>
-        <Text style={[ixStyles.title, styles.flex1]}>{qq.prompt}</Text>
-        <Badge variant={qq.status === 'open' ? 'green' : 'gray'} dot={qq.status === 'open'}>
-          {qq.status === 'open' ? 'Open' : 'Closed'}
-        </Badge>
-      </View>
-      {mine ? (
-        <View style={styles.answer}>
-          <Text style={ixStyles.label}>Your answer</Text>
-          <Text style={styles.answerText} testID="live-quick-mine">{mine}</Text>
-        </View>
-      ) : !canAnswer ? <Muted>You didn't answer this one.</Muted> : null}
-      {canAnswer ? (
-        <>
-          <TextInput
-            style={[ixStyles.input, styles.gapAbove]} value={text} maxLength={qq.max_chars}
-            placeholder={mine ? 'Change your answer' : 'Your answer'} placeholderTextColor={C.textHint}
-            onChangeText={t => { setText(t); setError(null) }} testID="live-quick-input"
-          />
-          <View style={[ixStyles.row, styles.gapAboveSm]}>
-            <Text style={[ixStyles.meta, styles.flex1]}>
-              {charsLeft(text, qq.max_chars)} characters left · only the lecturer sees answers, without names
-            </Text>
-            <Btn kind="primary" icon="send" label={mine ? 'Update' : 'Answer'} busy={busy} onPress={send} testID="live-quick-send" />
-          </View>
-        </>
-      ) : null}
-      {error ? <Text style={[ixStyles.formError, styles.gapAboveSm]} testID="live-quick-error">{error}</Text> : null}
-    </Card>
-  )
-}
-
-function QuickPanel({ sessionId, quick, open, act }) {
-  if (!quick.length) return <Card><Muted testID="live-quick-empty">No quick questions yet.</Muted></Card>
-  return quick.map(qq => <QuickCard key={qq.id} sessionId={sessionId} qq={qq} open={open} act={act} />)
-}
-
-// ─── Reactions and "I don't understand" (FR-512, FR-514) ────────────────────
-
-function SignalsCard({ sessionId, open, showToast }) {
+function ReactSection({ sessionId, open, showToast }) {
   const [reactUntil, setReactUntil] = useState(null)
   const [confusedUntil, setConfusedUntil] = useState(null)
   const [topicOpen, setTopicOpen] = useState(false)
@@ -284,11 +279,11 @@ function SignalsCard({ sessionId, open, showToast }) {
 
   return (
     <Card testID="live-signals">
-      <View style={ixStyles.row}>
-        <Text style={[ixStyles.label, styles.flex1]}>How is it going?</Text>
-        {reactLeft ? <Text style={ixStyles.meta} testID="live-react-cooldown">{cooldownLabel(reactLeft)}</Text> : null}
-      </View>
-      <View style={[ixStyles.wrap, styles.gapAboveSm]}>
+      <SectionHead
+        icon="happy-outline" title="React"
+        right={reactLeft ? <Text style={ixStyles.meta} testID="live-react-cooldown">{cooldownLabel(reactLeft)}</Text> : null}
+      />
+      <View style={ixStyles.wrap}>
         {REACTIONS.map(r => (
           <Btn key={r.kind} icon={r.icon} label={r.label} disabled={!open || reactLeft > 0} busy={busy === r.kind}
             onPress={() => react(r.kind, r.label)} testID={`live-react-${r.kind}`} />
@@ -319,12 +314,92 @@ function SignalsCard({ sessionId, open, showToast }) {
   )
 }
 
+// ─── Ask a question (FR-503, FR-504) ─────────────────────────────────────────
+
+function AskSection({ sessionId, open, act }) {
+  const [text, setText] = useState('')
+  const [anonymous, setAnonymous] = useState(false)
+  const [error, setError] = useState(null)
+  const [busy, setBusy] = useState(false)
+
+  const send = async () => {
+    const v = validateQuestion(text)
+    if (v.error) { setError(v.error); return }
+    setBusy(true)
+    const ok = await act(() => api.askQuestion(sessionId, v.text, anonymous), 'questions',
+      anonymous ? 'Question sent anonymously' : 'Question sent')
+    setBusy(false)
+    if (ok) { setText(''); setError(null) }
+  }
+
+  return (
+    <Card testID="live-ask">
+      <SectionHead icon="create-outline" title="Ask a question" />
+      <TextInput
+        style={[ixStyles.input, styles.multiline]} value={text} maxLength={QUESTION_MAX_CHARS} multiline
+        placeholder="Ask the lecturer a question" placeholderTextColor={C.textHint} editable={open}
+        onChangeText={t => { setText(t); setError(null) }} testID="live-ask-input"
+      />
+      <View style={[ixStyles.row, styles.gapAbove]}>
+        <Toggle label="Ask anonymously" value={anonymous} onChange={setAnonymous} disabled={!open} testID="live-ask-anon" />
+        <View style={styles.flex1} />
+        <Btn kind="primary" icon="send" label="Send" disabled={!open} busy={busy} onPress={send} testID="live-ask-send" />
+      </View>
+      {anonymous ? <Muted style={styles.small}>Your name isn't shown to the lecturer or the class.</Muted> : null}
+      {error ? <Text style={[ixStyles.formError, styles.gapAboveSm]} testID="live-ask-error">{error}</Text> : null}
+    </Card>
+  )
+}
+
+// ─── Questions (FR-505, FR-506): newest 3, the rest in a sheet ───────────────
+
+function QuestionRow({ sessionId, q, open, act, first }) {
+  return (
+    <View style={[styles.qRow, !first && styles.qRowBorder]} testID="live-question">
+      <Text style={styles.qText}>{q.text}</Text>
+      <View style={styles.metaRow}>
+        <Text style={ixStyles.meta}>{askerLabel(q)} · {hhmm(q.created_at)}</Text>
+        {questionTags(q).map(b => <Badge key={b.label} variant={b.variant}>{b.label}</Badge>)}
+        <View style={styles.flex1} />
+        <Btn
+          icon={q.upvoted_by_me ? 'arrow-up-circle' : 'arrow-up'} label={String(q.upvotes)}
+          kind={q.upvoted_by_me ? 'primary' : 'outline'} disabled={!canUpvote(q, open)}
+          accessibilityLabel={`Upvote, ${q.upvotes} so far`} testID="live-q-upvote"
+          onPress={() => act(() => api.upvoteQuestion(sessionId, q.id), 'questions')}
+        />
+      </View>
+    </View>
+  )
+}
+
+function QuestionsSection({ sessionId, questions, open, act }) {
+  const [all, setAll] = useState(false)
+  const onPage = newestQuestions(questions)
+  const more = questions.length > QUESTIONS_ON_PAGE
+  return (
+    <Card testID="live-questions">
+      <SectionHead
+        icon="chatbubbles-outline" title={`Questions${questions.length ? ` (${questions.length})` : ''}`}
+        right={more ? (
+          <Btn kind="subtle" label={`See all ${questions.length}`} onPress={() => setAll(true)} testID="live-questions-all" />
+        ) : null}
+      />
+      {!questions.length ? <Muted testID="live-questions-empty">No questions yet. Be the first to ask.</Muted> : null}
+      {onPage.map((q, i) => <QuestionRow key={q.id} sessionId={sessionId} q={q} open={open} act={act} first={i === 0} />)}
+      <IxSheet visible={all} title={`All questions (${questions.length})`} onClose={() => setAll(false)} testID="live-questions-sheet">
+        <Card>
+          {questions.map((q, i) => <QuestionRow key={q.id} sessionId={sessionId} q={q} open={open} act={act} first={i === 0} />)}
+        </Card>
+      </IxSheet>
+    </Card>
+  )
+}
+
 // ─── Screen ──────────────────────────────────────────────────────────────────
 
 export default function LiveClass({ route, navigation }) {
   const sessionId = route.params?.sessionId
   const { showToast } = useStudent()
-  const [tab, setTab] = useState('questions')
   const [session, setSession] = useState(null)
   const [data, setData] = useState({ questions: [], polls: [], quick_questions: [] })
   const [loadError, setLoadError] = useState(null)
@@ -424,20 +499,8 @@ export default function LiveClass({ route, navigation }) {
     )
   }
 
-  const counts = {
-    polls: data.polls.filter(p => p.status === 'open' && !(p.my_option_ids ?? []).length).length,
-    quick: data.quick_questions.filter(q => q.status === 'open' && !q.my_answer).length,
-  }
-  const tabs = [
-    { key: 'questions', label: 'Questions' },
-    { key: 'polls', label: 'Polls', count: counts.polls },
-    { key: 'quick', label: 'Quick', count: counts.quick },
-  ]
-  const panel = {
-    questions: <QuestionsPanel sessionId={sessionId} questions={data.questions} open={st.open} act={act} />,
-    polls: <PollsPanel sessionId={sessionId} polls={data.polls} open={st.open} act={act} />,
-    quick: <QuickPanel sessionId={sessionId} quick={data.quick_questions} open={st.open} act={act} />,
-  }[tab]
+  const qq = latestQuick(data.quick_questions)
+  const poll = latestPoll(data.polls)
 
   return (
     <View style={styles.screen}>
@@ -449,27 +512,17 @@ export default function LiveClass({ route, navigation }) {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} colors={[C.primary]} />}
       >
         {loadError ? <LoadError message={loadError} onRetry={loadAll} /> : null}
-
-        {st.ended ? (
-          <Card style={styles.banner} testID="live-ended">
-            <Text style={ixStyles.title}>The class has ended</Text>
-            <Muted>Interaction is closed. You can still read everything below.</Muted>
-            <View style={[ixStyles.wrap, styles.gapAboveSm]}>
-              <Btn kind="primary" icon="chatbubbles-outline" label="My questions" onPress={openMyQuestions} testID="live-ended-my-questions" />
-            </View>
-          </Card>
-        ) : (
+        <StatusBanner st={st} onMyQuestions={openMyQuestions} />
+        {/* Keyed by id: a new quick question or poll starts with an empty answer box / choice */}
+        <QuickSection key={`qq-${qq?.id ?? 'none'}`} sessionId={sessionId} qq={qq} open={st.open} act={act} />
+        <PollSection key={`poll-${poll?.id ?? 'none'}`} sessionId={sessionId} poll={poll} open={st.open} act={act} />
+        {!st.ended ? (
           <>
-            <View style={[ixStyles.row, styles.toolbar]}>
-              <Text style={[ixStyles.meta, styles.flex1]} testID="live-state-text">{st.text}</Text>
-              <Btn kind="subtle" icon="chatbubbles-outline" label="My questions" onPress={openMyQuestions} testID="live-my-questions" />
-            </View>
-            <SignalsCard sessionId={sessionId} open={st.open} showToast={showToast} />
+            <ReactSection sessionId={sessionId} open={st.open} showToast={showToast} />
+            <AskSection sessionId={sessionId} open={st.open} act={act} />
           </>
-        )}
-
-        <Segments items={tabs} value={tab} onChange={setTab} />
-        {panel}
+        ) : null}
+        <QuestionsSection sessionId={sessionId} questions={data.questions} open={st.open} act={act} />
       </ScrollView>
     </View>
   )
@@ -479,10 +532,12 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg },
   flex1: { flex: 1 },
   content: { padding: 16, paddingBottom: 32 },
-  toolbar: { marginBottom: 8 },
   banner: { backgroundColor: C.blueLt, borderColor: C.blueLt },
-  mine: { borderColor: '#BFDBFE' },
+  bannerPaused: { backgroundColor: C.card, borderColor: C.border },
   multiline: { minHeight: 64, textAlignVertical: 'top' },
+  prompt: { fontSize: 15, fontWeight: '500', color: C.text, lineHeight: 21 },
+  qRow: { paddingVertical: 10 },
+  qRowBorder: { borderTopWidth: 1, borderTopColor: C.border },
   qText: { fontSize: 14, color: C.text, lineHeight: 20 },
   metaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 8 },
   gapAbove: { marginTop: 10 },

@@ -1,7 +1,9 @@
-# Student live class (plan-shino.md S38; FR-501–FR-516, FR-520): during an open class the student
-# joins from Home, upvotes a classmate's question, asks one anonymously, sees it marked answered and
-# a poll appear live, votes, answers a quick question, reacts, presses "I don't understand", sees the
-# class end live, then finds the question in "My questions".
+# Student live class (plan-shino.md S38, S38c one-page layout; FR-501–FR-516, FR-520): during an
+# open class the student joins from Home, sees only the latest quick question and poll (not the
+# earlier closed ones), upvotes a classmate's question, asks one anonymously (tagged Mine), sees it
+# marked answered live, finds the older question in the "See all" sheet, votes in the poll that
+# arrives live, answers the quick question, reacts, presses "I don't understand", sees the class end
+# live, then finds the question in "My questions".
 # Run: bash scripts/e2e-mobile.sh student interaction
 # Needs the local Moodle up (student4 signs in) and student4 already in SmartClass.
 # interaction.setup.sh starts course E2E038's class and the actor (lecturer + classmate via the API).
@@ -43,12 +45,24 @@ appId: host.exp.exponent
     visible: "Ask, vote, answer and react."
     timeout: 30000
 
-# Upvote the classmate's question (once only)
+# One page, latest only: the open quick question is shown, the earlier closed one is not
+- extendedWaitUntil:
+    visible: "E2E: One word for recursion\\?"
+    timeout: 30000
+- assertNotVisible: "E2E: Earlier quick question"
+- assertNotVisible:
+    id: "live-tab-polls"
+- takeScreenshot: live-page-top
+
+# Upvote the classmate's oldest question (once only). Questions is the last card, so the only
+# upvote button below that question's text is its own.
 - scrollUntilVisible:
     element: "E2E: Is a heap always a complete tree\\?"
     direction: DOWN
     timeout: 30000
-- tapOn: "Upvote, 0 so far"
+- tapOn:
+    text: "Upvote, 0 so far"
+    below: "E2E: Is a heap always a complete tree\\?"
 - extendedWaitUntil:
     visible: "Upvote, 1 so far"
     timeout: 20000
@@ -73,22 +87,38 @@ appId: host.exp.exponent
     element: "You \\(anonymous\\).*"
     direction: DOWN
     timeout: 20000
+- assertVisible: "Mine"
 # The lecturer (actor) marks it answered: the badge arrives live, no refresh
 - extendedWaitUntil:
     visible: "Answered"
     timeout: 60000
 - takeScreenshot: live-questions
 
-# The poll the lecturer started arrives live
-- scrollUntilVisible:
-    element:
-      id: "live-tab-polls"
-    direction: UP
+# Only the newest 3 of the 4 questions sit on the page; the oldest is in the "See all" sheet
+- assertNotVisible: "E2E: Is a heap always a complete tree\\?"
 - tapOn:
-    id: "live-tab-polls"
+    id: "live-questions-all"
 - extendedWaitUntil:
-    visible: "E2E: Which sort is stable\\?"
+    visible:
+      id: "live-questions-sheet"
+    timeout: 10000
+- assertVisible: "All questions \\(4\\)"
+- assertVisible: "E2E: Is a heap always a complete tree\\?"
+- assertVisible: "Upvote, 1 so far"
+- takeScreenshot: live-questions-sheet
+- tapOn:
+    id: "live-questions-sheet-close"
+- extendedWaitUntil:
+    notVisible:
+      id: "live-questions-sheet"
+    timeout: 10000
+
+# The poll the lecturer started arrives live and replaces the earlier closed one
+- scrollUntilVisible:
+    element: "E2E: Which sort is stable\\?"
+    direction: UP
     timeout: 60000
+- assertNotVisible: "E2E: Earlier poll"
 # "Merge sort" is option 0 (by id: results bars show the same text while results are visible)
 - tapOn:
     id: "live-poll-option-0"
@@ -103,12 +133,11 @@ appId: host.exp.exponent
 - assertVisible: "1 voted"
 - takeScreenshot: live-poll
 
-# Quick question
-- tapOn:
-    id: "live-tab-quick"
-- extendedWaitUntil:
-    visible: "E2E: One word for recursion\\?"
-    timeout: 20000
+# Quick question: answer box, then "Your answer"
+- scrollUntilVisible:
+    element:
+      id: "live-quick-input"
+    direction: UP
 - tapOn:
     id: "live-quick-input"
 - inputText: "selfreference"
@@ -121,12 +150,15 @@ appId: host.exp.exponent
 - assertVisible:
     id: "live-quick-mine"
     text: "selfreference"
+- assertVisible: "Your answer"
+- assertNotVisible:
+    id: "live-quick-input"
 
 # React (lecturer-only counts; the student sees the confirmation)
 - scrollUntilVisible:
     element:
       id: "live-react-thumbs_up"
-    direction: UP
+    direction: DOWN
 - tapOn:
     id: "live-react-thumbs_up"
 - extendedWaitUntil:
@@ -147,14 +179,17 @@ appId: host.exp.exponent
     timeout: 20000
 - takeScreenshot: live-signals
 
-# The class ends: the screen turns read-only by itself
-- extendedWaitUntil:
-    visible:
+# The class ends: the banner says so and the page turns read-only by itself
+- scrollUntilVisible:
+    element:
       id: "live-ended"
+    direction: UP
     timeout: 90000
 - assertVisible: "Class ended"
 - assertNotVisible:
     id: "live-confused"
+- assertNotVisible:
+    id: "live-ask-input"
 - takeScreenshot: live-ended
 
 # Past questions: the anonymous one is listed as answered

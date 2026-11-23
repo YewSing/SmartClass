@@ -1,9 +1,52 @@
 // Building blocks of the student live class and "My questions" screens (S38). Same look as the
 // lecturer app's interaction parts (S37): white cards, subtle borders, one primary blue.
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native'
+import {
+  View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, ActivityIndicator, Modal, ScrollView,
+  Dimensions,
+} from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { pollBars } from '../services/interaction'
 import { C } from '../theme'
+
+// A bottom sheet with a title and a close button (S38c: the full question list lives here, so the
+// page doesn't grow)
+export function IxSheet({ visible, title, onClose, children, testID }) {
+  const { bottom } = useSafeAreaInsets()
+  return (
+    <Modal transparent animationType="slide" visible={visible} onRequestClose={onClose}>
+      <View style={s.overlay}>
+        <TouchableWithoutFeedback onPress={onClose}>
+          <View style={StyleSheet.absoluteFillObject} />
+        </TouchableWithoutFeedback>
+        <View style={[s.sheet, { paddingBottom: bottom + 12 }]} testID={testID}>
+          <View style={s.handle} />
+          <View style={s.sheetHead}>
+            <Text style={s.sheetTitle}>{title}</Text>
+            <TouchableOpacity onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close"
+              testID={testID ? `${testID}-close` : undefined}>
+              <Ionicons name="close" size={20} color={C.textSub} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            {children}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  )
+}
+
+// A section card's title row (title on the left, an optional action on the right)
+export function SectionHead({ icon, title, right }) {
+  return (
+    <View style={s.sectionHead}>
+      {icon ? <Ionicons name={icon} size={16} color={C.primary} /> : null}
+      <Text style={s.sectionTitle}>{title}</Text>
+      {right ?? null}
+    </View>
+  )
+}
 
 export function Card({ children, style, testID }) {
   return <View style={[s.card, style]} testID={testID}>{children}</View>
@@ -144,6 +187,16 @@ export const ixStyles = StyleSheet.create({
 
 const s = StyleSheet.create({
   flex1: { flex: 1 },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  sheet: {
+    backgroundColor: C.bg, borderTopLeftRadius: 18, borderTopRightRadius: 18, paddingHorizontal: 16,
+    paddingTop: 10, maxHeight: Dimensions.get('window').height * 0.85,
+  },
+  handle: { width: 40, height: 4, backgroundColor: C.gray300, borderRadius: 2, alignSelf: 'center', marginBottom: 10 },
+  sheetHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  sheetTitle: { fontSize: 16, fontWeight: '600', color: C.text },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
+  sectionTitle: { flex: 1, fontSize: 14, fontWeight: '600', color: C.text },
   card: {
     backgroundColor: C.card, borderRadius: 12, borderWidth: 1, borderColor: C.border, padding: 14, marginBottom: 10,
   },

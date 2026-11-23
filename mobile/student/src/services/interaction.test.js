@@ -5,7 +5,50 @@ import {
   toggleChoice, voteAction, pollResultsVisible, pollBars, sortPolls, validateQuickAnswer, charsLeft,
   nextAllowedAt, secondsLeft, cooldownLabel, myQuestionMeta, myQuestionBadge, mergeQuestionPages,
   connectInteractionLive, QUESTION_MAX_CHARS,
+  latestPoll, latestQuick, newestQuestions, questionTags, QUESTIONS_ON_PAGE,
 } from './interaction.js'
+
+// ─── one-page layout (S38c) ──────────────────────────────────────────────────
+
+test('the page shows only the latest poll: the newest open one, else the newest', () => {
+  const polls = [
+    { id: 1, status: 'closed', created_at: '2026-11-23T08:00:00Z' },
+    { id: 2, status: 'open', created_at: '2026-11-23T08:10:00Z' },
+    { id: 3, status: 'closed', created_at: '2026-11-23T08:20:00Z' },
+  ]
+  assert.equal(latestPoll(polls).id, 2, 'an open poll wins over a newer closed one')
+  assert.equal(latestPoll(polls.filter(p => p.id !== 2)).id, 3, 'none open: the newest')
+  assert.equal(latestPoll([]), null)
+  assert.equal(latestPoll(undefined), null)
+  // Same created_at: the higher id is newer
+  assert.equal(latestPoll([{ id: 4, status: 'closed', created_at: 'x' }, { id: 5, status: 'closed', created_at: 'x' }]).id, 5)
+})
+
+test('the page shows only the latest quick question', () => {
+  const quick = [
+    { id: 7, status: 'closed', created_at: '2026-11-23T08:00:00Z', my_answer: 'old' },
+    { id: 8, status: 'closed', created_at: '2026-11-23T08:30:00Z', my_answer: null },
+  ]
+  assert.equal(latestQuick(quick).id, 8)
+  assert.equal(latestQuick([...quick, { id: 9, status: 'open', created_at: '2026-11-23T08:40:00Z' }]).id, 9)
+  assert.equal(latestQuick(null), null)
+})
+
+test('the page lists the newest 3 questions, newest first, without changing the input', () => {
+  const qs = [1, 2, 3, 4, 5].map(i => ({ id: i, created_at: `2026-11-23T08:0${i}:00Z`, upvotes: 6 - i }))
+  const before = qs.map(q => q.id)
+  assert.equal(QUESTIONS_ON_PAGE, 3)
+  assert.deepEqual(newestQuestions(qs).map(q => q.id), [5, 4, 3])
+  assert.deepEqual(qs.map(q => q.id), before)
+  assert.deepEqual(newestQuestions(qs, 1).map(q => q.id), [5])
+  assert.deepEqual(newestQuestions(undefined), [])
+})
+
+test('own questions carry a Mine tag before the status badges', () => {
+  assert.deepEqual(questionTags({ mine: true, pinned: true, answered: true }).map(b => b.label), ['Mine', 'Pinned', 'Answered'])
+  assert.deepEqual(questionTags({ mine: false, answered: true }).map(b => b.label), ['Answered'])
+  assert.deepEqual(questionTags(null), [])
+})
 
 // ─── websocket topics and state ──────────────────────────────────────────────
 

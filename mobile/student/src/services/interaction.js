@@ -161,6 +161,30 @@ export function cooldownLabel(secs) {
   return `Again in ${m}:${String(s).padStart(2, '0')}`
 }
 
+// ─── One-page layout (S38c) ──────────────────────────────────────────────────
+
+const newestFirst = (a, b) =>
+  String(b?.created_at ?? '').localeCompare(String(a?.created_at ?? '')) || (b?.id ?? 0) - (a?.id ?? 0)
+
+// The one item the page shows: the newest still open, else the newest of all. Earlier ones aren't listed.
+function latest(list) {
+  const sorted = [...(list ?? [])].sort(newestFirst)
+  return sorted.find(x => x.status === 'open') ?? sorted[0] ?? null
+}
+export const latestPoll = (polls) => latest(polls)
+export const latestQuick = (quick) => latest(quick)
+
+// The newest `n` questions on the page (the rest are in the "See all" sheet)
+export const QUESTIONS_ON_PAGE = 3
+export function newestQuestions(questions, n = QUESTIONS_ON_PAGE) {
+  return [...(questions ?? [])].sort(newestFirst).slice(0, n)
+}
+
+// Badges on a question card: the student's own question is tagged Mine
+export function questionTags(q) {
+  return [...(q?.mine ? [{ label: 'Mine', variant: 'blue' }] : []), ...questionBadges(q)]
+}
+
 // ─── Past questions (FR-520) ─────────────────────────────────────────────────
 
 // "WIA0000 · 23 Nov" for one of the student's own past questions

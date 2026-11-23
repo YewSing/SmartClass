@@ -10,7 +10,8 @@ other active student), and starts the class now through M3's own "Start now"
 (`session_schedule.start_now`), so the student's Home shows it as live today.
 
 `actor` plays the lecturer and the classmate through the real API while the flow runs:
-  1. the classmate asks a named question, and the lecturer opens a quick question;
+  1. the classmate asks three named questions, the lecturer runs and closes an earlier poll and
+     quick question (the page must not list them), then opens a quick question;
   2. once the student's question (ACTOR_QUESTION text) arrives, the lecturer marks it answered and
      starts a poll with results shown to students;
   3. once someone presses "I don't understand", the lecturer ends the class (M3's close), so the
@@ -51,7 +52,12 @@ COURSE_NAME = "E2E Live Class"
 MARKER = os.path.join(tempfile.gettempdir(), "smartclass-e2e-student-interaction.json")
 
 CLASSMATE_QUESTION = "E2E: Is a heap always a complete tree?"
+# Two newer classmate questions, so after the student asks, the first one is only in "See all" (S38c)
+CLASSMATE_MORE = ["E2E: Classmate question two", "E2E: Classmate question three"]
 ACTOR_QUESTION = "E2E student question about heaps"      # what the flow types
+# An earlier poll and quick question, closed before the flow looks: the page shows only the latest
+EARLIER_QUICK_PROMPT = "E2E: Earlier quick question"
+EARLIER_POLL_QUESTION = "E2E: Earlier poll"
 QUICK_PROMPT = "E2E: One word for recursion?"
 POLL_QUESTION = "E2E: Which sort is stable?"
 POLL_OPTIONS = ["Merge sort", "Quick sort", "Heap sort"]
@@ -131,11 +137,24 @@ def actor(api: str) -> None:
     classmate = {"Authorization": f"Bearer {create_access_token(m['classmate_user_id'], 'student')}"}
     deadline = time.monotonic() + ACTOR_TIMEOUT_SECONDS
     with httpx.Client(base_url=api, timeout=15) as c:
-        c.post(f"/interaction/{sid}/questions", json={"text": CLASSMATE_QUESTION, "anonymous": False},
-               headers=classmate).raise_for_status()
+        for text in [CLASSMATE_QUESTION, *CLASSMATE_MORE]:
+            c.post(f"/interaction/{sid}/questions", json={"text": text, "anonymous": False},
+                   headers=classmate).raise_for_status()
+        earlier_qq = c.post(f"/lecturer/interaction/{sid}/quick-questions",
+                            json={"prompt": EARLIER_QUICK_PROMPT, "max_chars": 40}, headers=lecturer)
+        earlier_qq.raise_for_status()
+        c.post(f"/lecturer/interaction/{sid}/quick-questions/{earlier_qq.json()['id']}/close",
+               headers=lecturer).raise_for_status()
+        earlier_poll = c.post(f"/lecturer/interaction/{sid}/polls", json={
+            "question": EARLIER_POLL_QUESTION, "options": ["Yes", "No"], "multiple": False, "show_results": True,
+        }, headers=lecturer)
+        earlier_poll.raise_for_status()
+        epid = earlier_poll.json()["id"]
+        c.post(f"/lecturer/interaction/{sid}/polls/{epid}/start", headers=lecturer).raise_for_status()
+        c.post(f"/lecturer/interaction/{sid}/polls/{epid}/close", headers=lecturer).raise_for_status()
         c.post(f"/lecturer/interaction/{sid}/quick-questions", json={"prompt": QUICK_PROMPT, "max_chars": 40},
                headers=lecturer).raise_for_status()
-        print("actor: classmate asked; quick question open", flush=True)
+        print("actor: classmate asked 3; earlier poll/quick closed; quick question open", flush=True)
 
         def student_question():
             qs = c.get(f"/interaction/{sid}/questions", headers=lecturer).json()["questions"]

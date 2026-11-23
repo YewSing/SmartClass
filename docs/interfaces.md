@@ -587,3 +587,8 @@ S38b: `LiveInteraction` is one page of section cards (`ix-status`, `ix-questions
 `ix-poll-section`) with no tabs; the newest 3 open questions, the latest quick question and the latest
 poll sit on the page; full lists open in sheets (`ix-questions-sheet`, `ix-quick-sheet`,
 `ix-polls-sheet`, `ix-confusion-sheet`) and compose forms are pop-ups (`ix-quick-form`, `ix-poll-form`).
+S38c (student app, no API change): `LiveClass` is one page of cards in this order: status banner
+(`live-status`, or `live-ended` once the class ended), the latest quick question (`live-quick`), the
+latest poll (`live-poll`), React (`live-signals`), Ask (`live-ask`), Questions (`live-questions`: newest
+3, "See all" `live-questions-all` opens `live-questions-sheet`). "Latest" = the newest open item, else
+the newest; earlier polls and quick questions aren't listed. React and Ask are hidden after the class ends.
