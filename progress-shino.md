@@ -45,6 +45,8 @@ Yew Sing's log is [PROGRESS.md](PROGRESS.md); never edit it. Test removals need 
 
 - No runnable task (2026-11-23): S39 `[HUMAN] Checkpoint: interaction in a real class` is unticked and every remaining task (S40+) sits below it. Shino runs one class with a few phones (lecturer live screen + student live class), does the `[~]` manual check for S38, then ticks S39 `[x]` in plan-shino.md.
 
+- REVIEW (checkpoint 49a2e85..94d0a00, 2026-11-23): S38 no high-severity problems. check.sh passes (pytest 1029); backend only gained the E2E seed script. The student screen leaves anonymity to the server (no other student's identity is shown) and sends the token only to its own class websocket. Still open: the S38 Maestro `interaction.yaml` manual check.
+
 ### Requests for Yew Sing
 <!-- Interface gaps in M1/M3/M4/M8 that a task needed. Copy each to docs/requests-for-shino.md style when sending. -->
 - Session controls moved (2026-11-22, done on Shino's instruction; FYI for Yew Sing): End class / +15 min are now only on the lecturer Dashboard's session card (`home-session-end`, `home-session-end-confirm`, `home-session-extend`), and the card has no Live session button once a class is open (the Attendance card opens the live screen). `OpenControls` was removed from `AttendanceDetail.jsx` (M3, T38). Your tests were moved to the new buttons, not weakened: see the TEST-CHANGE lines. Noted in `docs/requests-for-shino.md`.
