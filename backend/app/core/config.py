@@ -146,5 +146,9 @@ class Settings(BaseSettings):
     INTERACTION_CONFUSION_SPIKE_SHARE: float = 0.25       # share of the class pressing in the window
     INTERACTION_CONFUSION_BUCKET_SECONDS: int = 60        # timeline bucket for the lecturer
 
+    # ── Module 6: quizzes (FR-606) ───────────────────────────────────────────
+    QUIZ_DEFAULT_QUESTION_SECONDS: int = 30    # timer of a new quiz, per question (5-600)
+    QUIZ_DEFAULT_QUIZ_SECONDS: int = 1800      # ...or for the whole quiz (60-14400)
+
 
 settings = Settings()

@@ -632,3 +632,33 @@ S38d: an "Interaction" tab (`sidenav-Interaction` / bottom tab) with `Interactio
 `ix-history-row`, "Load more" `ix-history-more`) → `InteractionSummary {sessionId}` (also in HomeStack,
 same screen). The summary shows one category at a time through pills `ix-pill-questions|polls|quick|
 reactions|confusion` (Questions first); the CSV button (`ix-summary-csv`) stays at the top.
+
+---
+
+## Module 6 — Quizzes (S40, Shino)
+
+Tables `m6_quizzes`, `m6_questions`, `m6_attempts`, `m6_answers` (`app/models/quiz.py`). Service
+`app/services/quiz_store.py`; AI code goes in `app/services/quiz/` (S41).
+
+- **Access:** lecturers assigned to any class of the quiz's course; everyone else and unknown ids → 403.
+- `GET /lecturer/quizzes?course_id=` → `{quizzes: [QuizOut]}` newest first. `POST /lecturer/quizzes
+  {course_id, title, type, ...settings}` (201). `GET | PATCH | DELETE /lecturer/quizzes/{id}`. POST, GET
+  one and PATCH return `QuizDetailOut` = `QuizOut` + `questions` (with answers: lecturers only, NFR-41).
+- `QuizOut`: `{id, course_id, course_code, course_name, title, type, status, timer_mode, timer_seconds,
+  opens_at, closes_at, shuffle, release, release_marks, release_answers, speed_bonus, question_count,
+  approved_count, created_at, updated_at}`. `type` game|graded; `status` draft|published|closed.
+- **Settings:** title ≤ 200; `timer_mode` question (5–600 s) | quiz (60–14400 s), defaults
+  `QUIZ_DEFAULT_QUESTION_SECONDS` / `QUIZ_DEFAULT_QUIZ_SECONDS`; a game is always `question`, and a
+  whole-quiz time sent with it is replaced by the per-question time it had (or the default);
+  `closes_at` after `opens_at`, both naive Malaysia time (an offset is converted; null = not set);
+  `release` manual|on_close = when the results come out, `release_marks`/`release_answers` = which parts
+  (on_close needs at least one); `speed_bonus` is for games. PATCH changes only the given fields; null
+  clears only the two times.
+- PATCH and DELETE work on a draft without attempts only (409). Delete removes its questions, audited
+  `QUIZ_DELETE` (target `m6_quiz`). They lock the quiz row: publishing (S43) and starting an attempt
+  (S44) must lock it too.
+- **Question** (`QuestionIn`, `app/schemas/quiz.py`): `{type mcq|short, text ≤ 1000, options (mcq: 2–6
+  different, ≤ 300), answer (mcq: option index), suggested_answer (short), topic, origin
+  from_material|extended, source_file, source_type page|slide|section, source_page, explanation}`;
+  `from_material` needs the three source fields. `QuestionOut` adds `id, position (0-based), approved`.
+- One attempt per student and quiz, one answer per attempt and question (unique constraints).

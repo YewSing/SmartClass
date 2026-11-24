@@ -19,3 +19,4 @@ from app.models.notification_preference import NotificationPreference  # noqa: F
 from app.models.moodle_snapshot import MoodleSnapshot  # noqa: F401
 from app.models.announcement import Announcement  # noqa: F401
 from app.models.interaction import InteractionSession, Question, QuestionVote  # noqa: F401
+from app.models.quiz import Quiz, QuizAnswer, QuizAttempt, QuizQuestion  # noqa: F401
