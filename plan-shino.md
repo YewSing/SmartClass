@@ -94,7 +94,7 @@ Run the loop with `/shino-run-plan [rounds]` (or `bash scripts/shino/run-tasks.s
   Done when: both live screens use one colour per section (questions teal, quick question purple, poll blue, signals orange); the student's poll and quick-question cards appear only once the lecturer has published one; after voting the result shows on each option (change vote still possible, FR-508; hidden results stay hidden, FR-509). Behaviour, APIs and lecturer testIDs unchanged.
 - [~] **S38g [API] [UI] Reactions and "I don't understand" are on/off (Shino's decision 2026-11-25).** Depends on: S38f.
   Done when: as in an online meeting, a student's signal is on until they tap it again (or switch reaction), the lecturer clears everyone's, or the class ends; the lecturer's live view and Home card show what is on right now, not totals; after class the summary shows how many students and when; taps within the cooldown count once in the event log (M7).
-- [ ] **S39 [HUMAN] Checkpoint: interaction in a real class.** (After S38a–S38e.) Shino runs one class with a few phones, then ticks `[x]`.
+- [x] **S39 [HUMAN] Checkpoint: interaction in a real class.** (After S38a–S38e.) Shino runs one class with a few phones, then ticks `[x]`.
 
 ## 3. Module 6 — AI Quiz and Assessment
 
