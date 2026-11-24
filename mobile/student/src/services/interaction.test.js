@@ -2,8 +2,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   TOPICS, topicsFor, interactionState, liveClasses, validateQuestion, askerLabel, questionBadges, canUpvote,
-  toggleChoice, voteAction, pollResultsVisible, pollBars, sortPolls, validateQuickAnswer, charsLeft,
-  nextAllowedAt, secondsLeft, cooldownLabel, myQuestionMeta, myQuestionBadge, mergeQuestionPages,
+  toggleChoice, voteAction, pollMode, pollResultsVisible, pollBars, sortPolls, validateQuickAnswer, charsLeft,
+  NO_SIGNALS, afterReactionTap, afterConfusionTap, myQuestionMeta, myQuestionBadge, mergeQuestionPages,
   connectInteractionLive, classRunning, QUESTION_MAX_CHARS,
   latestPoll, latestQuick, newestQuestions, questionTags, QUESTIONS_ON_PAGE,
 } from './interaction.js'
@@ -53,9 +53,10 @@ test('own questions carry a Mine tag before the status badges', () => {
 // ─── websocket topics and state ──────────────────────────────────────────────
 
 test('students re-read only their own topics', () => {
-  assert.deepEqual(TOPICS, ['questions', 'polls', 'quick_questions'])
-  assert.deepEqual(topicsFor({ type: 'connected' }), ['session', 'questions', 'polls', 'quick_questions'])
+  assert.deepEqual(TOPICS, ['questions', 'polls', 'quick_questions', 'signals'])
+  assert.deepEqual(topicsFor({ type: 'connected' }), ['session', 'questions', 'polls', 'quick_questions', 'signals'])
   assert.deepEqual(topicsFor({ type: 'changed', topic: 'polls' }), ['polls'])
+  assert.deepEqual(topicsFor({ type: 'changed', topic: 'signals' }), ['signals'], 'the lecturer cleared them')
   assert.deepEqual(topicsFor({ type: 'changed', topic: 'reactions' }), [], 'lecturer-only topic')
   assert.deepEqual(topicsFor({ type: 'changed', topic: 'nonsense' }), [])
   assert.deepEqual(topicsFor({ type: 'closed', reason: 'class_ended' }), ['session'])
@@ -143,6 +144,17 @@ test('vote button: vote, change, already voted, closed', () => {
   assert.equal(voteAction(open, [5], false).enabled, false, 'interaction paused')
 })
 
+test('the poll card asks for a choice until the student voted, then shows the options with results', () => {
+  const fresh = { status: 'open', my_option_ids: [] }
+  const voted = { status: 'open', my_option_ids: [5] }
+  assert.equal(pollMode(fresh, true, false), 'pick')
+  assert.equal(pollMode(voted, true, false), 'results', 'voted: results on the options')
+  assert.equal(pollMode(voted, true, true), 'pick', 'changing the vote (FR-508)')
+  assert.equal(pollMode({ status: 'closed', my_option_ids: [] }, true, false), 'results')
+  assert.equal(pollMode(voted, false, true), 'results', 'paused or closed: no more changes')
+  assert.equal(pollMode(fresh, false, false), 'results')
+})
+
 test('results only when the lecturer shows them', () => {
   const hidden = { total_voters: null, options: [{ id: 1, text: 'A', votes: null }], my_option_ids: [1] }
   assert.equal(pollResultsVisible(hidden), false)
@@ -172,22 +184,20 @@ test('quick answers respect the lecturer limit', () => {
   assert.equal(charsLeft('', 140), 140)
 })
 
-// ─── cooldowns ───────────────────────────────────────────────────────────────
+// ─── reactions and "I don't understand" are on/off (S38g) ────────────────────
 
-test('cooldown from next_allowed_at or a 429 Retry-After', () => {
-  const now = Date.parse('2026-11-23T02:00:00Z')
-  assert.equal(nextAllowedAt({ ack: { next_allowed_at: '2026-11-23T10:00:05' }, now }), now + 5000, 'naive MYT')
-  assert.equal(nextAllowedAt({ ack: { next_allowed_at: '2026-11-23T02:02:00Z' }, now }), now + 120000)
-  assert.equal(nextAllowedAt({ error: { status: 429, retryAfter: '90' }, now }), now + 90000)
-  assert.equal(nextAllowedAt({ error: { status: 409, retryAfter: '90' }, now }), null)
-  assert.equal(nextAllowedAt({ error: { status: 429 }, now }), null)
-  assert.equal(nextAllowedAt({}), null)
-  assert.equal(secondsLeft(now + 4200, now), 5)
-  assert.equal(secondsLeft(now - 1, now), 0)
-  assert.equal(secondsLeft(null, now), 0)
-  assert.equal(cooldownLabel(0), '')
-  assert.equal(cooldownLabel(5), 'Again in 5s')
-  assert.equal(cooldownLabel(95), 'Again in 1:35')
+test('a reaction: tap to send, tap again to take back, another one replaces it', () => {
+  assert.deepEqual(afterReactionTap(null, 'clear'), { reaction: 'clear', confused: false, topic: null })
+  const on = { reaction: 'clear', confused: true, topic: 'heaps' }
+  assert.deepEqual(afterReactionTap(on, 'clear'), { ...on, reaction: null }, 'confusion is untouched')
+  assert.equal(afterReactionTap(on, 'too_fast').reaction, 'too_fast')
+})
+
+test('"I don\'t understand": tap to send with an optional topic, tap again to take back', () => {
+  const on = afterConfusionTap({ reaction: 'clear', confused: false, topic: null }, ' heaps ')
+  assert.deepEqual(on, { reaction: 'clear', confused: true, topic: 'heaps' })
+  assert.deepEqual(afterConfusionTap(on, 'ignored'), { reaction: 'clear', confused: false, topic: null })
+  assert.equal(afterConfusionTap(NO_SIGNALS, '  ').topic, null)
 })
 
 // ─── past questions ──────────────────────────────────────────────────────────

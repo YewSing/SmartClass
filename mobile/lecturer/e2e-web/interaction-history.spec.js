@@ -85,7 +85,7 @@ async function checkListAndSummary(page, width) {
   const row = visible(page.getByTestId('ix-history-row'))      // newest first: the class just run
   await expect(row).toContainText('WIA0000')
   for (const [key, label] of [['questions', '2 questions'], ['polls', '1 poll'], ['quick', '1 quick question'],
-    ['reactions', '3 reactions'], ['confusion', '2 confused']]) {
+    ['reactions', '3 reacted'], ['confusion', '2 confused']]) {
     await expect(row.getByTestId(`ix-history-chip-${key}`)).toHaveText(label)
   }
   for (const s of ctx.students) await expect(row).not.toContainText(s.name)
@@ -127,7 +127,7 @@ async function checkListAndSummary(page, width) {
 
   await visible(page.getByTestId('ix-pill-reactions')).click()
   await only('reactions')
-  await expect(visible(page.getByTestId('ix-summary-reactions-total'))).toHaveText('3 in total')
+  await expect(visible(page.getByTestId('ix-summary-reactions-total'))).toHaveText('3 students reacted')
 
   await visible(page.getByTestId('ix-pill-confusion')).click()
   await only('confusion')

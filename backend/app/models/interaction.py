@@ -192,12 +192,15 @@ REACTION_KINDS = ("thumbs_up", "clear", "too_fast", "too_slow")
 
 
 class Reaction(Base):
-    """A quick reaction (FR-511) — S33. One row per press."""
+    """A quick reaction (FR-511) — S33. One row per stretch it was on (S38g): `ended_at` is null while
+    it is on, and a student has at most one on at a time."""
     __tablename__ = "m5_reactions"
     __table_args__ = (
         CheckConstraint("kind IN ('thumbs_up','clear','too_fast','too_slow')", name="ck_m5_reactions_kind"),
         Index("ix_m5_reactions_session", "attendance_session_id", "created_at"),
         Index("ix_m5_reactions_student", "student_id"),
+        Index("uq_m5_reactions_active", "attendance_session_id", "student_id", unique=True,
+              postgresql_where=text("ended_at IS NULL")),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -206,20 +209,23 @@ class Reaction(Base):
     student_id: Mapped[Optional[int]] = mapped_column(ForeignKey("students.id", ondelete="SET NULL"))
     kind: Mapped[str] = mapped_column(String(16), nullable=False)
     created_at: Mapped[datetime] = mapped_column(nullable=False)        # naive MYT
+    ended_at: Mapped[Optional[datetime]] = mapped_column()              # null = on
 
 
 CONFUSION_TOPIC_MAX_CHARS = 60
 
 
 class ConfusionPress(Base):
-    """An "I don't understand" press (FR-512) — S33. `student_id` is kept for cooldowns, spike
-    shares and M7 counts (FR-702); the lecturer's view never carries it (FR-515)."""
+    """An "I don't understand" press (FR-512) — S33; on until `ended_at` (S38g: one on per student
+    at a time). `student_id` is kept for cooldowns, spike shares and M7 counts (FR-702); the lecturer's view never carries it (FR-515)."""
     __tablename__ = "m5_confusion_presses"
     __table_args__ = (
         CheckConstraint(f"topic IS NULL OR char_length(topic) BETWEEN 1 AND {CONFUSION_TOPIC_MAX_CHARS}",
                         name="ck_m5_confusion_presses_topic_length"),
         Index("ix_m5_confusion_presses_session", "attendance_session_id", "created_at"),
         Index("ix_m5_confusion_presses_student", "student_id"),
+        Index("uq_m5_confusion_presses_active", "attendance_session_id", "student_id", unique=True,
+              postgresql_where=text("ended_at IS NULL")),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -228,6 +234,7 @@ class ConfusionPress(Base):
     student_id: Mapped[Optional[int]] = mapped_column(ForeignKey("students.id", ondelete="SET NULL"))
     topic: Mapped[Optional[str]] = mapped_column(String(CONFUSION_TOPIC_MAX_CHARS))
     created_at: Mapped[datetime] = mapped_column(nullable=False)        # naive MYT
+    ended_at: Mapped[Optional[datetime]] = mapped_column()              # null = on
 
 
 class ConfusionSpike(Base):

@@ -1,10 +1,10 @@
 // Student live class (Module 5, plan-shino.md S38). No React here, so it runs under `npm test`.
 // Data comes from the S31–S36 REST endpoints (shaped for students by the server); WS
 // /interaction/{id}/ws only says which topic changed (S35), and the screen re-reads that topic.
-import { parseTime } from './notifications.js'
 
-// The topics a student's socket can be told about (reactions/confusion go to the lecturer only)
-export const TOPICS = ['questions', 'polls', 'quick_questions']
+// The topics a student's socket can be told about (reactions/confusion go to the lecturer only;
+// `signals` says the lecturer cleared them, so the student's own are re-read)
+export const TOPICS = ['questions', 'polls', 'quick_questions', 'signals']
 
 // What to re-read for one websocket message. Nothing is replayed, so `connected` re-reads all.
 export function topicsFor(message) {
@@ -94,6 +94,13 @@ export function pollResultsVisible(poll) {
   return !!poll && poll.total_voters != null && (poll.options ?? []).every(o => o.votes != null)
 }
 
+// What the poll card shows (S38f): `pick` to choose (not voted yet, or changing the vote) while it is
+// open, else `results`: the options with the result on each one (only when the lecturer shows counts)
+export function pollMode(poll, open, changing) {
+  const pollOpen = !!open && poll?.status === 'open'
+  return pollOpen && (!(poll.my_option_ids ?? []).length || changing) ? 'pick' : 'results'
+}
+
 export function pollBars(poll) {
   if (!pollResultsVisible(poll)) return []
   const total = poll.total_voters
@@ -127,38 +134,27 @@ export function charsLeft(text, maxChars) {
 // ─── Reactions and "I don't understand" (FR-512, FR-514) ────────────────────
 
 export const REACTIONS = [
-  { kind: 'thumbs_up', label: 'Thumbs up', icon: 'thumbs-up-outline' },
-  { kind: 'clear', label: 'Clear', icon: 'checkmark-circle-outline' },
-  { kind: 'too_fast', label: 'Too fast', icon: 'speedometer-outline' },
-  { kind: 'too_slow', label: 'Too slow', icon: 'hourglass-outline' },
+  { kind: 'thumbs_up', label: 'Thumbs up', emoji: '👍' },
+  { kind: 'clear', label: 'Clear', emoji: '✅' },
+  { kind: 'too_fast', label: 'Too fast', emoji: '🚀' },
+  { kind: 'too_slow', label: 'Too slow', emoji: '🐢' },
 ]
 
 export const CONFUSION_TOPIC_MAX_CHARS = 60
 
-// When the next press is allowed (ms since epoch): from a 201's `next_allowed_at`, or a 429's
-// Retry-After seconds. null when nothing says.
-export function nextAllowedAt({ ack, error, now = Date.now() } = {}) {
-  if (ack?.next_allowed_at) {
-    const t = parseTime(ack.next_allowed_at)
-    if (t) return t.getTime()
-  }
-  const secs = Number(error?.retryAfter)
-  if (error?.status === 429 && Number.isFinite(secs) && secs >= 0) return now + secs * 1000
-  return null
+export const NO_SIGNALS = { reaction: null, confused: false, topic: null }
+
+// What the student has on after a tap (S38g, like an online meeting): the same reaction again takes it
+// back, another one replaces it
+export function afterReactionTap(signals, kind) {
+  const s = signals ?? NO_SIGNALS
+  return { ...s, reaction: s.reaction === kind ? null : kind }
 }
 
-// Whole seconds left of a cooldown (0 = allowed now)
-export function secondsLeft(until, now = Date.now()) {
-  if (!until) return 0
-  return Math.max(0, Math.ceil((until - now) / 1000))
-}
-
-export function cooldownLabel(secs) {
-  if (secs <= 0) return ''
-  if (secs < 60) return `Again in ${secs}s`
-  const m = Math.floor(secs / 60)
-  const s = secs % 60
-  return `Again in ${m}:${String(s).padStart(2, '0')}`
+export function afterConfusionTap(signals, topic) {
+  const s = signals ?? NO_SIGNALS
+  return s.confused ? { ...s, confused: false, topic: null }
+    : { ...s, confused: true, topic: (topic ?? '').trim() || null }
 }
 
 // ─── One-page layout (S38c) ──────────────────────────────────────────────────

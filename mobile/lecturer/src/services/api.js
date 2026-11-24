@@ -188,6 +188,9 @@ export const closeQuickQuestion = (id, qid) => apiCall('POST', `${lx(id)}/quick-
 
 export const getReactionCounts = (id) => apiCall('GET', `${lx(id)}/reactions`)
 export const getConfusion = (id) => apiCall('GET', `${lx(id)}/confusion`)
+// Lower everyone's reactions / "I don't understand" (S38g)
+export const clearReactions = (id) => apiCall('DELETE', `${lx(id)}/reactions`)
+export const clearConfusion = (id) => apiCall('DELETE', `${lx(id)}/confusion`)
 
 export const getInteractionSummary = (id) => apiCall('GET', `${lx(id)}/summary`)
 // The Interaction tab (S38d): class sessions with interaction data, newest first

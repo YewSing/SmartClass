@@ -62,6 +62,7 @@ async def build(db: AsyncSession, member: Member, session: AttendanceSession) ->
           if p.status != "draft"]
     quicks = await quick.list_quick(db, member, session.id, interaction_open=st.is_open)
     reactions = await signals.reaction_counts(db, member, session.id, st.status)
+    people, reactors = await signals.reaction_people(db, session.id)
     confusion = await signals.confusion_view(db, member, session, st.status)
     d = class_date(session)
     return InteractionSummaryOut(
@@ -75,8 +76,11 @@ async def build(db: AsyncSession, member: Member, session: AttendanceSession) ->
         quick_questions=[SummaryQuickQuestion(
             id=q.id, prompt=q.prompt, status=q.status, answer_count=q.answer_count or 0,
             answers=q.answers or [], created_at=q.created_at) for q in quicks],
-        reactions=reactions.counts, reactions_total=reactions.total,
-        confusion=SummaryConfusion(total=confusion.total, spikes=confusion.spikes,
+        reactions=reactions.counts, reactions_total=reactions.total, reactions_active=reactions.active,
+        reaction_people=people, reactors=reactors,
+        reaction_timeline=await signals.reaction_timeline(db, session),
+        confusion=SummaryConfusion(active=confusion.active, total=confusion.total, spikes=confusion.spikes,
+                                   people=await signals.confusion_people(db, session.id),
                                    timeline=confusion.timeline, topics=confusion.topics))
 
 
@@ -122,8 +126,11 @@ def csv_rows(s: InteractionSummaryOut) -> list[list]:
         rows.append(["Quick question", _time(q.created_at), q.prompt, "", q.status, q.answer_count])
         for a in q.answers:
             rows.append(["Quick answer", _time(a.created_at), a.text, "", "", ""])
-    for kind, n in s.reactions.items():
+    for kind, n in s.reaction_people.items():       # different students, not taps
         rows.append(["Reaction", "", kind, "", "", n])
+    for b in s.reaction_timeline:
+        rows.extend(["Reaction timeline", _time(b.start), kind, "", "", n] for kind, n in b.counts.items() if n)
+    rows.append(["Confused students", "", "", "", "", s.confusion.people])
     rows.append(["Confusion presses", "", "", "", "", s.confusion.total])
     rows.append(["Confusion spikes", "", "", "", "", s.confusion.spikes])
     for b in s.confusion.timeline:

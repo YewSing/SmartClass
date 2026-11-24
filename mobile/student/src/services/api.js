@@ -114,8 +114,15 @@ export const answerQuickQuestion = (sessionId, quickId, text) =>
 export const sendReaction = (sessionId, kind) =>
   apiCall('POST', `/interaction/${sessionId}/reactions`, { kind })
 
+export const cancelReaction = (sessionId) => apiCall('DELETE', `/interaction/${sessionId}/reactions`)
+
 export const pressConfusion = (sessionId, topic) =>
   apiCall('POST', `/interaction/${sessionId}/confusion`, topic ? { topic } : {})
+
+export const cancelConfusion = (sessionId) => apiCall('DELETE', `/interaction/${sessionId}/confusion`)
+
+// What this student has on right now: { reaction, confused, topic }
+export const getMySignals = (sessionId) => apiCall('GET', `/interaction/${sessionId}/my-signals`)
 
 // The student's own questions across classes, newest first (FR-520)
 export const getMyQuestions = (before = null, limit = 50) =>

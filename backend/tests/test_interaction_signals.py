@@ -1,9 +1,9 @@
 """S33: quick questions, reactions and "I don't understand" (FR-510–FR-512, FR-514, FR-515, NFR-04).
 
 Quick questions collect length-limited text answers that the lecturer sees as a list with no names;
-reactions have a per-student cooldown and running counts; confusion presses have a configurable
-cooldown (default 2 min) and the lecturer sees only the count, timeline and topics; a
-`confusion.spike` goes to the lecturer once per spike when the presses in the window reach the
+reactions and confusion are on until the student takes them back, the lecturer clears them or the class
+ends (S38g); within its cooldown (confusion default 2 min) a repeat continues the same signal instead of
+counting again; the lecturer sees only counts, timeline and topics; a `confusion.spike` goes to the lecturer once per spike when the presses in the window reach the
 configured share of the class (defaults 2 min / 25%). The clock (`sessions.clock`) is
 monkeypatched; the class is started and ended through M3's own services (see shino_helpers).
 """
@@ -206,30 +206,168 @@ async def test_reactions_running_counts_and_cooldown(shino_class, clock):
     s1, s2 = c.student_user_ids[:2]
     assert settings.INTERACTION_REACTION_COOLDOWN_SECONDS == 5
     ack = (await react(c, s1, "too_fast")).json()
-    assert ack["kind"] == "too_fast"
-    assert ack["next_allowed_at"] == (clock.now + timedelta(seconds=5)).isoformat()
+    assert ack == {"kind": "too_fast", "created_at": clock.now.isoformat()}
 
     clock.advance(2)
-    r = await react(c, s1, "thumbs_up", expect=429)                # cooldown is per student
-    assert r.headers["Retry-After"] == "3"
-    await react(c, s2, "too_fast")                                  # another student isn't blocked
+    await react(c, s1, "thumbs_up")                                 # within 5 s: the same one, changed
+    await react(c, s2, "too_fast")
     clock.advance(3)
-    await react(c, s1, "clear")                                     # cooldown over
+    await react(c, s1, "clear")                                     # later: a new one replaces it
 
     body = await counts(c)
-    assert body["counts"] == {"thumbs_up": 0, "clear": 1, "too_fast": 2, "too_slow": 0}
+    assert body["counts"] == {"thumbs_up": 1, "clear": 1, "too_fast": 1, "too_slow": 0}
     assert body["total"] == 3 and body["status"] == "open"
+    assert body["active"] == {"thumbs_up": 0, "clear": 1, "too_fast": 1, "too_slow": 0}   # one per student
+    assert body["active_total"] == 2
     no_identity(c, body)
 
 
 async def test_reaction_cooldown_configurable(shino_class, clock, monkeypatch):
     c = shino_class
     monkeypatch.setattr(settings, "INTERACTION_REACTION_COOLDOWN_SECONDS", 30)
-    await react(c, c.student_user_ids[0], "clear")
+    s = c.student_user_ids[0]
+    await react(c, s, "clear")
+    await cancel(c, s, "reactions")
     clock.advance(29)
-    assert (await react(c, c.student_user_ids[0], "clear", expect=429)).headers["Retry-After"] == "1"
+    await react(c, s, "clear")                                      # still the first one
+    assert (await counts(c))["total"] == 1
+    await cancel(c, s, "reactions")
     clock.advance(1)
-    await react(c, c.student_user_ids[0], "clear")
+    await react(c, s, "clear")                                      # cooldown over: counted again
+    body = await counts(c)
+    assert body["total"] == 2 and body["active"]["clear"] == 1
+
+
+# ── on and off (S38g) ────────────────────────────────────────────────────────
+
+async def cancel(c, uid, what, expect=204, role="student"):
+    await call(c, "DELETE", f"/interaction/{c.session_id}/{what}", uid, role, None, expect)
+
+
+async def clear_all(c, what, expect=204, uid=None, role="lecturer"):
+    await call(c, "DELETE", f"/lecturer/interaction/{c.session_id}/{what}", uid or c.lecturer_user_id, role,
+               None, expect)
+
+
+async def mine(c, uid, role="student", expect=200):
+    return (await call(c, "GET", f"/interaction/{c.session_id}/my-signals", uid, role, None, expect)).json()
+
+
+async def test_reaction_taken_back_and_switched(shino_class, clock):
+    c = shino_class
+    s1, s2 = c.student_user_ids[:2]
+    await react(c, s1, "too_fast")
+    await react(c, s2, "too_fast")
+    assert (await counts(c))["active"]["too_fast"] == 2
+    assert (await mine(c, s1))["reaction"] == "too_fast"
+
+    clock.advance(60)
+    await cancel(c, s1, "reactions")
+    assert (await counts(c))["active"]["too_fast"] == 1
+    assert (await mine(c, s1))["reaction"] is None and (await mine(c, s2))["reaction"] == "too_fast"
+    await cancel(c, s1, "reactions")                                # nothing on: nothing happens
+
+    clock.advance(60)
+    await react(c, s2, "clear")
+    body = await counts(c)
+    assert body["active"] == {"thumbs_up": 0, "clear": 1, "too_fast": 0, "too_slow": 0}
+    assert body["total"] == 3                                       # history keeps all three
+    async with AsyncSessionLocal() as db:
+        rows = list((await db.execute(select(Reaction).order_by(Reaction.id))).scalars())
+    assert [r.ended_at is None for r in rows] == [False, False, True]
+    assert rows[0].ended_at - rows[0].created_at == timedelta(seconds=60)
+
+
+async def test_confusion_taken_back_and_again(shino_class, clock, monkeypatch):
+    c = shino_class
+    monkeypatch.setattr(settings, "INTERACTION_CONFUSION_SPIKE_SHARE", 1.0)
+    s1, s2 = c.student_user_ids[:2]
+    await press(c, s1, "Heaps")
+    await press(c, s2)
+    assert (await view(c))["active"] == 2
+    assert await mine(c, s1) == {"attendance_session_id": c.session_id, "reaction": None,
+                                 "confused": True, "topic": "Heaps"}
+    clock.advance(20)
+    await cancel(c, s1, "confusion")
+    body = await view(c)
+    assert body["active"] == 1 and body["recent_students"] == 1 and body["total"] == 2
+    assert (await mine(c, s1))["confused"] is False and (await mine(c, s1))["topic"] is None
+
+    clock.advance(20)
+    await press(c, s1)                                              # at once, no lock-out; not counted twice
+    body = await view(c)
+    assert body["active"] == 2 and body["total"] == 2
+    no_identity(c, body)
+
+
+async def test_lecturer_clears_everyones_signals(shino_class, clock):
+    c = shino_class
+    for uid in c.student_user_ids[:3]:
+        await react(c, uid, "too_slow")
+        await press(c, uid)
+    await clear_all(c, "reactions")
+    assert (await counts(c))["active_total"] == 0 and (await view(c))["active"] == 3   # each on its own
+    await clear_all(c, "confusion")
+    body = await view(c)
+    assert body["active"] == 0 and body["total"] == 3 and body["spike_active"] is False
+    for uid in c.student_user_ids[:3]:
+        got = await mine(c, uid)
+        assert got["reaction"] is None and got["confused"] is False
+    await clear_all(c, "reactions")                                 # repeat: nothing to clear
+
+
+async def test_spike_is_over_when_students_take_it_back(shino_class, clock, monkeypatch):
+    c = shino_class
+    monkeypatch.setattr(settings, "INTERACTION_CONFUSION_SPIKE_SHARE", 0.5)     # 2 of 4
+    s1, s2, s3, _ = c.student_user_ids
+    await press(c, s1)
+    await cancel(c, s1, "confusion")
+    await press(c, s2)
+    assert await spikes() == []                                     # a press taken back doesn't add up
+    await press(c, s3)
+    assert len(await spikes()) == 1 and (await view(c))["spike_active"] is True
+    await cancel(c, s3, "confusion")
+    assert (await view(c))["spike_active"] is False
+
+
+async def test_signals_go_down_with_the_class(shino_class, clock):
+    c = shino_class
+    s1 = c.student_user_ids[0]
+    await react(c, s1, "clear")
+    await press(c, s1)
+    await end_class(c.session_id)
+    assert (await counts(c))["active_total"] == 0 and (await view(c))["active"] == 0
+    assert (await mine(c, s1))["reaction"] is None and (await mine(c, s1))["confused"] is False
+    await sessions.sweep()
+    async with AsyncSessionLocal() as db:                           # a reopened class starts clean
+        assert (await db.scalar(select(Reaction.ended_at))) is not None
+        assert (await db.scalar(select(ConfusionPress.ended_at))) is not None
+
+
+async def test_signal_access_and_closed(shino_class, clock):
+    c = shino_class
+    s1 = c.student_user_ids[0]
+    for what in ("reactions", "confusion"):
+        await cancel(c, c.lecturer_user_id, what, expect=403, role="lecturer")
+        await cancel(c, c.outsider_user_id, what, expect=403)
+        await clear_all(c, what, expect=403, uid=s1, role="student")
+        await clear_all(c, what, expect=403, uid=c.other_lecturer_user_id)
+    await mine(c, c.outsider_user_id, expect=403)
+    await mine(c, c.lecturer_user_id, role="lecturer", expect=403)
+    await react(c, s1, "clear")
+    await close_interaction(c)
+    for what in ("reactions", "confusion"):
+        await cancel(c, s1, what, expect=409)
+        await clear_all(c, what, expect=409)
+    assert (await mine(c, s1))["reaction"] == "clear"               # paused, not ended: still on
+
+
+async def test_concurrent_reactions_leave_one_on(shino_class, clock, monkeypatch):
+    c = shino_class
+    monkeypatch.setattr(settings, "INTERACTION_REACTION_COOLDOWN_SECONDS", 0)
+    s1 = c.student_user_ids[0]
+    await asyncio.gather(*(react(c, s1, k) for k in ("clear", "too_fast", "too_slow", "thumbs_up")))
+    assert (await counts(c))["active_total"] == 1
 
 
 async def test_reaction_validation_and_access(shino_class, clock):
@@ -279,11 +417,15 @@ async def test_confusion_default_cooldown_two_minutes(shino_class, clock):
     s = c.student_user_ids[0]
     assert settings.INTERACTION_CONFUSION_COOLDOWN_SECONDS == 120
     ack = (await press(c, s)).json()
-    assert ack["next_allowed_at"] == (clock.now + timedelta(minutes=2)).isoformat()
+    assert ack == {"topic": None, "created_at": clock.now.isoformat()}
     clock.advance(119)
-    assert (await press(c, s, expect=429)).headers["Retry-After"] == "1"
+    await cancel(c, s, "confusion")
+    await press(c, s)                                                # within 2 min: the same press
+    assert (await view(c))["total"] == 1
     clock.advance(1)
-    await press(c, s, "Recursion")
+    await press(c, s, "Recursion")                                   # a new one
+    body = await view(c)
+    assert body["total"] == 2 and body["active"] == 1
 
 
 async def test_confusion_cooldown_configurable(shino_class, clock, monkeypatch):
@@ -291,9 +433,11 @@ async def test_confusion_cooldown_configurable(shino_class, clock, monkeypatch):
     monkeypatch.setattr(settings, "INTERACTION_CONFUSION_COOLDOWN_SECONDS", 10)
     await press(c, c.student_user_ids[0])
     clock.advance(9)
-    await press(c, c.student_user_ids[0], expect=429)
+    await press(c, c.student_user_ids[0])
+    assert (await view(c))["total"] == 1
     clock.advance(1)
     await press(c, c.student_user_ids[0])
+    assert (await view(c))["total"] == 2
 
 
 async def test_confusion_lecturer_sees_count_timeline_and_topics_only(shino_class, clock, monkeypatch):

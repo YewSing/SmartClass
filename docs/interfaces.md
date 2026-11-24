@@ -451,8 +451,8 @@ and `m5_poll_votes` (one row per chosen option; a student's vote is replaced as 
 
 Tables `m5_quick_questions` (session, prompt ≤ 300, max_chars 1–500, status open|closed,
 created_by, created/closed times), `m5_quick_answers` (one per student per quick question, text ≤
-max_chars, replaced while open), `m5_reactions` (session, student, kind, time),
-`m5_confusion_presses` (session, student, optional topic ≤ 60, time) and `m5_confusion_spikes`
+max_chars, replaced while open), `m5_reactions` (session, student, kind, created_at, ended_at),
+`m5_confusion_presses` (session, student, optional topic ≤ 60, created_at, ended_at) and `m5_confusion_spikes`
 (session, started_at, last_at, peak_students, class_size). Student ids are stored for M7 (S34) but
 never returned.
 
@@ -465,16 +465,23 @@ never returned.
   .../quick-questions/{qid}/close` (idempotent). Student: `POST
   /interaction/{id}/quick-questions/{qid}/answer {text}` (over max_chars → 422, closed → 409).
 - Reactions: student `POST /interaction/{id}/reactions {kind: thumbs_up|clear|too_fast|too_slow}`
-  → 201 `{kind, created_at, next_allowed_at}`; one per `INTERACTION_REACTION_COOLDOWN_SECONDS` (5)
-  per student, else 429 with `Retry-After`. Lecturer `GET /lecturer/interaction/{id}/reactions` →
-  `{attendance_session_id, status, counts: {kind: n}, total}`.
-- Confusion: student `POST /interaction/{id}/confusion {topic?}` → 201 `{created_at,
-  next_allowed_at}`; one per `INTERACTION_CONFUSION_COOLDOWN_SECONDS` (120) per student, else 429
-  with `Retry-After`. Lecturer `GET /lecturer/interaction/{id}/confusion` → `{attendance_session_id,
-  status, total, recent, recent_students, class_size, window_seconds, spike_active, spikes, timeline:
+  turns it on → 201 `{kind, created_at}`; `DELETE` takes it back (204, also when nothing is on). One on
+  per student: another kind replaces it. Lecturer `GET /lecturer/interaction/{id}/reactions` →
+  `{attendance_session_id, status, active: {kind: n}, active_total, counts: {kind: n}, total}`
+  (`active` = on right now, 0 once the class isn't running; `counts`/`total` = sent this class);
+  `DELETE` lowers everyone's (204).
+- Confusion: student `POST /interaction/{id}/confusion {topic?}` turns it on → 201 `{topic,
+  created_at}`; `DELETE` takes it back (204). Lecturer `GET /lecturer/interaction/{id}/confusion` →
+  `{attendance_session_id, status, active, total, recent, recent_students, class_size, window_seconds, spike_active, spikes, timeline:
   [{start, count}], topics: [{topic, count}]}` (aggregates only, FR-515; buckets of
   `INTERACTION_CONFUSION_BUCKET_SECONDS` = 60).
-- Spike (FR-514): after each press, if the distinct students pressing in the last
+- On/off (S38g, migration `c9d0e1f2a3b5`): a row is on while `ended_at` is null (unique per session and
+  student). Turning on is never refused (no 429): within `INTERACTION_REACTION_COOLDOWN_SECONDS` (5) /
+  `INTERACTION_CONFUSION_COOLDOWN_SECONDS` (120) of the last start it continues that row, so it is one
+  signal and one `m5_events` row; later it is a new one. Everything goes down when the class ends (the
+  sweep sets `ended_at`), not on a pause. Student `GET /interaction/{id}/my-signals` →
+  `{attendance_session_id, reaction, confused, topic}` (own only).
+- Spike (FR-514): after each press, if the distinct students whose press is still on and was made in the last
   `INTERACTION_CONFUSION_WINDOW_SECONDS` (120) reach `ceil(INTERACTION_CONFUSION_SPIKE_SHARE` (0.25)
   `× active enrolled students)`, a spike starts and `confusion.spike` (urgent, subject
   `spike:{session}:{spike_id}`) goes to the class session's lecturer after commit. Presses at/above
@@ -537,7 +544,8 @@ unknown id. Client text is ignored. Hub: `app/services/interaction/live.py` (one
   | `polls`: vote | yes | only while `show_results` is on |
   | `quick_questions`: ask, close | yes | yes |
   | `quick_questions`: answer | yes | no |
-  | `reactions`, `confusion` | yes | no |
+  | `reactions`, `confusion`: on, taken back | yes | no |
+  | `signals`: the lecturer cleared reactions or confusion (beside their topic) | yes | yes |
 - `{"type":"opened"}` after the lecturer reopens; `{"type":"closed","reason":"lecturer"|"class_ended"}`
   after an early close (the socket stays open) or the class ending (sent by the sweep within
   `INTERACTION_SWEEP_SECONDS`, then the server closes the socket with 1000).
@@ -566,13 +574,16 @@ teaching lecturer (403 otherwise, unknown id 403) and work while the class runs 
   questions: [QuestionOut] (lecturer view: anonymous → author_name null, hidden flagged), polls:
   [PollOut] (drafts left out, counts always set), quick_questions: [{id, prompt, status,
   answer_count, answers: [{id, text, created_at}], created_at}], reactions: {kind: n},
-  reactions_total, confusion: {total, spikes, timeline: [{start, count}], topics: [{topic, count}]}}`.
+  reactions_total (taps), reactions_active, reaction_people: {kind: students}, reactors (students),
+  reaction_timeline: [{start, counts}] (5 min; students who had it on then), confusion: {active, people,
+  total, spikes, timeline: [{start, count}], topics: [{topic, count}]}}`.
   No student/user id anywhere; only named questions carry a name.
 - `GET /lecturer/interaction/{id}/summary.csv` → `text/csv` attachment
   `interaction_<course>_<yyyymmdd>_<id>.csv`, columns `Section, Time, Text, Author, Status, Count`.
   Sections: `Class`, `Questions asked|answered`, `Anonymous questions`, `Question` (Author is the
   name or `Anonymous`; Status `answered|unanswered[, pinned][, hidden]`; Count = upvotes), `Poll` +
-  `Poll option`, `Quick question` + `Quick answer` (no author), `Reaction`, `Confusion presses|spikes`,
+  `Poll option`, `Quick question` + `Quick answer` (no author), `Reaction` (students per kind), `Reaction timeline`,
+  `Confused students`, `Confusion presses|spikes`,
   `Confusion` (timeline bucket), `Confusion topic`. Text cells starting with `= + - @`, tab or CR get
   a leading `'`.
 - `GET /student/me/questions?attendance_session_id=&limit=50&before=` (students) → `{questions:
@@ -588,7 +599,7 @@ Read only (`app/services/interaction/history.py`); no schema change.
 - `GET /lecturer/interaction/sessions?limit=20&offset=0` (lecturers; students 403) → `{sessions:
   [{attendance_session_id, occurrence_id, course_code, course_name, class_type, class_label,
   class_date, starts_at, ends_at, class_status, status, counts: {questions, polls, quick_questions,
-  reactions, confusion}}], total, next_offset}`. Only class sessions the caller teaches (the class's
+  reactions, confusion}}], total, next_offset}` (`reactions`/`confusion` = different students, S38g). Only class sessions the caller teaches (the class's
   assigned lecturer; for a session with no timetable class, the lecturer who ran it) with at least one
   question, poll that ran (drafts don't count), quick question, reaction or confusion press. Newest
   first by `opened_at` (else `starts_at`), then id. `starts_at` = opened, else scheduled start;
@@ -613,6 +624,10 @@ S38c (student app, no API change): `LiveClass` is one page of cards in this orde
 latest poll (`live-poll`), React (`live-signals`), Ask (`live-ask`), Questions (`live-questions`: newest
 3, "See all" `live-questions-all` opens `live-questions-sheet`). "Latest" = the newest open item, else
 the newest; earlier polls and quick questions aren't listed. React and Ask are hidden after the class ends.
+S38f (look only, no API change): the student's `live-quick` and `live-poll` cards appear only once the
+lecturer has published one (`live-quick-section`/`live-poll-section` and their empty texts are gone).
+After voting, the options become result rows (`live-poll-result-N` in `live-poll-results`; counts only
+while `show_results`) with "Change vote" (`live-poll-change`) while the poll is open.
 S38d: an "Interaction" tab (`sidenav-Interaction` / bottom tab) with `InteractionSessions` (rows
 `ix-history-row`, "Load more" `ix-history-more`) → `InteractionSummary {sessionId}` (also in HomeStack,
 same screen). The summary shows one category at a time through pills `ix-pill-questions|polls|quick|

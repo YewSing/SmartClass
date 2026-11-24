@@ -22,6 +22,7 @@ from app.schemas.interaction import (
     InteractionSessionOut,
     InteractionSummaryOut,
     MyQuestionListOut,
+    MySignalsOut,
     PollCreate,
     PollListOut,
     PollOut,
@@ -346,9 +347,32 @@ async def send_reaction(
     db: AsyncSession = Depends(get_db),
     actor: User = Depends(require_role("lecturer", "student")),
 ):
-    """A student's quick reaction (429 with Retry-After during the cooldown)."""
+    """Turn a student's reaction on; another kind replaces the one that is on."""
     _, member = await sessions.authorize(db, actor, attendance_session_id)
     return await signals.react(db, member, attendance_session_id, body.kind)
+
+
+@router.delete("/interaction/{attendance_session_id}/reactions", status_code=status.HTTP_204_NO_CONTENT)
+async def cancel_reaction(
+    attendance_session_id: int,
+    db: AsyncSession = Depends(get_db),
+    actor: User = Depends(require_role("lecturer", "student")),
+):
+    """Take back the student's own reaction (nothing on: nothing happens)."""
+    _, member = await sessions.authorize(db, actor, attendance_session_id)
+    await signals.cancel_reaction(db, member, attendance_session_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/interaction/{attendance_session_id}/my-signals", response_model=MySignalsOut)
+async def my_signals(
+    attendance_session_id: int,
+    db: AsyncSession = Depends(get_db),
+    actor: User = Depends(require_role("lecturer", "student")),
+):
+    """The calling student's own reaction and confusion signal that are on now."""
+    _, member = await sessions.authorize(db, actor, attendance_session_id)
+    return await signals.my_signals(db, member, attendance_session_id)
 
 
 @router.get("/lecturer/interaction/{attendance_session_id}/reactions", response_model=ReactionCountsOut)
@@ -357,10 +381,22 @@ async def reaction_counts(
     db: AsyncSession = Depends(get_db),
     actor: User = Depends(require_role("lecturer")),
 ):
-    """Running counts per reaction kind."""
+    """How many of each reaction are on now, and how many were sent this class."""
     session, member = await sessions.authorize(db, actor, attendance_session_id)
     st = await sessions.state(db, session)
     return await signals.reaction_counts(db, member, attendance_session_id, st.status)
+
+
+@router.delete("/lecturer/interaction/{attendance_session_id}/reactions", status_code=status.HTTP_204_NO_CONTENT)
+async def clear_reactions(
+    attendance_session_id: int,
+    db: AsyncSession = Depends(get_db),
+    actor: User = Depends(require_role("lecturer")),
+):
+    """Lower every reaction that is on."""
+    _, member = await sessions.authorize(db, actor, attendance_session_id)
+    await signals.clear_reactions(db, member, attendance_session_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/interaction/{attendance_session_id}/confusion", response_model=ConfusionAck,
@@ -371,9 +407,21 @@ async def press_confusion(
     db: AsyncSession = Depends(get_db),
     actor: User = Depends(require_role("lecturer", "student")),
 ):
-    """"I don't understand", optionally with a topic (429 with Retry-After during the cooldown)."""
+    """"I don't understand", turned on, optionally with a topic."""
     _, member = await sessions.authorize(db, actor, attendance_session_id)
     return await signals.press(db, member, attendance_session_id, body.topic)
+
+
+@router.delete("/interaction/{attendance_session_id}/confusion", status_code=status.HTTP_204_NO_CONTENT)
+async def cancel_confusion(
+    attendance_session_id: int,
+    db: AsyncSession = Depends(get_db),
+    actor: User = Depends(require_role("lecturer", "student")),
+):
+    """Take back the student's own confusion signal (nothing on: nothing happens)."""
+    _, member = await sessions.authorize(db, actor, attendance_session_id)
+    await signals.cancel_press(db, member, attendance_session_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/lecturer/interaction/{attendance_session_id}/confusion", response_model=ConfusionOut)
@@ -382,10 +430,22 @@ async def confusion_view(
     db: AsyncSession = Depends(get_db),
     actor: User = Depends(require_role("lecturer")),
 ):
-    """Count, recent count, timeline and topics; never who pressed."""
+    """How many are on now, plus count, recent count, timeline and topics; never who pressed."""
     session, member = await sessions.authorize(db, actor, attendance_session_id)
     st = await sessions.state(db, session)
     return await signals.confusion_view(db, member, session, st.status)
+
+
+@router.delete("/lecturer/interaction/{attendance_session_id}/confusion", status_code=status.HTTP_204_NO_CONTENT)
+async def clear_confusion(
+    attendance_session_id: int,
+    db: AsyncSession = Depends(get_db),
+    actor: User = Depends(require_role("lecturer")),
+):
+    """Lower every confusion signal that is on."""
+    _, member = await sessions.authorize(db, actor, attendance_session_id)
+    await signals.clear_confusion(db, member, attendance_session_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 # ── the lecturer's Interaction tab (S38d) ────────────────────────────────────────

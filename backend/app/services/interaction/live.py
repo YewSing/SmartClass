@@ -11,7 +11,7 @@ Messages (all JSON):
 - `{"type":"changed","topic":<topic>}` after a commit that changed `topic`:
   `questions`, `polls`, `quick_questions` (everyone, or the lecturer only when students can't see the
   change: a draft poll, votes while results are hidden, a quick answer) and `reactions`, `confusion`
-  (lecturer only).
+  (lecturer only), `signals` (the lecturer cleared everyone's reactions or confusion).
 - `{"type":"opened"}` when the lecturer reopens the interaction.
 - `{"type":"closed","reason":"lecturer"|"class_ended"|...}` when it closes. When the class itself
   is no longer running the server then closes the socket (1000); after a lecturer's early close the
@@ -44,7 +44,8 @@ POLLS = "polls"
 QUICK_QUESTIONS = "quick_questions"
 REACTIONS = "reactions"
 CONFUSION = "confusion"
-TOPICS = (QUESTIONS, POLLS, QUICK_QUESTIONS, REACTIONS, CONFUSION)
+SIGNALS = "signals"             # the lecturer cleared reactions or confusion: students re-read their own
+TOPICS = (QUESTIONS, POLLS, QUICK_QUESTIONS, REACTIONS, CONFUSION, SIGNALS)
 LECTURER_ONLY = {REACTIONS, CONFUSION}
 
 SEND_TIMEOUT_SECONDS = 2.0      # a stuck client is dropped instead of holding up the request

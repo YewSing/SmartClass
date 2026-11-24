@@ -39,7 +39,7 @@ from app.core.database import AsyncSessionLocal, after_commit
 from app.core.deps import ensure_teaches_occurrence
 from app.core.timezone import now_myt
 from app.models.class_ import ClassOccurrence, Course, Enrollment
-from app.models.interaction import InteractionSession
+from app.models.interaction import ConfusionPress, InteractionSession, Reaction
 from app.models.session import AttendanceSession
 from app.models.user import Lecturer, Student, User
 from app.services.audit_service import write_log
@@ -296,6 +296,11 @@ async def sweep() -> list[int]:
             .returning(InteractionSession.attendance_session_id)
             .execution_options(synchronize_session=False))
         ids = [r[0] for r in result.all()]
+        if ids:     # S38g: signals go down with the class, so a class reopened in its slot starts clean
+            for model in (Reaction, ConfusionPress):
+                await db.execute(
+                    update(model).where(model.attendance_session_id.in_(ids), model.ended_at.is_(None))
+                    .values(ended_at=clock()).execution_options(synchronize_session=False))
         await db.commit()
     if ids:
         await _notify_closed(ids)

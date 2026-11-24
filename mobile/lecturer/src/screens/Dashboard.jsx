@@ -8,6 +8,7 @@ import { useFocusEffect } from '@react-navigation/native'
 import { useLecturer } from '../context/LecturerContext'
 import Badge from '../components/Badge'
 import AttendanceCounts from '../components/AttendanceCounts'
+import InteractionHomeCard from '../components/InteractionHomeCard'
 import NotificationBell from '../components/NotificationBell'
 import {
   useDashboard, SectionTitle, LoadingCard, ErrorCard, EmptyRow, PriorityNotifications, dashStyles,
@@ -54,7 +55,7 @@ function nextLabel(c) {
 
 // The latest session's numbers from GET /lecturer/dashboard (FR-202, S18). Today's classes aren't
 // listed again: the session card above shows the class running now, or the next ones.
-function LatestOverview({ data, openClass, openSummary }) {
+function LatestOverview({ data, openClass, openInteraction, refreshKey }) {
   const { attendance_overview: o } = data
   return (
     <>
@@ -75,24 +76,22 @@ function LatestOverview({ data, openClass, openSummary }) {
               <View style={styles.attendCounts}>
                 <AttendanceCounts counts={overviewCounts(o)} open={o.session_status === 'open'} testIDPrefix="dash-count" />
               </View>
-              {/* After class: what students asked, voted and pressed (Module 5, S37) */}
-              <TouchableOpacity
-                style={styles.summaryLink}
-                testID="dash-overview-summary"
-                accessibilityRole="button"
-                onPress={() => openSummary(o.session_id)}
-              >
-                <Ionicons name="chatbubbles-outline" size={14} color={C.primary} />
-                <Text style={styles.interactionText}>Interaction summary</Text>
-                <View style={{ flex: 1 }} />
-                <Ionicons name="chevron-forward" size={14} color={C.primary} />
-              </TouchableOpacity>
             </TouchableOpacity>
           ) : (
             <View style={dashStyles.card}>
               <EmptyRow text="No attendance taken yet." testID="dash-overview-empty" />
             </View>
           )}
+          {/* What that class asked, voted and pressed (Module 5) */}
+          {o ? (
+            <>
+              <SectionTitle>Interaction</SectionTitle>
+              <InteractionHomeCard
+                sessionId={o.session_id} live={o.session_status === 'open'} label={o.course_code}
+                testID="dash-overview-summary" refreshKey={refreshKey} onPress={() => openInteraction(o)}
+              />
+            </>
+          ) : null}
     </>
   )
 }
@@ -178,8 +177,10 @@ export default function Dashboard({ navigation }) {
   useFocusEffect(useCallback(() => { loadPendingFaces() }, [loadPendingFaces]))
 
   const [refreshing, setRefreshing] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)   // a pull to refresh re-reads the interaction card too
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
+    setRefreshKey(k => k + 1)
     await Promise.all([loadClasses(), loadSessions(), loadAllClasses(), loadPendingFaces(), refreshDash()])
     setRefreshing(false)
   }, [loadClasses, loadSessions, loadAllClasses, loadPendingFaces, refreshDash])
@@ -304,21 +305,6 @@ export default function Dashboard({ navigation }) {
 
         {sessionOpen && <SessionControls session={activeSession} />}
 
-        {/* The running class's questions, polls and signals (Module 5, S37) */}
-        {sessionOpen && (
-          <TouchableOpacity
-            style={styles.interactionBtn}
-            testID="home-interaction"
-            accessibilityRole="button"
-            onPress={() => navigation.navigate('LiveInteraction', { sessionId: activeSession.id })}
-          >
-            <Ionicons name="chatbubbles-outline" size={16} color={C.primary} />
-            <Text style={styles.interactionText}>Class interaction</Text>
-            <Text style={styles.interactionSub} numberOfLines={1}>Questions, polls, reactions</Text>
-            <Ionicons name="chevron-forward" size={16} color={C.primary} />
-          </TouchableOpacity>
-        )}
-
         {!sessionOpen && (
           <>
             <View style={styles.cardDivider} />
@@ -394,6 +380,16 @@ export default function Dashboard({ navigation }) {
               <Text style={styles.cardFooterText}> Tap to view full attendance</Text>
             </View>
           </TouchableOpacity>
+
+          {/* The running class's questions, polls and signals (Module 5) */}
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Interaction</Text>
+          </View>
+          <InteractionHomeCard
+            sessionId={activeSession.id} live label={activeSession.class_code}
+            testID="home-interaction" refreshKey={refreshKey}
+            onPress={() => navigation.navigate('LiveInteraction', { sessionId: activeSession.id })}
+          />
         </>
       )}
 
@@ -401,8 +397,9 @@ export default function Dashboard({ navigation }) {
       {dash.data ? (
         // While a class is live the card above has its live numbers; otherwise the latest session's
         !sessionOpen && (
-          <LatestOverview data={dash.data} openClass={openClass}
-            openSummary={(id) => navigation.navigate('InteractionSummary', { sessionId: id })} />
+          <LatestOverview data={dash.data} openClass={openClass} refreshKey={refreshKey}
+            openInteraction={(o) => navigation.navigate(
+              o.session_status === 'open' ? 'LiveInteraction' : 'InteractionSummary', { sessionId: o.session_id })} />
         )
       ) : null}
 
@@ -594,35 +591,6 @@ const styles = StyleSheet.create({
   },
   ctrlDanger: {
     backgroundColor: C.red,
-  },
-  interactionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: C.blueLt,
-  },
-  interactionText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: C.primary,
-  },
-  interactionSub: {
-    flex: 1,
-    fontSize: 12,
-    color: C.textSub,
-  },
-  summaryLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingTop: 10,
-    marginTop: 2,
-    borderTopWidth: 1,
-    borderTopColor: C.border,
   },
   ctrlOutlineText: {
     fontSize: 13,

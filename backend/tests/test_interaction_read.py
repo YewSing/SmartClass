@@ -125,7 +125,7 @@ async def test_rejected_actions_leave_no_event(shino_class, clock):
     sid = c.session_id
     s1 = c.student_user_ids[0]
     await call(c, "POST", f"/interaction/{sid}/reactions", s1, "student", {"kind": "clear"}, 201)
-    await call(c, "POST", f"/interaction/{sid}/reactions", s1, "student", {"kind": "clear"}, 429)  # cooldown
+    await call(c, "POST", f"/interaction/{sid}/reactions", s1, "student", {"kind": "clear"}, 201)  # already on
     await call(c, "POST", f"/interaction/{sid}/reactions", c.outsider_user_id, "student",
                {"kind": "clear"}, 403)
     await call(c, "POST", f"/lecturer/interaction/{sid}/close", c.lecturer_user_id, "lecturer")

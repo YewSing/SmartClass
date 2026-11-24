@@ -215,18 +215,33 @@ class ReactionIn(BaseModel):
 
 
 class ReactionAck(BaseModel):
-    """What the student gets back: their reaction and when the next one is allowed."""
+    """What the student gets back: the reaction that is now on and since when."""
     kind: ReactionKind
     created_at: datetime
-    next_allowed_at: datetime
+
+
+class MySignalsOut(BaseModel):
+    """What the calling student has on right now (their own only)."""
+    attendance_session_id: int
+    reaction: Optional[ReactionKind]
+    confused: bool
+    topic: Optional[str]
 
 
 class ReactionCountsOut(BaseModel):
-    """Running counts for the lecturer (FR-511). No identity."""
+    """Reactions for the lecturer (FR-511). No identity."""
     attendance_session_id: int
     status: Literal["open", "closed"]
-    counts: dict[str, int]                          # every kind, 0 when none
+    active: dict[str, int]                          # on right now, every kind (0 when none)
+    active_total: int
+    counts: dict[str, int]                          # sent over the whole class, every kind
     total: int
+
+
+class ReactionBucket(BaseModel):
+    """Five minutes of the after-class timeline: students who had each reaction on."""
+    start: datetime                                 # bucket start (naive MYT)
+    counts: dict[str, int]
 
 
 class ConfusionIn(BaseModel):
@@ -242,8 +257,9 @@ class ConfusionIn(BaseModel):
 
 
 class ConfusionAck(BaseModel):
+    """The student's confusion signal is on (since `created_at`)."""
+    topic: Optional[str]
     created_at: datetime
-    next_allowed_at: datetime
 
 
 class ConfusionBucket(BaseModel):
@@ -260,6 +276,7 @@ class ConfusionOut(BaseModel):
     """The lecturer's confusion view (FR-512, FR-515): aggregates only, never who pressed."""
     attendance_session_id: int
     status: Literal["open", "closed"]
+    active: int                                     # on right now (one per student)
     total: int                                      # presses this class
     recent: int                                     # presses within the spike window
     recent_students: int                            # distinct students within the window
@@ -293,6 +310,8 @@ class SummaryQuickQuestion(BaseModel):
 
 class SummaryConfusion(BaseModel):
     """Confusion aggregates only (FR-515)."""
+    active: int                                     # on right now, 0 after class
+    people: int                                     # different students who pressed at least once
     total: int
     spikes: int
     timeline: list[ConfusionBucket]
@@ -314,6 +333,10 @@ class InteractionSummaryOut(BaseModel):
     quick_questions: list[SummaryQuickQuestion]
     reactions: dict[str, int]                       # every kind, 0 when none
     reactions_total: int
+    reactions_active: dict[str, int]                # on right now, all 0 after class
+    reaction_people: dict[str, int]                 # different students who used each reaction
+    reactors: int                                   # different students who used any
+    reaction_timeline: list[ReactionBucket]         # oldest first, non-empty buckets only
     confusion: SummaryConfusion
 
 
@@ -343,8 +366,8 @@ class InteractionHistoryCounts(BaseModel):
     questions: int                                  # every question, hidden and anonymous included
     polls: int                                      # polls that ran (drafts left out, as in the summary)
     quick_questions: int
-    reactions: int
-    confusion: int                                  # "I don't understand" presses
+    reactions: int                                  # different students who reacted
+    confusion: int                                  # different students who pressed "I don't understand"
 
 
 class InteractionHistoryItem(BaseModel):

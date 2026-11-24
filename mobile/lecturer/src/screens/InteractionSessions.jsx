@@ -1,6 +1,6 @@
 // The lecturer's Interaction tab (Module 5, plan-shino.md S38d): their past and current class
-// sessions that have interaction data, newest first, like the Attendance tab. A row opens the
-// session's summary (InteractionSummary, with category pills). Data: GET /lecturer/interaction/sessions.
+// sessions that have interaction data, newest first, like the Attendance tab. A live
+// session opens its live screen (LiveInteraction), an ended one its summary (InteractionSummary). Data: GET /lecturer/interaction/sessions.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator } from 'react-native'
 import { useFocusEffect } from '@react-navigation/native'
@@ -66,7 +66,7 @@ export default function InteractionSessions({ navigation }) {
     const r = historyRow(item)
     return (
       <TouchableOpacity style={styles.row} testID="ix-history-row"
-        onPress={() => navigation.navigate('InteractionSummary', { sessionId: r.id })}>
+        onPress={() => navigation.navigate(r.live ? 'LiveInteraction' : 'InteractionSummary', { sessionId: r.id })}>
         <View style={[styles.dateBlock, { backgroundColor: r.live ? C.greenLt : C.gray100 }]}>
           <Text style={[styles.dateDay, { color: r.live ? C.green : C.gray600 }]}>{r.day}</Text>
           <Text style={[styles.dateMonth, { color: r.live ? C.greenDk : C.gray500 }]}>{r.month}</Text>

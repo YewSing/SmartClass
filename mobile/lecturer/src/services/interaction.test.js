@@ -2,10 +2,37 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   TOPICS, topicsFor, interactionState, questionBadges, askerLabel, pollBars, validatePoll, validateQuick,
-  reactionRows, timelineBars, confusionRecentLabel, summaryCsvName, connectInteractionLive, classRunning,
+  reactionRows, topReaction, timelineBars, confusionRecentLabel, summaryCsvName, connectInteractionLive, classRunning,
   openQuestions, newestUnanswered, latestPoll, latestQuick, newestAnswer, spikeLabel,
-  historyRow, mergeHistory, summaryPills, SUMMARY_PILLS,
+  historyRow, mergeHistory, summaryPills, SUMMARY_PILLS, homeCounts,
+  reactionTimelineRows, confusionNowLabel,
 } from './interaction.js'
+
+test('Home card numbers come from the summary; answered and hidden questions are not waiting', () => {
+  assert.deepEqual(homeCounts(null), { waiting: 0, questions: 0, polls: 0, answers: 0, reactions: 0, confused: 0 })
+  assert.deepEqual(homeCounts({
+    question_counts: { asked: 3 },
+    questions: [{ answered: false, hidden: false }, { answered: true, hidden: false }, { answered: false, hidden: true }],
+    polls: [{}, {}], quick_questions: [{ answer_count: 2 }, { answer_count: 1 }],
+    class_status: 'open', reactions_active: { thumbs_up: 1, clear: 3 }, reactors: 9, confusion: { active: 5, people: 8 },
+  }), { waiting: 1, questions: 3, polls: 2, answers: 3, reactions: 4, confused: 5 }, 'live: what is on now')
+  const after = homeCounts({ class_status: 'closed', reactions_active: {}, reactors: 9, confusion: { active: 0, people: 8 } })
+  assert.deepEqual([after.reactions, after.confused], [9, 8], 'after class: how many students')
+})
+
+test('reaction timeline rows leave out empty times and reactions', () => {
+  const rows = reactionTimelineRows([
+    { start: '2026-11-23T09:05:00', counts: { thumbs_up: 2, clear: 0, too_fast: 1, too_slow: 0 } },
+    { start: '2026-11-23T09:10:00', counts: { thumbs_up: 0, clear: 0, too_fast: 0, too_slow: 0 } },
+  ])
+  assert.deepEqual(rows.map(r => [r.label, r.items.map(i => `${i.kind}:${i.count}`)]), [['09:05', ['thumbs_up:2', 'too_fast:1']]])
+  assert.deepEqual(reactionTimelineRows(null), [])
+})
+
+test('confusion right now', () => {
+  assert.equal(confusionNowLabel({ active: 2, class_size: 20 }), '2 of 20 students')
+  assert.equal(confusionNowLabel(null), '')
+})
 
 // ─── Interaction tab (S38d) ──────────────────────────────────────────────────
 
@@ -24,7 +51,7 @@ test('a history row shows the date, time range and only the non-zero counts', ()
   assert.deepEqual([r.day, r.month, r.live], [16, 'Nov', false])
   assert.deepEqual(r.chips, [
     { key: 'questions', label: '3 questions' }, { key: 'polls', label: '1 poll' },
-    { key: 'reactions', label: '12 reactions' }, { key: 'confusion', label: '1 confused' },
+    { key: 'reactions', label: '12 reacted' }, { key: 'confusion', label: '1 confused' },
   ])
 })
 
@@ -49,8 +76,8 @@ test('the next page is appended without repeating a session already shown', () =
 
 test('summary pills: one per category, in order, with counts', () => {
   const pills = summaryPills({
-    question_counts: { asked: 4 }, polls: [{}, {}], quick_questions: [{}], reactions_total: 9,
-    confusion: { total: 3 },
+    question_counts: { asked: 4 }, polls: [{}, {}], quick_questions: [{}], reactors: 9,
+    confusion: { people: 3 },
   })
   assert.deepEqual(pills.map(p => p.key), SUMMARY_PILLS)
   assert.deepEqual(pills.map(p => p.count), [4, 2, 1, 9, 3])
@@ -367,4 +394,11 @@ test('spike label: running now, earlier spikes, or none', () => {
   assert.equal(spikeLabel({ spike_active: false, spikes: 3 }).text, '3 spikes earlier')
   assert.equal(spikeLabel({ spike_active: false, spikes: 0 }), null)
   assert.equal(spikeLabel(null), null)
+})
+
+test('the most-sent reaction, none before the first one', () => {
+  assert.equal(topReaction(null), null)
+  assert.equal(topReaction({ thumbs_up: 0 }), null)
+  assert.equal(topReaction({ thumbs_up: 1, too_fast: 3 }).kind, 'too_fast')
+  assert.equal(topReaction({ clear: 2, too_slow: 2 }).kind, 'clear', 'a tie: the first listed')
 })

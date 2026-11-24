@@ -138,7 +138,12 @@ async def test_summary_after_class(shino_class, clock):
     assert qq["answer_count"] == 2 and sorted(a["text"] for a in qq["answers"]) == ["@self", "loops"]
     assert s["reactions"] == {"thumbs_up": 2, "clear": 0, "too_fast": 1, "too_slow": 0}
     assert s["reactions_total"] == 3
+    # different students, and when; nothing is on after the class (S38g)
+    assert s["reaction_people"] == s["reactions"] and s["reactors"] == 3
+    assert s["reactions_active"] == {"thumbs_up": 0, "clear": 0, "too_fast": 0, "too_slow": 0}
+    assert s["reaction_timeline"] and s["reaction_timeline"][0]["counts"]["thumbs_up"] == 2
     conf = s["confusion"]
+    assert conf["active"] == 0 and conf["people"] == 3
     assert conf["total"] == 3 and sum(b["count"] for b in conf["timeline"]) == 3
     assert conf["topics"] == [{"topic": "recursion", "count": 2}]
 

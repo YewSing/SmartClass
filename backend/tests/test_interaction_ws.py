@@ -299,6 +299,17 @@ async def test_reactions_and_confusion_go_to_the_lecturer_only(shino_class):
                    {"topic": "recursion"}, 201)
         assert await lec.drain() == [changed("confusion")]
         assert await stu.drain() == []
+        # taking it back is told the same way; a lecturer's clear also tells the students (S38g)
+        await call(c, s1, "student", "DELETE", f"/interaction/{c.session_id}/reactions", expect=204)
+        assert await lec.drain() == [changed("reactions")]
+        assert await stu.drain() == []
+        await call(c, c.lecturer_user_id, "lecturer", "DELETE",
+                   f"/lecturer/interaction/{c.session_id}/confusion", expect=204)
+        assert await lec.drain() == [changed("confusion"), changed("signals")]
+        assert await stu.drain() == [changed("signals")]
+        await call(c, c.lecturer_user_id, "lecturer", "DELETE",
+                   f"/lecturer/interaction/{c.session_id}/confusion", expect=204)    # nothing left
+        assert await lec.drain() == [] and await stu.drain() == []
 
 
 async def test_rejected_writes_send_nothing(shino_class):
@@ -309,7 +320,7 @@ async def test_rejected_writes_send_nothing(shino_class):
         await call(c, s1, "student", "POST", f"/interaction/{c.session_id}/reactions", {"kind": "clear"}, 201)
         await lec.drain()
         await call(c, s1, "student", "POST", f"/interaction/{c.session_id}/reactions",
-                   {"kind": "clear"}, 429)                                          # cooldown
+                   {"kind": "clear"}, 201)                                          # already on
         await call(c, c.lecturer_user_id, "lecturer", "POST",
                    f"/interaction/{c.session_id}/questions", {"text": "?"}, 403)    # not a student
         await call(c, c.outsider_user_id, "student", "POST",

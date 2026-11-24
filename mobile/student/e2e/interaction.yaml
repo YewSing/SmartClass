@@ -129,9 +129,14 @@ appId: host.exp.exponent
     visible: "Vote sent"
     timeout: 20000
 - extendedWaitUntil:
-    visible: "Merge sort \\(your vote\\)"
+    visible: "Merge sort \\(your vote\\), 100%"
     timeout: 20000
 - assertVisible: "1 voted"
+# S38f: the result sits on the option itself; the vote can still be changed while the poll is open
+- assertVisible:
+    id: "live-poll-change"
+- assertNotVisible:
+    id: "live-poll-vote"
 - takeScreenshot: live-poll
 
 # Quick question: answer box, then "Your answer"
@@ -164,6 +169,17 @@ appId: host.exp.exponent
     id: "live-react-thumbs_up"
 - extendedWaitUntil:
     visible: "Sent: Thumbs up"
+    timeout: 20000
+# S38g: tap again to take it back, then send it once more
+- tapOn:
+    id: "live-react-thumbs_up"
+- extendedWaitUntil:
+    visible: "Reaction taken back"
+    timeout: 20000
+- tapOn:
+    id: "live-react-thumbs_up"
+- extendedWaitUntil:
+    visible: "Thumbs up, on"
     timeout: 20000
 
 # "I don't understand" with a topic; the actor then ends the class

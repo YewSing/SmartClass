@@ -195,12 +195,25 @@ test.describe('at 1280 px', () => {
     }
     await expect(visible(page.getByTestId('ix-reaction-thumbs_up'))).toHaveText('2')
     await expect(visible(page.getByTestId('ix-reaction-too_fast'))).toHaveText('1')
-    await expect(visible(page.getByTestId('ix-reactions-total'))).toHaveText('3 in total')
+    await expect(visible(page.getByTestId('ix-reactions-total'))).toHaveText('3 right now')
+    // S38g: a student takes a reaction back, another switches; the counts are what is on now
+    expect((await as(request, 1, 'DELETE', ix('/reactions'))).status()).toBe(204)
+    await expect(visible(page.getByTestId('ix-reaction-thumbs_up'))).toHaveText('1')
+    expect((await as(request, 2, 'POST', ix('/reactions'), { kind: 'clear' })).status()).toBe(201)
+    await expect(visible(page.getByTestId('ix-reaction-too_fast'))).toHaveText('0')
+    await expect(visible(page.getByTestId('ix-reaction-clear'))).toHaveText('1')
+    expect((await as(request, 1, 'POST', ix('/reactions'), { kind: 'thumbs_up' })).status()).toBe(201)
+    await expect(visible(page.getByTestId('ix-reactions-total'))).toHaveText('3 right now')
     for (const i of [0, 1]) {
       expect((await as(request, i, 'POST', ix('/confusion'), { topic: 'recursion' })).status()).toBe(201)
     }
     await expect(visible(page.getByTestId('ix-confusion-total'))).toHaveText('2')
     await expect(visible(page.getByTestId('ix-confusion-recent'))).toContainText('2 of ')
+    // Taken back, then on again at once: no lock-out
+    expect((await as(request, 1, 'DELETE', ix('/confusion'))).status()).toBe(204)
+    await expect(visible(page.getByTestId('ix-confusion-total'))).toHaveText('1')
+    expect((await as(request, 1, 'POST', ix('/confusion'), { topic: 'recursion' })).status()).toBe(201)
+    await expect(visible(page.getByTestId('ix-confusion-total'))).toHaveText('2')
     await expect(visible(page.getByTestId('ix-status'))).not.toContainText(a.name)
     await visible(page.getByTestId('ix-confusion-details')).click()
     const confusionSheet = visible(page.getByTestId('ix-confusion-sheet'))
@@ -218,6 +231,19 @@ test.describe('at 1280 px', () => {
     await expect(visible(page.getByText('Open', { exact: true }))).toBeVisible()
     await expectOnePage(page)
 
+    // ── Home shows the live numbers under attendance; the tab opens a live class's live screen (S38f) ──
+    await visible(page.getByLabel('Back')).click()
+    await expect(visible(page.getByTestId('home-interaction-questions'))).toHaveText('2')
+    await expect(visible(page.getByTestId('home-interaction-polls'))).toHaveText('1')
+    await expect(visible(page.getByTestId('home-interaction-answers'))).toHaveText('2')
+    await expect(visible(page.getByTestId('home-interaction-reactions'))).toHaveText('3')
+    await expect(visible(page.getByTestId('home-interaction-confused'))).toHaveText('2')
+    await expect(visible(page.getByTestId('home-interaction'))).not.toContainText(a.name)
+    await page.getByTestId('sidenav-Interaction').click()
+    await visible(all(page, 'ix-history-row').filter({ hasText: 'Live' })).click()
+    await expect(visible(page.getByText('Class interaction', { exact: true }))).toBeVisible()
+    await expectOnePage(page)
+
     // ── Summary and CSV (works while the class runs) ──
     await visible(page.getByTestId('ix-summary')).click()
     await expect(visible(page.getByText('Interaction summary', { exact: true }))).toBeVisible()
@@ -230,7 +256,8 @@ test.describe('at 1280 px', () => {
     await expect(summaryAnon).not.toContainText(b.name)
     // S38d: one category at a time, through the pills
     await visible(page.getByTestId('ix-pill-reactions')).click()
-    await expect(visible(page.getByTestId('ix-summary-reactions-total'))).toHaveText('3 in total')
+    await expect(visible(page.getByTestId('ix-summary-reactions-total'))).toHaveText('3 students reacted')
+    await expect(visible(page.getByTestId('ix-summary-reaction-timeline'))).toContainText('Thumbs up 2')
     await visible(page.getByTestId('ix-pill-confusion')).click()
     await expect(visible(page.getByTestId('ix-summary-confusion-total'))).toHaveText('2')
     await visible(page.getByTestId('ix-pill-polls')).click()
@@ -290,6 +317,14 @@ test.describe('at phone width', () => {
 
     expect((await as(request, 2, 'POST', ix('/confusion'), {})).status()).toBe(201)
     await expect(visible(page.getByTestId('ix-confusion-total'))).toHaveText('3')
+
+    // "Clear all" lowers everyone's; the class's history stays (S38g)
+    await visible(page.getByTestId('ix-confusion-clear')).click()
+    await expect(visible(page.getByTestId('ix-confusion-total'))).toHaveText('0')
+    await expect(all(page, 'ix-confusion-clear')).toHaveCount(0)
+    await visible(page.getByTestId('ix-reactions-clear')).click()
+    await expect(visible(page.getByTestId('ix-reactions-total'))).toHaveText('0 right now')
+    expect((await (await as(request, 2, 'GET', ix('/my-signals'))).json()).confused).toBe(false)
 
     // The class ends (M3's close, as Home's End class does): the screen turns to "ended" by itself
     const token = await page.evaluate(() => localStorage.getItem('token'))

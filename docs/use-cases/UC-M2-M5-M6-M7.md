@@ -179,16 +179,17 @@ Use case IDs follow the module: UC-2xx = Module 2, UC-5xx = Module 5, and so on.
 
 **Main Flow:**
 1. Student taps "I Don't Understand" and optionally picks a topic tag (FR-512, NFR-46).
-2. System checks the student's cooldown (default 2 minutes) and records the press (FR-512, FR-517).
-3. Lecturer's screen shows a live count and timeline, with no student names (FR-515).
+2. System turns the student's signal on and records the press; a press within the cooldown (default 2 minutes) of the last one is not counted again (FR-512, FR-517).
+3. Lecturer's screen shows how many are on right now and a timeline, with no student names (FR-515).
 4. If enough students press within the time window, the system raises a `confusion.spike` notification to the lecturer (FR-514).
 5. Lecturer slows down or explains again.
+6. Student taps again to take the signal back, or the lecturer clears everyone's (FR-512).
 
 **Alternative Flows:**
-- *Reaction:* the student sends a quick reaction (for example "too fast"), limited to one every few seconds. The lecturer sees running counts (FR-511).
+- *Reaction:* the student turns a quick reaction on (for example "too fast"); tapping it again takes it back, tapping another switches. The lecturer sees how many of each are on now and can clear them (FR-511).
 
 **Exception Flows:**
-- *Press during cooldown:* the app shows that they can press again soon; nothing is recorded.
+- *Interaction paused or class ended:* the buttons are off; every signal goes down when the class ends.
 
 ---
 

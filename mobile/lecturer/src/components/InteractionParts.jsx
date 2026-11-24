@@ -1,7 +1,8 @@
 // Building blocks of the live interaction and after-class summary screens (S37, S38b)
+import { useEffect, useState } from 'react'
 import {
   View, Text, TouchableOpacity, TouchableWithoutFeedback, StyleSheet, ActivityIndicator, Modal, ScrollView,
-  Dimensions,
+  Keyboard, KeyboardAvoidingView,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -9,20 +10,54 @@ import Badge from './Badge'
 import { pollBars, timelineBars, reactionRows, askerLabel, questionBadges } from '../services/interaction'
 import { hhmm } from '../services/attendance'
 import { useWideLayout } from '../hooks/useWideLayout'
-import { C } from '../theme'
+import { C, TONES, reactionTone } from '../interactionTheme'
+
+// A section card's title row: a solid icon tile, the title in the section's colour, `right` at the end
+export function SectionHead({ icon, title, tone = 'blue', right }) {
+  const t = TONES[tone] ?? TONES.blue
+  return (
+    <View style={s.sectionHead}>
+      <View style={[s.sectionIcon, { backgroundColor: t.solid }]}>
+        <Ionicons name={icon} size={16} color="#fff" />
+      </View>
+      <Text style={[s.sectionTitle, { color: t.dk }]}>{title}</Text>
+      {right ?? null}
+    </View>
+  )
+}
+
+// Who asked: the first letter of the name, or an eye-off mark for an anonymous question
+export function Avatar({ name }) {
+  return (
+    <View style={[s.avatar, !name && s.avatarAnon]}>
+      {name
+        ? <Text style={s.avatarText}>{name.trim().charAt(0).toUpperCase()}</Text>
+        : <Ionicons name="eye-off-outline" size={14} color={C.gray600} />}
+    </View>
+  )
+}
 
 // A pop-up for history lists and compose forms: a bottom sheet on phones, a centred dialog when wide.
-// The page behind never grows (S38b).
+// The page behind never grows (S38b). With the keyboard open the sheet shrinks into the space above it
+// and scrolls inside (S38f).
 export function IxSheet({ visible, title, onClose, children, testID }) {
   const { bottom } = useSafeAreaInsets()
   const wide = useWideLayout()
+  // The keyboard already covers the system bar, so its inset is only kept while the keyboard is closed
+  const [typing, setTyping] = useState(false)
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', () => setTyping(true))
+    const hide = Keyboard.addListener('keyboardDidHide', () => setTyping(false))
+    return () => { show.remove(); hide.remove() }
+  }, [])
   return (
-    <Modal transparent animationType={wide ? 'fade' : 'slide'} visible={visible} onRequestClose={onClose}>
-      <View style={[s.overlay, wide && s.overlayWide]}>
+    <Modal transparent statusBarTranslucent navigationBarTranslucent animationType={wide ? 'fade' : 'slide'}
+      visible={visible} onRequestClose={onClose}>
+      <KeyboardAvoidingView behavior="padding" style={[s.overlay, wide && s.overlayWide]}>
         <TouchableWithoutFeedback onPress={onClose}>
           <View style={StyleSheet.absoluteFillObject} />
         </TouchableWithoutFeedback>
-        <View style={[s.sheet, wide ? s.dialog : { paddingBottom: bottom + 12 }]} testID={testID}>
+        <View style={[s.sheet, wide ? s.dialog : { paddingBottom: typing ? 0 : bottom + 12 }]} testID={testID}>
           {!wide ? <View style={s.handle} /> : null}
           <View style={s.sheetHead}>
             <Text style={s.sheetTitle}>{title}</Text>
@@ -35,22 +70,26 @@ export function IxSheet({ visible, title, onClose, children, testID }) {
             {children}
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   )
 }
 
-// Reactions as small chips with counts (the live page's status card)
+// Reactions as emoji with counts (the live page's status card)
 export function ReactionChips({ counts, testIDPrefix = 'ix-reaction' }) {
   return (
     <View style={s.chips}>
-      {reactionRows(counts).map(r => (
-        <View key={r.kind} style={s.chip} accessibilityLabel={`${r.label}: ${r.count}`}>
-          <Ionicons name={r.icon} size={13} color={C.primary} />
-          <Text style={s.chipLabel}>{r.label}</Text>
-          <Text style={s.chipCount} testID={`${testIDPrefix}-${r.kind}`}>{r.count}</Text>
-        </View>
-      ))}
+      {reactionRows(counts).map(r => {
+        const t = TONES[reactionTone(r.kind)]
+        return (
+          <View key={r.kind} style={[s.chip, { backgroundColor: t.lt, borderColor: r.count ? t.solid : t.bd }]}
+            accessibilityLabel={`${r.label}: ${r.count}`}>
+            <Text style={s.emoji}>{r.emoji}</Text>
+            <Text style={[s.chipCount, { color: t.dk }]} testID={`${testIDPrefix}-${r.kind}`}>{r.count}</Text>
+            <Text style={[s.chipLabel, { color: t.dk }]} numberOfLines={1}>{r.label}</Text>
+          </View>
+        )
+      })}
     </View>
   )
 }
@@ -96,14 +135,21 @@ export function LoadError({ message, onRetry, testID = 'ix-error' }) {
   )
 }
 
-// Small action button: `primary` (blue), `danger` (red) or outlined
-export function Btn({ label, icon, onPress, kind = 'outline', disabled, testID, busy }) {
-  const solid = kind === 'primary' || kind === 'danger'
-  const color = solid ? '#fff' : kind === 'subtle' ? C.textSub : C.text
+// Action button: `primary` (solid), `soft` (tinted), `link` (text only) or outlined; `tone` colours the
+// first three, `wide` fills the row
+export function Btn({
+  label, icon, onPress, kind = 'outline', tone = 'blue', wide, disabled, testID, busy,
+}) {
+  const t = TONES[tone] ?? TONES.blue
+  const color = kind === 'primary' || kind === 'danger' ? '#fff'
+    : kind === 'soft' || kind === 'link' ? t.dk : kind === 'subtle' ? C.textSub : C.text
+  const look = kind === 'primary' ? { backgroundColor: t.solid }
+    : kind === 'danger' ? { backgroundColor: C.red }
+      : kind === 'soft' ? { backgroundColor: t.lt, borderWidth: 1, borderColor: t.bd }
+        : kind === 'link' ? null : s.btnOutline
   return (
     <TouchableOpacity
-      style={[s.btn, kind === 'primary' && s.btnPrimary, kind === 'danger' && s.btnDanger,
-        !solid && s.btnOutline, (disabled || busy) && s.btnDisabled]}
+      style={[s.btn, look, wide && s.btnWide, (disabled || busy) && s.btnDisabled]}
       onPress={onPress} disabled={disabled || busy} testID={testID} accessibilityRole="button"
     >
       {icon ? <Ionicons name={icon} size={14} color={color} /> : null}
@@ -168,35 +214,45 @@ export function Pills({ items, value, onChange, testIDPrefix = 'ix-pill' }) {
 // One question as the lecturer sees it; `actions` are the moderation buttons (live screen only)
 export function QuestionRow({ q, actions, testID = 'ix-question' }) {
   return (
-    <Card testID={testID} style={q.hidden && s.dimmed}>
-      <Text style={s.qText}>{q.text}</Text>
-      <View style={s.metaRow}>
-        <Text style={s.meta}>{askerLabel(q)} · {hhmm(q.created_at)}</Text>
-        <View style={s.upvotes}>
-          <Ionicons name="arrow-up" size={12} color={C.textSub} />
-          <Text style={s.meta} testID={`${testID}-upvotes`}>{q.upvotes}</Text>
+    <Card testID={testID} style={[s.qCard, q.answered && s.qAnswered, q.hidden && s.dimmed]}>
+      <View style={s.qHead}>
+        <Avatar name={q.anonymous ? null : q.author_name} />
+        <View style={s.qWho}>
+          <Text style={s.qAuthor} numberOfLines={1}>{askerLabel(q)}</Text>
+          <Text style={s.meta}>{hhmm(q.created_at)}</Text>
         </View>
         {questionBadges(q).map(b => <Badge key={b.label} variant={b.variant}>{b.label}</Badge>)}
+        <View style={s.upvotes}>
+          <Ionicons name="arrow-up" size={13} color={C.blueDk} />
+          <Text style={s.upvoteText} testID={`${testID}-upvotes`}>{q.upvotes}</Text>
+        </View>
       </View>
+      <Text style={s.qText}>{q.text}</Text>
       {actions ? <View style={s.actions}>{actions}</View> : null}
     </Card>
   )
 }
 
+// Each option with its votes and share, and a line filled to that share; the leading option is darker
 export function PollResults({ poll, testID = 'ix-poll-option' }) {
+  const bars = pollBars(poll)
+  const top = Math.max(0, ...bars.map(o => o.votes))
   return (
     <View style={s.bars}>
-      {pollBars(poll).map(o => (
-        <View key={o.id} testID={testID}>
-          <View style={s.barLabelRow}>
-            <Text style={s.barLabel} numberOfLines={2}>{o.text}</Text>
-            <Text style={s.barValue}>{o.votes} · {o.pct}%</Text>
+      {bars.map(o => {
+        const lead = top > 0 && o.votes === top
+        return (
+          <View key={o.id} testID={testID} style={[s.bar, lead && s.barLead]}>
+            <View style={s.barRow}>
+              <Text style={[s.barLabel, lead && s.barLabelLead]}>{o.text}</Text>
+              <Text style={[s.barValue, lead && s.barLabelLead]}>{o.votes} · {o.pct}%</Text>
+            </View>
+            <View style={s.barTrack} testID="ix-poll-line">
+              <View style={[s.barFill, lead && s.barFillLead, { width: `${Math.min(100, o.pct)}%` }]} />
+            </View>
           </View>
-          <View style={s.barTrack}>
-            <View style={[s.barFill, { width: `${o.pct}%` }]} />
-          </View>
-        </View>
-      ))}
+        )
+      })}
     </View>
   )
 }
@@ -204,13 +260,16 @@ export function PollResults({ poll, testID = 'ix-poll-option' }) {
 export function ReactionGrid({ counts, testIDPrefix = 'ix-reaction' }) {
   return (
     <View style={s.reactions}>
-      {reactionRows(counts).map(r => (
-        <View key={r.kind} style={s.reaction}>
-          <Ionicons name={r.icon} size={16} color={C.primary} />
-          <Text style={s.reactionLabel}>{r.label}</Text>
-          <Text style={s.reactionCount} testID={`${testIDPrefix}-${r.kind}`}>{r.count}</Text>
-        </View>
-      ))}
+      {reactionRows(counts).map(r => {
+        const t = TONES[reactionTone(r.kind)]
+        return (
+          <View key={r.kind} style={[s.reaction, { backgroundColor: t.lt, borderColor: t.bd }]}>
+            <Text style={s.emojiSm}>{r.emoji}</Text>
+            <Text style={[s.reactionLabel, { color: t.dk }]}>{r.label}</Text>
+            <Text style={[s.reactionCount, { color: t.dk }]} testID={`${testIDPrefix}-${r.kind}`}>{r.count}</Text>
+          </View>
+        )
+      })}
     </View>
   )
 }
@@ -278,21 +337,28 @@ const s = StyleSheet.create({
   overlayWide: { justifyContent: 'center', alignItems: 'center', padding: 24 },
   sheet: {
     backgroundColor: C.bg, borderTopLeftRadius: 18, borderTopRightRadius: 18, paddingHorizontal: 16,
-    paddingTop: 10, maxHeight: Dimensions.get('window').height * 0.85,
+    paddingTop: 10, maxHeight: '88%', flexShrink: 1,
   },
   dialog: { width: '100%', maxWidth: 560, borderRadius: 14, paddingTop: 16, paddingBottom: 12, maxHeight: '85%' },
   handle: { width: 40, height: 4, backgroundColor: C.gray300, borderRadius: 2, alignSelf: 'center', marginBottom: 10 },
   sheetHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
   sheetTitle: { fontSize: 16, fontWeight: '600', color: C.text },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  chip: {
-    flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderColor: C.border,
-    borderRadius: 16, paddingHorizontal: 9, paddingVertical: 4, backgroundColor: C.card,
+  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
+  sectionIcon: { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  sectionTitle: { flex: 1, fontSize: 15, fontWeight: '700' },
+  avatar: {
+    width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: C.teal,
   },
-  chipLabel: { fontSize: 12, color: C.text },
-  chipCount: { fontSize: 12, fontWeight: '600', color: C.text },
+  avatarAnon: { backgroundColor: C.gray300 },
+  avatarText: { fontSize: 13, fontWeight: '700', color: '#fff' },
+  chips: { flexDirection: 'row', gap: 8 },
+  chip: { flex: 1, alignItems: 'center', gap: 1, borderWidth: 1, borderRadius: 12, paddingHorizontal: 2, paddingVertical: 8 },
+  chipLabel: { fontSize: 11, fontWeight: '600' },
+  chipCount: { fontSize: 16, fontWeight: '800' },
+  emoji: { fontSize: 22, lineHeight: 29 },
+  emojiSm: { fontSize: 16, lineHeight: 22 },
   card: {
-    backgroundColor: C.card, borderRadius: 12, borderWidth: 1, borderColor: C.border, padding: 14, marginBottom: 10,
+    backgroundColor: C.card, borderRadius: 14, borderWidth: 1, borderColor: C.border, padding: 14, marginBottom: 12,
   },
   center: { alignItems: 'center', gap: 8 },
   dimmed: { opacity: 0.6 },
@@ -308,11 +374,10 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
     paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8,
   },
-  btnPrimary: { backgroundColor: C.primary },
-  btnDanger: { backgroundColor: C.red },
+  btnWide: { alignSelf: 'stretch', paddingVertical: 11 },
   btnOutline: { borderWidth: 1, borderColor: C.border, backgroundColor: C.card },
   btnDisabled: { opacity: 0.45 },
-  btnText: { fontSize: 13, fontWeight: '500' },
+  btnText: { fontSize: 13, fontWeight: '600' },
   toggle: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
   box: {
     width: 18, height: 18, borderRadius: 5, borderWidth: 1.5, borderColor: C.gray300,
@@ -338,24 +403,39 @@ const s = StyleSheet.create({
   pillTextOn: { color: C.primary },
   pillCount: { fontSize: 12, fontWeight: '600', color: C.textSub },
   pillCountOn: { color: C.primary },
-  qText: { fontSize: 14, color: C.text, lineHeight: 20 },
-  metaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+  qCard: { backgroundColor: C.tealLt, borderColor: C.tealBd, padding: 12 },
+  qAnswered: { backgroundColor: C.gray50, borderColor: C.border },
+  qHead: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
+  qWho: { flexGrow: 1, flexShrink: 1, minWidth: 90 },
+  qAuthor: { fontSize: 13, fontWeight: '600', color: C.text },
+  qText: { fontSize: 15, color: C.text, lineHeight: 21 },
   meta: { fontSize: 12, color: C.textSub },
-  upvotes: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  upvotes: {
+    flexDirection: 'row', alignItems: 'center', gap: 2, backgroundColor: C.blueLt, borderRadius: 20,
+    paddingHorizontal: 8, paddingVertical: 3,
+  },
+  upvoteText: { fontSize: 12, fontWeight: '700', color: C.blueDk },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 },
-  bars: { gap: 10, marginTop: 8 },
-  barLabelRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, marginBottom: 4 },
-  barLabel: { flex: 1, fontSize: 13, color: C.text },
-  barValue: { fontSize: 12, color: C.textSub },
-  barTrack: { height: 8, borderRadius: 4, backgroundColor: C.gray100, overflow: 'hidden' },
-  barFill: { height: 8, borderRadius: 4, backgroundColor: C.primary },
+  bars: { gap: 8, marginTop: 10 },
+  bar: {
+    gap: 8, borderWidth: 1, borderColor: C.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
+    backgroundColor: C.card,
+  },
+  barLead: { borderColor: C.blueBd, backgroundColor: C.blueLt },
+  barRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  barTrack: { height: 8, borderRadius: 4, backgroundColor: C.border, overflow: 'hidden' },
+  barFill: { height: 8, borderRadius: 4, backgroundColor: C.blueBd },
+  barFillLead: { backgroundColor: C.primary },
+  barLabel: { flex: 1, fontSize: 14, color: C.text },
+  barLabelLead: { fontWeight: '700', color: C.blueDk },
+  barValue: { fontSize: 13, fontWeight: '600', color: C.textSub },
   reactions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   reaction: {
     flexGrow: 1, flexBasis: '45%', flexDirection: 'row', alignItems: 'center', gap: 6,
-    borderWidth: 1, borderColor: C.border, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8,
+    borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8,
   },
-  reactionLabel: { flex: 1, fontSize: 13, color: C.text },
-  reactionCount: { fontSize: 15, fontWeight: '600', color: C.text },
+  reactionLabel: { flex: 1, fontSize: 13 },
+  reactionCount: { fontSize: 15, fontWeight: '700' },
   timeline: { flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: 84, marginTop: 8 },
   tlCol: { flex: 1, maxWidth: 28, alignItems: 'center', justifyContent: 'flex-end', gap: 2 },
   tlCount: { fontSize: 10, color: C.textSub },

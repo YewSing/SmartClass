@@ -13,7 +13,7 @@ import {
 } from '../components/InteractionParts'
 import { useLecturer } from '../context/LecturerContext'
 import * as api from '../services/api'
-import { interactionState, summaryCsvName, summaryPills } from '../services/interaction'
+import { interactionState, reactionTimelineRows, summaryCsvName, summaryPills } from '../services/interaction'
 import { C } from '../theme'
 
 function QuestionsPart({ summary }) {
@@ -66,13 +66,34 @@ function QuickPart({ summary }) {
   )
 }
 
+const students = (n) => `${n} ${n === 1 ? 'student' : 'students'}`
+
 function ReactionsPart({ summary }) {
+  const rows = reactionTimelineRows(summary.reaction_timeline)
   return (
     <View testID="ix-summary-part-reactions">
-      <Heading right={<Text style={styles.meta} testID="ix-summary-reactions-total">{summary.reactions_total} in total</Text>}>
+      <Heading right={<Text style={styles.meta} testID="ix-summary-reactions-total">{students(summary.reactors)} reacted</Text>}>
         Reactions
       </Heading>
-      <Card><ReactionGrid counts={summary.reactions} testIDPrefix="ix-summary-reaction" /></Card>
+      {/* Students, not taps: a reaction is on until it is taken back (S38g) */}
+      <Card>
+        <Text style={[styles.meta, styles.gapBelow]}>How many students used each reaction</Text>
+        <ReactionGrid counts={summary.reaction_people} testIDPrefix="ix-summary-reaction" />
+      </Card>
+      <Heading>During the class</Heading>
+      <Card testID="ix-summary-reaction-timeline">
+        {!rows.length ? <Muted>No reactions this class.</Muted> : null}
+        {rows.map((r, i) => (
+          <View key={r.start} style={[ixStyles.row, styles.timeRow, i > 0 && styles.timeBorder]}>
+            <Text style={styles.time}>{r.label}</Text>
+            <View style={[ixStyles.wrap, styles.flex1]}>
+              {r.items.map(it => (
+                <Text key={it.kind} style={styles.timeItem}>{it.emoji} {it.label} {it.count}</Text>
+              ))}
+            </View>
+          </View>
+        ))}
+      </Card>
     </View>
   )
 }
@@ -84,10 +105,11 @@ function ConfusionPart({ summary }) {
       <Heading>"I don't understand"</Heading>
       <Card testID="ix-summary-confusion">
         <Text style={ixStyles.title}>
-          <Text testID="ix-summary-confusion-total">{c.total}</Text> presses ·{' '}
+          <Text testID="ix-summary-confusion-total">{c.people}</Text> {c.people === 1 ? 'student' : 'students'} ·{' '}
           <Text testID="ix-summary-spikes">{c.spikes}</Text>{' '}
           {c.spikes === 1 ? 'spike' : 'spikes'}
         </Text>
+        <Text style={styles.meta}>When students pressed it</Text>
         <ConfusionTimeline timeline={c.timeline} testID="ix-summary-confusion-bar" />
         <TopicList topics={c.topics} testID="ix-summary-topic" />
       </Card>
@@ -178,6 +200,10 @@ const styles = StyleSheet.create({
   toolbar: { marginBottom: 12 },
   gapBelow: { marginBottom: 8 },
   meta: { fontSize: 12, color: C.textSub, marginTop: 4 },
+  timeRow: { alignItems: 'flex-start', paddingVertical: 8 },
+  timeBorder: { borderTopWidth: 1, borderTopColor: C.border },
+  time: { width: 48, fontSize: 13, fontWeight: '600', color: C.textSub },
+  timeItem: { fontSize: 13, color: C.text },
   answer: { borderTopWidth: 1, borderTopColor: C.border, paddingVertical: 8, marginTop: 4 },
   answerText: { fontSize: 13, color: C.text },
 })

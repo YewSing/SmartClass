@@ -33,6 +33,13 @@ def _count(model, *extra):
             .correlate(AttendanceSession).scalar_subquery())
 
 
+def _people(model):
+    """Different students with a row in the session."""
+    return (select(func.count(func.distinct(model.student_id)))
+            .where(model.attendance_session_id == AttendanceSession.id)
+            .correlate(AttendanceSession).scalar_subquery())
+
+
 async def list_sessions(db: AsyncSession, lecturer_user_id: int, *, limit: int = DEFAULT_LIMIT,
                         offset: int = 0) -> InteractionHistoryOut:
     limit = max(1, min(limit, MAX_LIMIT))
@@ -57,7 +64,8 @@ async def list_sessions(db: AsyncSession, lecturer_user_id: int, *, limit: int =
     total = await db.scalar(select(func.count()).select_from(base.subquery()))
 
     stmt = (select(AttendanceSession, ClassOccurrence.type, ClassOccurrence.label, Course.code, Course.name,
-                   InteractionSession, n_questions, n_polls, n_quick, n_reactions, n_confusion)
+                   InteractionSession, n_questions, n_polls, n_quick, _people(Reaction),
+                   _people(ConfusionPress))
             .outerjoin(ClassOccurrence, ClassOccurrence.id == AttendanceSession.occurrence_id)
             .outerjoin(Course, Course.id == ClassOccurrence.course_id)
             .outerjoin(InteractionSession, InteractionSession.attendance_session_id == AttendanceSession.id)

@@ -76,14 +76,37 @@ export function validateQuick({ prompt, maxChars }) {
 }
 
 export const REACTIONS = [
-  { kind: 'thumbs_up', label: 'Thumbs up', icon: 'thumbs-up-outline' },
-  { kind: 'clear', label: 'Clear', icon: 'checkmark-circle-outline' },
-  { kind: 'too_fast', label: 'Too fast', icon: 'speedometer-outline' },
-  { kind: 'too_slow', label: 'Too slow', icon: 'hourglass-outline' },
+  { kind: 'thumbs_up', label: 'Thumbs up', emoji: '👍' },
+  { kind: 'clear', label: 'Clear', emoji: '✅' },
+  { kind: 'too_fast', label: 'Too fast', emoji: '🚀' },
+  { kind: 'too_slow', label: 'Too slow', emoji: '🐢' },
 ]
 
 export function reactionRows(counts) {
   return REACTIONS.map(r => ({ ...r, count: counts?.[r.kind] ?? 0 }))
+}
+
+// The reaction sent most (null before the first one); the first listed wins a tie
+export function topReaction(counts) {
+  const best = reactionRows(counts).reduce((a, b) => (b.count > a.count ? b : a))
+  return best.count > 0 ? best : null
+}
+
+const sum = (counts) => Object.values(counts ?? {}).reduce((n, x) => n + (x ?? 0), 0)
+
+// The numbers on Home's interaction card, from the session summary (S36; works during class too).
+// Reactions and confusion are what is on now while the class runs, after it how many students (S38g).
+export function homeCounts(summary) {
+  const questions = summary?.questions ?? []
+  const live = summary?.class_status === 'open'
+  return {
+    waiting: openQuestions(questions).length,
+    questions: summary?.question_counts?.asked ?? questions.length,
+    polls: summary?.polls?.length ?? 0,
+    answers: (summary?.quick_questions ?? []).reduce((n, q) => n + (q.answer_count ?? 0), 0),
+    reactions: live ? sum(summary.reactions_active) : summary?.reactors ?? 0,
+    confused: (live ? summary.confusion?.active : summary?.confusion?.people) ?? 0,
+  }
 }
 
 // Confusion timeline as bars (heights 0–1 of the busiest minute), oldest first
@@ -96,6 +119,18 @@ export function timelineBars(timeline) {
     count: b.count ?? 0,
     height: max ? (b.count ?? 0) / max : 0,
   }))
+}
+
+// The after-class reaction timeline as rows: "10:05" and the reactions that were on then
+export function reactionTimelineRows(timeline) {
+  return (timeline ?? []).map(b => ({
+    start: b.start, label: hhmm(b.start), items: reactionRows(b.counts).filter(r => r.count > 0),
+  })).filter(r => r.items.length)
+}
+
+// "2 of 20 students"
+export function confusionNowLabel(c) {
+  return c ? `${c.active ?? 0} of ${c.class_size ?? 0} students` : ''
 }
 
 // "3 of 20 students in the last 2 min"
@@ -163,7 +198,7 @@ export function historyRow(item) {
     ['questions', c.questions, 'question', 'questions'],
     ['polls', c.polls, 'poll', 'polls'],
     ['quick', c.quick_questions, 'quick question', 'quick questions'],
-    ['reactions', c.reactions, 'reaction', 'reactions'],
+    ['reactions', c.reactions, 'reacted', 'reacted'],
     ['confusion', c.confusion, 'confused', 'confused'],
   ].filter(([, n]) => n > 0).map(([key, n, one, many]) => ({ key, label: plural(n, one, many) }))
   const type = item?.class_label || (item?.class_type ? item.class_type[0] + item.class_type.slice(1).toLowerCase() : '')
@@ -192,8 +227,8 @@ export function summaryPills(summary) {
     { key: 'questions', label: 'Questions', count: summary?.question_counts?.asked ?? 0 },
     { key: 'polls', label: 'Polls', count: summary?.polls?.length ?? 0 },
     { key: 'quick', label: 'Quick questions', count: summary?.quick_questions?.length ?? 0 },
-    { key: 'reactions', label: 'Reactions', count: summary?.reactions_total ?? 0 },
-    { key: 'confusion', label: 'Confusion', count: summary?.confusion?.total ?? 0 },
+    { key: 'reactions', label: 'Reactions', count: summary?.reactors ?? 0 },
+    { key: 'confusion', label: 'Confusion', count: summary?.confusion?.people ?? 0 },
   ]
 }
 

@@ -83,6 +83,7 @@ function InteractionStack() {
   return (
     <Stack.Navigator screenOptions={useStackOptions()}>
       <Stack.Screen name="InteractionSessions" component={InteractionSessions} />
+      <Stack.Screen name="LiveInteraction" component={LiveInteraction} />
       <Stack.Screen name="InteractionSummary" component={InteractionSummary} />
     </Stack.Navigator>
   )
