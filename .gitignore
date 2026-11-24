@@ -54,6 +54,7 @@ backend/eval/*
 .claude/logs/
 .claude/.stop-blocks
 .claude/.live-pass
+.claude/.live-pass-quiz
 .claude/.check-pass
 .claude/.loop.lock
 
