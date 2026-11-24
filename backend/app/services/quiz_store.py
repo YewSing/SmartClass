@@ -12,6 +12,7 @@ between the check and the write.
 """
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Any
 
@@ -24,7 +25,7 @@ from app.core.timezone import now_myt
 from app.models.class_ import ClassOccurrence, Course
 from app.models.quiz import TIMER_LIMITS, Quiz, QuizAttempt, QuizQuestion
 from app.models.user import Lecturer, User
-from app.schemas.quiz import QuestionOut, QuizCreate, QuizDetailOut, QuizOut, QuizUpdate
+from app.schemas.quiz import QuestionIn, QuestionOut, QuizCreate, QuizDetailOut, QuizOut, QuizUpdate
 from app.services.audit_service import write_log
 
 DEFAULTS: dict[str, Any] = {
@@ -164,13 +165,19 @@ async def detail(db: AsyncSession, quiz: Quiz) -> QuizDetailOut:
 
 # ── writes ───────────────────────────────────────────────────────────────────
 
-async def create(db: AsyncSession, actor: User, body: QuizCreate) -> QuizDetailOut:
+async def create(db: AsyncSession, actor: User, body: QuizCreate,
+                 questions: Sequence[QuestionIn] = ()) -> QuizDetailOut:
+    """A new draft, with the AI's questions when it was drafted from a prompt (S41). Questions are
+    never approved here (FR-604)."""
     await ensure_teaches_course(db, actor, body.course_id)
     values = resolve_settings(None, body.model_dump(exclude_unset=True, exclude={"course_id"}))
     now = clock()
     quiz = Quiz(course_id=body.course_id, created_by_user_id=actor.id, status="draft",
                 created_at=now, updated_at=now, **values)
     db.add(quiz)
+    await db.flush()
+    db.add_all([QuizQuestion(quiz_id=quiz.id, position=i, approved=False, created_at=now, updated_at=now,
+                             **q.model_dump()) for i, q in enumerate(questions)])
     await db.flush()
     return await detail(db, quiz)
 

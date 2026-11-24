@@ -149,6 +149,12 @@ class Settings(BaseSettings):
     # ── Module 6: quizzes (FR-606) ───────────────────────────────────────────
     QUIZ_DEFAULT_QUESTION_SECONDS: int = 30    # timer of a new quiz, per question (5-600)
     QUIZ_DEFAULT_QUIZ_SECONDS: int = 1800      # ...or for the whole quiz (60-14400)
+    # AI draft (S41, FR-601-FR-603)
+    QUIZ_DRAFT_DEFAULT_QUESTIONS: int = 10     # multiple-choice questions when the prompt gives no number
+    QUIZ_DRAFT_MAX_QUESTIONS: int = 20         # per draft
+    QUIZ_DRAFT_MAX_PASSAGES: int = 16          # course passages sent to the LLM
+    QUIZ_DRAFT_PLAN_TOKENS: int = 2000         # output budgets (thinking models reason inside them)
+    QUIZ_DRAFT_OUTPUT_TOKENS: int = 9000
 
 
 settings = Settings()

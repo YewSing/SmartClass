@@ -1,0 +1,13 @@
+{
+  "name": "draft_selected",
+  "calls": [
+    {
+      "prompt_sha256": "c43941d3e402eb4f694fc7b74509a17ce05551dc7fd75649e262a633016fc12b",
+      "raw": "{\"title\":\"Material Review Quiz\",\"type\":null,\"mcq_count\":2,\"short_count\":1,\"timer_mode\":null,\"timer_seconds\":null,\"opens_at\":null,\"closes_at\":null,\"shuffle\":null,\"only_material\":false,\"topics\":[],\"sections\":[]}"
+    },
+    {
+      "prompt_sha256": "bfe18275f39a680dd3b290eadc069c8b6b4ccfb9e400725f1f3f6db7665671b3",
+      "raw": "{\"questions\": [\n  {\n    \"type\": \"mcq\",\n    \"text\": \"What is the primary purpose of equivalence partitioning in software testing?\",\n    \"options\": [\"To test every possible input value\", \"To select representative values from groups of inputs that are expected to behave the same\", \"To measure performance under load\", \"To verify code style guidelines\"],\n    \"answer\": 1,\n    \"answer_text\": \"To select representative values from groups of inputs that are expected to behave the same\",\n    \"topic\": \"Equivalence Partitioning\",\n    \"origin\": \"from_material\",\n    \"source\": 1,\n    \"explanation\": \"Equivalence partitioning groups inputs that should be processed identically and tests one representative from each group.\"\n  },\n  {\n    \"type\": \"mcq\",\n    \"text\": \"For an age input that accepts values from 0 to 120, how many invalid equivalence classes are identified?\",\n    \"options\": [\"Three\", \"Four\", \"Two\", \"One\"],\n    \"answer\": 2,\n    \"answer_text\": \"Two\",\n    \"topic\": \"Valid/Invalid Classes\",\n    \"origin\": \"from_material\",\n    \"source\": 1,\n    \"explanation\": \"Values less than 0 and values greater than 120 form two distinct invalid classes.\"\n  },\n  {\n    \"type\": \"short\",\n    \"text\": \"Explain how equivalence partitioning reduces the number of test cases compared to exhaustive testing.\",\n    \"suggested_answer\": \"Equivalence partitioning groups inputs that are expected to be processed the same way into classes, so testing a single representative from each class reveals the same faults as testing every member, dramatically cutting the total number of required test cases.\",\n    \"topic\": \"Test Suite Size\",\n    \"origin\": \"from_material\",\n    \"source\": 1,\n    \"explanation\": \"The answer shows that EP replaces many individual tests with a few class representatives.\"\n  }\n]}"
+    }
+  ]
+}

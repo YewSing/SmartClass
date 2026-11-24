@@ -109,3 +109,67 @@ def test_kb_change_still_runs_live(repo):
     (root / "backend" / "app" / "services" / "kb" / "llm.py").write_text("x = 2\n", newline="\n")
     check(root, env)
     assert live_runs(env) == 1
+
+
+# ── S41: a quiz-only change runs only Shino's M6 live tests ───────────────────
+
+def live_commands(env):
+    lines = Path(env["FAKE_CALLS"]).read_text().splitlines()
+    return [line for line in lines if "-m pytest -m live" in line]
+
+
+@pytest.fixture
+def live_files(repo):
+    """Both suites' live tests and an M6 prompt, committed; only `quiz`/`kb` edits come after."""
+    root, env = repo
+    live = root / "backend" / "tests" / "live"
+    live.mkdir(parents=True)
+    for name in ("test_live_qa.py", "test_live_quiz_draft.py", "test_live_quiz_grading.py"):
+        (live / name).write_text("", newline="\n")
+    quiz = root / "backend" / "app" / "services" / "quiz"
+    quiz.mkdir()
+    (quiz / "draft.py").write_text("PROMPT = 'a'\n", newline="\n")
+    for cmd in (["git", "add", "-A"], ["git", "commit", "-q", "-m", "live tests"]):
+        assert run(cmd, root, env).returncode == 0
+    env["SMARTCLASS_BASE"] = run(["git", "rev-parse", "HEAD"], root, env).stdout.strip()
+    return quiz / "draft.py", root / "backend" / "app" / "services" / "kb" / "llm.py"
+
+
+def test_quiz_only_change_runs_only_the_m6_live_tests(repo, live_files):
+    root, env = repo
+    live_files[0].write_text("PROMPT = 'b'\n", newline="\n")
+    assert "M6 only" in check(root, env)
+    [command] = live_commands(env)
+    assert "tests/live/test_live_quiz_draft.py" in command and "tests/live/test_live_quiz_grading.py" in command
+    assert "test_live_qa.py" not in command
+
+
+def test_kb_change_runs_the_whole_live_suite_even_with_a_quiz_change(repo, live_files):
+    root, env = repo
+    live_files[0].write_text("PROMPT = 'b'\n", newline="\n")
+    live_files[1].write_text("x = 2\n", newline="\n")
+    assert "whole suite" in check(root, env)
+    [command] = live_commands(env)
+    assert "tests/live" not in command
+    check(root, env)
+    assert live_runs(env) == 1
+
+
+def test_an_m6_pass_does_not_count_as_a_pass_of_the_whole_suite(repo, live_files):
+    root, env = repo
+    before_kb = env["SMARTCLASS_BASE"]
+    live_files[1].write_text("x = 2\n", newline="\n")      # a kb change that arrives as a commit (a merge)
+    for cmd in (["git", "add", "-A"], ["git", "commit", "-q", "-m", "kb"]):
+        assert run(cmd, root, env).returncode == 0
+    env["SMARTCLASS_BASE"] = run(["git", "rev-parse", "HEAD"], root, env).stdout.strip()
+    live_files[0].write_text("PROMPT = 'b'\n", newline="\n")
+    check(root, env)
+    assert live_runs(env) == 1 and "test_live_quiz" in live_commands(env)[0]
+
+    env["SMARTCLASS_BASE"] = before_kb                     # same code, but kb is in the range now
+    assert "whole suite" in check(root, env)
+    assert live_runs(env) == 2
+
+    env["SMARTCLASS_BASE"] = run(["git", "rev-parse", "HEAD"], root, env).stdout.strip()
+    check(root, env)                                       # the whole suite's pass covers M6 too
+    assert live_runs(env) == 2

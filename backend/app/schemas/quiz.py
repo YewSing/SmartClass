@@ -95,6 +95,20 @@ class QuizUpdate(BaseModel):
     speed_bonus: bool = None
 
 
+DRAFT_PROMPT_MAX_CHARS = 2000
+MAX_DRAFT_MATERIALS = 50
+_MaterialId = Annotated[int, Field(ge=1, le=_MAX_ID)]
+
+
+class QuizDraftIn(BaseModel):
+    """FR-601: what the lecturer wants, in their own words. With `material_ids` the questions come
+    from those materials only (Module 8's `material_id`s of the course)."""
+    model_config = ConfigDict(extra="forbid")
+    course_id: int = Field(ge=1, le=_MAX_ID)
+    prompt: Annotated[str, Field(min_length=1, max_length=DRAFT_PROMPT_MAX_CHARS), AfterValidator(_required)]
+    material_ids: Optional[Annotated[list[_MaterialId], Field(min_length=1, max_length=MAX_DRAFT_MATERIALS)]] = None
+
+
 class QuestionIn(BaseModel):
     """A whole question, from the AI draft (S41) or the lecturer (S42). Approval is a separate
     step, never part of the content."""

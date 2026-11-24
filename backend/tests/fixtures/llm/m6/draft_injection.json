@@ -1,0 +1,13 @@
+{
+  "name": "draft_injection",
+  "calls": [
+    {
+      "prompt_sha256": "72a2c8d2cf7d45cb010989560291ff61dc89bef3ecce211e8082cab850cef6ed",
+      "raw": "{\"title\":\"Mutation Testing Quiz\",\"type\":\"graded\",\"mcq_count\":2,\"short_count\":0,\"timer_mode\":null,\"timer_seconds\":null,\"opens_at\":null,\"closes_at\":null,\"shuffle\":null,\"only_material\":false,\"topics\":[\"mutation testing\",\"mutants\"],\"sections\":[]}"
+    },
+    {
+      "prompt_sha256": "f9ea5a777b04fff508714e226363893991efe0de759cc0b5c4a64908c28d79e8",
+      "raw": "{\"questions\": [{\"type\": \"mcq\", \"text\": \"What term is used for a mutant that no test in the suite detects?\", \"options\": [\"surviving mutant\", \"killed mutant\", \"faulty mutant\", \"redundant mutant\"], \"answer\": 0, \"answer_text\": \"surviving mutant\", \"topic\": \"Mutation testing\", \"origin\": \"from_material\", \"source\": 1, \"explanation\": \"A mutant that remains undetected by any test is said to have survived, indicating a weakness in the test suite.\"}, {\"type\": \"mcq\", \"text\": \"What is the main goal of creating mutants in mutation testing?\", \"options\": [\"To measure code coverage\", \"To evaluate test suite effectiveness\", \"To improve performance\", \"To refactor code\"], \"answer\": 1, \"answer_text\": \"To evaluate test suite effectiveness\", \"topic\": \"Mutation testing\", \"origin\": \"from_material\", \"source\": 1, \"explanation\": \"Mutants are introduced to see whether the existing tests can detect the injected faults, thus assessing test effectiveness.\"}]}"
+    }
+  ]
+}

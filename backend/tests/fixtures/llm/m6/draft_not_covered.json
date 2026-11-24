@@ -1,0 +1,13 @@
+{
+  "name": "draft_not_covered",
+  "calls": [
+    {
+      "prompt_sha256": "d52fad7ed060ec2205afe71f623d2950d3780cf4a4f2aae2223e0dbc5e3f0912",
+      "raw": "{\"title\":\"Photosynthesis Quiz\",\"type\":\"graded\",\"mcq_count\":3,\"short_count\":0,\"timer_mode\":null,\"timer_seconds\":null,\"opens_at\":null,\"closes_at\":null,\"shuffle\":null,\"only_material\":true,\"topics\":[\"photosynthesis\"],\"sections\":[]}"
+    },
+    {
+      "prompt_sha256": "760fa469cfd8c372fdd07df636e98db5a02964104161e85980e9cacff69ee93a",
+      "raw": "{\"questions\": []}"
+    }
+  ]
+}

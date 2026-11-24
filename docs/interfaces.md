@@ -662,3 +662,24 @@ Tables `m6_quizzes`, `m6_questions`, `m6_attempts`, `m6_answers` (`app/models/qu
   from_material|extended, source_file, source_type page|slide|section, source_page, explanation}`;
   `from_material` needs the three source fields. `QuestionOut` adds `id, position (0-based), approved`.
 - One attempt per student and quiz, one answer per attempt and question (unique constraints).
+
+### AI draft (S41, FR-601–FR-603)
+
+`app/services/quiz/` (`draft.py`, `checks.py`, `prompts.py`). `POST /lecturer/quizzes/draft {course_id,
+prompt ≤ 2000, material_ids? (1–50)}` → 201 `QuizDetailOut`: a saved draft whose questions are all
+unapproved. Same access as above.
+
+- The LLM reads title, type (default graded), question counts (default `QUIZ_DRAFT_DEFAULT_QUESTIONS` MCQ,
+  at most `QUIZ_DRAFT_MAX_QUESTIONS`), timer, open/close time, shuffle, "only the material", topics and
+  weeks/chapters from the prompt; anything it doesn't give gets the S40 default.
+- Passages come only from `retrieval_api.search`. `material_ids` is a hard limit. A named week or chapter is
+  followed when a material's section or title matches; when none does, the whole course is used (422 when
+  "only the material" was asked for).
+- Each question has a topic, an origin, and an explanation ending with a line the server writes:
+  `(Source: <file>, slides 3-5)`, or `(Related material: ...)` for an `extended` question. `extended`
+  questions may have no source; "only the material" gives none of them. `source_page` is the passage's
+  first page or slide.
+- Errors (nothing is saved): 422 bad input, settings that don't fit, too many questions, no matching
+  material, or "only the material" that doesn't cover the request; 502 the AI's reply stays unusable after
+  one corrected try; 503 the AI can't be reached.
+- A draft takes two LLM calls (up to about a minute); no database transaction is open meanwhile.
