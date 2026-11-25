@@ -7,7 +7,7 @@
 - The scores are final. The lecturer may change a short answer's score with feedback (`change_score`); the
   AI never writes over a score that is there.
 
-Students see none of this until the results are released (S46).
+Students see none of this until the results are released (`quiz_results`).
 """
 from __future__ import annotations
 
@@ -200,17 +200,18 @@ def _out(answer: QuizAnswer, question: QuizQuestion, student: Student, name: str
         feedback=answer.feedback)
 
 
-async def _graded_quiz(db: AsyncSession, actor: User, quiz_id: int) -> Quiz:
-    quiz = await quiz_store.get_quiz(db, actor, quiz_id)
+async def graded_quiz(db: AsyncSession, actor: User, quiz_id: int, *, lock: bool = False) -> Quiz:
+    """`quiz_store.get_quiz`, 409 for a game."""
+    quiz = await quiz_store.get_quiz(db, actor, quiz_id, lock=lock)
     if quiz.type != "graded":
-        raise HTTPException(status.HTTP_409_CONFLICT, detail="Only a graded quiz's answers are scored")
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="Only a graded quiz has scores and results to release")
     return quiz
 
 
 async def list_short_answers(db: AsyncSession, actor: User, quiz_id: int,
                              state: ShortAnswerState | None = None) -> ShortAnswerListOut:
     """The short answers of submitted attempts, by question and then student."""
-    quiz = await _graded_quiz(db, actor, quiz_id)
+    quiz = await graded_quiz(db, actor, quiz_id)
     rows = (await db.execute(
         _short_answers(quiz.id).order_by(QuizQuestion.position, QuizQuestion.id, User.name, QuizAnswer.id)
         .execution_options(populate_existing=True))).all()
@@ -223,7 +224,7 @@ async def list_short_answers(db: AsyncSession, actor: User, quiz_id: int,
 async def change_score(db: AsyncSession, actor: User, quiz_id: int, answer_id: int, body: ScoreIn) -> ShortAnswerOut:
     """The lecturer's score for a short answer, graded or still pending; 404 unless it is one of the
     quiz's submitted ones. Audited with the old and the new score."""
-    quiz = await _graded_quiz(db, actor, quiz_id)
+    quiz = await graded_quiz(db, actor, quiz_id)
     row = (await db.execute(
         _short_answers(quiz.id).where(QuizAnswer.id == answer_id)
         .with_for_update(of=QuizAnswer).execution_options(populate_existing=True))).one_or_none()

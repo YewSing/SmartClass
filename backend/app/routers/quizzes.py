@@ -1,5 +1,5 @@
 """Lecturer quizzes (FR-605, FR-606) — S40; AI drafts (FR-601–FR-603) — S41; draft review (FR-604) — S42;
-publishing (FR-606) — S43; short-answer scores (FR-616, FR-617) — S45.
+publishing (FR-606) — S43; short-answer scores (FR-616, FR-617) — S45; results (FR-618, FR-619) — S46.
 
 Lecturers who teach a class of the course only (403 for everyone else and for unknown ids).
 """
@@ -24,13 +24,16 @@ from app.schemas.quiz import (
     QuizDraftIn,
     QuizListOut,
     QuizRefineIn,
+    QuizReleaseIn,
+    QuizReleaseOut,
+    QuizResultsOut,
     QuizUpdate,
     ScoreIn,
     ShortAnswerListOut,
     ShortAnswerOut,
     ShortAnswerState,
 )
-from app.services import quiz_grading, quiz_publish, quiz_questions, quiz_store
+from app.services import quiz_grading, quiz_publish, quiz_questions, quiz_release, quiz_results, quiz_store
 from app.services.kb.llm import LLMMalformedOutput, LLMUnavailable
 from app.services.quiz import draft, refine
 
@@ -193,3 +196,19 @@ async def change_short_answer_score(quiz_id: int, answer_id: int, body: ScoreIn,
                                     actor: User = Depends(_lecturer)):
     """Change a short answer's score, with feedback. The score stands: the AI doesn't grade it again."""
     return await quiz_grading.change_score(db, actor, quiz_id, answer_id, body)
+
+
+# ── results (FR-618, FR-619) — S46. Graded quizzes only (409) ────────────────
+
+@router.get("/{quiz_id}/results", response_model=QuizResultsOut)
+async def read_results(quiz_id: int, db: AsyncSession = Depends(get_db), actor: User = Depends(_lecturer)):
+    """Submissions, score distribution, average, and per question how the class did."""
+    return await quiz_results.lecturer_results(db, actor, quiz_id)
+
+
+@router.put("/{quiz_id}/release", response_model=QuizReleaseOut)
+async def release_results(quiz_id: int, body: QuizReleaseIn, db: AsyncSession = Depends(get_db),
+                          actor: User = Depends(_lecturer)):
+    """Choose what students see: marks, answers, both or neither. 409 for a draft, and while the quiz can
+    still be taken (except neither)."""
+    return await quiz_release.set_release(db, actor, quiz_id, body)

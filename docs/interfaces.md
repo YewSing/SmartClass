@@ -784,6 +784,35 @@ and unknown ids); a game is 409; all but the first are 404 before the start. Eve
 - **Release:** `m6_quizzes.released_at`. `quiz_release.release(db, quiz, now)` (quiz locked) is the only way: it sets it
   once and, after the commit, sends `quiz.graded` to the active enrolled students who took the quiz. A loop
   (`QUIZ_RELEASE_SECONDS`) calls it for `release: on_close` quizzes once they are closed (by hand or by `closes_at`) and
-  nothing is pending. Unpublishing clears it. Releasing by hand, and what students see, come with S46; until then no
-  student endpoint carries scores, reasons or feedback. `reason` and `feedback` can give the answer away, so they
-  belong to the released **answers**, not the marks.
+  nothing is pending. Unpublishing clears it. Releasing by hand and what students see: below.
+
+### Results (S46, FR-618, FR-619)
+
+`app/services/quiz_release.py` (`set_release`, `released_parts`), `app/services/quiz_results.py`. Graded quizzes only
+(409 for a game). Every question is worth one mark.
+
+- `PUT /lecturer/quizzes/{id}/release {marks, answers}` (both required) → `QuizReleaseOut`: `{release, marks_released,
+  answers_released, released_at, can_release}`. What students see from now on; it can be changed at any time, and the
+  same choice again changes nothing. 409 for a draft, and while the quiz can still be taken (`can_release` false), except
+  for neither. Neither takes the results back and sets `release` to manual, so it also stops a release on closing.
+  `quiz.graded` goes out when results come out, not when a part is added. Audited `QUIZ_RELEASE` (target `m6_quiz`).
+  `release_marks`/`release_answers` are the chosen parts; they are out only while `released_at` is set (`QuizOut` has it
+  now): use `released_parts(quiz)`.
+- `GET /student/me/quizzes/{id}/result` → `StudentResultOut`, own result only; 403 not enrolled, 404 not taken. `{quiz_id,
+  title, course_code, status, submitted_at, auto_submitted, released_at, marks_released, answers_released, marks,
+  questions}`; a part that isn't released is null (200, not an error).
+  - `marks`: `{score, max_score, percent, pending_count}`; not complete while `pending_count` > 0.
+  - `questions` (answers released): `{id, number, type, text, options: [{index, text}], option_index, answer_text,
+    correct_option_index, suggested_answer, explanation, pending, score, correct, reason, feedback}` in the attempt's
+    own order. The last five need marks **and** answers released (null otherwise): each gives the other part away.
+- `GET /lecturer/quizzes/{id}/results` → `QuizResultsOut`: `QuizReleaseOut` + `{quiz_id, title, status, question_count,
+  enrolled_count, not_started_count, in_progress_count, submitted_count, graded_count, pending_answer_count,
+  average_score, average_percent, highest_score, lowest_score, distribution: [{from_percent, to_percent, count}] (10
+  bands), questions, most_missed: [question id], submissions}`. Works at any time, also while the quiz is open.
+  - The averages and the distribution are of the `graded_count` submissions without a pending answer.
+  - `questions`: `{id, number, type, text, topic, correct_count, incorrect_count, unanswered_count, pending_count,
+    correct_rate, average_score, option_counts}`; the rates (0–1) are of all submissions but the pending ones, so an
+    unanswered question counts as not correct.
+  - `most_missed`: lowest correct rate first, at most `QUIZ_MOST_MISSED`, never one everybody got right.
+  - `submissions` by name: `{student_id, student_name, matric_no, status, started_at, submitted_at, auto_submitted,
+    marks}` (`marks` null while in progress). A student who left the course since still counts.

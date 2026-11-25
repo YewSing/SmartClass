@@ -110,7 +110,7 @@ Run the loop with `/shino-run-plan [rounds]` (or `bash scripts/shino/run-tasks.s
   Done when: one graded attempt per student; answers autosave; whole-quiz or per-question timers are enforced on the server (late answers rejected, expired attempts auto-submitted on next touch and by a background sweep); resuming after a disconnect never extends time; shuffle is stable per attempt. Tests with the clock monkeypatched, including concurrent submits.
 - [x] **S45 [API] Grading (FR-616, FR-617).** Depends on: S44.
   Done when: MCQ graded on submit; short answers graded by the LLM against the suggested answer with score, reason and confidence (validated JSON, fixtures + live cases); low-confidence scores are flagged; the lecturer can change a short-answer score with feedback, audited with old/new score; `quiz.graded` sent when results are released. Tests.
-- [ ] **S46 [API] Results release and lecturer results (FR-618, FR-619).** Depends on: S45.
+- [~] **S46 [API] Results release and lecturer results (FR-618, FR-619).** Depends on: S45.
   Done when: the lecturer releases marks, answers, both or neither; students see only released parts; lecturer results show submissions, score distribution, average, per-question correct rate and most-missed questions. Tests including hidden parts never leaking.
 - [ ] **S47 [API] Read interfaces for M7 and M8 (FR-609, FR-620, FR-621).** Depends on: S46.
   Done when: `app/services/quiz_read.py` provides `has_active_graded_attempt(student_id, course_id)`, per-student answers with topic/source/quiz type, graded scores with dates and game participation by topic; documented in `docs/interfaces.md`; a line added to `docs/requests-for-shino.md` telling Yew Sing FR-820–FR-824 can now use it. Tests.

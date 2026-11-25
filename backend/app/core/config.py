@@ -166,6 +166,7 @@ class Settings(BaseSettings):
     QUIZ_GRADE_OUTPUT_TOKENS: int = 3000
     QUIZ_GRADE_CONFIDENT: float = 0.7          # a score the AI is less sure of is flagged for the lecturer
     QUIZ_RELEASE_SECONDS: float = 5.0          # looks for quizzes whose results come out by themselves; <= 0 = off
+    QUIZ_MOST_MISSED: int = 5                  # questions in the lecturer's most-missed list (S46, FR-619)
 
 
 settings = Settings()

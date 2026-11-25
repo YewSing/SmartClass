@@ -140,8 +140,8 @@ async def _out(db: AsyncSession, quizzes: list[Quiz]) -> list[QuizOut]:
         course = courses[q.course_id]
         out.append(QuizOut(
             id=q.id, course_id=q.course_id, course_code=course.code, course_name=course.name, status=q.status,
-            question_count=total, approved_count=approved, published_at=q.published_at, created_at=q.created_at,
-            updated_at=q.updated_at,
+            question_count=total, approved_count=approved, published_at=q.published_at, released_at=q.released_at,
+            created_at=q.created_at, updated_at=q.updated_at,
             **{name: getattr(q, name) for name in SETTINGS}))
     return out
 

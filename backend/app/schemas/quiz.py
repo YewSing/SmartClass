@@ -1,5 +1,5 @@
 """Quiz settings and questions (FR-603–FR-606) — S40; draft review (FR-604) — S42; short-answer
-scores (FR-616, FR-617) — S45."""
+scores (FR-616, FR-617) — S45; results (FR-618, FR-619) — S46."""
 from datetime import datetime
 from typing import Annotated, Literal, Optional
 
@@ -227,6 +227,7 @@ class QuizOut(BaseModel):
     question_count: int
     approved_count: int
     published_at: Optional[datetime]
+    released_at: Optional[datetime]                 # results out since; null = not out
     created_at: datetime
     updated_at: datetime
 
@@ -360,3 +361,120 @@ class ShortAnswerListOut(BaseModel):
     pending_count: int
     flagged_count: int
     answers: list[ShortAnswerOut]
+
+
+# ── results (FR-618, FR-619) — S46 ───────────────────────────────────────────
+
+class QuizReleaseIn(BaseModel):
+    """What students see from now on. Both false takes the results back."""
+    model_config = ConfigDict(extra="forbid")
+    marks: StrictBool
+    answers: StrictBool
+
+
+class QuizReleaseOut(BaseModel):
+    release: Release
+    marks_released: bool
+    answers_released: bool
+    released_at: Optional[datetime]
+    can_release: bool                               # the quiz is closed
+
+
+class MarksOut(BaseModel):
+    score: float                                    # of the answers graded so far
+    max_score: int                                  # one mark per question
+    percent: float                                  # 0 to 100
+    pending_count: int                              # answers still to be graded; 0 = the marks are complete
+
+
+class StudentResultQuestionOut(BaseModel):
+    """One question of a student's result, once the answers are released. The last five are null unless
+    the marks are released too: each of them gives the mark away."""
+    id: int
+    number: int                                     # 1-based; questions and options in the attempt's order
+    type: Literal["mcq", "short"]
+    text: str
+    options: Optional[list[AttemptOptionOut]]
+    option_index: Optional[int]                     # the student's own answer
+    answer_text: Optional[str]
+    correct_option_index: Optional[int]
+    suggested_answer: Optional[str]
+    explanation: Optional[str]
+    pending: Optional[bool]
+    score: Optional[float]                          # 0 to 1; null while pending
+    correct: Optional[bool]
+    reason: Optional[str]                           # the AI's
+    feedback: Optional[str]                         # the lecturer's
+
+
+class StudentResultOut(BaseModel):
+    """The student's own result. `marks` and `questions` are null until that part is released (FR-618)."""
+    quiz_id: int
+    title: str
+    course_code: str
+    status: Literal["in_progress", "submitted"]
+    submitted_at: Optional[datetime]
+    auto_submitted: bool
+    released_at: Optional[datetime]
+    marks_released: bool
+    answers_released: bool
+    marks: Optional[MarksOut]
+    questions: Optional[list[StudentResultQuestionOut]]
+
+
+class ScoreBandOut(BaseModel):
+    """Submissions with `from_percent` <= percent < `to_percent` (the last band includes 100)."""
+    from_percent: int
+    to_percent: int
+    count: int
+
+
+class QuestionResultOut(BaseModel):
+    """How the submitted attempts did on one question."""
+    id: int
+    number: int                                     # 1-based, in the quiz's order
+    type: Literal["mcq", "short"]
+    text: str
+    topic: Optional[str]
+    correct_count: int
+    incorrect_count: int                            # answered, but wrong
+    unanswered_count: int
+    pending_count: int
+    correct_rate: Optional[float]                   # 0 to 1, of all but the pending ones; null = none
+    average_score: Optional[float]                  # 0 to 1, likewise
+    option_counts: Optional[list[int]]              # multiple choice: how many chose each option
+
+
+class SubmissionOut(BaseModel):
+    """Lecturer view of one student's attempt, never for a student (FR-605)."""
+    student_id: int
+    student_name: str
+    matric_no: str
+    status: Literal["in_progress", "submitted"]
+    started_at: datetime
+    submitted_at: Optional[datetime]
+    auto_submitted: bool
+    marks: Optional[MarksOut]                       # null while in progress
+
+
+class QuizResultsOut(QuizReleaseOut):
+    """The average, highest, lowest and distribution are of the `graded_count` submissions without a
+    pending answer (null or zero without any)."""
+    quiz_id: int
+    title: str
+    status: QuizStatus
+    question_count: int
+    enrolled_count: int
+    not_started_count: int
+    in_progress_count: int
+    submitted_count: int
+    graded_count: int
+    pending_answer_count: int
+    average_score: Optional[float]
+    average_percent: Optional[float]
+    highest_score: Optional[float]
+    lowest_score: Optional[float]
+    distribution: list[ScoreBandOut]
+    questions: list[QuestionResultOut]
+    most_missed: list[int]                          # question ids, the lowest correct rate first
+    submissions: list[SubmissionOut]                # by name

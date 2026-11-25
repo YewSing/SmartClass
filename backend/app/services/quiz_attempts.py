@@ -94,7 +94,7 @@ async def _apply(db: AsyncSession, attempt: QuizAttempt, change: Callable[[], No
         await quiz_grading.on_submit(db, [attempt.id])
 
 
-async def _touch(db: AsyncSession, actor: User, quiz_id: int) -> tuple[Quiz, QuizAttempt, datetime]:
+async def touch(db: AsyncSession, actor: User, quiz_id: int) -> tuple[Quiz, QuizAttempt, datetime]:
     """The caller's attempt, locked and brought up to now (404 when not started). The quiz needs no lock:
     closing it submits its attempts, which waits for this lock or is seen here."""
     quiz, student_id = await _quiz(db, actor, quiz_id)
@@ -210,7 +210,7 @@ async def start(db: AsyncSession, actor: User, quiz_id: int) -> tuple[AttemptOut
 # ── taking it ────────────────────────────────────────────────────────────────
 
 async def read(db: AsyncSession, actor: User, quiz_id: int) -> AttemptOut:
-    quiz, attempt, now = await _touch(db, actor, quiz_id)
+    quiz, attempt, now = await touch(db, actor, quiz_id)
     return await _out(db, quiz, attempt, now)
 
 
@@ -228,7 +228,7 @@ def _checked(question: QuizQuestion, body: AnswerIn) -> tuple[int | None, str | 
 async def save_answer(db: AsyncSession, actor: User, quiz_id: int, question_id: int, body: AnswerIn) -> AttemptOut:
     """Save (or clear) one answer; 409 once the time of the attempt or of the question is up, or before
     the question's turn. Saving the same answer again changes nothing (NFR-54)."""
-    quiz, attempt, now = await _touch(db, actor, quiz_id)
+    quiz, attempt, now = await touch(db, actor, quiz_id)
     await _refuse_if_over(db, attempt)
     place = _place(attempt, question_id)
     if quiz.timer_mode == "question" and place != attempt.current_index:
@@ -253,7 +253,7 @@ async def save_answer(db: AsyncSession, actor: User, quiz_id: int, question_id: 
 async def next_question(db: AsyncSession, actor: User, quiz_id: int, question_id: int) -> AttemptOut:
     """With a timer per question: lock the current question's answer and go on (after the last one, the
     attempt is submitted). Asking again for a question already passed changes nothing."""
-    quiz, attempt, now = await _touch(db, actor, quiz_id)
+    quiz, attempt, now = await touch(db, actor, quiz_id)
     if quiz.timer_mode != "question":
         raise _conflict("This quiz has one time limit for all its questions")
     place = _place(attempt, question_id)
@@ -267,6 +267,6 @@ async def next_question(db: AsyncSession, actor: User, quiz_id: int, question_id
 
 async def submit(db: AsyncSession, actor: User, quiz_id: int) -> AttemptOut:
     """Submit the attempt as it is. Submitting again changes nothing (NFR-54)."""
-    quiz, attempt, now = await _touch(db, actor, quiz_id)
+    quiz, attempt, now = await touch(db, actor, quiz_id)
     await _apply(db, attempt, lambda: quiz_timer.submit(attempt, now, auto=False))
     return await _out(db, quiz, attempt, now)

@@ -1,5 +1,5 @@
-"""A student's quizzes (FR-607) — S43; graded attempts (FR-607, FR-608) — S44. Own data of enrolled
-courses only (NFR-04)."""
+"""A student's quizzes (FR-607) — S43; graded attempts (FR-607, FR-608) — S44; results (FR-618) — S46.
+Own data of enrolled courses only (NFR-04)."""
 from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,8 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import require_role
 from app.models.user import Student, User
-from app.schemas.quiz import AnswerIn, AttemptOut, NextQuestionIn, QuizCardListOut
-from app.services import quiz_attempts, quiz_cards
+from app.schemas.quiz import AnswerIn, AttemptOut, NextQuestionIn, QuizCardListOut, StudentResultOut
+from app.services import quiz_attempts, quiz_cards, quiz_results
 
 router = APIRouter(prefix="/student/me/quizzes", tags=["quizzes"])
 
@@ -60,3 +60,11 @@ async def next_question(quiz_id: int, body: NextQuestionIn, db: AsyncSession = D
 async def submit_attempt(quiz_id: int, db: AsyncSession = Depends(get_db), actor: User = Depends(_student)):
     """Submit the attempt (repeating it changes nothing)."""
     return await quiz_attempts.submit(db, actor, quiz_id)
+
+
+# ── the result (FR-618) — S46 ────────────────────────────────────────────────
+
+@router.get("/{quiz_id}/result", response_model=StudentResultOut)
+async def my_result(quiz_id: int, db: AsyncSession = Depends(get_db), actor: User = Depends(_student)):
+    """The student's own result: only the parts the lecturer has released (404 when not taken)."""
+    return await quiz_results.student_result(db, actor, quiz_id)
