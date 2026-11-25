@@ -76,6 +76,7 @@ class Quiz(Base):
     release_answers: Mapped[bool] = mapped_column(nullable=False, default=True)
     speed_bonus: Mapped[bool] = mapped_column(nullable=False, default=True)
     ai_scope: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB(none_as_null=True))
+    published_at: Mapped[Optional[datetime]] = mapped_column()          # naive MYT; null in a draft (S43)
     created_at: Mapped[datetime] = mapped_column(nullable=False)        # naive MYT
     updated_at: Mapped[datetime] = mapped_column(nullable=False)        # naive MYT
 

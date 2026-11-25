@@ -300,3 +300,10 @@ Tests: lecturer unit 95/95; Playwright dashboard, live-session, desktop pass. NO
 - Interface/schema changes: migration `e1f2a3b4c5d7` (`m6_quizzes.ai_scope`; applied on the test DB, downgrade not run; dev DB not upgraded: `alembic upgrade head`); `docs/interfaces.md` "Draft review".
 - Tests: `test_quiz_questions.py` + `test_quiz_refine.py` 120, live +6 with fixtures; check.sh passes on the second run (pytest 1375, live M6 11/11; the first had 1375 and live 10/11: the provider's 429, 8000 tokens a minute, on an S41 case; the first recording run lost one S42 case the same way, passed on a re-run). Reviewer PASS, by reading only (no tests run, the DB was in use).
 - Next: the M6 live suite now sits near that limit; a lower `LLM_RPM` would pace it (not tried). S43: publishing must lock the quiz row (`quiz_store.editable`/`get_quiz(lock=True)`).
+
+### S43 — Publish and student quiz cards — 2026-11-25
+- Changed: `services/quiz_publish.py` (publish, unpublish, close, `window`, `published_questions`), `services/quiz_cards.py`, `routers/student_quizzes.py` (`GET /student/me/quizzes`), three POST routes under `/lecturer/quizzes/{id}`.
+- Decisions: unapproved questions stay stored but aren't in the published quiz; unpublish (also from closed) only without attempts, else 409; a past `closes_at` is 422; a card whose attempt can still be continued is `open` with `attempt_status: in_progress`; a later opening time is named in the notification; republishing within 24 h doesn't notify again (FR-216 window).
+- Interface/schema changes: migration `f2a3b4c5d6e8` (`m6_quizzes.published_at`; applied on the test DB, downgrade not run; dev DB not upgraded: `alembic upgrade head`); `docs/interfaces.md` "Publishing and student cards".
+- Tests: `test_quiz_publish.py` 45; check.sh passes (pytest 1420). Reviewer PASS, by reading only (its shell was denied: no git diff, no tests run).
+- Next: S44 must lock the quiz row when an attempt starts, use `quiz_publish.window` (not `status` alone) and `published_questions`, and end in-progress attempts when the quiz is closed by hand. `/quizzes/{id}` links open nothing in the student app until S51.

@@ -7,7 +7,7 @@ Access (NFR-04): a quiz belongs to a course, so every lecturer assigned to a cla
 may work on it. Everyone else, and an unknown quiz or course id, gets 403 (ids can't be probed).
 
 Only a draft without attempts can be changed or deleted (409). Both lock the quiz row first; code
-that publishes a quiz (S43) or starts an attempt (S44) must lock it too, so neither can slip in
+that publishes a quiz (`quiz_publish`) or starts an attempt (S44) must lock it too, so neither can slip in
 between the check and the write.
 """
 from __future__ import annotations
@@ -140,7 +140,8 @@ async def _out(db: AsyncSession, quizzes: list[Quiz]) -> list[QuizOut]:
         course = courses[q.course_id]
         out.append(QuizOut(
             id=q.id, course_id=q.course_id, course_code=course.code, course_name=course.name, status=q.status,
-            question_count=total, approved_count=approved, created_at=q.created_at, updated_at=q.updated_at,
+            question_count=total, approved_count=approved, published_at=q.published_at, created_at=q.created_at,
+            updated_at=q.updated_at,
             **{name: getattr(q, name) for name in SETTINGS}))
     return out
 

@@ -1,4 +1,5 @@
-"""Lecturer quizzes (FR-605, FR-606) — S40; AI drafts (FR-601–FR-603) — S41; draft review (FR-604) — S42.
+"""Lecturer quizzes (FR-605, FR-606) — S40; AI drafts (FR-601–FR-603) — S41; draft review (FR-604) — S42;
+publishing (FR-606) — S43.
 
 Lecturers who teach a class of the course only (403 for everyone else and for unknown ids).
 """
@@ -25,7 +26,7 @@ from app.schemas.quiz import (
     QuizRefineIn,
     QuizUpdate,
 )
-from app.services import quiz_questions, quiz_store
+from app.services import quiz_publish, quiz_questions, quiz_store
 from app.services.kb.llm import LLMMalformedOutput, LLMUnavailable
 from app.services.quiz import draft, refine
 
@@ -94,6 +95,27 @@ async def delete_quiz(quiz_id: int, db: AsyncSession = Depends(get_db), actor: U
     """Delete a draft and its questions (409 once published, closed or attempted)."""
     await quiz_store.delete(db, actor, quiz_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# ── publishing (FR-606) — S43 ────────────────────────────────────────────────
+
+@router.post("/{quiz_id}/publish", response_model=QuizDetailOut)
+async def publish_quiz(quiz_id: int, db: AsyncSession = Depends(get_db), actor: User = Depends(_lecturer)):
+    """Publish a draft (409 otherwise) with its approved questions and notify the course's students.
+    422 when no question is approved or the closing time has passed."""
+    return await quiz_publish.publish(db, actor, quiz_id)
+
+
+@router.post("/{quiz_id}/unpublish", response_model=QuizDetailOut)
+async def unpublish_quiz(quiz_id: int, db: AsyncSession = Depends(get_db), actor: User = Depends(_lecturer)):
+    """Turn a published or closed quiz back into a draft (409 for a draft, or once it has attempts)."""
+    return await quiz_publish.unpublish(db, actor, quiz_id)
+
+
+@router.post("/{quiz_id}/close", response_model=QuizDetailOut)
+async def close_quiz(quiz_id: int, db: AsyncSession = Depends(get_db), actor: User = Depends(_lecturer)):
+    """Close a published quiz now (409 otherwise)."""
+    return await quiz_publish.close(db, actor, quiz_id)
 
 
 # ── draft review (FR-604) — S42. Drafts without attempts only (409) ──────────

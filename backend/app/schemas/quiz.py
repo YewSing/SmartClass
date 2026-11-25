@@ -223,6 +223,7 @@ class QuizOut(BaseModel):
     speed_bonus: bool
     question_count: int
     approved_count: int
+    published_at: Optional[datetime]
     created_at: datetime
     updated_at: datetime
 
@@ -233,3 +234,30 @@ class QuizDetailOut(QuizOut):
 
 class QuizListOut(BaseModel):
     quizzes: list[QuizOut]
+
+
+QuizCardState = Literal["upcoming", "open", "attempted", "closed"]
+
+
+class QuizCardOut(BaseModel):
+    """Student view of a published quiz (FR-607). Nothing of its questions may be added here: no
+    texts, options, answers or marks (NFR-41)."""
+    id: int
+    course_id: int
+    course_code: str
+    course_name: str
+    title: str
+    type: QuizType
+    state: QuizCardState
+    timer_mode: TimerMode
+    timer_seconds: int
+    question_count: int                             # the published (approved) ones
+    opens_at: Optional[datetime]
+    closes_at: Optional[datetime]
+    published_at: Optional[datetime]
+    attempt_status: Optional[Literal["in_progress", "submitted"]]   # the student's own; null = none
+    submitted_at: Optional[datetime]
+
+
+class QuizCardListOut(BaseModel):
+    quizzes: list[QuizCardOut]

@@ -646,7 +646,7 @@ Tables `m6_quizzes`, `m6_questions`, `m6_attempts`, `m6_answers` (`app/models/qu
   one and PATCH return `QuizDetailOut` = `QuizOut` + `questions` (with answers: lecturers only, NFR-41).
 - `QuizOut`: `{id, course_id, course_code, course_name, title, type, status, timer_mode, timer_seconds,
   opens_at, closes_at, shuffle, release, release_marks, release_answers, speed_bonus, question_count,
-  approved_count, created_at, updated_at}`. `type` game|graded; `status` draft|published|closed.
+  approved_count, published_at, created_at, updated_at}`. `type` game|graded; `status` draft|published|closed.
 - **Settings:** title ≤ 200; `timer_mode` question (5–600 s) | quiz (60–14400 s), defaults
   `QUIZ_DEFAULT_QUESTION_SECONDS` / `QUIZ_DEFAULT_QUIZ_SECONDS`; a game is always `question`, and a
   whole-quiz time sent with it is replaced by the per-question time it had (or the default);
@@ -707,3 +707,23 @@ By hand: `app/services/quiz_questions.py`; with the AI: `app/services/quiz/refin
   the quiz. Quizzes made by hand have none.
 - AI errors as for a draft (422/502/503, nothing saved), plus 409 when the question (regenerate) or any
   question (refine) was changed while the AI worked. No lock or transaction is held meanwhile.
+
+### Publishing and student cards (S43, FR-606, FR-607)
+
+`app/services/quiz_publish.py`, `app/services/quiz_cards.py`.
+
+- `POST /lecturer/quizzes/{id}/publish | unpublish | close` → 200 `QuizDetailOut`; same access as above,
+  audited `QUIZ_PUBLISH | QUIZ_UNPUBLISH | QUIZ_CLOSE`. All lock the quiz row.
+  - publish: draft only (409); 422 without an approved question or with a `closes_at` that has passed. Sets
+    `published_at`. `quiz.published` goes to the active students enrolled in any class of the course after the
+    commit (naming the opening time when it is later). Publishing again within 24 h doesn't notify twice.
+  - unpublish: published or closed → draft; 409 for a draft or once the quiz has attempts (close it instead).
+  - close: published only (409). `status` stays `published` when `closes_at` passes by itself, so use
+    `quiz_publish.window(quiz, now)` → upcoming|open|closed, never `status` alone, to tell whether it can be taken.
+- A published quiz has its approved questions only: `quiz_publish.published_questions(db, quiz_id)`.
+- `GET /student/me/quizzes` (students; enrolled courses, own attempt) → `{quizzes: [{id, course_id, course_code,
+  course_name, title, type, state, timer_mode, timer_seconds, question_count (published), opens_at, closes_at,
+  published_at, attempt_status, submitted_at}]}`. Never anything of the questions (NFR-41). `state`: upcoming,
+  open, attempted (submitted, or its time or the quiz is over), closed (not attempted). `open` with
+  `attempt_status: in_progress` = resume. Order: open (soonest to close first), upcoming (soonest to open), the
+  rest newest first.
