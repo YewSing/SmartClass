@@ -1,0 +1,9 @@
+{
+  "name": "grade_right",
+  "calls": [
+    {
+      "prompt_sha256": "bd4c7e1ae0f6630a77947b5be6684c61f2503f30225e96e45a36f7b784d2f530",
+      "raw": "{\"grades\": [{\"number\": 1, \"score\": 1, \"reason\": \"Accurately describes testing edge values and adjacent values where bugs are common.\", \"confidence\": 0.95}, {\"number\": 2, \"score\": 1, \"reason\": \"Correctly explains dividing inputs into equivalent groups and testing one value per group.\", \"confidence\": 0.9}, {\"number\": 3, \"score\": 1, \"reason\": \"Accurately contrasts statement coverage with branch coverage, noting branch coverage is stronger.\", \"confidence\": 0.9}]}"
+    }
+  ]
+}

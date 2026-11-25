@@ -1,4 +1,5 @@
-"""Validation of what the LLM returns for a quiz draft (FR-601–FR-603, S41) and its changes (FR-604, S42).
+"""Validation of what the LLM returns for a quiz draft (FR-601–FR-603, S41), its changes (FR-604, S42)
+and the grades of short answers (FR-616, S45).
 
 Everything the model says is checked here before anything is saved. A `ValueError` message is sent
 back to the model for its one corrected try, so it says plainly what is wrong.
@@ -11,7 +12,7 @@ from typing import Annotated, Literal, Optional
 
 from pydantic import BaseModel, Field, ValidationError
 
-from app.models.quiz import QUESTION_TYPES, TITLE_MAX_CHARS
+from app.models.quiz import QUESTION_TYPES, REASON_MAX_CHARS, TITLE_MAX_CHARS
 from app.schemas.quiz import Moment, QuestionIn, QuizType, TimerMode
 from app.services.kb.search import Passage
 
@@ -269,3 +270,34 @@ def check_changes(data: dict, passages: list[Passage], texts: list[str], *, only
     if problems:
         raise ValueError("\n".join(problems))
     return out
+
+
+# ── grades of short answers (FR-616) ─────────────────────────────────────────
+
+_Share = Annotated[float, Field(strict=True, ge=0, le=1, allow_inf_nan=False)]
+
+
+class Grade(BaseModel):
+    number: int
+    score: _Share           # a share of the question's mark
+    reason: str
+    confidence: _Share      # how sure the model is of the score
+
+
+class _Grades(BaseModel):
+    grades: list[Grade]
+
+
+def check_grades(data: dict, total: int) -> list[Grade]:
+    """The grades of answers 1 to `total`, in that order, each with a reason."""
+    try:
+        reply = _Grades.model_validate(data)
+    except ValidationError as exc:
+        raise ValueError(describe(exc)) from None
+    if sorted(g.number for g in reply.grades) != list(range(1, total + 1)):
+        raise ValueError(f'"grades" must have exactly one grade for each number from 1 to {total}')
+    for g in reply.grades:
+        g.reason = " ".join(g.reason.replace("\x00", "").split())[:REASON_MAX_CHARS].strip()
+        if not g.reason:
+            raise ValueError(f'grade {g.number}: "reason" is empty')
+    return sorted(reply.grades, key=lambda g: g.number)

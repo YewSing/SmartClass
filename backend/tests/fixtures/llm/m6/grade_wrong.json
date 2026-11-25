@@ -1,0 +1,9 @@
+{
+  "name": "grade_wrong",
+  "calls": [
+    {
+      "prompt_sha256": "ac182384385fc1b5c34352ea6d7c84d88066f39d08bd64f3d4d8449ac34f6481",
+      "raw": "{\"grades\": [{\"number\": 1, \"score\": 0, \"reason\": \"Answer is unrelated and contains no correct points about boundary value analysis.\", \"confidence\": 0.95}, {\"number\": 2, \"score\": 0, \"reason\": \"Student repeats the question instead of providing an answer.\", \"confidence\": 0.95}, {\"number\": 3, \"score\": 0, \"reason\": \"Incorrect claim that branch and statement coverage are the same; no correct explanation.\", \"confidence\": 0.95}]}"
+    }
+  ]
+}

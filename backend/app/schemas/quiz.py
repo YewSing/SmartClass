@@ -1,4 +1,5 @@
-"""Quiz settings and questions (FR-603–FR-606) — S40; draft review (FR-604) — S42."""
+"""Quiz settings and questions (FR-603–FR-606) — S40; draft review (FR-604) — S42; short-answer
+scores (FR-616, FR-617) — S45."""
 from datetime import datetime
 from typing import Annotated, Literal, Optional
 
@@ -8,6 +9,7 @@ from app.core.timezone import MYT
 from app.models.quiz import (
     ANSWER_TEXT_MAX_CHARS,
     EXPLANATION_MAX_CHARS,
+    FEEDBACK_MAX_CHARS,
     MAX_OPTIONS,
     MIN_OPTIONS,
     OPTION_MAX_CHARS,
@@ -319,3 +321,42 @@ class AttemptOut(BaseModel):
     question_count: int
     answered_count: int
     questions: list[AttemptQuestionOut]
+
+
+# ── short-answer scores, for the lecturer (FR-616, FR-617) — S45 ─────────────
+
+ShortAnswerState = Literal["pending", "flagged", "graded"]
+
+
+class ScoreIn(BaseModel):
+    """A short answer's new score, as a share of the question's mark, and why."""
+    model_config = ConfigDict(extra="forbid")
+    score: Annotated[float, Field(strict=True, ge=0, le=1, allow_inf_nan=False)]
+    feedback: Annotated[str, Field(min_length=1, max_length=FEEDBACK_MAX_CHARS), AfterValidator(_required)]
+
+
+class ShortAnswerOut(BaseModel):
+    """Lecturer view of one student's short answer: never for a student (FR-618, NFR-41)."""
+    id: int
+    student_id: int
+    student_name: str
+    matric_no: str
+    question_id: int
+    question_text: str
+    suggested_answer: str
+    text: str
+    state: ShortAnswerState
+    score: Optional[float]                          # 0 to 1; null while pending
+    correct: Optional[bool]
+    graded_by: Optional[Literal["ai", "lecturer"]]
+    graded_at: Optional[datetime]
+    reason: Optional[str]                           # the AI's, kept when the lecturer changes the score
+    confidence: Optional[float]
+    feedback: Optional[str]                         # the lecturer's
+
+
+class ShortAnswerListOut(BaseModel):
+    """The counts are of the whole quiz, whatever `answers` was narrowed to."""
+    pending_count: int
+    flagged_count: int
+    answers: list[ShortAnswerOut]

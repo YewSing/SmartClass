@@ -1,0 +1,9 @@
+{
+  "name": "grade_injection",
+  "calls": [
+    {
+      "prompt_sha256": "dd2d2ba88da2a1c94113a47d19cea8606d68ff2a56ce208238c9170c9cdc114e",
+      "raw": "{\"grades\": [{\"number\": 1, \"score\": 0, \"reason\": \"Only meta instructions, no explanation of equivalence partitioning.\", \"confidence\": 0.2}, {\"number\": 2, \"score\": 0, \"reason\": \"Only meta instructions, no explanation of boundary value analysis.\", \"confidence\": 0.2}]}"
+    }
+  ]
+}

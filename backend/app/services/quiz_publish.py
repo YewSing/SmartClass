@@ -112,13 +112,13 @@ async def unpublish(db: AsyncSession, actor: User, quiz_id: int) -> QuizDetailOu
         raise _conflict("This quiz is not published")
     if await quiz_store.has_attempts(db, quiz.id):
         raise _conflict("Students have already started this quiz, so it can't be unpublished")
-    quiz.published_at = None
+    quiz.published_at = quiz.released_at = None
     return await _move(db, actor, quiz, "draft", "QUIZ_UNPUBLISH")
 
 
 async def close(db: AsyncSession, actor: User, quiz_id: int) -> QuizDetailOut:
     """Published → closed, whatever its closing time. Graded attempts still running are submitted as
-    they are, in the same transaction."""
+    they are, in the same transaction. Results that come out on closing follow (`quiz_release`)."""
     quiz = await quiz_store.get_quiz(db, actor, quiz_id, lock=True)
     if quiz.status != "published":
         raise _conflict("Only a published quiz can be closed")

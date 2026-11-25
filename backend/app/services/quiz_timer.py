@@ -27,7 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal, run_after_commit
 from app.models.quiz import Quiz, QuizAttempt
-from app.services import quiz_store
+from app.services import quiz_grading, quiz_store
 
 log = logging.getLogger(__name__)
 
@@ -50,7 +50,8 @@ def start_clock(quiz: Quiz, attempt: QuizAttempt, now: datetime, question_count:
 
 
 def submit(attempt: QuizAttempt, at: datetime, *, auto: bool) -> None:
-    """The only way an attempt ends. Once submitted it never changes."""
+    """The only way an attempt ends. Once submitted it never changes. Whoever calls this (also through
+    `settle` or `advance`) then calls `quiz_grading.on_submit` in the same transaction."""
     if attempt.status == "submitted":
         return
     attempt.status, attempt.submitted_at, attempt.auto_submitted = "submitted", at, auto
@@ -95,7 +96,7 @@ async def end_attempts(db: AsyncSession, quiz: Quiz) -> None:
     for attempt in attempts:
         settle(quiz, attempt, now)
         submit(attempt, now, auto=True)
-    await db.flush()
+    await quiz_grading.on_submit(db, [a.id for a in attempts])
 
 
 # ── sweep ────────────────────────────────────────────────────────────────────
@@ -112,6 +113,7 @@ async def sweep() -> int:
             .with_for_update(of=QuizAttempt, skip_locked=True))).scalars().all()
         for attempt in rows:
             submit(attempt, attempt.ends_at, auto=True)
+        await quiz_grading.on_submit(db, [a.id for a in rows])
         await db.commit()
         await run_after_commit(db)
     return len(rows)

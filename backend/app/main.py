@@ -12,6 +12,8 @@ from app.services.attendance_flags import unmatched_face_cleanup_loop
 from app.services.notifications.announcements import announcement_moodle_loop
 from app.services.interaction.sessions import interaction_sweep_loop
 from app.services.notifications.retention import retention_loop as notification_retention_loop
+from app.services.quiz_grading import quiz_grading_loop
+from app.services.quiz_release import quiz_release_loop
 from app.services.quiz_timer import quiz_sweep_loop
 from app.services.attendance_moodle_sync import attendance_moodle_sync_loop
 from app.services.attendance_service import low_attendance_monitor
@@ -47,7 +49,9 @@ async def lifespan(app: FastAPI):
              asyncio.create_task(notification_retention_loop()),
              asyncio.create_task(announcement_moodle_loop()),
              asyncio.create_task(interaction_sweep_loop()),
-             asyncio.create_task(quiz_sweep_loop())]
+             asyncio.create_task(quiz_sweep_loop()),
+             asyncio.create_task(quiz_grading_loop()),
+             asyncio.create_task(quiz_release_loop())]
     try:
         yield
     finally:

@@ -1,5 +1,5 @@
 """Lecturer quizzes (FR-605, FR-606) — S40; AI drafts (FR-601–FR-603) — S41; draft review (FR-604) — S42;
-publishing (FR-606) — S43.
+publishing (FR-606) — S43; short-answer scores (FR-616, FR-617) — S45.
 
 Lecturers who teach a class of the course only (403 for everyone else and for unknown ids).
 """
@@ -25,8 +25,12 @@ from app.schemas.quiz import (
     QuizListOut,
     QuizRefineIn,
     QuizUpdate,
+    ScoreIn,
+    ShortAnswerListOut,
+    ShortAnswerOut,
+    ShortAnswerState,
 )
-from app.services import quiz_publish, quiz_questions, quiz_store
+from app.services import quiz_grading, quiz_publish, quiz_questions, quiz_store
 from app.services.kb.llm import LLMMalformedOutput, LLMUnavailable
 from app.services.quiz import draft, refine
 
@@ -172,3 +176,20 @@ async def refine_quiz(quiz_id: int, body: QuizRefineIn, db: AsyncSession = Depen
     writes is unapproved. Errors as for a draft, and 409 when the draft was changed meanwhile."""
     with _llm_errors("usable changes. Try again, ask for fewer changes, or edit the questions by hand."):
         return await refine.refine(db, actor, quiz_id, body)
+
+
+# ── short-answer scores (FR-616, FR-617) — S45. Graded quizzes only (409) ────
+
+@router.get("/{quiz_id}/short-answers", response_model=ShortAnswerListOut)
+async def list_short_answers(quiz_id: int, state: Optional[ShortAnswerState] = None,
+                             db: AsyncSession = Depends(get_db), actor: User = Depends(_lecturer)):
+    """The submitted short answers with their scores: all, or those still pending, flagged (the AI wasn't
+    confident) or graded."""
+    return await quiz_grading.list_short_answers(db, actor, quiz_id, state)
+
+
+@router.put("/{quiz_id}/short-answers/{answer_id}/score", response_model=ShortAnswerOut)
+async def change_short_answer_score(quiz_id: int, answer_id: int, body: ScoreIn, db: AsyncSession = Depends(get_db),
+                                    actor: User = Depends(_lecturer)):
+    """Change a short answer's score, with feedback. The score stands: the AI doesn't grade it again."""
+    return await quiz_grading.change_score(db, actor, quiz_id, answer_id, body)

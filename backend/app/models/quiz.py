@@ -37,13 +37,20 @@ TOPIC_MAX_CHARS = 120
 SOURCE_FILE_MAX_CHARS = 512
 ANSWER_TEXT_MAX_CHARS = 2000
 
+# grading (S45)
+GRADED_BY = ("auto", "ai", "lecturer")          # multiple choice | short answer | a score the lecturer changed
+SHORT_CORRECT_FROM = Decimal("0.5")             # a short answer counts as correct from this score
+REASON_MAX_CHARS = 500
+FEEDBACK_MAX_CHARS = 1000
+
 
 class Quiz(Base):
     """`timer_seconds` is per question or for the whole quiz, by `timer_mode`; a game is always per
     question (FR-606). `release` says when the results come out (by the lecturer's hand, or when the
     quiz closes) and `release_marks`/`release_answers` which parts (FR-618, S46); until then both
     stay hidden. `speed_bonus` is used by game quizzes only (FR-612). `ai_scope` is what the AI may
-    draft from (`schemas.quiz.AiScope`, S42), so later AI changes keep to it; null = no limit."""
+    draft from (`schemas.quiz.AiScope`, S42), so later AI changes keep to it; null = no limit.
+    `released_at` is set by `quiz_release.release` (S45)."""
     __tablename__ = "m6_quizzes"
     __table_args__ = (
         CheckConstraint("type IN ('game','graded')", name="ck_m6_quizzes_type"),
@@ -77,6 +84,7 @@ class Quiz(Base):
     speed_bonus: Mapped[bool] = mapped_column(nullable=False, default=True)
     ai_scope: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB(none_as_null=True))
     published_at: Mapped[Optional[datetime]] = mapped_column()          # naive MYT; null in a draft (S43)
+    released_at: Mapped[Optional[datetime]] = mapped_column()           # naive MYT; results out since (S45)
     created_at: Mapped[datetime] = mapped_column(nullable=False)        # naive MYT
     updated_at: Mapped[datetime] = mapped_column(nullable=False)        # naive MYT
 
@@ -161,14 +169,25 @@ class QuizAttempt(Base):
 
 class QuizAnswer(Base):
     """The student's answer to one question; `option_index` for an MCQ, `text` for a short answer.
-    Grading fills `correct` and `score` (a share of the question's mark, 0 to 1)."""
+    Grading (S45, `quiz_grading`) fills `correct`, `score` (a share of the question's mark, 0 to 1) and
+    `graded_by`/`graded_at`. A short answer of a submitted attempt without a score is pending. `reason`
+    and `confidence` are the AI's and stay when the lecturer changes the score with `feedback`; `flagged`
+    = the AI wasn't confident and no lecturer has set the score yet. A question without an answer has no
+    row and scores 0."""
     __tablename__ = "m6_answers"
     __table_args__ = (
         UniqueConstraint("attempt_id", "question_id", name="uq_m6_answers_attempt_question"),
         CheckConstraint("score IS NULL OR score BETWEEN 0 AND 1", name="ck_m6_answers_score"),
         CheckConstraint(f"text IS NULL OR char_length(text) <= {ANSWER_TEXT_MAX_CHARS}",
                         name="ck_m6_answers_text_length"),
+        CheckConstraint("graded_by IS NULL OR graded_by IN ('auto','ai','lecturer')", name="ck_m6_answers_graded_by"),
+        CheckConstraint("confidence IS NULL OR confidence BETWEEN 0 AND 1", name="ck_m6_answers_confidence"),
+        CheckConstraint(f"reason IS NULL OR char_length(reason) <= {REASON_MAX_CHARS}",
+                        name="ck_m6_answers_reason_length"),
+        CheckConstraint(f"feedback IS NULL OR char_length(feedback) <= {FEEDBACK_MAX_CHARS}",
+                        name="ck_m6_answers_feedback_length"),
         Index("ix_m6_answers_question", "question_id"),
+        Index("ix_m6_answers_pending", "attempt_id", postgresql_where=text("score IS NULL AND text IS NOT NULL")),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -179,3 +198,12 @@ class QuizAnswer(Base):
     correct: Mapped[Optional[bool]] = mapped_column()
     score: Mapped[Optional[Decimal]] = mapped_column(Numeric(4, 3))
     answered_at: Mapped[datetime] = mapped_column(nullable=False)       # naive MYT, last change
+    graded_by: Mapped[Optional[str]] = mapped_column(String(16))        # auto | ai | lecturer
+    graded_at: Mapped[Optional[datetime]] = mapped_column()             # naive MYT, last change of the score
+    reason: Mapped[Optional[str]] = mapped_column(Text)                 # the AI's
+    confidence: Mapped[Optional[Decimal]] = mapped_column(Numeric(4, 3))
+    flagged: Mapped[bool] = mapped_column(nullable=False, default=False, server_default="false")
+    feedback: Mapped[Optional[str]] = mapped_column(Text)               # the lecturer's
+    # AI grading that failed: how often the reply was unusable, and when to try again
+    grade_tries: Mapped[int] = mapped_column(nullable=False, default=0, server_default="0")
+    grade_after: Mapped[Optional[datetime]] = mapped_column()           # naive MYT

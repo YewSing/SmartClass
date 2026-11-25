@@ -108,7 +108,7 @@ Run the loop with `/shino-run-plan [rounds]` (or `bash scripts/shino/run-tasks.s
   Done when: publish needs ≥1 approved question and only approved ones are published; unpublish/close; `quiz.published` to enrolled students; `GET /student/me/quizzes` lists cards for enrolled courses with state (upcoming, open, attempted, closed) and never includes answers. Tests.
 - [x] **S44 [OPUS] [API] Graded attempts and server timers (FR-607, FR-608).** Depends on: S43.
   Done when: one graded attempt per student; answers autosave; whole-quiz or per-question timers are enforced on the server (late answers rejected, expired attempts auto-submitted on next touch and by a background sweep); resuming after a disconnect never extends time; shuffle is stable per attempt. Tests with the clock monkeypatched, including concurrent submits.
-- [ ] **S45 [API] Grading (FR-616, FR-617).** Depends on: S44.
+- [x] **S45 [API] Grading (FR-616, FR-617).** Depends on: S44.
   Done when: MCQ graded on submit; short answers graded by the LLM against the suggested answer with score, reason and confidence (validated JSON, fixtures + live cases); low-confidence scores are flagged; the lecturer can change a short-answer score with feedback, audited with old/new score; `quiz.graded` sent when results are released. Tests.
 - [ ] **S46 [API] Results release and lecturer results (FR-618, FR-619).** Depends on: S45.
   Done when: the lecturer releases marks, answers, both or neither; students see only released parts; lecturer results show submissions, score distribution, average, per-question correct rate and most-missed questions. Tests including hidden parts never leaking.

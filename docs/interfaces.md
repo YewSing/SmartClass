@@ -754,7 +754,36 @@ and unknown ids); a game is 409; all but the first are 404 before the start. Eve
   Over → submitted with `auto_submitted` and `submitted_at` = the deadline: on the next request, or by the sweep
   every `QUIZ_SWEEP_SECONDS` (1; NFR-47). Closing the quiz by hand submits running attempts at that moment.
 - **For code:** read a running attempt through `quiz_timer.settle` (its stored question is as of the last touch);
-  `quiz_timer.submit` is the only place an attempt ends (S45 grades from there). Lock order: quiz, then attempt.
+  `quiz_timer.submit` is the only place an attempt ends, and its callers then call `quiz_grading.on_submit` (S45) in
+  the same transaction. Lock order: quiz, then attempt.
 - **Shuffle** (`m6_attempts.layout`, fixed at the start): question order and option order, per student. Options
   that refer to each other ("All of the above", "Both A and B") keep their order. `m6_answers.option_index` is
   always the question's own option index.
+
+### Grading and release (S45, FR-616, FR-617)
+
+`app/services/quiz_grading.py` (rules, queue, lecturer), `app/services/quiz/grading.py` (the LLM call),
+`app/services/quiz_release.py`. Graded quizzes only.
+
+- `m6_answers`: `score` 0–1 (share of the question's mark), `correct`, `graded_by` auto|ai|lecturer, `graded_at`,
+  `reason` and `confidence` (the AI's), `flagged`, `feedback` (the lecturer's). A question without an answer has no
+  row and scores 0. A short answer is `correct` from 0.5 (`models.quiz.SHORT_CORRECT_FROM`).
+- Multiple choice is graded in the transaction that submits the attempt. Short answers are **pending** (`score` null in
+  a submitted attempt; `quiz_grading.is_pending`) until the background loop (`QUIZ_GRADE_SECONDS`) has graded them: one
+  LLM call per student (at most `QUIZ_GRADE_BATCH` answers), no student identity sent. The score is final at once;
+  a confidence below `QUIZ_GRADE_CONFIDENT` flags it.
+- When the AI is down they stay pending and are tried again every `QUIZ_GRADE_RETRY_SECONDS`; an unusable grade is
+  retried alone, with longer and longer waits (NFR-55).
+- `GET /lecturer/quizzes/{id}/short-answers?state=pending|flagged|graded` → `{pending_count, flagged_count, answers:
+  [ShortAnswerOut]}`, by question then student; the counts are always of the whole quiz. `ShortAnswerOut`: `{id,
+  student_id, student_name, matric_no, question_id, question_text, suggested_answer, text, state, score, correct,
+  graded_by, graded_at, reason, confidence, feedback}`. Same access as the quiz; a game is 409.
+- `PUT /lecturer/quizzes/{id}/short-answers/{answer_id}/score {score 0–1, feedback 1–1000}` → `ShortAnswerOut`. Works
+  on a pending answer too, clears the flag, and the AI never grades it again. 404 for anything but a submitted short
+  answer of the quiz. Audited `QUIZ_SCORE_CHANGE` (target `m6_answer`) with the old and new score.
+- **Release:** `m6_quizzes.released_at`. `quiz_release.release(db, quiz, now)` (quiz locked) is the only way: it sets it
+  once and, after the commit, sends `quiz.graded` to the active enrolled students who took the quiz. A loop
+  (`QUIZ_RELEASE_SECONDS`) calls it for `release: on_close` quizzes once they are closed (by hand or by `closes_at`) and
+  nothing is pending. Unpublishing clears it. Releasing by hand, and what students see, come with S46; until then no
+  student endpoint carries scores, reasons or feedback. `reason` and `feedback` can give the answer away, so they
+  belong to the released **answers**, not the marks.

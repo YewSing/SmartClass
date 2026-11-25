@@ -157,6 +157,15 @@ class Settings(BaseSettings):
     QUIZ_DRAFT_MAX_PASSAGES: int = 16          # course passages sent to the LLM
     QUIZ_DRAFT_PLAN_TOKENS: int = 2000         # output budgets (thinking models reason inside them)
     QUIZ_DRAFT_OUTPUT_TOKENS: int = 9000
+    # AI grading of short answers (S45, FR-616, FR-617, NFR-45)
+    QUIZ_GRADE_SECONDS: float = 2.0            # looks for answers to grade; <= 0 = off
+    QUIZ_GRADE_RETRY_SECONDS: int = 60         # ...again after the provider failed (NFR-55)
+    QUIZ_GRADE_RETRY_MAX_SECONDS: int = 3600   # longest wait for an answer whose grades keep coming back unusable
+    QUIZ_GRADE_CONCURRENCY: int = 4            # LLM calls at a time
+    QUIZ_GRADE_BATCH: int = 10                 # answers of one student per call
+    QUIZ_GRADE_OUTPUT_TOKENS: int = 3000
+    QUIZ_GRADE_CONFIDENT: float = 0.7          # a score the AI is less sure of is flagged for the lecturer
+    QUIZ_RELEASE_SECONDS: float = 5.0          # looks for quizzes whose results come out by themselves; <= 0 = off
 
 
 settings = Settings()

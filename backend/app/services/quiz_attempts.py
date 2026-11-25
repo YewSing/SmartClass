@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import random
 import re
+from collections.abc import Callable
 from datetime import datetime
 from typing import NoReturn
 
@@ -26,7 +27,7 @@ from app.models.class_ import ClassOccurrence, Course, Enrollment
 from app.models.quiz import Quiz, QuizAnswer, QuizAttempt, QuizQuestion
 from app.models.user import Student, User
 from app.schemas.quiz import AnswerIn, AttemptOptionOut, AttemptOut, AttemptQuestionOut
-from app.services import quiz_publish, quiz_store, quiz_timer
+from app.services import quiz_grading, quiz_publish, quiz_store, quiz_timer
 
 _random = random.SystemRandom()     # tests replace this
 
@@ -85,6 +86,14 @@ async def _attempt(db: AsyncSession, quiz_id: int, student_id: int) -> QuizAttem
         .with_for_update().execution_options(populate_existing=True))).scalar_one_or_none()
 
 
+async def _apply(db: AsyncSession, attempt: QuizAttempt, change: Callable[[], None]) -> None:
+    """Run a step of `quiz_timer` on the locked attempt; one it submits is graded along with it."""
+    running = attempt.status == "in_progress"
+    change()
+    if running and attempt.status == "submitted":
+        await quiz_grading.on_submit(db, [attempt.id])
+
+
 async def _touch(db: AsyncSession, actor: User, quiz_id: int) -> tuple[Quiz, QuizAttempt, datetime]:
     """The caller's attempt, locked and brought up to now (404 when not started). The quiz needs no lock:
     closing it submits its attempts, which waits for this lock or is seen here."""
@@ -93,7 +102,7 @@ async def _touch(db: AsyncSession, actor: User, quiz_id: int) -> tuple[Quiz, Qui
     if attempt is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="You haven't started this quiz")
     now = quiz_store.clock()
-    quiz_timer.settle(quiz, attempt, now)
+    await _apply(db, attempt, lambda: quiz_timer.settle(quiz, attempt, now))
     return quiz, attempt, now
 
 
@@ -193,7 +202,7 @@ async def start(db: AsyncSession, actor: User, quiz_id: int) -> tuple[AttemptOut
     if attempt is None:
         attempt, new = await _create(db, quiz, student_id)
     now = quiz_store.clock()
-    quiz_timer.settle(quiz, attempt, now)
+    await _apply(db, attempt, lambda: quiz_timer.settle(quiz, attempt, now))
     await _refuse_if_over(db, attempt)
     return await _out(db, quiz, attempt, now), new
 
@@ -252,12 +261,12 @@ async def next_question(db: AsyncSession, actor: User, quiz_id: int, question_id
         if place > attempt.current_index:
             await _refuse(db, "This question hasn't started yet")
         if place == attempt.current_index:
-            quiz_timer.advance(quiz, attempt, now)
+            await _apply(db, attempt, lambda: quiz_timer.advance(quiz, attempt, now))
     return await _out(db, quiz, attempt, now)
 
 
 async def submit(db: AsyncSession, actor: User, quiz_id: int) -> AttemptOut:
     """Submit the attempt as it is. Submitting again changes nothing (NFR-54)."""
     quiz, attempt, now = await _touch(db, actor, quiz_id)
-    quiz_timer.submit(attempt, now, auto=False)
+    await _apply(db, attempt, lambda: quiz_timer.submit(attempt, now, auto=False))
     return await _out(db, quiz, attempt, now)
