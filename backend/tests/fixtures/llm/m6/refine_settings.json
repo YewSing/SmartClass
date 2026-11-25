@@ -1,0 +1,13 @@
+{
+  "name": "refine_settings",
+  "calls": [
+    {
+      "prompt_sha256": "80a29fea86ac7522a581125dbec9d36c2b1048f97a19798b01beba58f273aa90",
+      "raw": "{\"questions\": [], \"topics\": [], \"sections\": [], \"only_material\": null}"
+    },
+    {
+      "prompt_sha256": "b16b54865ac3d015f1629a656f35a546578ac6cac4df75160f70904ef4ea3540",
+      "raw": "{\"changes\": []}"
+    }
+  ]
+}

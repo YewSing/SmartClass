@@ -683,3 +683,27 @@ unapproved. Same access as above.
   material, or "only the material" that doesn't cover the request; 502 the AI's reply stays unusable after
   one corrected try; 503 the AI can't be reached.
 - A draft takes two LLM calls (up to about a minute); no database transaction is open meanwhile.
+
+### Draft review (S42, FR-604)
+
+By hand: `app/services/quiz_questions.py`; with the AI: `app/services/quiz/refine.py`. All under
+`/lecturer/quizzes/{id}`, same access as above, and every one returns the whole `QuizDetailOut`:
+
+- `POST /questions` (`QuestionIn`; 201, added at the end) · `PUT /questions/{qid}` (`QuestionIn`: replaces the
+  whole question) · `DELETE /questions/{qid}` (200; the others close the gap).
+- `PUT /questions/order {question_ids}`: every question once (409 when they aren't the quiz's questions any
+  more, 422 when one is listed twice).
+- `PUT /questions/approval {question_ids (≥ 1), approved}`: all the named questions or none (404). A question
+  whose content changes, by hand or by the AI, is unapproved again; moving it or saving the same content is
+  not a change.
+- `POST /questions/{qid}/regenerate {instruction? ≤ 2000}`: the AI writes a different question of the same type
+  in its place.
+- `POST /refine {prompt ≤ 2000}`: the AI replaces, removes and adds questions as asked ("make question 3
+  harder"); all others stay exactly as they are. It doesn't change settings (422 "nothing to change").
+- All need a draft without attempts (409), and a question of another quiz is 404. At most
+  `QUIZ_MAX_QUESTIONS` (50) per quiz (422).
+- AI changes keep to `m6_quizzes.ai_scope` (`AiScope`: only_material, material_ids, sections), saved with the
+  draft; a refine prompt that says "only the material" (or that questions may go beyond it) changes that for
+  the quiz. Quizzes made by hand have none.
+- AI errors as for a draft (422/502/503, nothing saved), plus 409 when the question (regenerate) or any
+  question (refine) was changed while the AI worked. No lock or transaction is held meanwhile.

@@ -1,0 +1,13 @@
+{
+  "name": "refine_injection",
+  "calls": [
+    {
+      "prompt_sha256": "7250adeac66c214b60b36a11e0f64fb6f6ebdeb829354c600f23a1ca3ea4aa63",
+      "raw": "{\"questions\": [2], \"topics\": [], \"sections\": [], \"only_material\": null}"
+    },
+    {
+      "prompt_sha256": "29883e8a5606f9e067fbe98f35536c24e6b56e22c39bc9199f70872bdfa1d5d5",
+      "raw": "{\"changes\":[{\"action\":\"replace\",\"number\":2,\"question\":{\"type\":\"mcq\",\"text\":\"Which of the following statements about branch coverage is true?\",\"options\":[\"It requires each decision to be executed with both true and false outcomes\",\"It guarantees detection of all logical errors\",\"It is weaker than statement coverage\",\"It does not consider the outcomes of conditional statements\"],\"answer\":0,\"answer_text\":\"It requires each decision to be executed with both true and false outcomes\",\"topic\":\"Branch coverage\",\"origin\":\"from_material\",\"source\":1,\"explanation\":\"Branch coverage demands that every decision point be taken both ways, ensuring both outcomes are tested.\"}}]}"
+    }
+  ]
+}

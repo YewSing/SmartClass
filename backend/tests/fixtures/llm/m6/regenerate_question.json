@@ -1,0 +1,9 @@
+{
+  "name": "regenerate_question",
+  "calls": [
+    {
+      "prompt_sha256": "cfd9ee1bd25b1e6eb18b649d00703dc876b369c5fa4060dcc813db5ca4cbf994",
+      "raw": "{\"questions\": [ {\"type\": \"mcq\", \"text\": \"Which of the following best describes a boundary value in testing?\", \"options\": [\"A value that lies just inside the valid input range.\", \"A value that lies exactly at the minimum or maximum limit of the input range.\", \"A value that is far from any limits of the input range.\", \"A value that is randomly selected from the input domain.\"], \"answer\": 1, \"answer_text\": \"A value that lies exactly at the minimum or maximum limit of the input range.\", \"topic\": \"Boundary value analysis\", \"origin\": \"from_material\", \"source\": 1, \"explanation\": \"Boundary values are the extreme values at the edges of the allowed range, where errors are most likely to occur.\"} ]}"
+    }
+  ]
+}

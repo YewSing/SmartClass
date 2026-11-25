@@ -1,0 +1,13 @@
+{
+  "name": "refine_only_material",
+  "calls": [
+    {
+      "prompt_sha256": "ae0d8d7e36e16a119a439cd8ec6afe317ecf3b00992b585f030ca4ef27d6ce5f",
+      "raw": "{\"questions\": [1], \"topics\": [\"equivalence partitioning\"], \"sections\": [], \"only_material\": true}"
+    },
+    {
+      "prompt_sha256": "623d055d1e994a2a5bbfbe43899c88cc0fe643ec6f93f3d559bf6bf53178e9c5",
+      "raw": "{\"changes\": [{\"action\": \"replace\", \"number\": 1, \"question\": {\"type\": \"mcq\", \"text\": \"Which of the following represents a valid equivalence class for an age field that accepts values from 0 to 120?\", \"options\": [\"Negative values\", \"Values above 120\", \"Values between 0 and 120\", \"Zero only\"], \"answer\": 2, \"answer_text\": \"Values between 0 and 120\", \"topic\": \"Equivalence partitioning\", \"origin\": \"from_material\", \"source\": 2, \"explanation\": \"The range 0 to 120 is the valid equivalence class defined for the age field, so testing a value from this range covers that class.\"}}]}"
+    }
+  ]
+}

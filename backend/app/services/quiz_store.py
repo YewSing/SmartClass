@@ -25,7 +25,7 @@ from app.core.timezone import now_myt
 from app.models.class_ import ClassOccurrence, Course
 from app.models.quiz import TIMER_LIMITS, Quiz, QuizAttempt, QuizQuestion
 from app.models.user import Lecturer, User
-from app.schemas.quiz import QuestionIn, QuestionOut, QuizCreate, QuizDetailOut, QuizOut, QuizUpdate
+from app.schemas.quiz import AiScope, QuestionIn, QuestionOut, QuizCreate, QuizDetailOut, QuizOut, QuizUpdate
 from app.services.audit_service import write_log
 
 DEFAULTS: dict[str, Any] = {
@@ -113,7 +113,8 @@ async def has_attempts(db: AsyncSession, quiz_id: int) -> bool:
     return await db.scalar(select(QuizAttempt.id).where(QuizAttempt.quiz_id == quiz_id).limit(1)) is not None
 
 
-async def _editable(db: AsyncSession, actor: User, quiz_id: int) -> Quiz:
+async def editable(db: AsyncSession, actor: User, quiz_id: int) -> Quiz:
+    """The quiz, row-locked, when its settings and questions may change (409 otherwise)."""
     quiz = await get_quiz(db, actor, quiz_id, lock=True)
     if quiz.status != "draft":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Only a draft quiz can be changed")
@@ -154,26 +155,32 @@ async def list_quizzes(db: AsyncSession, actor: User, course_id: int | None = No
     return await _out(db, list(rows))
 
 
+async def questions_of(db: AsyncSession, quiz_id: int) -> list[QuizQuestion]:
+    """The quiz's questions in order, freshly read."""
+    return list((await db.execute(
+        select(QuizQuestion).where(QuizQuestion.quiz_id == quiz_id)
+        .order_by(QuizQuestion.position, QuizQuestion.id)
+        .execution_options(populate_existing=True))).scalars())
+
+
 async def detail(db: AsyncSession, quiz: Quiz) -> QuizDetailOut:
     """The quiz with its questions and their answers (for its lecturers only)."""
     [base] = await _out(db, [quiz])
-    questions = (await db.execute(
-        select(QuizQuestion).where(QuizQuestion.quiz_id == quiz.id)
-        .order_by(QuizQuestion.position, QuizQuestion.id))).scalars()
+    questions = await questions_of(db, quiz.id)
     return QuizDetailOut(**base.model_dump(), questions=[QuestionOut.model_validate(q) for q in questions])
 
 
 # ── writes ───────────────────────────────────────────────────────────────────
 
 async def create(db: AsyncSession, actor: User, body: QuizCreate,
-                 questions: Sequence[QuestionIn] = ()) -> QuizDetailOut:
-    """A new draft, with the AI's questions when it was drafted from a prompt (S41). Questions are
-    never approved here (FR-604)."""
+                 questions: Sequence[QuestionIn] = (), scope: AiScope | None = None) -> QuizDetailOut:
+    """A new draft, with the AI's questions and scope when it was drafted from a prompt (S41).
+    Questions are never approved here (FR-604)."""
     await ensure_teaches_course(db, actor, body.course_id)
     values = resolve_settings(None, body.model_dump(exclude_unset=True, exclude={"course_id"}))
     now = clock()
     quiz = Quiz(course_id=body.course_id, created_by_user_id=actor.id, status="draft",
-                created_at=now, updated_at=now, **values)
+                ai_scope=scope.model_dump() if scope else None, created_at=now, updated_at=now, **values)
     db.add(quiz)
     await db.flush()
     db.add_all([QuizQuestion(quiz_id=quiz.id, position=i, approved=False, created_at=now, updated_at=now,
@@ -183,7 +190,7 @@ async def create(db: AsyncSession, actor: User, body: QuizCreate,
 
 
 async def update(db: AsyncSession, actor: User, quiz_id: int, body: QuizUpdate) -> QuizDetailOut:
-    quiz = await _editable(db, actor, quiz_id)
+    quiz = await editable(db, actor, quiz_id)
     current = {name: getattr(quiz, name) for name in SETTINGS}
     values = resolve_settings(current, body.model_dump(exclude_unset=True))
     if values != current:
@@ -195,7 +202,7 @@ async def update(db: AsyncSession, actor: User, quiz_id: int, body: QuizUpdate) 
 
 
 async def delete(db: AsyncSession, actor: User, quiz_id: int) -> None:
-    quiz = await _editable(db, actor, quiz_id)
+    quiz = await editable(db, actor, quiz_id)
     await write_log(db, actor.id, "QUIZ_DELETE", "m6_quiz", quiz.id,
                     {"course_id": quiz.course_id, "title": quiz.title, "type": quiz.type})
     await db.delete(quiz)

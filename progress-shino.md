@@ -293,3 +293,10 @@ Tests: lecturer unit 95/95; Playwright dashboard, live-session, desktop pass. NO
 - Interface/schema changes: new endpoint (`docs/interfaces.md` "AI draft"); no schema change.
 - Tests: `test_quiz_draft.py` 90 (4 replay), `test_check_live_trigger.py` +3, live 5/5 (first recording run 4/5, the fifth hit the provider's rate limit and passed on a re-run); check.sh passes (pytest 1255, live M6 5/5). Reviewer PASS, by reading only (its shell was denied, so it didn't see the git diff or run tests).
 - Next: S50 needs canned drafts for `LLM_FAKE=1` (`llm.fake_chat` is M8's and doesn't know these prompts; do it in `services/quiz/`). NFR-45's 60 s for 10 questions is not measured.
+
+### S42 — Draft review and refinement — 2026-11-25
+- Changed: `services/quiz_questions.py` (add, edit, delete, reorder, approve), `services/quiz/refine.py` (regenerate one question, refine with a prompt) with their checks and prompts, routes under `/lecturer/quizzes/{id}`, `QUIZ_MAX_QUESTIONS` (50).
+- Decisions: approval belongs to the exact content (any change unapproves); refine replies with a list of changes, so unlisted questions are never touched; AI changes keep to the draft's scope (only the material, chosen materials, weeks); no lock during LLM calls, 409 if the draft changed meanwhile; refine doesn't change settings (422).
+- Interface/schema changes: migration `e1f2a3b4c5d7` (`m6_quizzes.ai_scope`; applied on the test DB, downgrade not run; dev DB not upgraded: `alembic upgrade head`); `docs/interfaces.md` "Draft review".
+- Tests: `test_quiz_questions.py` + `test_quiz_refine.py` 120, live +6 with fixtures; check.sh passes on the second run (pytest 1375, live M6 11/11; the first had 1375 and live 10/11: the provider's 429, 8000 tokens a minute, on an S41 case; the first recording run lost one S42 case the same way, passed on a re-run). Reviewer PASS, by reading only (no tests run, the DB was in use).
+- Next: the M6 live suite now sits near that limit; a lower `LLM_RPM` would pace it (not tried). S43: publishing must lock the quiz row (`quiz_store.editable`/`get_quiz(lock=True)`).

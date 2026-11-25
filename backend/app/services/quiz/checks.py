@@ -1,10 +1,12 @@
-"""Validation of what the LLM returns for a quiz draft (FR-601–FR-603) — S41.
+"""Validation of what the LLM returns for a quiz draft (FR-601–FR-603, S41) and its changes (FR-604, S42).
 
 Everything the model says is checked here before anything is saved. A `ValueError` message is sent
 back to the model for its one corrected try, so it says plainly what is wrong.
 """
 from __future__ import annotations
 
+from collections.abc import Iterable
+from dataclasses import dataclass, field
 from typing import Annotated, Literal, Optional
 
 from pydantic import BaseModel, Field, ValidationError
@@ -138,9 +140,15 @@ def check_question(raw: dict, passages: list[Passage], *, only_material: bool) -
     return question
 
 
-def check_questions(data: dict, passages: list[Passage], *, counts: dict[str, int],
-                    only_material: bool) -> list[QuestionIn]:
-    """The drafted questions, exactly `counts[type]` of each type (any extra ones are left out)."""
+def text_key(text: str) -> str:
+    """Two questions with the same key are the same question."""
+    return " ".join(text.casefold().split())
+
+
+def check_questions(data: dict, passages: list[Passage], *, counts: dict[str, int], only_material: bool,
+                    taken: Iterable[str] = ()) -> list[QuestionIn]:
+    """The drafted questions, exactly `counts[type]` of each type (any extra ones are left out), none
+    of them with a text that is `taken` already."""
     try:
         reply = _Reply.model_validate(data)
     except ValidationError as exc:
@@ -150,6 +158,7 @@ def check_questions(data: dict, passages: list[Passage], *, counts: dict[str, in
     problems: list[str] = []
     kept: list[QuestionIn] = []
     left = dict(counts)
+    in_quiz = {text_key(t) for t in taken}
     seen: set[str] = set()
     for n, raw in enumerate(reply.questions, start=1):
         kind = raw.get("type")
@@ -157,9 +166,11 @@ def check_questions(data: dict, passages: list[Passage], *, counts: dict[str, in
             continue
         try:
             question = check_question(raw, passages, only_material=only_material)
-            key = " ".join(question.text.casefold().split())
+            key = text_key(question.text)
             if key in seen:
                 raise ValueError("the same question appears twice")
+            if key in in_quiz:
+                raise ValueError("this question is already in the quiz")
         except ValueError as exc:
             problems.append(f"Question {n}: {exc}")
             continue
@@ -173,3 +184,88 @@ def check_questions(data: dict, passages: list[Passage], *, counts: dict[str, in
         raise TooFewQuestions(f"There must be exactly {counts['mcq']} mcq and {counts['short']} short "
                               f"questions: write {missing}")
     return kept
+
+
+# ── changes to a draft (FR-604) ──────────────────────────────────────────────
+
+class RefinePlan(BaseModel):
+    """What a refine request is about, to search the materials. `only_material` None = it doesn't say."""
+    questions: list[int] = []
+    topics: list[str] = []
+    sections: list[str] = []
+    only_material: Optional[bool] = None
+
+
+def check_refine_plan(data: dict, total: int) -> RefinePlan:
+    """The plan; numbers of questions that don't exist are left out (they only steer the search)."""
+    given = {k: v for k, v in data.items() if v is not None} if isinstance(data, dict) else data
+    try:
+        plan = RefinePlan.model_validate(given)
+    except ValidationError as exc:
+        raise ValueError(describe(exc)) from None
+    plan.questions = [n for n in dict.fromkeys(plan.questions) if 1 <= n <= total]
+    plan.topics = _clean(plan.topics, MAX_TOPICS)
+    plan.sections = _clean(plan.sections, MAX_SECTIONS)
+    return plan
+
+
+class _Change(BaseModel):
+    action: Literal["replace", "remove", "add"]
+    number: Optional[int] = None
+    question: Optional[dict] = None
+
+
+class _Changes(BaseModel):
+    changes: list[_Change]
+
+
+@dataclass
+class Changes:
+    """Checked changes to a draft: question numbers count from 1 in the draft's order."""
+    replaced: dict[int, QuestionIn] = field(default_factory=dict)
+    removed: set[int] = field(default_factory=set)
+    added: list[QuestionIn] = field(default_factory=list)
+
+
+def check_changes(data: dict, passages: list[Passage], texts: list[str], *, only_material: bool) -> Changes:
+    """The changes to a draft whose questions have these `texts`; every new question is checked like
+    a drafted one. Empty when the model says there is nothing to change."""
+    try:
+        reply = _Changes.model_validate(data)
+    except ValidationError as exc:
+        raise ValueError(describe(exc)) from None
+    problems: list[str] = []
+    out = Changes()
+    new: list[tuple[int, QuestionIn]] = []      # (its place in the reply, question)
+    for n, change in enumerate(reply.changes, start=1):
+        try:
+            if change.action != "add":
+                if change.number is None or not 1 <= change.number <= len(texts):
+                    raise ValueError(f'"number" must be a question number from 1 to {len(texts)}')
+                if change.number in out.removed or change.number in out.replaced:
+                    raise ValueError(f"question {change.number} is listed twice")
+            if change.action == "remove":
+                out.removed.add(change.number)
+                continue
+            if change.question is None:
+                raise ValueError('"question" is missing')
+            question = check_question(change.question, passages, only_material=only_material)
+        except ValueError as exc:
+            problems.append(f"Change {n}: {exc}")
+            continue
+        new.append((n, question))
+        if change.action == "add":
+            out.added.append(question)
+        else:
+            out.replaced[change.number] = question
+    seen = {text_key(t) for i, t in enumerate(texts, start=1) if i not in out.removed and i not in out.replaced}
+    for n, question in new:
+        key = text_key(question.text)
+        if key in seen:
+            problems.append(f"Change {n}: this question is already in the quiz")
+        seen.add(key)
+    if reply.changes and not problems and not seen:
+        problems.append("The quiz must keep at least one question")
+    if problems:
+        raise ValueError("\n".join(problems))
+    return out

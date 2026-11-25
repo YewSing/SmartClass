@@ -1,8 +1,10 @@
-"""Lecturer quizzes (FR-605, FR-606) — S40; AI drafts (FR-601–FR-603) — S41.
+"""Lecturer quizzes (FR-605, FR-606) — S40; AI drafts (FR-601–FR-603) — S41; draft review (FR-604) — S42.
 
 Lecturers who teach a class of the course only (403 for everyone else and for unknown ids).
 """
 import logging
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
@@ -11,16 +13,41 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import require_role
 from app.models.user import User
-from app.schemas.quiz import QuizCreate, QuizDetailOut, QuizDraftIn, QuizListOut, QuizUpdate
-from app.services import quiz_store
+from app.schemas.quiz import (
+    QuestionApprovalIn,
+    QuestionIn,
+    QuestionOrderIn,
+    QuestionRegenerateIn,
+    QuizCreate,
+    QuizDetailOut,
+    QuizDraftIn,
+    QuizListOut,
+    QuizRefineIn,
+    QuizUpdate,
+)
+from app.services import quiz_questions, quiz_store
 from app.services.kb.llm import LLMMalformedOutput, LLMUnavailable
-from app.services.quiz import draft
+from app.services.quiz import draft, refine
 
 log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/lecturer/quizzes", tags=["quizzes"])
 
 _lecturer = require_role("lecturer")
+
+
+@contextmanager
+def _llm_errors(expected: str) -> Iterator[None]:
+    """502 when the AI's reply can't be used, 503 when the AI can't be reached (NFR-55)."""
+    try:
+        yield
+    except LLMMalformedOutput as exc:
+        log.warning("quiz AI: unusable LLM reply (%s)", exc)
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=f"The AI didn't return {expected}") from exc
+    except LLMUnavailable as exc:
+        log.warning("quiz AI: LLM unavailable (%s)", exc)
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail=(
+            "AI drafting is unavailable right now. Try again later, or write the questions by hand.")) from exc
 
 
 @router.get("", response_model=QuizListOut)
@@ -45,16 +72,8 @@ async def draft_quiz(body: QuizDraftIn, db: AsyncSession = Depends(get_db), acto
     settings read from the prompt. Every question is unapproved. Nothing is saved when it fails:
     502 the AI's reply can't be used, 503 the AI can't be reached (NFR-55: the lecturer can still
     write questions by hand)."""
-    try:
+    with _llm_errors("a usable quiz. Try again, ask for fewer questions, or write them by hand."):
         return await draft.create_draft(db, actor, body)
-    except LLMMalformedOutput as exc:
-        log.warning("quiz draft: unusable LLM reply (%s)", exc)
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=(
-            "The AI didn't return a usable quiz. Try again, ask for fewer questions, or write them by hand.")) from exc
-    except LLMUnavailable as exc:
-        log.warning("quiz draft: LLM unavailable (%s)", exc)
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail=(
-            "AI drafting is unavailable right now. Try again later, or write the questions by hand.")) from exc
 
 
 @router.get("/{quiz_id}", response_model=QuizDetailOut)
@@ -75,3 +94,59 @@ async def delete_quiz(quiz_id: int, db: AsyncSession = Depends(get_db), actor: U
     """Delete a draft and its questions (409 once published, closed or attempted)."""
     await quiz_store.delete(db, actor, quiz_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# ── draft review (FR-604) — S42. Drafts without attempts only (409) ──────────
+
+@router.post("/{quiz_id}/questions", response_model=QuizDetailOut, status_code=status.HTTP_201_CREATED)
+async def add_question(quiz_id: int, body: QuestionIn, db: AsyncSession = Depends(get_db),
+                       actor: User = Depends(_lecturer)):
+    """Add a question at the end, unapproved."""
+    return await quiz_questions.add(db, actor, quiz_id, body)
+
+
+# "order" and "approval" come before "{question_id}", which would take them as an id
+@router.put("/{quiz_id}/questions/order", response_model=QuizDetailOut)
+async def reorder_questions(quiz_id: int, body: QuestionOrderIn, db: AsyncSession = Depends(get_db),
+                            actor: User = Depends(_lecturer)):
+    """Put every question of the quiz in a new order (409 when they aren't the quiz's questions any more)."""
+    return await quiz_questions.reorder(db, actor, quiz_id, body.question_ids)
+
+
+@router.put("/{quiz_id}/questions/approval", response_model=QuizDetailOut)
+async def approve_questions(quiz_id: int, body: QuestionApprovalIn, db: AsyncSession = Depends(get_db),
+                            actor: User = Depends(_lecturer)):
+    """Approve or unapprove the questions named. Only approved questions can be published."""
+    return await quiz_questions.set_approval(db, actor, quiz_id, body.question_ids, body.approved)
+
+
+@router.put("/{quiz_id}/questions/{question_id}", response_model=QuizDetailOut)
+async def edit_question(quiz_id: int, question_id: int, body: QuestionIn, db: AsyncSession = Depends(get_db),
+                        actor: User = Depends(_lecturer)):
+    """Replace a question's whole content. A changed question is unapproved again."""
+    return await quiz_questions.edit(db, actor, quiz_id, question_id, body)
+
+
+@router.delete("/{quiz_id}/questions/{question_id}", response_model=QuizDetailOut)
+async def delete_question(quiz_id: int, question_id: int, db: AsyncSession = Depends(get_db),
+                          actor: User = Depends(_lecturer)):
+    """Delete a question; the others close the gap."""
+    return await quiz_questions.delete(db, actor, quiz_id, question_id)
+
+
+@router.post("/{quiz_id}/questions/{question_id}/regenerate", response_model=QuizDetailOut)
+async def regenerate_question(quiz_id: int, question_id: int, body: QuestionRegenerateIn,
+                              db: AsyncSession = Depends(get_db), actor: User = Depends(_lecturer)):
+    """The AI writes another question of the same type in its place, unapproved. Errors as for a draft,
+    and 409 when the question was changed meanwhile."""
+    with _llm_errors("a usable question. Try again, or edit it by hand."):
+        return await refine.regenerate(db, actor, quiz_id, question_id, body)
+
+
+@router.post("/{quiz_id}/refine", response_model=QuizDetailOut)
+async def refine_quiz(quiz_id: int, body: QuizRefineIn, db: AsyncSession = Depends(get_db),
+                      actor: User = Depends(_lecturer)):
+    """The AI changes, adds or removes questions as the prompt asks; the others stay as they are. What it
+    writes is unapproved. Errors as for a draft, and 409 when the draft was changed meanwhile."""
+    with _llm_errors("usable changes. Try again, ask for fewer changes, or edit the questions by hand."):
+        return await refine.refine(db, actor, quiz_id, body)

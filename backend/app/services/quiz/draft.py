@@ -21,7 +21,7 @@ from app.core.config import settings
 from app.models.class_ import Course
 from app.models.quiz import TITLE_MAX_CHARS
 from app.models.user import User
-from app.schemas.quiz import QuestionIn, QuizCreate, QuizDetailOut, QuizDraftIn
+from app.schemas.quiz import AiScope, QuestionIn, QuizCreate, QuizDetailOut, QuizDraftIn
 from app.services import quiz_store
 from app.services.kb import llm, retrieval_api
 from app.services.kb.search import Passage
@@ -153,12 +153,12 @@ async def find_passages(course_id: int, prompt: str, plan: PlanReply,
 # ── questions (FR-602, FR-603) ───────────────────────────────────────────────
 
 async def write_questions(course: Course, prompt: str, passages: list[Passage], counts: dict[str, int],
-                          only_material: bool) -> list[QuestionIn]:
+                          only_material: bool, taken: Iterable[str] = ()) -> list[QuestionIn]:
     messages = prompts.draft_messages(f"{course.code} {course.name}", prompt, passages, mcq=counts["mcq"],
                                       short=counts["short"], only_material=only_material)
 
     def check(data: dict) -> list[QuestionIn]:
-        return check_questions(data, passages, counts=counts, only_material=only_material)
+        return check_questions(data, passages, counts=counts, only_material=only_material, taken=taken)
 
     try:
         return await ask(messages, check, max_tokens=settings.QUIZ_DRAFT_OUTPUT_TOKENS)
@@ -185,5 +185,6 @@ async def create_draft(db: AsyncSession, actor: User, body: QuizDraftIn) -> Quiz
     only_material = bool(plan.only_material)
     passages = await find_passages(course.id, body.prompt, plan, body.material_ids)
     questions = await write_questions(course, body.prompt, passages, counts, only_material)
+    scope = AiScope(only_material=only_material, material_ids=body.material_ids, sections=plan.sections)
     # create() checks the course access again: it may have changed while the LLM worked
-    return await quiz_store.create(db, actor, QuizCreate(course_id=course.id, **values), questions)
+    return await quiz_store.create(db, actor, QuizCreate(course_id=course.id, **values), questions, scope)

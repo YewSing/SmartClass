@@ -1,0 +1,13 @@
+{
+  "name": "refine_changes",
+  "calls": [
+    {
+      "prompt_sha256": "91c0c0410f07e37aa54457615e66e96a327e39f0eb56ef930e68b1fa58c2b560",
+      "raw": "{\"questions\": [2, 3], \"topics\": [\"branch coverage\"], \"sections\": [], \"only_material\": null}"
+    },
+    {
+      "prompt_sha256": "fba30e22809844d6e6426bfc2c2d91dd76f19481a26b78a591b5951e7f7d9d32",
+      "raw": "{\"changes\": [{\"action\": \"replace\", \"number\": 2, \"question\": {\"type\": \"mcq\", \"text\": \"Which statement about branch coverage is true?\", \"options\": [\"Achieving full branch coverage guarantees full statement coverage.\", \"Branch coverage requires testing each individual condition separately.\", \"Branch coverage is weaker than statement coverage.\", \"Branch coverage ignores the true/false outcomes of decisions.\"], \"answer\": 0, \"answer_text\": \"Achieving full branch coverage guarantees full statement coverage.\", \"topic\": \"Branch coverage\", \"origin\": \"from_material\", \"source\": 1, \"explanation\": \"Full branch coverage forces both outcomes of every decision to be executed, which necessarily executes every statement in the program.\"}}, {\"action\": \"remove\", \"number\": 3}, {\"action\": \"add\", \"question\": {\"type\": \"short\", \"text\": \"Why might a test suite that achieves branch coverage still miss bugs that depend on specific condition combinations?\", \"suggested_answer\": \"Because branch coverage only ensures each decision's true and false outcomes are executed, it does not require testing all possible combinations of the individual conditions within a decision, so faults that arise from particular condition interactions can remain undetected.\", \"topic\": \"Branch coverage\", \"origin\": \"from_material\", \"source\": 1, \"explanation\": \"Branch coverage checks decision outcomes but not the internal condition logic, leaving condition‑coverage gaps.\"}}]}"
+    }
+  ]
+}

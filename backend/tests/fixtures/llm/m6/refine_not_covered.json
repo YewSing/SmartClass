@@ -1,0 +1,13 @@
+{
+  "name": "refine_not_covered",
+  "calls": [
+    {
+      "prompt_sha256": "bd76486a04fb2ce1da370a4a94aa95d78fff8ba895128243ad1bd376637fd75e",
+      "raw": "{\"questions\": [], \"topics\": [\"photosynthesis\"], \"sections\": [], \"only_material\": null}"
+    },
+    {
+      "prompt_sha256": "710537ccb07ed13edcfc350cff0cd7dc82c9e019db11d9240546360406f4846b",
+      "raw": "{\"changes\": []}"
+    }
+  ]
+}

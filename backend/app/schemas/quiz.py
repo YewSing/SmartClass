@@ -1,8 +1,8 @@
-"""Quiz settings and questions (FR-603–FR-606) — S40."""
+"""Quiz settings and questions (FR-603–FR-606) — S40; draft review (FR-604) — S42."""
 from datetime import datetime
 from typing import Annotated, Literal, Optional
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StrictInt, model_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StrictBool, StrictInt, model_validator
 
 from app.core.timezone import MYT
 from app.models.quiz import (
@@ -109,6 +109,14 @@ class QuizDraftIn(BaseModel):
     material_ids: Optional[Annotated[list[_MaterialId], Field(min_length=1, max_length=MAX_DRAFT_MATERIALS)]] = None
 
 
+class AiScope(BaseModel):
+    """What the AI may draft from, as the lecturer asked (FR-602): kept with the quiz, so that
+    regenerating and refining (FR-604) follow it too."""
+    only_material: bool = False
+    material_ids: Optional[list[int]] = None        # None = every material of the course
+    sections: list[str] = []                        # weeks or chapters named in the prompt
+
+
 class QuestionIn(BaseModel):
     """A whole question, from the AI draft (S41) or the lecturer (S42). Approval is a separate
     step, never part of the content."""
@@ -147,6 +155,34 @@ class QuestionIn(BaseModel):
         if self.origin == "from_material" and None in (self.source_file, self.source_type, self.source_page):
             raise ValueError("A question from the material must name its source file and page or slide")
         return self
+
+
+_QuestionIds = Annotated[list[Annotated[int, Field(ge=1, le=_MAX_ID)]], Field(max_length=1000)]
+
+
+class QuestionOrderIn(BaseModel):
+    """Every question of the quiz, in the new order."""
+    model_config = ConfigDict(extra="forbid")
+    question_ids: _QuestionIds
+
+
+class QuestionApprovalIn(BaseModel):
+    """FR-604: the questions are named one by one, so one the lecturer hasn't seen is never approved."""
+    model_config = ConfigDict(extra="forbid")
+    question_ids: Annotated[_QuestionIds, Field(min_length=1)]
+    approved: StrictBool
+
+
+class QuestionRegenerateIn(BaseModel):
+    """What the new question should be like, e.g. "easier"; without it, just a different one."""
+    model_config = ConfigDict(extra="forbid")
+    instruction: Annotated[Optional[str], Field(max_length=DRAFT_PROMPT_MAX_CHARS), AfterValidator(_optional)] = None
+
+
+class QuizRefineIn(BaseModel):
+    """What to change in the draft, e.g. "make question 3 harder"."""
+    model_config = ConfigDict(extra="forbid")
+    prompt: Annotated[str, Field(min_length=1, max_length=DRAFT_PROMPT_MAX_CHARS), AfterValidator(_required)]
 
 
 class QuestionOut(BaseModel):

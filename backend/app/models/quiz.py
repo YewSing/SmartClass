@@ -6,7 +6,7 @@ and the live game (S48); those tasks add their own columns.
 """
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
+from typing import Any, Optional
 
 from sqlalchemy import CheckConstraint, ForeignKey, Index, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
@@ -42,7 +42,8 @@ class Quiz(Base):
     """`timer_seconds` is per question or for the whole quiz, by `timer_mode`; a game is always per
     question (FR-606). `release` says when the results come out (by the lecturer's hand, or when the
     quiz closes) and `release_marks`/`release_answers` which parts (FR-618, S46); until then both
-    stay hidden. `speed_bonus` is used by game quizzes only (FR-612)."""
+    stay hidden. `speed_bonus` is used by game quizzes only (FR-612). `ai_scope` is what the AI may
+    draft from (`schemas.quiz.AiScope`, S42), so later AI changes keep to it; null = no limit."""
     __tablename__ = "m6_quizzes"
     __table_args__ = (
         CheckConstraint("type IN ('game','graded')", name="ck_m6_quizzes_type"),
@@ -74,6 +75,7 @@ class Quiz(Base):
     release_marks: Mapped[bool] = mapped_column(nullable=False, default=True)
     release_answers: Mapped[bool] = mapped_column(nullable=False, default=True)
     speed_bonus: Mapped[bool] = mapped_column(nullable=False, default=True)
+    ai_scope: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB(none_as_null=True))
     created_at: Mapped[datetime] = mapped_column(nullable=False)        # naive MYT
     updated_at: Mapped[datetime] = mapped_column(nullable=False)        # naive MYT
 
