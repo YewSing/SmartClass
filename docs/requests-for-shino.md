@@ -107,6 +107,19 @@ On Shino's instruction (plan-shino.md S38a), M3 now treats one timetable slot as
 
 ---
 
+## Note for Yew Sing — quiz read interface for Module 8 (FR-820–FR-824) — 2026-11-26
+
+**FR-820–FR-824 can now use Module 6:** `app/services/quiz_read.py` (S47; `docs/interfaces.md` "Quiz read interface for Modules 7 and 8"). M8 is unchanged; the stub `kb/integrations.get_active_attempt` is yours to replace.
+
+- FR-820: `await quiz_read.has_active_graded_attempt(db, student_id, course_id)` → bool. Your stub has no `db` parameter, but both its callers (`assistant.py`, `chat_tools.py`) only test it for None. It is false from the deadline on; game quizzes never count.
+- FR-821–FR-823: `quiz_read.student_answers(db, student_id, course_id, audience="student")`: the student's answers with topic, source (file + page/slide), quiz type, the correct answer and the explanation. `audience="student"` leaves out what the lecturer hasn't released (FR-618, NFR-41), so anything a student will see must use it.
+- FR-824: `quiz_read.course_answers(db, course_id)`: the whole class, for lecturers only.
+- They check no permissions (NFR-04): check the caller first, as with `attendance_read`.
+
+**Status / reply:** open
+
+---
+
 ## Open issue already raised
 
 - `GET /lecturer/analytics` (M7) lets any lecturer read any class's analytics (NFR-04). Details

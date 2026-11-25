@@ -816,3 +816,44 @@ and unknown ids); a game is 409; all but the first are 404 before the start. Eve
   - `most_missed`: lowest correct rate first, at most `QUIZ_MOST_MISSED`, never one everybody got right.
   - `submissions` by name: `{student_id, student_name, matric_no, status, started_at, submitted_at, auto_submitted,
     marks}` (`marks` null while in progress). A student who left the course since still counts.
+
+### Quiz read interface for Modules 7 and 8 (S47, FR-609, FR-620, FR-621)
+
+`app/services/quiz_read.py`. Read only, frozen dataclasses (fields only ever added), **no permission checks**: the
+caller checks NFR-04 first (a student only ever gets their own id). `student_id` is `students.id`.
+
+| Function | Arguments | Returns |
+|---|---|---|
+| `has_active_graded_attempt` (M8, FR-820) | `db, student_id, course_id` | `bool`: the student is taking a graded quiz of the course now |
+| `student_answers` (M8, FR-821–FR-823; M7) | `db, student_id, course_id=None, *, audience, from_date=None, to_date=None` | `list[StudentQuizAnswer]`, oldest attempt first |
+| `course_answers` (M8, FR-824; M7) | `db, course_id, from_date=None, to_date=None` | the same of every student, by matric no |
+| `student_graded_scores` / `course_graded_scores` (M7) | as above | `list[GradedScore]`, per student oldest first |
+| `student_topic_results` / `course_topic_results` (M7) | as above | `list[TopicResult]`, per student, quiz type and topic |
+| `student_game_participation` (M7) | `db, student_id, course_id=None, from_date=None, to_date=None` | `list[GameParticipation]`, oldest first per course |
+| `course_game_participation` (M7) | `db, course_id, from_date=None, to_date=None` | the same of every enrolled student, by matric no |
+
+- **`audience` is required: who will see the figures.** `"lecturer"` = everything. `"student"` = the student
+  themselves (an assistant answer, recommendations, their own insights), so only what the lecturer has released
+  (FR-618, NFR-41): a graded score once the marks are out; a graded quiz's answers and topics once marks **and** answers
+  both are. Results taken back disappear again. Games have nothing to release. The `course_*` functions are for
+  lecturers (and for rules whose result only lecturers see).
+- Only submitted attempts (none that is still running) of students enrolled in the course now; one row however many of
+  its classes they are in. A graded quiz a student didn't take has no row.
+- `has_active_graded_attempt` is false from the deadline on, also before the sweep has submitted the attempt. Games
+  never count.
+- Every object starts with `student_id, matric_no, name, course_id, course_code`. Then:
+  - `StudentQuizAnswer`: `quiz_id, quiz_title, quiz_type graded|game, submitted_at` (of the attempt), `question_id,
+    question_number` (1-based, the quiz's own order), `question_type mcq|short, question_text, options, topic,
+    source_file, source_type, source_page, origin, answered, option_index, answer_text, correct_option_index,
+    suggested_answer, explanation, pending, correct, score` (0–1). An unanswered graded question is a row with
+    `answered` false and counts as not correct; a game has rows for answered questions only. `pending` (a short answer
+    without a grade yet) = neither right nor wrong (`correct`, `score` None).
+  - `GradedScore`: `quiz_id, quiz_title, date, submitted_at, score, max_score, percent, pending_count` (same numbers as
+    S46's results; not complete while `pending_count` > 0).
+  - `TopicResult`: `quiz_type, topic` (None: questions without one; compared exactly), `question_count, answered_count,
+    correct_count, pending_count, correct_rate` (0–1, of the questions that aren't pending; None of nothing).
+  - `GameParticipation`: one per game at least one student played: `quiz_id, quiz_title, date` (of the game), `played,
+    questions_asked` (questions at least one student answered), `questions_answered, correct_count`.
+- Dates are the MYT date the attempt was submitted, inclusive; `from_date > to_date` and an unknown `audience` raise
+  `ValueError`. Unknown ids → `[]` / `False`.
+- For S48: submit a player's `m6_attempts` row only when the game ends, and set `m6_answers.correct` and `score` (0–1).

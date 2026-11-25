@@ -62,7 +62,7 @@ def _pending(answer: QuizAnswer) -> bool:
     return answer.score is None
 
 
-def _marks(answers: list[QuizAnswer], question_count: int) -> MarksOut:
+def marks_of(answers: list[QuizAnswer], question_count: int) -> MarksOut:
     score = _total(answers)
     return MarksOut(score=_rounded(score, "0.001"), max_score=question_count,
                     percent=_percent(score, question_count), pending_count=sum(map(_pending, answers)))
@@ -110,7 +110,7 @@ async def student_result(db: AsyncSession, actor: User, quiz_id: int) -> Student
         select(QuizAnswer).where(QuizAnswer.attempt_id == attempt.id)
         .execution_options(populate_existing=True))).scalars()}
     if marks_out:
-        out.marks = _marks(list(answers.values()), len(attempt.layout))
+        out.marks = marks_of(list(answers.values()), len(attempt.layout))
     if answers_out:
         questions = {q.id: q for q in await quiz_publish.published_questions(db, quiz.id)}
         out.questions = [
@@ -165,7 +165,7 @@ async def lecturer_results(db: AsyncSession, actor: User, quiz_id: int) -> QuizR
         by_attempt[a.attempt_id].append(a)
         by_question[a.question_id].append(a)
 
-    marks = {attempt_id: _marks(by_attempt[attempt_id], len(questions)) for attempt_id in submitted}
+    marks = {attempt_id: marks_of(by_attempt[attempt_id], len(questions)) for attempt_id in submitted}
     complete = [attempt_id for attempt_id in submitted if marks[attempt_id].pending_count == 0]
     total = sum((_total(by_attempt[i]) for i in complete), Decimal(0))
     scores = [marks[i].score for i in complete]
