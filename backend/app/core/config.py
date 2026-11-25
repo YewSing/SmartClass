@@ -150,6 +150,7 @@ class Settings(BaseSettings):
     QUIZ_DEFAULT_QUESTION_SECONDS: int = 30    # timer of a new quiz, per question (5-600)
     QUIZ_DEFAULT_QUIZ_SECONDS: int = 1800      # ...or for the whole quiz (60-14400)
     QUIZ_MAX_QUESTIONS: int = 50               # in one quiz
+    QUIZ_SWEEP_SECONDS: float = 1.0            # submits attempts whose time is up (NFR-47: within 2 s); <= 0 = off
     # AI draft (S41, FR-601-FR-603)
     QUIZ_DRAFT_DEFAULT_QUESTIONS: int = 10     # multiple-choice questions when the prompt gives no number
     QUIZ_DRAFT_MAX_QUESTIONS: int = 20         # per draft

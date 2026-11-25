@@ -8,7 +8,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any, Optional
 
-from sqlalchemy import CheckConstraint, ForeignKey, Index, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import CheckConstraint, ForeignKey, Index, Numeric, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -129,12 +129,21 @@ class QuizQuestion(Base):
 
 
 class QuizAttempt(Base):
-    """One student's go at one quiz, graded or game (FR-607: one per student)."""
+    """One student's go at one quiz, graded or game (FR-607: one per student).
+
+    Graded attempts (S44; rules in `quiz_timer`): `ends_at` is the server's final deadline of the whole
+    attempt, whatever the timer mode. With a timer per question, the question at `current_index` of the
+    layout ends at `question_ends_at`; both are as of the last touch, so read them through
+    `quiz_timer.settle`. `layout` is the attempt's own order, fixed when it starts:
+    `[{"question_id": 5, "options": [2, 0, 1]}, ...]` (`options`: stored option indexes in the order
+    shown, null for a short answer)."""
     __tablename__ = "m6_attempts"
     __table_args__ = (
         UniqueConstraint("quiz_id", "student_id", name="uq_m6_attempts_quiz_student"),
         CheckConstraint("status IN ('in_progress','submitted')", name="ck_m6_attempts_status"),
+        CheckConstraint("current_index IS NULL OR current_index >= 0", name="ck_m6_attempts_current_index"),
         Index("ix_m6_attempts_student", "student_id", "status"),
+        Index("ix_m6_attempts_running", "ends_at", postgresql_where=text("status = 'in_progress'")),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -142,7 +151,10 @@ class QuizAttempt(Base):
     student_id: Mapped[int] = mapped_column(ForeignKey("students.id", ondelete="CASCADE"), nullable=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="in_progress")
     started_at: Mapped[datetime] = mapped_column(nullable=False)        # naive MYT
-    ends_at: Mapped[Optional[datetime]] = mapped_column()               # server deadline of a whole-quiz timer
+    ends_at: Mapped[Optional[datetime]] = mapped_column()               # server deadline of the attempt
+    question_ends_at: Mapped[Optional[datetime]] = mapped_column()      # ...of its current question
+    current_index: Mapped[Optional[int]] = mapped_column()              # per-question timer only
+    layout: Mapped[Optional[list[dict[str, Any]]]] = mapped_column(JSONB(none_as_null=True))
     submitted_at: Mapped[Optional[datetime]] = mapped_column()
     auto_submitted: Mapped[bool] = mapped_column(nullable=False, default=False)
 

@@ -655,8 +655,8 @@ Tables `m6_quizzes`, `m6_questions`, `m6_attempts`, `m6_answers` (`app/models/qu
   (on_close needs at least one); `speed_bonus` is for games. PATCH changes only the given fields; null
   clears only the two times.
 - PATCH and DELETE work on a draft without attempts only (409). Delete removes its questions, audited
-  `QUIZ_DELETE` (target `m6_quiz`). They lock the quiz row: publishing (S43) and starting an attempt
-  (S44) must lock it too.
+  `QUIZ_DELETE` (target `m6_quiz`). They lock the quiz row; publishing (S43) and starting an attempt
+  (S44) lock it too.
 - **Question** (`QuestionIn`, `app/schemas/quiz.py`): `{type mcq|short, text ≤ 1000, options (mcq: 2–6
   different, ≤ 300), answer (mcq: option index), suggested_answer (short), topic, origin
   from_material|extended, source_file, source_type page|slide|section, source_page, explanation}`;
@@ -718,7 +718,7 @@ By hand: `app/services/quiz_questions.py`; with the AI: `app/services/quiz/refin
     `published_at`. `quiz.published` goes to the active students enrolled in any class of the course after the
     commit (naming the opening time when it is later). Publishing again within 24 h doesn't notify twice.
   - unpublish: published or closed → draft; 409 for a draft or once the quiz has attempts (close it instead).
-  - close: published only (409). `status` stays `published` when `closes_at` passes by itself, so use
+  - close: published only (409); submits the graded attempts still running (S44). `status` stays `published` when `closes_at` passes by itself, so use
     `quiz_publish.window(quiz, now)` → upcoming|open|closed, never `status` alone, to tell whether it can be taken.
 - A published quiz has its approved questions only: `quiz_publish.published_questions(db, quiz_id)`.
 - `GET /student/me/quizzes` (students; enrolled courses, own attempt) → `{quizzes: [{id, course_id, course_code,
@@ -727,3 +727,34 @@ By hand: `app/services/quiz_questions.py`; with the AI: `app/services/quiz/refin
   open, attempted (submitted, or its time or the quiz is over), closed (not attempted). `open` with
   `attempt_status: in_progress` = resume. Order: open (soonest to close first), upcoming (soonest to open), the
   rest newest first.
+
+### Graded attempts and timers (S44, FR-607, FR-608)
+
+`app/services/quiz_attempts.py` (the student's actions), `app/services/quiz_timer.py` (the rules and the sweep).
+All under `/student/me/quizzes/{id}/attempt`, students enrolled in the course only (403 for everyone else, drafts
+and unknown ids); a game is 409; all but the first are 404 before the start. Every one returns `AttemptOut`:
+
+- `POST ""`: start (201) or resume (200). 409 when the quiz isn't open or the student's one attempt is over.
+- `GET ""` · `POST /submit` (repeating it changes nothing).
+- `PUT /answers/{question_id} {option_index}` (multiple choice) or `{text ≤ 2000}` (short): saves one answer; null
+  or empty clears it. 409 when its time is up or (per-question timer) it isn't that question's turn; 422 a wrong
+  kind of answer; 404 not a question of the attempt.
+- `POST /next {question_id}`: per-question timer only (409). Locks that question and starts the next one; after
+  the last one the attempt is submitted. Repeating it for a question already passed changes nothing.
+- `AttemptOut`: `{quiz_id, title, course_code, timer_mode, timer_seconds, status in_progress|submitted, started_at,
+  ends_at, submitted_at, auto_submitted, server_time, remaining_seconds, current_number, question_ends_at,
+  question_remaining_seconds, question_count, answered_count, questions: [{id, number, type, text, options:
+  [{index, text}], option_index, answer_text, answered_at}]}`. `questions`: all with a whole-quiz timer, the
+  current one with a per-question timer, none once submitted. Show options in the order given and send back
+  their `index`. Count down from the `*_remaining_seconds` (phone clocks differ). Nothing hidden (NFR-41): no
+  answer, suggested answer, explanation, topic, source or mark.
+- **Time:** `ends_at` is the final deadline (start + the quiz's time, or + every question's time), never after
+  `closes_at`; at the deadline itself it is over. Per question, each question's time starts when the one before it
+  ends (by `next` or by its timer), so being away never adds time, and moving on early brings `ends_at` forward.
+  Over → submitted with `auto_submitted` and `submitted_at` = the deadline: on the next request, or by the sweep
+  every `QUIZ_SWEEP_SECONDS` (1; NFR-47). Closing the quiz by hand submits running attempts at that moment.
+- **For code:** read a running attempt through `quiz_timer.settle` (its stored question is as of the last touch);
+  `quiz_timer.submit` is the only place an attempt ends (S45 grades from there). Lock order: quiz, then attempt.
+- **Shuffle** (`m6_attempts.layout`, fixed at the start): question order and option order, per student. Options
+  that refer to each other ("All of the above", "Both A and B") keep their order. `m6_answers.option_index` is
+  always the question's own option index.

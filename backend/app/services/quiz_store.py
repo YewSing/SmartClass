@@ -7,7 +7,7 @@ Access (NFR-04): a quiz belongs to a course, so every lecturer assigned to a cla
 may work on it. Everyone else, and an unknown quiz or course id, gets 403 (ids can't be probed).
 
 Only a draft without attempts can be changed or deleted (409). Both lock the quiz row first; code
-that publishes a quiz (`quiz_publish`) or starts an attempt (S44) must lock it too, so neither can slip in
+that publishes a quiz (`quiz_publish`) or starts an attempt (`quiz_attempts`) locks it too, so neither slips in
 between the check and the write.
 """
 from __future__ import annotations

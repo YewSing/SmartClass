@@ -6,6 +6,7 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StrictBool, S
 
 from app.core.timezone import MYT
 from app.models.quiz import (
+    ANSWER_TEXT_MAX_CHARS,
     EXPLANATION_MAX_CHARS,
     MAX_OPTIONS,
     MIN_OPTIONS,
@@ -261,3 +262,60 @@ class QuizCardOut(BaseModel):
 
 class QuizCardListOut(BaseModel):
     quizzes: list[QuizCardOut]
+
+
+# ── graded attempts (FR-607, FR-608) — S44 ───────────────────────────────────
+
+class AnswerIn(BaseModel):
+    """`option_index` (the option's own `index`) for a multiple-choice question, `text` for a short
+    answer. Null or empty clears the answer."""
+    model_config = ConfigDict(extra="forbid")
+    option_index: Optional[StrictInt] = None
+    text: Annotated[Optional[str], Field(max_length=ANSWER_TEXT_MAX_CHARS), AfterValidator(_optional)] = None
+
+
+class NextQuestionIn(BaseModel):
+    """The question the student is done with, so a repeated request never skips another one."""
+    model_config = ConfigDict(extra="forbid")
+    question_id: int = Field(ge=1, le=_MAX_ID)
+
+
+class AttemptOptionOut(BaseModel):
+    index: int                                      # send this back as `option_index`
+    text: str
+
+
+class AttemptQuestionOut(BaseModel):
+    """Student view of a question in an attempt. Its answer, suggested answer, explanation, topic and
+    source must never be added (NFR-41)."""
+    id: int
+    number: int                                     # 1-based, in this attempt's order
+    type: Literal["mcq", "short"]
+    text: str
+    options: Optional[list[AttemptOptionOut]]       # in this attempt's order
+    option_index: Optional[int]                     # the student's own saved answer
+    answer_text: Optional[str]
+    answered_at: Optional[datetime]
+
+
+class AttemptOut(BaseModel):
+    """The student's own attempt. `questions` holds what may be answered now: every question with a
+    whole-quiz timer, only the current one with a timer per question, none once submitted."""
+    quiz_id: int
+    title: str
+    course_code: str
+    timer_mode: TimerMode
+    timer_seconds: int
+    status: Literal["in_progress", "submitted"]
+    started_at: datetime
+    ends_at: datetime                               # the attempt's final deadline
+    submitted_at: Optional[datetime]
+    auto_submitted: bool
+    server_time: datetime
+    remaining_seconds: float                        # of the attempt; 0 once submitted
+    current_number: Optional[int]                   # per-question timer, in progress: which one is open
+    question_ends_at: Optional[datetime]            # ...and its deadline
+    question_remaining_seconds: Optional[float]
+    question_count: int
+    answered_count: int
+    questions: list[AttemptQuestionOut]

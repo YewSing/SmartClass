@@ -5,7 +5,7 @@
 
 Access is `quiz_store.get_quiz`'s (the course's lecturers only, 403). Each change locks the quiz row
 first, so it runs one after the other with question edits, with each other and with attempt starts
-(S44, which must lock it too).
+(`quiz_attempts`, which share-locks it).
 
 Only approved questions are in a published quiz (`published_questions`). The others stay stored for
 the lecturer, who finds them again after unpublishing. A published quiz can't be edited, so its
@@ -25,7 +25,7 @@ from app.models.class_ import ClassOccurrence, Enrollment
 from app.models.quiz import Quiz, QuizQuestion
 from app.models.user import Student, User
 from app.schemas.quiz import QuizDetailOut
-from app.services import notify, quiz_store
+from app.services import notify, quiz_store, quiz_timer
 from app.services.audit_service import write_log
 
 EVENT_PUBLISHED = "quiz.published"
@@ -117,8 +117,10 @@ async def unpublish(db: AsyncSession, actor: User, quiz_id: int) -> QuizDetailOu
 
 
 async def close(db: AsyncSession, actor: User, quiz_id: int) -> QuizDetailOut:
-    """Published → closed, whatever its closing time."""
+    """Published → closed, whatever its closing time. Graded attempts still running are submitted as
+    they are, in the same transaction."""
     quiz = await quiz_store.get_quiz(db, actor, quiz_id, lock=True)
     if quiz.status != "published":
         raise _conflict("Only a published quiz can be closed")
+    await quiz_timer.end_attempts(db, quiz)
     return await _move(db, actor, quiz, "closed", "QUIZ_CLOSE")
